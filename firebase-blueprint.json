@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile",
+      "description": "Stores user-specific information and preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique ID of the user." },
+        "email": { "type": "string", "format": "email", "description": "The user's email address." },
+        "displayName": { "type": "string", "description": "The user's display name." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the profile was created." },
+        "shippingAddresses": {
+          "type": "array",
+          "description": "List of shipping addresses.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "address": { "type": "string" },
+              "city": { "type": "string" },
+              "postalCode": { "type": "string" },
+              "country": { "type": "string" },
+              "isDefault": { "type": "boolean" }
+            }
+          }
+        },
+        "points": { "type": "integer", "description": "User loyalty points." }
+      },
+      "required": ["uid", "email"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "users",
+      "description": "User profile documents."
+    }
+  }
+}

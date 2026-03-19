@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+    
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      // Required fields
+      let hasRequired = data.keys().hasAll(['uid', 'email']);
+      
+      // Type checks
+      let validUid = data.uid is string && data.uid == request.auth.uid;
+      let validEmail = isValidEmail(data.email);
+      
+      // Optional fields validation
+      let validDisplayName = !('displayName' in data) || data.displayName is string;
+      let validAddresses = !('shippingAddresses' in data) || data.shippingAddresses is list;
+      let validPoints = !('points' in data) || (data.points is number && data.points >= 0);
+      let validCheckIn = !('lastCheckIn' in data) || data.lastCheckIn is string;
+
+      return hasRequired && validUid && validEmail && 
+             validDisplayName && validAddresses && validPoints && validCheckIn;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+    }
+  }
+}
