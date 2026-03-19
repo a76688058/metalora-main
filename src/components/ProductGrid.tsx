@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useDeferredValue } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { motion, useMotionValue, useSpring, useTransform, useScroll } from 'framer-motion';
 import { useProducts } from '../context/ProductContext';
 import { useAuth } from '../context/AuthContext';
 import { Product } from '../data/products';
@@ -8,10 +8,18 @@ import { supabase } from '../lib/supabase';
 import { Sparkles, Lock } from 'lucide-react';
 import Skeleton from './Skeleton';
 import AnodicBadge from './AnodicBadge';
+import LuxurySearchBar from './LuxurySearchBar';
 
 const ProductCard = ({ product }: { product: Product }) => {
   const [isLoaded, setIsLoaded] = React.useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Parallax effect on scroll
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"]
+  });
+  const parallaxY = useTransform(scrollYProgress, [0, 1], [30, -30]);
 
   // Mouse position for tilt effect
   const x = useMotionValue(0);
@@ -56,6 +64,7 @@ const ProductCard = ({ product }: { product: Product }) => {
         style={{
           rotateX,
           rotateY,
+          y: parallaxY,
           transformStyle: 'preserve-3d',
         }}
         className="relative aspect-[4/5] rounded-2xl overflow-hidden bg-zinc-900 shadow-xl shadow-black/40 transition-shadow duration-300 group-hover:shadow-2xl group-hover:shadow-indigo-500/20"
@@ -97,7 +106,7 @@ const ProductCard = ({ product }: { product: Product }) => {
         <h3 className="text-lg font-extrabold text-white tracking-[-0.02em] group-hover:text-indigo-400 transition-colors">
           {product.title}
         </h3>
-        <p className="text-xs text-zinc-500 mt-1 font-medium uppercase tracking-widest">
+        <p className="text-xs text-zinc-500 mt-1 font-light uppercase tracking-widest">
           {product.subtitle || product.artist}
         </p>
       </div>
@@ -106,8 +115,19 @@ const ProductCard = ({ product }: { product: Product }) => {
 };
 
 export default function ProductGrid() {
-  const { products: allProducts, isLoading } = useProducts();
-  const products = allProducts.filter(p => p.is_visible !== false);
+  const { products: allProducts, isLoading, searchTerm } = useProducts();
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+  
+  const products = allProducts.filter(p => {
+    if (p.is_visible === false) return false;
+    if (!deferredSearchTerm) return true;
+    
+    const term = deferredSearchTerm.toLowerCase();
+    const titleMatch = p.title.toLowerCase().includes(term);
+    const artistMatch = p.artist?.toLowerCase().includes(term) || p.subtitle?.toLowerCase().includes(term);
+    
+    return titleMatch || artistMatch;
+  });
 
   return (
     <section className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-10 pt-4 pb-24">
@@ -120,6 +140,9 @@ export default function ProductGrid() {
           빛과 금속이 빚어낸 공간의 오브제. 1.15mm 알루미늄 위에 새겨진 영원한 가치를 만나보세요.
         </p>
       </div>
+
+      {/* Luxury Search Bar */}
+      <LuxurySearchBar />
 
       {/* Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-12 md:gap-x-10 md:gap-y-20">

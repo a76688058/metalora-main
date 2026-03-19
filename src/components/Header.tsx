@@ -6,14 +6,12 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import LoginModal from './LoginModal';
 import Cart from './Cart';
-import InquiryModal from './InquiryModal';
 
 export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [isInquiryModalOpen, setIsInquiryModalOpen] = useState(false);
   const { user, signOut, isLoggingOut } = useAuth();
   const { cartItems } = useCart();
 
@@ -81,13 +79,6 @@ export default function Header() {
                   {isLoggingOut ? <Loader2 className="animate-spin" size={20} /> : <LogOut size={20} />}
                 </button>
               </div>
-              <button 
-                onClick={() => setIsInquiryModalOpen(true)}
-                className="text-white/70 hover:text-white transition-colors"
-                title="1:1 문의하기"
-              >
-                <MessageSquare size={20} />
-              </button>
               <button 
                 onClick={() => setIsCartOpen(true)}
                 className="text-white/70 hover:text-white transition-colors relative"
@@ -157,17 +148,6 @@ export default function Header() {
               >
                 이방성 셰이더
               </Link>
-              {user && (
-                <button
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    setIsInquiryModalOpen(true);
-                  }}
-                  className="text-2xl font-medium text-white/60 hover:text-white transition-colors"
-                >
-                  1:1 문의하기
-                </button>
-              )}
               <div className="flex gap-8 mt-8">
                 {user ? (
                   <>
@@ -235,11 +215,6 @@ export default function Header() {
         <Cart 
           isOpen={isCartOpen} 
           onClose={() => setIsCartOpen(false)} 
-        />
-
-        <InquiryModal 
-          isOpen={isInquiryModalOpen} 
-          onClose={() => setIsInquiryModalOpen(false)} 
         />
       </div>
     </header>

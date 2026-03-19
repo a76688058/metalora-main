@@ -83,8 +83,10 @@ export default function Home() {
                     <div className="absolute inset-0 bg-gradient-to-br from-zinc-800/50 to-transparent z-10" />
                     <div className="absolute bottom-16 left-16 z-20 max-w-md">
                       <Layers className="mb-8 text-zinc-500" size={40} />
-                      <h3 className="text-5xl font-semibold tracking-tight mb-6">{t('section_material_title')}</h3>
-                      <p className="text-zinc-400 text-lg leading-relaxed">{t('section_material_desc')}</p>
+                      <h3 className="text-5xl font-extrabold tracking-tight mb-6">소재의 혁신</h3>
+                      <p className="text-zinc-400 text-lg font-light leading-relaxed">
+                        1.15mm의 초정밀 알루미늄 합금. 종이의 한계를 넘어, 영원히 변치 않는 가치를 선사합니다.
+                      </p>
                     </div>
                     <div className="absolute top-0 right-0 w-1/2 h-full opacity-30 group-hover:opacity-50 transition-opacity">
                       <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
@@ -99,8 +101,10 @@ export default function Home() {
               <Reveal delay={0.1} y={60} scale={0.95}>
                 <div className="relative h-[600px] rounded-[2.5rem] bg-zinc-900 p-16 border border-white/5 flex flex-col justify-end">
                   <Zap className="mb-8 text-zinc-500" size={40} />
-                  <h3 className="text-3xl font-semibold tracking-tight mb-6">{t('section_precision_title')}</h3>
-                  <p className="text-zinc-500 text-base leading-relaxed">{t('section_precision_desc')}</p>
+                  <h3 className="text-3xl font-extrabold tracking-tight mb-6">초정밀 공정</h3>
+                  <p className="text-zinc-500 text-base font-light leading-relaxed">
+                    마이크로 단위의 정밀한 가공으로 완성된 완벽한 마감.
+                  </p>
                 </div>
               </Reveal>
 
@@ -108,8 +112,10 @@ export default function Home() {
               <Reveal delay={0.2} y={60} scale={0.95}>
                 <div className="relative h-[600px] rounded-[2.5rem] bg-zinc-900 p-16 border border-white/5 flex flex-col justify-end">
                   <MousePointer2 className="mb-8 text-zinc-500" size={40} />
-                  <h3 className="text-3xl font-semibold tracking-tight mb-6">{t('section_magnet_title')}</h3>
-                  <p className="text-zinc-500 text-base leading-relaxed">{t('section_magnet_desc')}</p>
+                  <h3 className="text-3xl font-extrabold tracking-tight mb-6">마그네틱 결합</h3>
+                  <p className="text-zinc-500 text-base font-light leading-relaxed">
+                    보이지 않는 자력으로 완성되는 직관적이고 우아한 설치 경험.
+                  </p>
                 </div>
               </Reveal>
 
@@ -121,8 +127,10 @@ export default function Home() {
                       <Sparkles size={400} className="text-white" />
                     </div>
                     <div className="absolute inset-0 p-16 flex flex-col justify-center max-w-xl">
-                      <h3 className="text-5xl font-semibold tracking-tight mb-6">{t('section_light_title')}</h3>
-                      <p className="text-zinc-400 text-lg leading-relaxed">{t('section_light_desc')}</p>
+                      <h3 className="text-5xl font-extrabold tracking-tight mb-6">빛의 연금술</h3>
+                      <p className="text-zinc-400 text-lg font-light leading-relaxed">
+                        이방성 셰이더 기술이 적용된 표면은 빛의 각도에 따라 끊임없이 변화하며 살아숨쉬는 듯한 생동감을 부여합니다.
+                      </p>
                     </div>
                   </div>
                 </Reveal>
@@ -137,12 +145,12 @@ export default function Home() {
             <div className="space-y-20">
               <div className="space-y-8">
                 <Reveal y={30}>
-                  <span className="text-xs font-bold uppercase tracking-[0.4em] text-zinc-500 block mb-4">Edition 01</span>
-                  <h2 className="text-7xl md:text-8xl font-semibold tracking-tighter leading-none">{t('the_object')}</h2>
+                  <span className="text-xs font-bold uppercase tracking-[0.4em] text-zinc-500 block mb-4">에디션 01</span>
+                  <h2 className="text-7xl md:text-8xl font-extrabold tracking-tighter leading-none">오브제의 탄생</h2>
                 </Reveal>
                 <Reveal delay={0.1} y={30}>
-                  <p className="text-2xl text-zinc-400 leading-relaxed max-w-lg">
-                    {t('object_desc')}
+                  <p className="text-2xl text-zinc-400 font-light leading-relaxed max-w-lg">
+                    단순한 그림이 아닙니다. 공간을 지배하는 하나의 완벽한 금속 오브제입니다.
                   </p>
                 </Reveal>
               </div>
@@ -154,8 +162,10 @@ export default function Home() {
                       <ZoomIn className="h-6 w-6 text-zinc-300" />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-medium mb-3">{t('feat_8k_title')}</h3>
-                      <p className="text-zinc-500 text-lg leading-relaxed">{t('feat_8k_desc')}</p>
+                      <h3 className="text-2xl font-extrabold mb-3">8K 초고해상도</h3>
+                      <p className="text-zinc-500 text-lg font-light leading-relaxed">
+                        육안으로 구별할 수 없는 극한의 선명함.
+                      </p>
                     </div>
                   </div>
                 </Reveal>
@@ -165,8 +175,10 @@ export default function Home() {
                       <ShieldCheck className="h-6 w-6 text-zinc-300" />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-medium mb-3">{t('feat_mag_title')}</h3>
-                      <p className="text-zinc-500 text-lg leading-relaxed">{t('feat_mag_desc')}</p>
+                      <h3 className="text-2xl font-extrabold mb-3">자성 마운트 시스템</h3>
+                      <p className="text-zinc-500 text-lg font-light leading-relaxed">
+                        벽에 흠집을 내지 않는 혁신적인 부착 방식.
+                      </p>
                     </div>
                   </div>
                 </Reveal>
@@ -176,13 +188,13 @@ export default function Home() {
                 <div className="flex flex-col sm:flex-row items-center gap-10 pt-16 border-t border-white/5">
                   <button
                     onClick={() => setIsPaymentOpen(true)}
-                    className="w-full sm:w-auto px-16 py-6 rounded-full bg-white text-black font-bold text-base tracking-tight hover:bg-zinc-200 transition-all active:scale-95 shadow-xl shadow-white/5"
+                    className="w-full sm:w-auto px-16 py-6 rounded-full bg-white text-black font-extrabold text-base tracking-tight hover:bg-zinc-200 transition-all active:scale-95 shadow-xl shadow-white/5"
                   >
-                    {t('buy_button')}
+                    구매하기
                   </button>
                   <div className="flex items-center gap-4 text-xs text-zinc-500 uppercase tracking-[0.2em] font-semibold">
                     <Truck size={20} />
-                    <span>{t('logistic_adv')}</span>
+                    <span>전 세계 무료 배송</span>
                   </div>
                 </div>
               </Reveal>
@@ -202,22 +214,22 @@ export default function Home() {
         <section className="bg-zinc-900 text-white py-64 px-6 text-center overflow-hidden z-10 border-t border-white/5">
           <div className="max-w-5xl mx-auto space-y-16">
             <Reveal y={50}>
-              <h2 className="text-6xl md:text-8xl lg:text-9xl font-bold tracking-tighter leading-[0.85]">
-                Beyond Paper.<br />Beyond Tradition.
+              <h2 className="text-6xl md:text-8xl lg:text-9xl font-extrabold tracking-tighter leading-[1.1]">
+                종이를 넘어.<br />전통을 넘어.
               </h2>
             </Reveal>
             <Reveal delay={0.1} y={50}>
-              <p className="text-2xl md:text-3xl text-zinc-400 max-w-3xl mx-auto font-medium leading-tight">
-                Experience the future of wall art. Durable, magnetic, and breathtakingly sharp.
+              <p className="text-2xl md:text-3xl text-zinc-400 max-w-3xl mx-auto font-light leading-tight">
+                월 아트의 미래를 경험하십시오.<br/>견고하고, 자성을 띠며, 숨막히도록 선명합니다.
               </p>
             </Reveal>
             <Reveal delay={0.2} y={50}>
               <div className="pt-12">
                 <button 
                   onClick={handleBuyClick}
-                  className="px-16 py-6 rounded-full bg-white text-black font-bold text-lg tracking-tight hover:bg-zinc-200 transition-all active:scale-95 shadow-2xl"
+                  className="px-16 py-6 rounded-full bg-white text-black font-extrabold text-lg tracking-tight hover:bg-zinc-200 transition-all active:scale-95 shadow-2xl"
                 >
-                  {t('buy_button')}
+                  구매하기
                 </button>
               </div>
             </Reveal>

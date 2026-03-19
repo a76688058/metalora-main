@@ -5,6 +5,8 @@ import { supabase, supabasePublic } from '../lib/supabase';
 interface ProductContextType {
   products: Product[];
   isLoading: boolean;
+  searchTerm: string;
+  setSearchTerm: (term: string) => void;
   fetchProducts: () => Promise<void>;
   addProduct: (product: Product) => Promise<void>;
   updateProduct: (id: string, updatedProduct: Product) => Promise<void>;
@@ -24,6 +26,7 @@ export const useProducts = () => {
 export const ProductProvider = ({ children }: { children: ReactNode }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchProducts = useCallback(async () => {
     if (!supabasePublic) return;
@@ -114,7 +117,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <ProductContext.Provider value={{ products, isLoading, fetchProducts, addProduct, updateProduct, deleteProduct }}>
+    <ProductContext.Provider value={{ products, isLoading, searchTerm, setSearchTerm, fetchProducts, addProduct, updateProduct, deleteProduct }}>
       {children}
     </ProductContext.Provider>
   );
