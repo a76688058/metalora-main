@@ -57,8 +57,11 @@ export default function AlchemyParticles() {
     
     const handleOrientation = (e: DeviceOrientationEvent) => {
       if (e.beta && e.gamma) {
-        mouse.current.x = (e.gamma / 45);
-        mouse.current.y = (e.beta / 45);
+        // High-pass filter for liquid-smooth movement
+        const targetX = (e.gamma / 45);
+        const targetY = (e.beta / 45);
+        mouse.current.x += (targetX - mouse.current.x) * 0.05;
+        mouse.current.y += (targetY - mouse.current.y) * 0.05;
       }
     };
 
@@ -142,8 +145,9 @@ export default function AlchemyParticles() {
           void main() {
             float d = distance(gl_PointCoord, vec2(0.5));
             if (d > 0.5) discard;
-            float strength = 0.05 / d - 0.1;
-            gl_FragColor = vec4(uColor, strength * vOpacity * 0.5);
+            // Enhanced strength for elegant, dreamlike glow
+            float strength = 0.08 / d - 0.15;
+            gl_FragColor = vec4(uColor, strength * vOpacity * 0.6);
           }
         `}
       />

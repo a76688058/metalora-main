@@ -7,6 +7,7 @@ import { Product } from '../data/products';
 import { supabase } from '../lib/supabase';
 import { Sparkles, Lock } from 'lucide-react';
 import Skeleton from './Skeleton';
+import AnodicBadge from './AnodicBadge';
 
 const ProductCard = ({ product }: { product: Product }) => {
   const [isLoaded, setIsLoaded] = React.useState(false);
@@ -81,24 +82,19 @@ const ProductCard = ({ product }: { product: Product }) => {
         />
 
         {/* Scarcity Badge */}
-        <div className="absolute top-3 right-3 flex flex-col gap-1 items-end z-20">
+        <div className="absolute top-3 right-3 flex flex-col gap-2 items-end z-20">
           {product.limited && (
-            <div className="bg-black/60 backdrop-blur-md border border-white/10 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider text-white flex items-center gap-1">
-              <Sparkles size={10} className="text-yellow-400" />
-              <span>한정판</span>
-            </div>
+            <AnodicBadge text="LIMITED" />
           )}
           {product.created_at && (new Date().getTime() - new Date(product.created_at).getTime()) / (1000 * 3600 * 24) <= 7 && (
-            <div className="bg-green-500/80 backdrop-blur-md border border-white/10 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider text-white">
-              신규
-            </div>
+            <AnodicBadge text="NEW" />
           )}
         </div>
       </motion.div>
 
       {/* Product Info */}
       <div className="mt-6 px-2 flex flex-col items-center justify-center text-center">
-        <h3 className="text-lg font-bold text-white tracking-tight group-hover:text-indigo-400 transition-colors">
+        <h3 className="text-lg font-extrabold text-white tracking-[-0.02em] group-hover:text-indigo-400 transition-colors">
           {product.title}
         </h3>
         <p className="text-xs text-zinc-500 mt-1 font-medium uppercase tracking-widest">

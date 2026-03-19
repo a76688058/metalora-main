@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-export default function AnodicBadge() {
+export default function AnodicBadge({ text = "Alchemic Series 01" }: { text?: string }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -15,8 +15,8 @@ export default function AnodicBadge() {
         boxShadow: '0 4px 24px -1px rgba(0, 0, 0, 0.2)',
       }}
     >
-      <span className="text-[10px] font-sans font-bold tracking-[0.3em] uppercase text-white/80">
-        Alchemic Series 01
+      <span className="text-[10px] font-sans font-bold tracking-[0.3em] uppercase text-white/80 whitespace-nowrap">
+        {text}
       </span>
     </motion.div>
   );

@@ -105,7 +105,7 @@ export default function Footer() {
       </div>
 
       {/* Bottom Bar */}
-      <div className="max-w-7xl mx-auto px-6 mt-24 pt-8 border-t border-white/5 flex flex-col md:row justify-between items-center gap-4 text-[10px] uppercase tracking-[0.2em] text-zinc-600 font-medium">
+      <div className="max-w-7xl mx-auto px-6 mt-24 pt-8 border-t border-white/5 flex flex-col md:row justify-between items-center gap-4 text-[10px] uppercase tracking-[0.4em] text-zinc-600 font-medium">
         <p>© {currentYear} METALORA. ALL RIGHTS RESERVED.</p>
         <div className="flex gap-8">
           <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
