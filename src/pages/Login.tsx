@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { Loader2, X } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import { Canvas } from '@react-three/fiber';
+import AlchemyParticles from '../components/AlchemyParticles';
 
 export default function Login() {
   const { user, profile, isLoading: authLoading, refreshSession } = useAuth();
@@ -291,11 +293,20 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4 pt-20">
+    <div className="min-h-screen bg-[#040D12] flex items-center justify-center p-4 pt-20 relative overflow-hidden">
+      {/* Atmospheric Background */}
+      <div className="absolute inset-0 z-0">
+        <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
+          <AlchemyParticles densityMultiplier={0.3} speedMultiplier={0.2} color="#4A0B66" />
+        </Canvas>
+      </div>
+
       <motion.div 
+        layout
+        transition={{ type: "spring", stiffness: 100, damping: 20 }}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative w-full max-w-md bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl"
+        className="relative z-10 w-full max-w-md bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-[0_30px_60px_rgba(4,13,18,0.8),0_0_40px_rgba(46,7,63,0.3)]"
       >
         {/* Close Button */}
         <button 
@@ -310,84 +321,149 @@ export default function Login() {
           <X size={24} />
         </button>
 
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-2">METALORA</h1>
-          <p className="text-zinc-400">프리미엄 메탈 포스터 멤버십</p>
-        </div>
+        <motion.div layout transition={{ type: "spring", stiffness: 100, damping: 20 }} className="text-center mb-8">
+          <h1 className="text-3xl font-extrabold text-white tracking-[-0.02em] mb-2">METALORA</h1>
+          <p className="text-zinc-400 font-light">프리미엄 메탈 포스터 멤버십</p>
+        </motion.div>
 
-        <form onSubmit={handleSignUp} className="space-y-4">
-          {!isLoginMode && (
-            <>
-              <div>
-                <input
-                  type="text"
-                  name="full_name"
-                  required
-                  value={formData.full_name}
-                  onChange={handleInputChange}
-                  placeholder="실명"
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-4 text-white placeholder:text-zinc-500 focus:outline-none focus:border-white transition-colors text-lg"
-                />
-              </div>
-              <div>
-                <input
-                  type="tel"
-                  name="phone_number"
-                  required
-                  value={formData.phone_number}
-                  onChange={handleInputChange}
-                  placeholder="휴대폰 번호 (010-0000-0000)"
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-4 text-white placeholder:text-zinc-500 focus:outline-none focus:border-white transition-colors text-lg"
-                />
-              </div>
-            </>
-          )}
-          <div>
+        <form onSubmit={handleSignUp} className="space-y-6">
+          <AnimatePresence mode="popLayout">
+            {!isLoginMode && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                className="space-y-6 overflow-hidden"
+              >
+                <div className="relative group">
+                  <input
+                    type="text"
+                    name="full_name"
+                    id="full_name"
+                    required
+                    value={formData.full_name}
+                    onChange={handleInputChange}
+                    placeholder=" "
+                    className="peer w-full bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-xl px-4 pt-6 pb-2 text-white focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 focus:shadow-[0_0_15px_rgba(255,255,255,0.1),inset_0_0_10px_rgba(46,7,63,0.2)] transition-all duration-300 text-lg"
+                  />
+                  <label 
+                    htmlFor="full_name"
+                    className="absolute left-4 top-4 text-zinc-400 text-lg transition-all duration-300 pointer-events-none peer-focus:-translate-y-3 peer-focus:text-xs peer-focus:text-white/80 peer-[:not(:placeholder-shown)]:-translate-y-3 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-zinc-300"
+                  >
+                    실명
+                  </label>
+                </div>
+                <div className="relative group">
+                  <input
+                    type="tel"
+                    name="phone_number"
+                    id="phone_number"
+                    required
+                    value={formData.phone_number}
+                    onChange={handleInputChange}
+                    placeholder=" "
+                    className="peer w-full bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-xl px-4 pt-6 pb-2 text-white focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 focus:shadow-[0_0_15px_rgba(255,255,255,0.1),inset_0_0_10px_rgba(46,7,63,0.2)] transition-all duration-300 text-lg"
+                  />
+                  <label 
+                    htmlFor="phone_number"
+                    className="absolute left-4 top-4 text-zinc-400 text-lg transition-all duration-300 pointer-events-none peer-focus:-translate-y-3 peer-focus:text-xs peer-focus:text-white/80 peer-[:not(:placeholder-shown)]:-translate-y-3 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-zinc-300"
+                  >
+                    휴대폰 번호 (010-0000-0000)
+                  </label>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          
+          <motion.div layout transition={{ type: "spring", stiffness: 100, damping: 20 }} className="relative group">
             <input
               type="text"
               name="username"
+              id="username"
               required
               value={formData.username}
               onChange={handleInputChange}
-              placeholder="아이디"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-4 text-white placeholder:text-zinc-500 focus:outline-none focus:border-white transition-colors text-lg"
+              placeholder=" "
+              className="peer w-full bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-xl px-4 pt-6 pb-2 text-white focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 focus:shadow-[0_0_15px_rgba(255,255,255,0.1),inset_0_0_10px_rgba(46,7,63,0.2)] transition-all duration-300 text-lg"
             />
-          </div>
-          <div>
+            <label 
+              htmlFor="username"
+              className="absolute left-4 top-4 text-zinc-400 text-lg transition-all duration-300 pointer-events-none peer-focus:-translate-y-3 peer-focus:text-xs peer-focus:text-white/80 peer-[:not(:placeholder-shown)]:-translate-y-3 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-zinc-300"
+            >
+              아이디
+            </label>
+          </motion.div>
+          
+          <motion.div layout transition={{ type: "spring", stiffness: 100, damping: 20 }} className="relative group">
             <input
               type="password"
               name="password"
+              id="password"
               required
               value={formData.password}
               onChange={handleInputChange}
-              placeholder="비밀번호"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-4 text-white placeholder:text-zinc-500 focus:outline-none focus:border-white transition-colors text-lg"
+              placeholder=" "
+              className="peer w-full bg-white/5 backdrop-blur-[12px] border border-white/10 rounded-xl px-4 pt-6 pb-2 text-white focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 focus:shadow-[0_0_15px_rgba(255,255,255,0.1),inset_0_0_10px_rgba(46,7,63,0.2)] transition-all duration-300 text-lg"
             />
-          </div>
+            <label 
+              htmlFor="password"
+              className="absolute left-4 top-4 text-zinc-400 text-lg transition-all duration-300 pointer-events-none peer-focus:-translate-y-3 peer-focus:text-xs peer-focus:text-white/80 peer-[:not(:placeholder-shown)]:-translate-y-3 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-zinc-300"
+            >
+              비밀번호
+            </label>
+          </motion.div>
 
-          {errorMsg && (
-            <div className="text-red-500 text-sm px-2 pt-1 font-medium">
-              {errorMsg}
-            </div>
-          )}
+          <AnimatePresence>
+            {errorMsg && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                layout 
+                transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                className="text-red-500 text-sm px-2 pt-1 font-medium overflow-hidden"
+              >
+                {errorMsg}
+              </motion.div>
+            )}
 
-          {successMsg && (
-            <div className="text-emerald-400 text-sm px-2 pt-1">
-              {successMsg}
-            </div>
-          )}
+            {successMsg && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                layout 
+                transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                className="text-emerald-400 text-sm px-2 pt-1 overflow-hidden"
+              >
+                {successMsg}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          <button
+          <motion.button
+            layout
+            transition={{ type: "spring", stiffness: 100, damping: 20 }}
             type="submit"
             disabled={isLoading}
-            className="relative z-10 w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2 text-lg mt-4 disabled:opacity-50 disabled:cursor-not-allowed pointer-events-auto"
+            className="relative z-10 w-full font-bold py-4 rounded-xl flex items-center justify-center gap-2 text-lg mt-4 disabled:opacity-50 disabled:cursor-not-allowed pointer-events-auto text-white transition-all duration-300 group overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #2E073F 0%, #040D12 100%)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 20px rgba(0,0,0,0.5)',
+            }}
           >
-            {isLoading ? <Loader2 className="animate-spin" size={20} /> : null}
-            {isLoginMode ? '로그인' : '가입하기'}
-          </button>
+            {/* Hover effect overlay */}
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" 
+                 style={{ background: 'linear-gradient(135deg, #4A0B66 0%, #0A1F2B 100%)' }} />
+            <span className="relative z-10 flex items-center gap-2 tracking-widest">
+              {isLoading ? <Loader2 className="animate-spin" size={20} /> : null}
+              {isLoginMode ? 'LOGIN' : 'SIGN UP'}
+            </span>
+          </motion.button>
         </form>
 
-        <div className="mt-6 text-center">
+        <motion.div layout transition={{ type: "spring", stiffness: 100, damping: 20 }} className="mt-6 text-center">
           <button
             type="button"
             onClick={() => {
@@ -399,11 +475,11 @@ export default function Login() {
           >
             {isLoginMode ? '계정이 없으신가요? 간편 가입하기' : '이미 계정이 있으신가요? 로그인하기'}
           </button>
-        </div>
+        </motion.div>
 
-        <p className="text-center text-zinc-600 text-xs mt-8">
+        <motion.p layout transition={{ type: "spring", stiffness: 100, damping: 20 }} className="text-center text-zinc-600 text-xs mt-8">
           가입 시 METALORA의 이용약관 및 개인정보처리방침에 동의하게 됩니다.
-        </p>
+        </motion.p>
       </motion.div>
     </div>
   );

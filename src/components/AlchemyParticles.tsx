@@ -2,12 +2,25 @@ import React, { useRef, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
-export default function AlchemyParticles() {
+interface AlchemyParticlesProps {
+  densityMultiplier?: number;
+  speedMultiplier?: number;
+  color?: string;
+}
+
+export default function AlchemyParticles({ 
+  densityMultiplier = 1, 
+  speedMultiplier = 1,
+  color = '#ffffff'
+}: AlchemyParticlesProps) {
   const pointsRef = useRef<THREE.Points>(null);
   const { viewport, size } = useThree();
   
   // Particle count based on screen size for performance
-  const count = useMemo(() => (size.width < 768 ? 1500 : 3000), [size.width]);
+  const count = useMemo(() => {
+    const baseCount = size.width < 768 ? 1500 : 3000;
+    return Math.floor(baseCount * densityMultiplier);
+  }, [size.width, densityMultiplier]);
   
   const [positions, sizes, initialPositions] = useMemo(() => {
     const pos = new Float32Array(count * 3);
@@ -86,15 +99,15 @@ export default function AlchemyParticles() {
       const i3 = i * 3;
       
       // Base movement: subtle floating
-      positions[i3] = initialPositions[i3] + Math.sin(time * 0.2 + initialPositions[i3]) * 0.1;
-      positions[i3 + 1] = initialPositions[i3 + 1] + Math.cos(time * 0.3 + initialPositions[i3 + 1]) * 0.1;
+      positions[i3] = initialPositions[i3] + Math.sin(time * 0.2 * speedMultiplier + initialPositions[i3]) * 0.1;
+      positions[i3 + 1] = initialPositions[i3 + 1] + Math.cos(time * 0.3 * speedMultiplier + initialPositions[i3 + 1]) * 0.1;
       
       // Interaction: React to scroll delta
-      positions[i3 + 1] -= scrollDelta.current * 0.005;
+      positions[i3 + 1] -= scrollDelta.current * 0.005 * speedMultiplier;
       
       // Interaction: React to mouse/gyro
-      positions[i3] += mouse.current.x * 0.02;
-      positions[i3 + 1] += mouse.current.y * 0.02;
+      positions[i3] += mouse.current.x * 0.02 * speedMultiplier;
+      positions[i3 + 1] += mouse.current.y * 0.02 * speedMultiplier;
       
       // Wrap around Y
       if (positions[i3 + 1] > 2) positions[i3 + 1] = -2;
@@ -102,8 +115,10 @@ export default function AlchemyParticles() {
     }
     
     pointsRef.current.geometry.attributes.position.needsUpdate = true;
-    pointsRef.current.rotation.y = time * 0.05;
+    pointsRef.current.rotation.y = time * 0.05 * speedMultiplier;
   });
+
+  const particleColor = useMemo(() => new THREE.Color(color), [color]);
 
   return (
     <points ref={pointsRef}>
@@ -127,7 +142,7 @@ export default function AlchemyParticles() {
         blending={THREE.AdditiveBlending}
         uniforms={{
           uTime: { value: 0 },
-          uColor: { value: new THREE.Color('#ffffff') },
+          uColor: { value: particleColor },
         }}
         vertexShader={`
           attribute float size;

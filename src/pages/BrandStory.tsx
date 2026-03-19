@@ -1,44 +1,160 @@
-import React from 'react';
-import { motion, useScroll, useTransform } from 'motion/react';
+import React, { useRef, useState } from 'react';
+import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
+import { Canvas } from '@react-three/fiber';
+import AlchemyParticles from '../components/AlchemyParticles';
 
-export default function BrandStory() {
-  const { scrollYProgress } = useScroll();
-  const rotateY = useTransform(scrollYProgress, [0, 0.5, 1], [0, 180, 360]);
+const APPLE_EASE = [0.16, 1, 0.3, 1] as const;
+
+interface StorySectionProps {
+  title: string;
+  subtitle?: string;
+  bgImage?: string;
+  children?: React.ReactNode;
+}
+
+const StorySection: React.FC<StorySectionProps> = ({ title, subtitle, bgImage, children }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"]
+  });
+
+  // Apply Apple-like smooth spring to scroll progress
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 50,
+    damping: 20,
+    mass: 1
+  });
+
+  // Deep sea rising effect
+  const y = useTransform(smoothProgress, [0.2, 0.4, 0.6, 0.8], [150, 0, 0, -150]);
+  const opacity = useTransform(smoothProgress, [0.2, 0.4, 0.6, 0.8], [0, 1, 1, 0]);
+  
+  // Micro-scale effect for background
+  const scale = useTransform(smoothProgress, [0, 1], [1.0, 1.05]);
 
   return (
-    <div className="bg-black text-white min-h-screen">
-      {/* Hero Section */}
-      <section className="h-screen flex items-center justify-center">
-        <motion.h1 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 2 }}
-          className="text-5xl md:text-7xl font-light tracking-tighter"
-        >
-          빛과 금속의 연금술
-        </motion.h1>
-      </section>
-
-      {/* Detail Section */}
-      <section className="h-screen flex flex-col items-center justify-center p-10">
-        <h2 className="text-4xl font-light text-[#A1A1A6] mb-10">1.15mm의 정교함</h2>
+    <section ref={ref} className="relative h-[200vh] w-full bg-[#000000]">
+      <div className="sticky top-0 h-screen w-full flex flex-col items-center justify-center overflow-hidden">
+        
+        {bgImage && (
+          <motion.div 
+            style={{ scale }}
+            className="absolute inset-0 z-0"
+          >
+            <div className="absolute inset-0 bg-[#000000]/60 z-10" />
+            <img 
+              src={bgImage} 
+              alt="Background" 
+              className="w-full h-full object-cover grayscale opacity-30" 
+            />
+          </motion.div>
+        )}
+        
         <motion.div 
-          style={{ rotateY }}
-          className="w-64 h-96 bg-gradient-to-br from-zinc-700 to-zinc-900 rounded-3xl shadow-[0_0_50px_rgba(255,255,255,0.1)] flex items-center justify-center"
+          style={{ y, opacity }}
+          className="relative z-20 text-center px-6 w-full max-w-7xl mx-auto flex flex-col items-center justify-center"
         >
-          <p className="text-xl font-medium">METALORA</p>
+          <h2 className="text-7xl md:text-8xl lg:text-[120px] font-extrabold tracking-[-0.05em] text-[#FFFFFF] leading-none whitespace-pre-line break-keep">
+            {title}
+          </h2>
+          {subtitle && (
+            <p className="mt-8 text-3xl md:text-5xl font-extrabold tracking-[-0.05em] text-[#8E8E93] leading-tight">
+              {subtitle}
+            </p>
+          )}
+          {children && (
+            <div className="mt-24 w-full">
+              {children}
+            </div>
+          )}
         </motion.div>
-      </section>
+      </div>
+    </section>
+  );
+};
 
-      {/* Magnetic Section */}
-      <section className="h-screen flex items-center justify-center">
-        <motion.div 
-          whileHover={{ scale: 1.05 }}
-          className="p-10 border border-white/20 rounded-full bg-white/5 backdrop-blur-sm"
+const AluminumDetail = () => {
+  const [mouse, setMouse] = useState({ x: 50, y: 50 });
+  
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setMouse({ x, y });
+  };
+
+  return (
+    <div 
+      onMouseMove={handleMouseMove}
+      className="relative w-full max-w-5xl mx-auto h-48 md:h-64 bg-[#000000] border-y border-[#8E8E93]/20 overflow-hidden group cursor-crosshair"
+    >
+      {/* Base Metal Texture (Brushed Aluminum) */}
+      <div className="absolute inset-0 opacity-10 bg-[repeating-linear-gradient(90deg,#000000,#000000_1px,#8E8E93_1px,#8E8E93_2px)]" />
+      
+      {/* Dynamic Reflection based on mouse */}
+      <div 
+        className="absolute inset-0 opacity-40 transition-opacity duration-500 ease-out"
+        style={{
+          background: `radial-gradient(circle 600px at ${mouse.x}% ${mouse.y}%, #FFFFFF 0%, transparent 60%)`,
+          mixBlendMode: 'overlay'
+        }}
+      />
+      
+      {/* Center Text */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <span className="text-[#FFFFFF] text-5xl md:text-7xl font-extrabold tracking-[-0.05em] mix-blend-difference">
+          1.15mm
+        </span>
+      </div>
+    </div>
+  );
+};
+
+export default function BrandStory() {
+  return (
+    <div className="bg-[#000000] text-[#FFFFFF] min-h-screen relative font-sans selection:bg-[#8E8E93] selection:text-[#000000]">
+      
+      {/* Global Fixed Background Particles - Extremely Minimal (10% density) */}
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-30">
+        <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
+          <AlchemyParticles densityMultiplier={0.05} speedMultiplier={0.1} color="#8E8E93" />
+        </Canvas>
+      </div>
+
+      <div className="relative z-10">
+        {/* Section 1 */}
+        <StorySection 
+          title="빛의 연금술"
+        />
+
+        {/* Section 2 */}
+        <StorySection 
+          title="1.15mm의 완벽"
         >
-          <h3 className="text-3xl font-light">자석 시스템의 미학</h3>
-        </motion.div>
-      </section>
+          <AluminumDetail />
+        </StorySection>
+
+        {/* Section 3 */}
+        <StorySection 
+          title="분자 속에 새겨진 이야기"
+          bgImage="https://images.unsplash.com/photo-1604871000636-074fa5117945?q=80&w=2487&auto=format&fit=crop"
+        />
+
+        {/* Section 4 */}
+        <StorySection 
+          title="공간의 해방"
+          subtitle="무타공 마그네틱"
+        />
+
+        {/* Section 5 */}
+        <StorySection 
+          title="영원히 변치 않는 기록"
+        />
+        
+        {/* Final Spacer for smooth ending */}
+        <div className="h-[50vh] bg-[#000000]" />
+      </div>
     </div>
   );
 }
