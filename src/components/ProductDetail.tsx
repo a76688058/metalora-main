@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
@@ -22,6 +22,56 @@ declare global {
   }
 }
 
+function CanvasLoader() {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-[#121212] z-10">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="text-white/20 animate-spin" size={32} />
+        <span className="text-white/40 text-[10px] font-bold uppercase tracking-[0.2em]">Loading 3D Model...</span>
+      </div>
+    </div>
+  );
+}
+
+class CanvasErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("Canvas Error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#121212] p-8 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <AlertCircle className="text-red-500/50" size={32} />
+            <p className="text-white/60 text-xs font-light leading-relaxed">
+              3D 모델을 불러오는 중 오류가 발생했습니다.<br />
+              페이지를 새로고침하거나 나중에 다시 시도해주세요.
+            </p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="mt-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white/80 text-[10px] font-bold uppercase tracking-widest transition-colors"
+            >
+              새로고침
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const { products, fetchProducts } = useProducts();
@@ -36,8 +86,11 @@ export default function ProductDetail() {
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isAdded, setIsAdded] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [hasInteracted, setHasInteracted] = useState(false);
+  const [cartParticles, setCartParticles] = useState<{ id: number; x: number; y: number; img: string }[]>([]);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchProducts();
@@ -126,6 +179,23 @@ export default function ProductDetail() {
 
       // 4. 성공 피드백
       await refreshCart();
+      
+      // 파티클 애니메이션 실행
+      if (canvasContainerRef.current) {
+        const rect = canvasContainerRef.current.getBoundingClientRect();
+        const startX = rect.left + rect.width / 2;
+        const startY = rect.top + rect.height / 2;
+        const newParticle = { id: Date.now(), x: startX, y: startY, img: product.front_image || product.image };
+        
+        setCartParticles(prev => [...prev, newParticle]);
+        
+        setTimeout(() => {
+          setCartParticles(prev => prev.filter(p => p.id !== newParticle.id));
+        }, 1200);
+      }
+
+      setIsAdded(true);
+      setTimeout(() => setIsAdded(false), 3000);
       showToast('내 컬렉션에 안전하게 담겼습니다', 'success');
     } catch (error: any) {
       // 상세 에러 콘솔 출력
@@ -191,7 +261,7 @@ export default function ProductDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-black pt-4 flex flex-col relative">
+    <div className="min-h-screen bg-[#000000] pt-4 flex flex-col relative z-10">
       {/* Shipping Info Modal */}
       <ShippingModal
         isOpen={isShippingModalOpen}
@@ -216,44 +286,52 @@ export default function ProductDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
           {/* Left Column: Image & Visuals */}
           <div className="space-y-6">
-            <Link to="/" className="inline-flex items-center gap-2 text-zinc-400 hover:text-white transition-colors mb-4">
-              <ArrowLeft size={16} />
-              <span className="text-sm uppercase tracking-widest">컬렉션으로 돌아가기</span>
+            <Link to="/" className="group inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors mb-4 py-2 pr-4">
+              <motion.div className="group-hover:-translate-x-1 transition-transform duration-300 ease-out">
+                <ArrowLeft size={16} strokeWidth={1.5} />
+              </motion.div>
+              <span className="text-[10px] font-light uppercase tracking-[0.2em]">COLLECTION</span>
             </Link>
 
             <div className="py-8"> {/* Safe Scroll Area */}
               <div 
+                ref={canvasContainerRef}
                 className="relative aspect-square rounded-3xl overflow-hidden bg-[#121212] shadow-2xl shadow-black/50 border border-white/5 cursor-grab active:cursor-grabbing"
               >
-                <Canvas 
-                  shadows 
-                  dpr={[1, 2]} 
-                  gl={{ antialias: true, preserveDrawingBuffer: true }}
-                  camera={{ position: [0, 0, 4.5], fov: 45 }}
-                  onPointerDown={() => setHasInteracted(true)}
-                  onCreated={({ gl }) => {
-                    gl.outputColorSpace = THREE.SRGBColorSpace;
-                  }}
-                >
-                  <Suspense fallback={null}>
-                    <Poster3D 
-                      imageUrl={product.front_image || product.image} 
-                      backImageUrl={product.back_image || product.backImage}
-                      scale={1.2}
-                    />
-                    <OrbitControls 
-                      onStart={() => setHasInteracted(true)}
-                      enablePan={false} 
-                      enableZoom={true} 
-                      minDistance={1.8}
-                      maxDistance={10}
-                      autoRotate={true}
-                      autoRotateSpeed={0.5}
-                      minPolarAngle={Math.PI / 4} 
-                      maxPolarAngle={Math.PI / 1.5} 
-                    />
+                <CanvasErrorBoundary>
+                  <Canvas 
+                    shadows 
+                    dpr={[1, 2]} 
+                    gl={{ antialias: true, preserveDrawingBuffer: true }}
+                    camera={{ position: [0, 0, 4.5], fov: 45 }}
+                    onPointerDown={() => setHasInteracted(true)}
+                    onCreated={({ gl }) => {
+                      gl.outputColorSpace = THREE.SRGBColorSpace;
+                    }}
+                  >
+                    <Suspense fallback={null}>
+                      <Poster3D 
+                        product={product}
+                        scale={1.2}
+                      />
+                      <OrbitControls 
+                        onStart={() => setHasInteracted(true)}
+                        enablePan={false} 
+                        enableZoom={true} 
+                        minDistance={1.8}
+                        maxDistance={10}
+                        autoRotate={true}
+                        autoRotateSpeed={0.5}
+                        minPolarAngle={Math.PI / 4} 
+                        maxPolarAngle={Math.PI / 1.5} 
+                      />
+                    </Suspense>
+                  </Canvas>
+                  
+                  <Suspense fallback={<CanvasLoader />}>
+                    {/* This empty suspense will trigger the loader while textures are loading in Poster3D */}
                   </Suspense>
-                </Canvas>
+                </CanvasErrorBoundary>
                 
                 <AnimatePresence>
                   {!hasInteracted && (
@@ -308,8 +386,10 @@ export default function ProductDetail() {
           <div className="lg:pt-4">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
               transition={{ delay: 0.2 }}
+              className="relative z-10"
             >
               <div className="flex items-center gap-2 mb-2">
                 {product.limited && (
@@ -405,11 +485,13 @@ export default function ProductDetail() {
                   <div className="flex gap-3">
                     <button
                       onClick={handleAddToCart}
-                      disabled={isSoldOut || isAddingToCart}
-                      className={`flex-1 font-bold text-xl tracking-tight h-[64px] rounded-2xl transition-all active:scale-95 duration-150 shadow-2xl flex items-center justify-center gap-3 ${
+                      disabled={isSoldOut || isAddingToCart || isAdded}
+                      className={`flex-1 font-bold text-xl tracking-tight h-[64px] rounded-2xl transition-all active:scale-95 duration-150 shadow-2xl flex items-center justify-center gap-3 border-[0.5px] ${
                         isSoldOut 
-                          ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
-                          : 'bg-white text-black hover:bg-zinc-100 shadow-white/10'
+                          ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border-transparent' 
+                          : isAdded
+                            ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                            : 'bg-white text-black hover:bg-zinc-100 shadow-white/10 border-white/20'
                       }`}
                     >
                       {isAddingToCart ? (
@@ -417,12 +499,17 @@ export default function ProductDetail() {
                           <Loader2 className="animate-spin" size={24} />
                           <span className="ml-1">컬렉션에 담는 중...</span>
                         </>
+                      ) : isAdded ? (
+                        <>
+                          <Check size={24} className="text-green-400" />
+                          <span className="ml-1">컬렉션에 담겼습니다</span>
+                        </>
                       ) : isSoldOut ? (
                         '품절'
                       ) : (
                         <div className="flex items-center justify-center gap-3">
                           <Frame size={24} />
-                          <span>내 컬렉션에 추가</span>
+                          <span>ADD TO COLLECTION</span>
                         </div>
                       )}
                     </button>
@@ -439,6 +526,75 @@ export default function ProductDetail() {
           </div>
         </div>
       </div>
+
+      {/* SPECIFICATION Section */}
+      <div className="w-full bg-[#000000] border-t border-white/5 pt-32 pb-48 relative z-10">
+        <div className="max-w-4xl mx-auto px-6">
+          <h2 className="text-center text-[10px] font-light tracking-[0.5em] text-zinc-500 mb-32 uppercase">SPECIFICATION</h2>
+          
+          <div className="space-y-40">
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+              className="text-center space-y-8"
+            >
+              <h3 className="text-4xl md:text-5xl font-extrabold text-white tracking-[-0.05em]">1.15mm의 두께</h3>
+              <p className="text-zinc-400 text-lg md:text-xl font-light max-w-2xl mx-auto leading-relaxed break-keep">
+                프리미엄 알루미늄이 선사하는 얇지만 강인한 물성. 공간을 차지하지 않으면서도 압도적인 존재감을 발산합니다.
+              </p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+              className="text-center space-y-8"
+            >
+              <h3 className="text-4xl md:text-5xl font-extrabold text-white tracking-[-0.05em]">200℃ 고온 승화전사</h3>
+              <p className="text-zinc-400 text-lg md:text-xl font-light max-w-2xl mx-auto leading-relaxed break-keep">
+                변색 없이 영원히 지속되는 8K 해상도의 선명함. 분자 속에 스며든 안료가 빛을 머금고 영원히 빛납니다.
+              </p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+              className="text-center space-y-8"
+            >
+              <h3 className="text-4xl md:text-5xl font-extrabold text-white tracking-[-0.05em]">마그네틱 마운트</h3>
+              <p className="text-zinc-400 text-lg md:text-xl font-light max-w-2xl mx-auto leading-relaxed break-keep">
+                못 없이 벽면에 밀착되는 혁신적인 설치 방식. 공간의 손상 없이 완벽한 갤러리를 완성합니다.
+              </p>
+            </motion.div>
+          </div>
+        </div>
+      </div>
+
+      {/* Cart Particle Animation */}
+      {cartParticles.map(p => (
+        <motion.div
+          key={p.id}
+          initial={{ x: p.x - 20, y: p.y - 20, scale: 1, opacity: 1 }}
+          animate={{ 
+            x: window.innerWidth - 60, 
+            y: 20, 
+            scale: 0.5, 
+            opacity: 0
+          }}
+          transition={{ 
+            duration: 0.8,
+            ease: [0.16, 1, 0.3, 1]
+          }}
+          className="fixed z-[100] pointer-events-none w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-[0_0_20px_rgba(255,255,255,0.8)]"
+        >
+          <Frame size={20} className="text-black" />
+        </motion.div>
+      ))}
     </div>
   );
 }

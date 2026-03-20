@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Frame, User, Menu, X, LogOut, Loader2, MessageSquare } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Link, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { Search, User, Frame } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -8,215 +8,183 @@ import LoginModal from './LoginModal';
 import Cart from './Cart';
 
 export default function Header() {
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const { user, signOut, isLoggingOut } = useAuth();
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const { user } = useAuth();
   const { cartItems } = useCart();
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const searchQuery = searchParams.get('q') || '';
+  
+  // Local state for IME handling
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+  const isComposing = useRef(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
+
+  // Click outside to close
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setIsSearchOpen(false);
+      }
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+
+    if (isSearchOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSearchOpen]);
+
+  const updateSearch = (value: string) => {
+    if (location.pathname !== '/') {
+      navigate(`/?q=${encodeURIComponent(value)}`);
+    } else {
+      if (value) {
+        setSearchParams({ q: value });
+      } else {
+        setSearchParams({});
+      }
+    }
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setLocalSearch(value);
+    if (!isComposing.current) {
+      updateSearch(value);
+    }
+  };
+
+  const handleComposition = (e: React.CompositionEvent<HTMLInputElement>) => {
+    if (e.type === 'compositionstart') {
+      isComposing.current = true;
+    } else if (e.type === 'compositionend') {
+      isComposing.current = false;
+      updateSearch(e.currentTarget.value);
+    }
+  };
 
   return (
-    <header
-      className="fixed top-0 left-0 right-0 z-50 bg-[#000000]/70 backdrop-blur-lg border-b border-white/10 transition-all duration-300"
-    >
-      <div className="max-w-7xl mx-auto px-6 h-20 md:h-24 flex items-center justify-between">
-        {/* Logo */}
-        <Link to="/" className="z-50 flex items-center">
-          <img 
-            src="https://postfiles.pstatic.net/MjAyNjAzMTZfMjM2/MDAxNzczNjQzMzQ3MDUw.zR_7l4ozVWSXDJOr1CA_6tw0H8LF8ZQenQvN8Tw3swEg.i_g5v5uqKHopzrE-iqVmSsuKM-nhT3X3N0tWVC_DDBgg.PNG/METALORA_LOGO.png?type=w3840" 
-            alt="METALORA" 
-            className="h-10 md:h-14 object-contain dark:invert filter invert" 
-            referrerPolicy="no-referrer"
-          />
-        </Link>
-
-        {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-8">
-          <Link to="/" className="text-sm font-medium text-white/70 hover:text-white transition-colors">
-            컬렉션
-          </Link>
-          <Link to="/" className="text-sm font-medium text-white/70 hover:text-white transition-colors">
-            아티스트
-          </Link>
-          <Link to="/brand-story" className="text-sm font-medium text-white/70 hover:text-white transition-colors">
-            브랜드 스토리
-          </Link>
-          <Link to="/anisotropic" className="text-sm font-medium text-white/70 hover:text-white transition-colors">
-            이방성 셰이더
-          </Link>
-        </nav>
-
-        {/* Icons */}
-        <div className="hidden md:flex items-center gap-6">
-          {user ? (
-            <>
-              <div className="flex items-center gap-4">
-                <Link to="/profile" className="text-sm text-zinc-400 hover:text-white transition-colors" title="내 정보">
-                  {user.user_metadata?.full_name || user.user_metadata?.name || user.user_metadata?.preferred_username || '사용자'}님
-                </Link>
-                <button 
-                  onClick={() => {
-                    localStorage.clear();
-                    sessionStorage.clear();
-                    document.cookie.split(";").forEach((c) => {
-                      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-                    });
-                    signOut();
-                    window.location.href = '/';
-                  }} 
-                  disabled={isLoggingOut}
-                  className="text-white/70 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
-                  title="로그아웃"
-                >
-                  {isLoggingOut ? <Loader2 className="animate-spin" size={20} /> : <LogOut size={20} />}
-                </button>
-              </div>
+    <>
+      <header
+        className="sticky top-0 left-0 right-0 z-50 bg-black/40 backdrop-blur-xl border-b border-white/10 transition-all duration-300"
+        ref={searchRef}
+      >
+        <motion.div layout className="flex flex-col w-full">
+          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between relative w-full">
+            {/* Left: Search Icon */}
+            <div className="flex-1 flex justify-start">
               <button 
-                onClick={() => setIsCartOpen(true)}
-                className="text-white/70 hover:text-white transition-colors relative"
-                title="내 컬렉션"
+                onClick={() => setIsSearchOpen(!isSearchOpen)}
+                className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
+                title="Search"
               >
-                <Frame size={20} />
-                {cartItems.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-[10px] font-bold text-white rounded-full flex items-center justify-center">
+                <Search size={24} strokeWidth={1} />
+              </button>
+            </div>
+
+            {/* Center: Logo (Absolute Center) */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+              <Link to="/" className="flex items-center">
+                <img 
+                  src="https://postfiles.pstatic.net/MjAyNjAzMTZfMjM2/MDAxNzczNjQzMzQ3MDUw.zR_7l4ozVWSXDJOr1CA_6tw0H8LF8ZQenQvN8Tw3swEg.i_g5v5uqKHopzrE-iqVmSsuKM-nhT3X3N0tWVC_DDBgg.PNG/METALORA_LOGO.png?type=w3840" 
+                  alt="METALORA" 
+                  className="h-10 md:h-12 object-contain filter invert" 
+                  referrerPolicy="no-referrer"
+                />
+              </Link>
+            </div>
+
+            {/* Right: User & Collection Icons */}
+            <div className="flex-1 flex justify-end items-center gap-x-5">
+              {user ? (
+                <Link 
+                  to="/profile" 
+                  className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
+                  title="Profile"
+                >
+                  <User size={24} strokeWidth={1} />
+                </Link>
+              ) : (
+                <button 
+                  onClick={() => setIsLoginModalOpen(true)} 
+                  className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
+                  title="Login"
+                >
+                  <User size={24} strokeWidth={1} />
+                </button>
+              )}
+
+              <button 
+                onClick={() => {
+                  if (!user) {
+                    setIsLoginModalOpen(true);
+                  } else {
+                    setIsCartOpen(true);
+                  }
+                }}
+                className="text-white opacity-60 hover:opacity-100 transition-all duration-300 relative"
+                title="My Collection"
+              >
+                <Frame size={24} strokeWidth={1} />
+                {user && cartItems.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-white text-black text-[9px] font-bold rounded-full flex items-center justify-center">
                     {cartItems.length}
                   </span>
                 )}
               </button>
-            </>
-          ) : (
-            <button 
-              onClick={() => setIsLoginModalOpen(true)} 
-              className="text-white/70 hover:text-white transition-colors" 
-              title="로그인"
-            >
-              <User size={20} />
-            </button>
-          )}
-        </div>
+            </div>
+          </div>
 
-        {/* Mobile Menu Button */}
-        <button
-          className="md:hidden text-white z-50"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        >
-          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+          {/* Search Section */}
+          <AnimatePresence>
+            {isSearchOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0, transition: { duration: 0.3 } }}
+                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                className="overflow-hidden w-full"
+              >
+                <div className="max-w-3xl mx-auto px-6 pb-6 pt-2">
+                  <div className="relative group">
+                    <div className="absolute inset-0 bg-white/5 backdrop-blur-2xl rounded-xl border border-white/10 transition-all duration-300 group-focus-within:border-white/30 group-focus-within:shadow-[0_0_20px_rgba(255,255,255,0.1)]" />
+                    <input
+                      type="text"
+                      placeholder="제품명 검색..."
+                      value={localSearch}
+                      onChange={handleSearchChange}
+                      onCompositionStart={handleComposition}
+                      onCompositionEnd={handleComposition}
+                      className="relative w-full bg-transparent text-white placeholder-white/40 px-6 py-4 outline-none font-light tracking-wide"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </header>
 
-        {/* Mobile Menu Overlay */}
-        <AnimatePresence>
-          {isMobileMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="absolute top-0 left-0 w-full h-screen bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center gap-8 md:hidden"
-            >
-              <Link
-                to="/"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="text-2xl font-medium text-white"
-              >
-                컬렉션
-              </Link>
-              <Link
-                to="/"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="text-2xl font-medium text-white"
-              >
-                아티스트
-              </Link>
-              <Link
-                to="/brand-story"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="text-2xl font-medium text-white"
-              >
-                브랜드 스토리
-              </Link>
-              <Link
-                to="/anisotropic"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="text-2xl font-medium text-white"
-              >
-                이방성 셰이더
-              </Link>
-              <div className="flex gap-8 mt-8">
-                {user ? (
-                  <>
-                    <Link to="/profile" onClick={() => setIsMobileMenuOpen(false)} className="text-white flex flex-col items-center gap-2">
-                      <User size={28} />
-                      <span className="text-xs">내 정보</span>
-                    </Link>
-                    <button 
-                      onClick={() => {
-                        localStorage.clear();
-                        sessionStorage.clear();
-                        document.cookie.split(";").forEach((c) => {
-                          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-                        });
-                        signOut();
-                        setIsMobileMenuOpen(false);
-                        window.location.href = '/';
-                      }} 
-                      disabled={isLoggingOut}
-                      className="text-white flex flex-col items-center gap-2 disabled:opacity-50"
-                    >
-                      {isLoggingOut ? <Loader2 className="animate-spin" size={28} /> : <LogOut size={28} />}
-                      <span className="text-xs">로그아웃</span>
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setIsMobileMenuOpen(false);
-                        setIsCartOpen(true);
-                      }}
-                      className="text-white relative flex flex-col items-center gap-2"
-                    >
-                      <div className="relative">
-                        <Frame size={28} />
-                        {cartItems.length > 0 && (
-                          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-[10px] font-bold text-white rounded-full flex items-center justify-center border-2 border-black">
-                            {cartItems.length}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-xs">내 컬렉션</span>
-                    </button>
-                  </>
-                ) : (
-                  <button 
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      setIsLoginModalOpen(true);
-                    }} 
-                    className="text-white flex flex-col items-center gap-2"
-                  >
-                    <User size={28} />
-                    <span className="text-xs">로그인</span>
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+      <LoginModal 
+        isOpen={isLoginModalOpen} 
+        onClose={() => setIsLoginModalOpen(false)} 
+      />
 
-        <LoginModal 
-          isOpen={isLoginModalOpen} 
-          onClose={() => setIsLoginModalOpen(false)} 
-        />
-
-        <Cart 
-          isOpen={isCartOpen} 
-          onClose={() => setIsCartOpen(false)} 
-        />
-      </div>
-    </header>
+      <Cart 
+        isOpen={isCartOpen} 
+        onClose={() => setIsCartOpen(false)} 
+      />
+    </>
   );
 }

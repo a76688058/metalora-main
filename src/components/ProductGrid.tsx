@@ -1,152 +1,39 @@
-import React, { useRef, useDeferredValue } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { motion, useMotionValue, useSpring, useTransform, useScroll } from 'framer-motion';
+import React, { useRef, useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { motion, useMotionValue, useSpring, useTransform, AnimatePresence } from 'framer-motion';
 import { useProducts } from '../context/ProductContext';
 import { useAuth } from '../context/AuthContext';
 import { Product } from '../data/products';
 import { supabase } from '../lib/supabase';
 import { Sparkles, Lock } from 'lucide-react';
 import Skeleton from './Skeleton';
-import AnodicBadge from './AnodicBadge';
-import LuxurySearchBar from './LuxurySearchBar';
-
-const ProductCard = ({ product }: { product: Product }) => {
-  const [isLoaded, setIsLoaded] = React.useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  // Parallax effect on scroll
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "end start"]
-  });
-  const parallaxY = useTransform(scrollYProgress, [0, 1], [30, -30]);
-
-  // Mouse position for tilt effect
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-
-  // Smooth spring animation for tilt
-  const mouseX = useSpring(x, { stiffness: 300, damping: 30 });
-  const mouseY = useSpring(y, { stiffness: 300, damping: 30 });
-
-  // Convert mouse position to rotation degrees
-  const rotateX = useTransform(mouseY, [-0.5, 0.5], [7, -7]);
-  const rotateY = useTransform(mouseX, [-0.5, 0.5], [-7, 7]);
-
-  // Glint effect position
-  const glintX = useTransform(mouseX, [-0.5, 0.5], ['0%', '100%']);
-  const glintY = useTransform(mouseY, [-0.5, 0.5], ['0%', '100%']);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
-    const mouseXPos = e.clientX - rect.left;
-    const mouseYPos = e.clientY - rect.top;
-    const xPct = mouseXPos / width - 0.5;
-    const yPct = mouseYPos / height - 0.5;
-    x.set(xPct);
-    y.set(yPct);
-  };
-
-  const handleMouseLeave = () => {
-    x.set(0);
-    y.set(0);
-  };
-
-  return (
-    <Link to={`/product/${product.id}`} className="block group active:scale-95 transition-transform duration-150">
-      <motion.div
-        ref={ref}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        style={{
-          rotateX,
-          rotateY,
-          y: parallaxY,
-          transformStyle: 'preserve-3d',
-        }}
-        className="relative aspect-[4/5] rounded-2xl overflow-hidden bg-zinc-900 shadow-xl shadow-black/40 transition-shadow duration-300 group-hover:shadow-2xl group-hover:shadow-indigo-500/20"
-      >
-        {/* Image */}
-        <motion.img
-          layoutId={`product-image-${product.id}`}
-          src={product.front_image || product.image}
-          alt={product.title}
-          loading="lazy"
-          onLoad={() => setIsLoaded(true)}
-          className={`w-full h-full object-cover transform scale-100 group-hover:scale-110 transition-all duration-700 ease-out ${
-            isLoaded ? 'blur-0 opacity-100' : 'blur-xl opacity-50'
-          }`}
-        />
-
-        {/* Metallic Glint Effect */}
-        <motion.div
-          style={{
-            background: `radial-gradient(circle at ${glintX} ${glintY}, rgba(255,255,255,0.3) 0%, transparent 60%)`,
-            opacity: useTransform(mouseX, [-0.5, 0.5], [0, 1]), // Only visible on hover
-          }}
-          className="absolute inset-0 pointer-events-none mix-blend-overlay z-10"
-        />
-
-        {/* Scarcity Badge */}
-        <div className="absolute top-3 right-3 flex flex-col gap-2 items-end z-20">
-          {product.limited && (
-            <AnodicBadge text="LIMITED" />
-          )}
-          {product.created_at && (new Date().getTime() - new Date(product.created_at).getTime()) / (1000 * 3600 * 24) <= 7 && (
-            <AnodicBadge text="NEW" />
-          )}
-        </div>
-      </motion.div>
-
-      {/* Product Info */}
-      <div className="mt-6 px-2 flex flex-col items-center justify-center text-center">
-        <h3 className="text-lg font-extrabold text-white tracking-[-0.02em] group-hover:text-indigo-400 transition-colors">
-          {product.title}
-        </h3>
-        <p className="text-xs text-zinc-500 mt-1 font-light uppercase tracking-widest">
-          {product.subtitle || product.artist}
-        </p>
-      </div>
-    </Link>
-  );
-};
+import ProductCard from './ProductCard';
 
 export default function ProductGrid() {
-  const { products: allProducts, isLoading, searchTerm } = useProducts();
-  const deferredSearchTerm = useDeferredValue(searchTerm);
+  const { products: allProducts, isLoading } = useProducts();
+  const [searchParams] = useSearchParams();
+  const searchQuery = searchParams.get('q')?.toLowerCase() || '';
   
   const products = allProducts.filter(p => {
     if (p.is_visible === false) return false;
-    if (!deferredSearchTerm) return true;
+    if (!searchQuery) return true;
     
-    const term = deferredSearchTerm.toLowerCase();
-    const titleMatch = p.title.toLowerCase().includes(term);
-    const artistMatch = p.artist?.toLowerCase().includes(term) || p.subtitle?.toLowerCase().includes(term);
-    
+    const titleMatch = p.title?.toLowerCase().includes(searchQuery);
+    const artistMatch = p.artist?.toLowerCase().includes(searchQuery);
     return titleMatch || artistMatch;
   });
-
+  
   return (
-    <section className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-10 pt-4 pb-24">
-      {/* Section Header */}
-      <div className="mb-10 text-center">
-        <h2 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight">
-          큐레이션 컬렉션
-        </h2>
-        <p className="text-zinc-400 max-w-2xl mx-auto text-base md:text-lg leading-relaxed">
-          빛과 금속이 빚어낸 공간의 오브제. 1.15mm 알루미늄 위에 새겨진 영원한 가치를 만나보세요.
-        </p>
-      </div>
-
-      {/* Luxury Search Bar */}
-      <LuxurySearchBar />
-
-      {/* Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-12 md:gap-x-10 md:gap-y-20">
-        {isLoading ? (
+    <>
+      <section className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-10 pt-8 pb-24">
+        {/* Grid */}
+        <motion.div 
+          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-12 md:gap-x-10 md:gap-y-20"
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
+        >
+          {isLoading ? (
           Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="space-y-4">
               <Skeleton className="aspect-[4/5] w-full" />
@@ -159,7 +46,7 @@ export default function ProductGrid() {
             <ProductCard key={product.id} product={product} />
           ))
         )}
-      </div>
+      </motion.div>
       
       {/* Loading Message */}
       {isLoading && (
@@ -170,10 +57,11 @@ export default function ProductGrid() {
       
       {/* Minimal Error Message */}
       {!isLoading && products.length === 0 && (
-        <div className="text-center py-20 text-zinc-500">
-          <p>상품을 불러올 수 없습니다. 잠시 후 다시 시도해주세요.</p>
+        <div className="text-center py-32 text-zinc-500 font-light tracking-widest">
+          <p>{searchQuery ? "검색 결과가 없습니다." : "상품을 불러올 수 없습니다. 잠시 후 다시 시도해주세요."}</p>
         </div>
       )}
     </section>
+    </>
   );
 }

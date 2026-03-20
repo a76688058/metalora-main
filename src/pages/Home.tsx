@@ -6,6 +6,7 @@ import Poster3D from '../components/Poster3D';
 import Hero from '../components/Hero';
 import LuxurySpacer from '../components/LuxurySpacer';
 import AnodicBadge from '../components/AnodicBadge';
+import ProductGrid from '../components/ProductGrid';
 import Footer from '../components/Footer';
 import SmoothScroll from '../components/SmoothScroll';
 import Payment from '../components/Payment';
@@ -51,10 +52,9 @@ export default function Home() {
   };
 
   return (
-    <SmoothScroll>
-      <div className="relative bg-black min-h-screen text-white selection:bg-white selection:text-black">
+    <div className="relative bg-black min-h-screen text-white selection:bg-white selection:text-black">
         {/* Luxury Header Area */}
-        <div className="pt-32 pb-12 flex flex-col items-center gap-8">
+        <div className="pt-8 pb-12 flex flex-col items-center gap-8">
           <AnodicBadge />
           <motion.h1 
             initial={{ opacity: 0, y: 20 }}
@@ -236,10 +236,18 @@ export default function Home() {
           </div>
         </section>
 
-        <Footer />
-      </div>
+        {/* Product Collection Section */}
+        <section id="collection-grid" className="relative z-10 bg-black pb-32">
+          <div className="max-w-7xl mx-auto">
+            <Reveal y={30}>
+              <h2 className="text-center text-[10px] font-light tracking-[0.5em] text-zinc-500 mb-20 uppercase">COLLECTION</h2>
+            </Reveal>
+            <ProductGrid />
+          </div>
+        </section>
 
+        <Footer />
       <Payment isOpen={isPaymentOpen} onClose={() => setIsPaymentOpen(false)} price={129000} />
-    </SmoothScroll>
+    </div>
   );
 }

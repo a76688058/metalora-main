@@ -4,6 +4,7 @@ import { AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ProductGrid from './components/ProductGrid';
+import Home from './pages/Home';
 import ProductDetail from './components/ProductDetail';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
@@ -18,7 +19,6 @@ import Profile from './pages/Profile';
 import BrandStory from './pages/BrandStory';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFail from './pages/PaymentFail';
-import AnisotropicHybrid from './components/AnisotropicHybrid';
 import LoadingScreen from './components/LoadingScreen';
 import NoPermission from './components/NoPermission';
 import AdminBanner from './components/AdminBanner';
@@ -66,12 +66,11 @@ function AnimatedRoutes() {
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        <Route path="/" element={<ProductGrid />} />
+        <Route path="/" element={<Home />} />
         <Route path="/product/:id" element={<ProductDetail />} />
         <Route path="/login" element={<Login />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/brand-story" element={<BrandStory />} />
-        <Route path="/anisotropic" element={<AnisotropicHybrid />} />
         
         {/* Profile Complete - Skip for Admins */}
         <Route 

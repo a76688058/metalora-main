@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
-import AlchemyParticles from '../components/AlchemyParticles';
 
 const APPLE_EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -117,9 +116,6 @@ export default function BrandStory() {
       
       {/* Global Fixed Background Particles - Extremely Minimal (10% density) */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-30">
-        <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
-          <AlchemyParticles densityMultiplier={0.05} speedMultiplier={0.1} color="#8E8E93" />
-        </Canvas>
       </div>
 
       <div className="relative z-10">

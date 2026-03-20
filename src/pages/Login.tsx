@@ -5,8 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { Loader2, X } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-import { Canvas } from '@react-three/fiber';
-import AlchemyParticles from '../components/AlchemyParticles';
 
 export default function Login() {
   const { user, profile, isLoading: authLoading, refreshSession } = useAuth();
@@ -293,12 +291,9 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#040D12] flex items-center justify-center p-4 pt-20 relative overflow-hidden">
+    <div className="min-h-screen bg-[#040D12] flex items-start justify-center p-4 pt-20 relative overflow-hidden">
       {/* Atmospheric Background */}
-      <div className="absolute inset-0 z-0">
-        <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
-          <AlchemyParticles densityMultiplier={0.3} speedMultiplier={0.2} color="#4A0B66" />
-        </Canvas>
+      <div className="absolute inset-0 z-0 bg-gradient-to-br from-[#040D12] via-[#2E073F]/20 to-[#040D12]">
       </div>
 
       <motion.div 
@@ -306,7 +301,7 @@ export default function Login() {
         transition={{ type: "spring", stiffness: 100, damping: 20 }}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 w-full max-w-md bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-[0_30px_60px_rgba(4,13,18,0.8),0_0_40px_rgba(46,7,63,0.3)]"
+        className="relative z-10 w-full max-w-md bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-[0_30px_60px_rgba(4,13,18,0.8),0_0_40px_rgba(46,7,63,0.3)] mt-[10vh]"
       >
         {/* Close Button */}
         <button 
