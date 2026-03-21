@@ -80,8 +80,28 @@ export default function Poster3D({
       groupRef.current.scale.setScalar(newScale);
     }
 
-    if (meshRef.current && !active && !hovered && interactive && !backImageUrl) {
-      meshRef.current.rotation.y += delta * 0.2;
+    if (meshRef.current) {
+      if (!interactive) {
+        // Always auto-rotate if not interactive
+        meshRef.current.rotation.y += delta * 0.2;
+        meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0, delta * 5);
+      } else if (!active && !hovered) {
+        // Auto rotate when not hovered
+        meshRef.current.rotation.y += delta * 0.2;
+        meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0, delta * 5);
+      } else if (hovered && !active) {
+        // Mouse tracking tilt
+        const mouseX = (state.mouse.x * Math.PI) / 8;
+        const mouseY = -(state.mouse.y * Math.PI) / 8;
+        meshRef.current.rotation.y = THREE.MathUtils.lerp(meshRef.current.rotation.y, mouseX, delta * 5);
+        meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, mouseY, delta * 5);
+      } else if (!active) {
+        // Reset rotation
+        meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0, delta * 5);
+        meshRef.current.rotation.y = THREE.MathUtils.lerp(meshRef.current.rotation.y, 0, delta * 5);
+      } else {
+        meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0, delta * 5);
+      }
     }
   });
 
@@ -130,14 +150,17 @@ export default function Poster3D({
         <mesh
           ref={meshRef}
           onClick={(e) => {
+            if (!interactive) return;
             e.stopPropagation();
             setActive(!active);
           }}
           onPointerOver={(e) => {
+            if (!interactive) return;
             e.stopPropagation();
             setHovered(true);
           }}
           onPointerOut={(e) => {
+            if (!interactive) return;
             e.stopPropagation();
             setHovered(false);
           }}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
@@ -17,6 +17,7 @@ import ProfileComplete from './pages/ProfileComplete';
 import AuthCallback from './pages/AuthCallback';
 import Profile from './pages/Profile';
 import BrandStory from './pages/BrandStory';
+import Collection from './pages/Collection';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFail from './pages/PaymentFail';
 import LoadingScreen from './components/LoadingScreen';
@@ -26,6 +27,21 @@ import { ProductProvider } from './context/ProductContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { CartProvider } from './context/CartContext';
+
+// Scroll to top on route change
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: 'instant'
+    });
+  }, [pathname]);
+
+  return null;
+}
 
 // Middleware Protected Route Component
 function ProtectedRoute({ children, requireAdmin = false }: { children: React.ReactNode, requireAdmin?: boolean }) {
@@ -71,6 +87,7 @@ function AnimatedRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/brand-story" element={<BrandStory />} />
+        <Route path="/collection" element={<Collection />} />
         
         {/* Profile Complete - Skip for Admins */}
         <Route 
@@ -115,10 +132,11 @@ function Layout() {
   const isAuthPage = location.pathname === '/login' || location.pathname === '/profile/complete' || location.pathname === '/auth/callback';
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white font-sans selection:bg-white selection:text-black flex flex-col">
+    <div className="min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black flex flex-col">
+      <ScrollToTop />
       <AdminBanner />
       {!isAdminPage && !isAuthPage && <Header />}
-      <main className={`flex-1 ${isAdminPage || isAuthPage ? '' : 'pt-20 md:pt-24'}`}>
+      <main className="flex-1">
         <AnimatedRoutes />
       </main>
       {!isAdminPage && !isAuthPage && <Footer />}

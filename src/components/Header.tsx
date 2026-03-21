@@ -76,7 +76,7 @@ export default function Header() {
   return (
     <>
       <header
-        className="sticky top-0 left-0 right-0 z-50 bg-black/40 backdrop-blur-xl border-b border-white/10 transition-all duration-300"
+        className="sticky top-0 left-0 right-0 z-50 bg-black/40 backdrop-blur-xl transition-all duration-300"
         ref={searchRef}
       >
         <motion.div layout className="flex flex-col w-full">
@@ -94,7 +94,16 @@ export default function Header() {
 
             {/* Center: Logo (Absolute Center) */}
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-              <Link to="/" className="flex items-center">
+              <Link 
+                to="/" 
+                className="flex items-center"
+                onClick={(e) => {
+                  if (location.pathname === '/') {
+                    e.preventDefault();
+                    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                  }
+                }}
+              >
                 <img 
                   src="https://postfiles.pstatic.net/MjAyNjAzMTZfMjM2/MDAxNzczNjQzMzQ3MDUw.zR_7l4ozVWSXDJOr1CA_6tw0H8LF8ZQenQvN8Tw3swEg.i_g5v5uqKHopzrE-iqVmSsuKM-nhT3X3N0tWVC_DDBgg.PNG/METALORA_LOGO.png?type=w3840" 
                   alt="METALORA" 

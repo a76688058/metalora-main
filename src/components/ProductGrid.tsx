@@ -1,67 +1,137 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { motion, useMotionValue, useSpring, useTransform, AnimatePresence } from 'framer-motion';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useProducts } from '../context/ProductContext';
-import { useAuth } from '../context/AuthContext';
-import { Product } from '../data/products';
-import { supabase } from '../lib/supabase';
-import { Sparkles, Lock } from 'lucide-react';
-import Skeleton from './Skeleton';
 import ProductCard from './ProductCard';
+import { motion, useMotionValue, useAnimationFrame } from 'framer-motion';
+
+// Custom wrap function
+const wrap = (min: number, max: number, v: number) => {
+  const rangeSize = max - min;
+  return ((((v - min) % rangeSize) + rangeSize) % rangeSize) + min;
+};
 
 export default function ProductGrid() {
   const { products: allProducts, isLoading } = useProducts();
-  const [searchParams] = useSearchParams();
-  const searchQuery = searchParams.get('q')?.toLowerCase() || '';
+  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [contentWidth, setContentWidth] = useState(0);
   
-  const products = allProducts.filter(p => {
-    if (p.is_visible === false) return false;
-    if (!searchQuery) return true;
+  const x = useMotionValue(0);
+  const baseVelocity = -0.5; // pixels per frame
+  const lastDragTime = useRef(0);
+  const isAutoPlaying = useRef(true);
+
+  const visibleProducts = useMemo(() => {
+    return allProducts.filter(p => p.is_visible !== false);
+  }, [allProducts]);
+
+  const { marqueeItems, finalCopies } = useMemo(() => {
+    if (visibleProducts.length === 0) return { marqueeItems: [], finalCopies: 0 };
     
-    const titleMatch = p.title?.toLowerCase().includes(searchQuery);
-    const artistMatch = p.artist?.toLowerCase().includes(searchQuery);
-    return titleMatch || artistMatch;
+    const shuffled = [...visibleProducts].sort(() => Math.random() - 0.5);
+    
+    const minItems = 32;
+    const copiesNeeded = Math.max(4, Math.ceil(minItems / shuffled.length));
+    const finalCopies = copiesNeeded % 2 === 0 ? copiesNeeded : copiesNeeded + 1;
+    
+    const items = [];
+    for (let i = 0; i < finalCopies; i++) {
+      items.push(...shuffled);
+    }
+    return { marqueeItems: items, finalCopies };
+  }, [visibleProducts]);
+
+  useEffect(() => {
+    if (containerRef.current && finalCopies > 0) {
+      const totalWidth = containerRef.current.scrollWidth;
+      setContentWidth(totalWidth / finalCopies);
+    }
+  }, [marqueeItems, finalCopies]);
+
+  useAnimationFrame((t, delta) => {
+    let currentX = x.get();
+
+    if (isDragging) {
+      isAutoPlaying.current = false;
+      lastDragTime.current = Date.now();
+      
+      if (contentWidth > 0) {
+        const wrapped = wrap(-contentWidth, 0, currentX);
+        if (wrapped !== currentX) {
+          x.set(wrapped);
+        }
+      }
+      return;
+    }
+
+    if (!isAutoPlaying.current) {
+      const v = x.getVelocity();
+      if (Math.abs(v) < 5) {
+        if (Date.now() - lastDragTime.current > 1500) {
+          isAutoPlaying.current = true;
+        }
+      } else {
+        lastDragTime.current = Date.now();
+      }
+      
+      if (contentWidth > 0) {
+        const wrapped = wrap(-contentWidth, 0, currentX);
+        if (wrapped !== currentX) {
+          x.set(wrapped);
+        }
+      }
+      return;
+    }
+
+    // Auto play
+    const moveBy = baseVelocity * (delta / 16.66);
+    currentX += moveBy;
+    
+    if (contentWidth > 0) {
+      currentX = wrap(-contentWidth, 0, currentX);
+    }
+    x.set(currentX);
   });
-  
+
+  if (isLoading) {
+    return (
+      <div className="w-full h-[500px] flex items-center justify-center text-zinc-500 tracking-widest text-sm bg-black">
+        로딩 중...
+      </div>
+    );
+  }
+
+  if (marqueeItems.length === 0) {
+    return null;
+  }
+
   return (
-    <>
-      <section className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-10 pt-8 pb-24">
-        {/* Grid */}
-        <motion.div 
-          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-12 md:gap-x-10 md:gap-y-20"
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
-        >
-          {isLoading ? (
-          Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="space-y-4">
-              <Skeleton className="aspect-[4/5] w-full" />
-              <Skeleton className="h-6 w-3/4 mx-auto" />
-              <Skeleton className="h-4 w-1/2 mx-auto" />
-            </div>
-          ))
-        ) : (
-          products.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))
-        )}
+    <section id="product-grid" className="relative w-full pt-0 pb-4 overflow-x-hidden overflow-y-visible bg-black flex items-center">
+      {/* Fade Masks for smooth appearance/disappearance */}
+      <div className="absolute left-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-r from-black to-transparent z-20 pointer-events-none" />
+      <div className="absolute right-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-l from-black to-transparent z-20 pointer-events-none" />
+
+      {/* Marquee Track */}
+      <motion.div 
+        ref={containerRef}
+        className={`flex w-max items-center transform-gpu will-change-transform ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        style={{ x }}
+        drag="x"
+        onDragStart={() => setIsDragging(true)}
+        onDragEnd={() => setIsDragging(false)}
+        dragTransition={{ power: 0.8, timeConstant: 200, restDelta: 0.5 }}
+      >
+        {marqueeItems.map((product, index) => (
+          <motion.div 
+            key={`${product.id}-${index}`} 
+            className="w-[95px] md:w-[136px] flex-shrink-0 mx-2 md:mx-4 transform-gpu will-change-transform"
+            animate={{ scale: isDragging ? 0.97 : 1 }}
+            transition={{ duration: 0.2 }}
+            whileHover={!isDragging ? { scale: 1.03 } : {}}
+          >
+            <ProductCard product={product} />
+          </motion.div>
+        ))}
       </motion.div>
-      
-      {/* Loading Message */}
-      {isLoading && (
-        <div className="text-center py-10 text-zinc-400 animate-pulse">
-          <p>데이터를 불러오는 중입니다...</p>
-        </div>
-      )}
-      
-      {/* Minimal Error Message */}
-      {!isLoading && products.length === 0 && (
-        <div className="text-center py-32 text-zinc-500 font-light tracking-widest">
-          <p>{searchQuery ? "검색 결과가 없습니다." : "상품을 불러올 수 없습니다. 잠시 후 다시 시도해주세요."}</p>
-        </div>
-      )}
     </section>
-    </>
   );
 }

@@ -60,14 +60,16 @@ export default function ThreeDViewer({ isOpen, onClose, imageUrl, backImageUrl }
 
             <div className="w-full h-full cursor-grab active:cursor-grabbing">
               <Canvas shadows camera={{ position: [0, 0, 8], fov: 45 }}>
-                <Poster3D 
-                  key={`${imageUrl}-${backImageUrl}`}
-                  imageUrl={imageUrl} 
-                  backImageUrl={backImageUrl} 
-                  scale={1.5} 
-                  width={3} 
-                  height={4.5} 
-                />
+                <Suspense fallback={<Loader />}>
+                  <Poster3D 
+                    key={`${imageUrl}-${backImageUrl}`}
+                    imageUrl={imageUrl} 
+                    backImageUrl={backImageUrl} 
+                    scale={1.5} 
+                    width={3} 
+                    height={4.5} 
+                  />
+                </Suspense>
                 <OrbitControls 
                   enablePan={false} 
                   enableZoom={true} 

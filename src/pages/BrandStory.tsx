@@ -134,7 +134,6 @@ export default function BrandStory() {
         {/* Section 3 */}
         <StorySection 
           title="분자 속에 새겨진 이야기"
-          bgImage="https://images.unsplash.com/photo-1604871000636-074fa5117945?q=80&w=2487&auto=format&fit=crop"
         />
 
         {/* Section 4 */}

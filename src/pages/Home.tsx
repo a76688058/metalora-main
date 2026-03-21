@@ -4,10 +4,7 @@ import { Canvas } from '@react-three/fiber';
 import { useNavigate } from 'react-router-dom';
 import Poster3D from '../components/Poster3D';
 import Hero from '../components/Hero';
-import LuxurySpacer from '../components/LuxurySpacer';
-import AnodicBadge from '../components/AnodicBadge';
 import ProductGrid from '../components/ProductGrid';
-import Footer from '../components/Footer';
 import SmoothScroll from '../components/SmoothScroll';
 import Payment from '../components/Payment';
 import { useLanguage } from '../context/LanguageContext';
@@ -53,21 +50,8 @@ export default function Home() {
 
   return (
     <div className="relative bg-black min-h-screen text-white selection:bg-white selection:text-black">
-        {/* Luxury Header Area */}
-        <div className="pt-8 pb-12 flex flex-col items-center gap-8">
-          <AnodicBadge />
-          <motion.h1 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1.2, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="text-7xl md:text-9xl font-extrabold tracking-[-0.02em] uppercase text-center"
-          >
-            METALORA
-          </motion.h1>
-        </div>
-
-        {/* Luxury Gap with Alchemy Particles */}
-        <LuxurySpacer />
+        {/* Product Collection Section (Top) */}
+        <ProductGrid />
 
         {/* New Cinematic Hero */}
         <Hero />
@@ -90,7 +74,9 @@ export default function Home() {
                     </div>
                     <div className="absolute top-0 right-0 w-1/2 h-full opacity-30 group-hover:opacity-50 transition-opacity">
                       <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
-                        <Poster3D interactive={false} imageUrl="https://picsum.photos/seed/metalora_material/1024/1448" />
+                        <React.Suspense fallback={null}>
+                          <Poster3D interactive={false} imageUrl="https://picsum.photos/seed/metalora_material/1024/1448" />
+                        </React.Suspense>
                       </Canvas>
                     </div>
                   </div>
@@ -141,8 +127,8 @@ export default function Home() {
 
         {/* Product Detail Section: The Object */}
         <section id="collection" className="relative min-h-screen bg-zinc-950 py-64 px-8 overflow-hidden z-10">
-          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-32 items-center">
-            <div className="space-y-20">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 gap-32 items-center">
+            <div className="space-y-20 max-w-2xl mx-auto lg:mx-0">
               <div className="space-y-8">
                 <Reveal y={30}>
                   <span className="text-xs font-bold uppercase tracking-[0.4em] text-zinc-500 block mb-4">에디션 01</span>
@@ -199,14 +185,6 @@ export default function Home() {
                 </div>
               </Reveal>
             </div>
-
-            <Reveal delay={0.2} scale={0.9} y={100}>
-              <div className="relative aspect-[4/5] w-full rounded-[3rem] overflow-hidden bg-zinc-900 border border-white/5 shadow-[0_0_100px_rgba(255,255,255,0.02)]">
-                <Canvas camera={{ position: [0, 0, 6], fov: 45 }}>
-                  <Poster3D interactive={true} imageUrl="https://picsum.photos/seed/metalora_detail/1024/1448" />
-                </Canvas>
-              </div>
-            </Reveal>
           </div>
         </section>
 
@@ -236,17 +214,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Product Collection Section */}
-        <section id="collection-grid" className="relative z-10 bg-black pb-32">
-          <div className="max-w-7xl mx-auto">
-            <Reveal y={30}>
-              <h2 className="text-center text-[10px] font-light tracking-[0.5em] text-zinc-500 mb-20 uppercase">COLLECTION</h2>
-            </Reveal>
-            <ProductGrid />
-          </div>
-        </section>
-
-        <Footer />
       <Payment isOpen={isPaymentOpen} onClose={() => setIsPaymentOpen(false)} price={129000} />
     </div>
   );

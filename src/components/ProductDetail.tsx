@@ -24,7 +24,7 @@ declare global {
 
 function CanvasLoader() {
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-[#121212] z-10">
+    <div className="absolute inset-0 flex items-center justify-center bg-transparent z-10">
       <div className="flex flex-col items-center gap-4">
         <Loader2 className="text-white/20 animate-spin" size={32} />
         <span className="text-white/40 text-[10px] font-bold uppercase tracking-[0.2em]">Loading 3D Model...</span>
@@ -50,7 +50,7 @@ class CanvasErrorBoundary extends React.Component<{ children: React.ReactNode },
   render() {
     if (this.state.hasError) {
       return (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#121212] p-8 text-center">
+        <div className="absolute inset-0 flex items-center justify-center bg-transparent p-8 text-center">
           <div className="flex flex-col items-center gap-4">
             <AlertCircle className="text-red-500/50" size={32} />
             <p className="text-white/60 text-xs font-light leading-relaxed">
@@ -293,26 +293,28 @@ export default function ProductDetail() {
               <span className="text-[10px] font-light uppercase tracking-[0.2em]">COLLECTION</span>
             </Link>
 
-            <div className="py-8"> {/* Safe Scroll Area */}
+            <div className="py-0 -mx-4 sm:mx-0"> {/* Safe Scroll Area */}
               <div 
                 ref={canvasContainerRef}
-                className="relative aspect-square rounded-3xl overflow-hidden bg-[#121212] shadow-2xl shadow-black/50 border border-white/5 cursor-grab active:cursor-grabbing"
+                className="relative aspect-square w-full md:w-[150%] md:-ml-[25%] lg:w-[150%] lg:-ml-[25%] overflow-visible bg-transparent cursor-grab active:cursor-grabbing"
               >
                 <CanvasErrorBoundary>
                   <Canvas 
                     shadows 
                     dpr={[1, 2]} 
-                    gl={{ antialias: true, preserveDrawingBuffer: true }}
-                    camera={{ position: [0, 0, 4.5], fov: 45 }}
+                    gl={{ antialias: true, preserveDrawingBuffer: true, alpha: true }}
+                    camera={{ position: [0, 0, 3.5], fov: 40 }}
                     onPointerDown={() => setHasInteracted(true)}
                     onCreated={({ gl }) => {
                       gl.outputColorSpace = THREE.SRGBColorSpace;
+                      gl.setClearColor(0x000000, 0); // Transparent background
                     }}
+                    style={{ background: 'transparent' }}
                   >
                     <Suspense fallback={null}>
                       <Poster3D 
                         product={product}
-                        scale={1.2}
+                        scale={1.8}
                       />
                       <OrbitControls 
                         onStart={() => setHasInteracted(true)}
@@ -327,10 +329,6 @@ export default function ProductDetail() {
                       />
                     </Suspense>
                   </Canvas>
-                  
-                  <Suspense fallback={<CanvasLoader />}>
-                    {/* This empty suspense will trigger the loader while textures are loading in Poster3D */}
-                  </Suspense>
                 </CanvasErrorBoundary>
                 
                 <AnimatePresence>
@@ -339,7 +337,7 @@ export default function ProductDetail() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/10 backdrop-blur-[2px]"
+                      className="absolute inset-0 flex items-center justify-center pointer-events-none bg-transparent"
                     >
                       <div className="flex flex-col items-center gap-3">
                         <span className="text-white/60 text-xs font-light tracking-widest animate-pulse">
@@ -351,7 +349,7 @@ export default function ProductDetail() {
                   )}
                 </AnimatePresence>
 
-                <div className="absolute bottom-6 left-6 pointer-events-none">
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 pointer-events-none">
                   <div className="flex items-center gap-2 text-white/40 text-[10px] font-bold uppercase tracking-widest">
                     <Box size={14} />
                     <span>Interactive 3D Experience</span>
