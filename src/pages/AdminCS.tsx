@@ -88,8 +88,6 @@ export default function AdminCS() {
       const payload = {
         answer: answerText,
         status: '답변완료',
-        // user_id: selectedInquiry.user_id, // 알림톡 발송 시 필요
-        // phone_number: selectedInquiry.phone_number // 알림톡 발송 시 필요
       };
 
       const { error } = await supabase

@@ -10,8 +10,6 @@ import { useToast } from '../context/ToastContext';
 import { useCart } from '../context/CartContext';
 import { supabase } from '../lib/supabase';
 import Poster3D from './Poster3D';
-import Payment from './Payment';
-import ShippingModal from './ShippingModal';
 import LoginModal from './LoginModal';
 import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, RotateCw, Frame } from 'lucide-react';
 import Skeleton from './Skeleton';
@@ -80,11 +78,8 @@ export default function ProductDetail() {
   const { addToCart, refreshCart } = useCart();
   const product = products.find((p) => p.id === id);
   const navigate = useNavigate();
-  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
-  const [isRedirecting, setIsRedirecting] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -206,80 +201,12 @@ export default function ProductDetail() {
     }
   };
 
-  const handlePayment = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setErrorMsg('');
-    
-    try {
-      setIsRedirecting(true); // 버튼 로딩 시작 (결제 준비 중...)
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setIsRedirecting(false);
-        setIsLoginModalOpen(true);
-        return; // 여기서 반드시 종료
-      }
-
-      if (isSoldOut) {
-        setIsRedirecting(false);
-        setErrorMsg('선택하신 사이즈는 품절되었습니다.');
-        return;
-      }
-
-      // 1. 결제 버튼 클릭 시 제일 먼저 Supabase에서 현재 로그인한 유저의 profiles 데이터를 select 해옴.
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-        
-      // PGRST116 (데이터 없음) 에러는 무시하고 진행
-      if (error && error.code !== 'PGRST116') throw error;
-
-      // ★ [핵심 방어] data가 null일 수 있으므로 반드시 옵셔널 체이닝(?.) 사용
-      if (data?.address && data?.full_name) {
-        setIsRedirecting(false); // ★ 모달을 띄우지 않을 거라면 여기서 반드시 로딩을 먼저 꺼야 함!
-        showToast("배송지 확인 완료. 결제 모듈로 이동합니다.", "success"); 
-        setIsPaymentOpen(true);
-      } else {
-        setIsRedirecting(false); // ★ 모달을 띄우기 전에도 버튼 로딩은 꺼야 함!
-        setIsShippingModalOpen(true);
-      }
-    } catch (err: any) {
-      console.error("결제 준비 중 오류:", err.message);
-      setErrorMsg("결제 준비 중 오류: " + err.message);
-      setIsRedirecting(false); // 에러 시 로딩 해제
-      // 에러 시 안전하게 모달 띄우기
-      setIsShippingModalOpen(true);
-    }
-  };
-
-  const handleShippingSuccess = () => {
-    setIsShippingModalOpen(false);
-    setIsPaymentOpen(true);
-  };
-
   return (
     <div className="min-h-screen bg-[#000000] pt-4 flex flex-col relative z-10">
-      {/* Shipping Info Modal */}
-      <ShippingModal
-        isOpen={isShippingModalOpen}
-        onClose={() => setIsShippingModalOpen(false)}
-        onSuccess={handleShippingSuccess}
-      />
-
       {/* Login Modal */}
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
-      />
-
-      {/* Payment Modal */}
-      <Payment 
-        isOpen={isPaymentOpen} 
-        onClose={() => setIsPaymentOpen(false)} 
-        price={currentPrice} 
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 w-full pb-24">

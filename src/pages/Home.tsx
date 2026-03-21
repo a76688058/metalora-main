@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
 import { useNavigate } from 'react-router-dom';
 import Poster3D from '../components/Poster3D';
 import Hero from '../components/Hero';
 import ProductGrid from '../components/ProductGrid';
-import SmoothScroll from '../components/SmoothScroll';
-import Payment from '../components/Payment';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { useProducts } from '../context/ProductContext';
@@ -34,18 +32,13 @@ export default function Home() {
   const { user } = useAuth();
   const { fetchProducts } = useProducts();
   const navigate = useNavigate();
-  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
 
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
   const handleBuyClick = () => {
-    if (!user) {
-      navigate('/login?redirect=/');
-      return;
-    }
-    setIsPaymentOpen(true);
+    navigate('/collection');
   };
 
   return (
@@ -173,10 +166,10 @@ export default function Home() {
               <Reveal delay={0.4} y={30}>
                 <div className="flex flex-col sm:flex-row items-center gap-10 pt-16 border-t border-white/5">
                   <button
-                    onClick={() => setIsPaymentOpen(true)}
+                    onClick={handleBuyClick}
                     className="w-full sm:w-auto px-16 py-6 rounded-full bg-white text-black font-extrabold text-base tracking-tight hover:bg-zinc-200 transition-all active:scale-95 shadow-xl shadow-white/5"
                   >
-                    구매하기
+                    컬렉션 보기
                   </button>
                   <div className="flex items-center gap-4 text-xs text-zinc-500 uppercase tracking-[0.2em] font-semibold">
                     <Truck size={20} />
@@ -207,14 +200,12 @@ export default function Home() {
                   onClick={handleBuyClick}
                   className="px-16 py-6 rounded-full bg-white text-black font-extrabold text-lg tracking-tight hover:bg-zinc-200 transition-all active:scale-95 shadow-2xl"
                 >
-                  구매하기
+                  컬렉션 보기
                 </button>
               </div>
             </Reveal>
           </div>
         </section>
-
-      <Payment isOpen={isPaymentOpen} onClose={() => setIsPaymentOpen(false)} price={129000} />
     </div>
   );
 }

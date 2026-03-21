@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react';
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
-import { Canvas } from '@react-three/fiber';
 
 const APPLE_EASE = [0.16, 1, 0.3, 1] as const;
 

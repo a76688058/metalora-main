@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'r
 import { AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
 import Footer from './components/Footer';
-import ProductGrid from './components/ProductGrid';
 import Home from './pages/Home';
 import ProductDetail from './components/ProductDetail';
 import AdminLogin from './pages/AdminLogin';
@@ -21,7 +20,6 @@ import Collection from './pages/Collection';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFail from './pages/PaymentFail';
 import LoadingScreen from './components/LoadingScreen';
-import NoPermission from './components/NoPermission';
 import AdminBanner from './components/AdminBanner';
 import { ProductProvider } from './context/ProductContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
