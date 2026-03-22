@@ -8,21 +8,25 @@ function MacroEdgeModel({ scrollProgress }: { scrollProgress: any }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const lightRef = useRef<THREE.SpotLight>(null);
 
-  // Rotate from 45 deg to 90 deg (showing only the edge)
-  const rotationY = useTransform(scrollProgress, [0, 1], [-Math.PI / 4, -Math.PI / 2]);
-  const rotationX = useTransform(scrollProgress, [0, 1], [0.2, 0]);
-  const scaleZ = useTransform(scrollProgress, [0, 1], [1, 1.5]);
+  // 0.0 ~ 0.2: Initial reveal
+  // 0.2 ~ 0.8: Active Shimmer/Tilt (Enhanced)
+  // 0.8 ~ 1.0: Hold (Maintain final tilt)
+  const rotationY = useTransform(scrollProgress, [0, 0.2, 0.8, 1], [-Math.PI / 4, -Math.PI / 4, -Math.PI / 3.2, -Math.PI / 3.2]);
+  const rotationX = useTransform(scrollProgress, [0, 0.2, 0.8, 1], [0.2, 0.2, 0.4, 0.4]);
+  
+  // Shimmer effect: light position moves across the edge based on scroll
+  const lightX = useTransform(scrollProgress, [0.2, 0.8], [-10, 10]);
+  const lightIntensity = useTransform(scrollProgress, [0, 0.2, 0.4, 0.6, 0.8, 1], [50, 300, 600, 600, 300, 50]);
 
-  useFrame((state, delta) => {
+  useFrame((state) => {
     if (meshRef.current) {
       meshRef.current.rotation.y = rotationY.get();
       meshRef.current.rotation.x = rotationX.get();
-      meshRef.current.scale.z = scaleZ.get();
     }
     
-    // Shimmer effect: moving light
     if (lightRef.current) {
-      lightRef.current.position.x = Math.sin(state.clock.elapsedTime * 2) * 5;
+      lightRef.current.position.x = lightX.get();
+      lightRef.current.intensity = lightIntensity.get();
     }
   });
 
@@ -30,18 +34,17 @@ function MacroEdgeModel({ scrollProgress }: { scrollProgress: any }) {
     const edgeMaterial = new THREE.MeshStandardMaterial({
       color: '#ffffff',
       metalness: 1,
-      roughness: 0.05,
+      roughness: 0.02, // Sharper reflections
       emissive: '#ffffff',
-      emissiveIntensity: 0.2,
+      emissiveIntensity: 0.1,
     });
 
     const surfaceMaterial = new THREE.MeshStandardMaterial({
-      color: '#111111',
+      color: '#050505',
       metalness: 1,
-      roughness: 0.2,
+      roughness: 0.3,
     });
 
-    // Right, Left, Top, Bottom, Front, Back
     return [
       edgeMaterial, edgeMaterial, edgeMaterial, edgeMaterial,
       surfaceMaterial, surfaceMaterial
@@ -50,25 +53,22 @@ function MacroEdgeModel({ scrollProgress }: { scrollProgress: any }) {
 
   return (
     <>
-      <PerspectiveCamera makeDefault position={[0, 0, 5]} fov={25} />
-      <ambientLight intensity={0.1} />
+      <PerspectiveCamera makeDefault position={[0, 0, 5]} fov={20} />
+      <ambientLight intensity={0.2} />
       <spotLight
         ref={lightRef}
-        position={[5, 2, 5]}
-        angle={0.15}
+        position={[0, 2, 4]}
+        angle={0.3}
         penumbra={1}
         intensity={150}
         color="#ffffff"
       />
-      <pointLight position={[-5, -2, 2]} intensity={20} color="#4444ff" />
+      <pointLight position={[-2, -1, 3]} intensity={40} color="#ffffff" />
       
-      <Float speed={2} rotationIntensity={0.1} floatIntensity={0.2}>
-        <mesh ref={meshRef} material={materials}>
-          {/* 1.15mm depth = 0.0115 in relative units */}
-          <boxGeometry args={[4, 2.5, 0.0115]} />
-        </mesh>
-      </Float>
-      <Environment preset="studio" />
+      <mesh ref={meshRef} material={materials}>
+        <boxGeometry args={[4.5, 2.8, 0.0115]} />
+      </mesh>
+      <Environment preset="night" />
     </>
   );
 }
@@ -86,31 +86,35 @@ export default function MaterialEdgeAnimation() {
     restDelta: 0.001
   });
 
-  // Refined mapping: text appears even earlier (threshold 0.05)
-  const textOpacity = useTransform(smoothProgress, [0.05, 0.2, 0.8, 0.95], [0, 1, 1, 0]);
-  const textY = useTransform(smoothProgress, [0.05, 0.2], [100, 0]);
-  const edgeLineOpacity = useTransform(smoothProgress, [0.1, 0.3], [0, 1]);
+  // 0.0 ~ 0.2: Fade in
+  // 0.2 ~ 0.6: Active Shimmer/Tilt
+  // 0.6 ~ 1.0: Holding
+  // 0.9 ~ 1.0: Exit
+  const textOpacity = useTransform(smoothProgress, [0, 0.1, 0.9, 1], [0, 1, 1, 0]);
+  const textY = useTransform(smoothProgress, [0, 0.1, 0.9, 1], [50, 0, 0, -50]);
+  const edgeLineOpacity = useTransform(smoothProgress, [0.05, 0.1, 0.9, 1], [0, 1, 1, 0]);
+  const modelOpacity = useTransform(smoothProgress, [0, 0.1, 0.9, 1], [0, 1, 1, 0]);
 
   return (
-    <section ref={containerRef} className="relative h-[300vh] bg-black overflow-hidden">
-      <div className="sticky top-0 h-screen w-full flex items-center justify-center py-20">
-        {/* 3D Macro View */}
-        <div className="absolute inset-0 z-0">
+    <section ref={containerRef} className="relative h-[200vh] bg-black">
+      <div className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden">
+        {/* 3D Macro View - Shifted to the right for better text placement */}
+        <motion.div style={{ opacity: modelOpacity }} className="absolute inset-0 z-0 lg:left-[20%]">
           <Canvas gl={{ antialias: true, alpha: true }}>
             <React.Suspense fallback={null}>
               <MacroEdgeModel scrollProgress={smoothProgress} />
             </React.Suspense>
           </Canvas>
-        </div>
+        </motion.div>
 
-        {/* Overlay Content */}
+        {/* Overlay Content - Shifted to the left */}
         <div className="relative z-10 w-full max-w-7xl mx-auto px-6 pointer-events-none">
           <motion.div 
             style={{ opacity: textOpacity, y: textY }}
-            className="flex flex-col items-center text-center space-y-12"
+            className="flex flex-col items-start text-left space-y-12 lg:w-1/2"
           >
-            <div className="space-y-6">
-              <h2 className="text-4xl md:text-7xl font-thin tracking-tight leading-tight text-white">
+            <div className="space-y-8">
+              <h2 className="text-5xl md:text-8xl font-thin tracking-tight leading-tight text-white">
                 영원히 바래지 않는 <br/>
                 <span className="relative inline-block">
                   <span className="font-bold bg-gradient-to-r from-zinc-400 via-white to-zinc-400 bg-clip-text text-transparent">
@@ -127,7 +131,7 @@ export default function MaterialEdgeAnimation() {
                 </span>
                 의 영속성.
               </h2>
-              <p className="text-xl md:text-2xl font-thin tracking-[0.2em] text-zinc-500 max-w-3xl mx-auto leading-relaxed">
+              <p className="text-xl md:text-3xl font-thin tracking-[0.1em] text-zinc-500 max-w-2xl leading-relaxed">
                 종이보다 강인하게, 철보다 가볍게.<br/>
                 세월이 흘러도 변치 않는 압도적 발색력을 경험하십시오.
               </p>

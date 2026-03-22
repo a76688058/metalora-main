@@ -7,7 +7,7 @@ import { useCart } from '../context/CartContext';
 import LoginModal from './LoginModal';
 import Cart from './Cart';
 
-export default function Header() {
+export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);

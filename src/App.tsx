@@ -135,7 +135,7 @@ function Layout() {
     <div className="min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black flex flex-col">
       <ScrollToTop />
       <AdminBanner />
-      {!isAdminPage && !isAuthPage && <Header />}
+      {!isAdminPage && !isAuthPage && <Header isHome={location.pathname === '/'} />}
       <div className={`flex-1 flex flex-col ${isProfilePage ? 'justify-center' : ''}`}>
         <main className={isProfilePage ? '' : 'flex-1'}>
           <AnimatedRoutes />

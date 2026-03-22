@@ -26,7 +26,7 @@ export default function Hero() {
   const backImage = randomProduct?.back_image || randomProduct?.backImage || frontImage;
 
   return (
-    <section className="relative w-full flex flex-col items-center justify-center py-32 overflow-hidden bg-black min-h-[80vh]">
+    <section className="relative w-full flex flex-col items-center justify-center pt-0 pb-0 overflow-hidden bg-black min-h-[60vh]">
       {/* 3D Interactive Frame */}
       <motion.div 
         initial={{ opacity: 0, scale: 0.9 }}
@@ -55,7 +55,7 @@ export default function Hero() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, delay: 0.5, ease: [0.17, 0.67, 0.83, 0.67] }}
-        className="relative z-20 mt-16 mb-8"
+        className="relative z-20 mt-8 mb-8"
       >
         <button 
           onClick={handleMoreClick}

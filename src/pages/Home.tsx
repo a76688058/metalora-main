@@ -18,7 +18,7 @@ const Reveal = ({ children, delay = 0, scale = 1, x = 0, y = 40 }: { children: R
     <motion.div
       initial={{ opacity: 0, y, x, scale }}
       whileInView={{ opacity: 1, y: 0, x: 0, scale: 1 }}
-      viewport={{ once: true, margin: "-100px 0px -100px 0px", amount: 0.2 }}
+      viewport={{ once: true, margin: "-100px 0px -100px 0px", amount: 0.3 }}
       transition={{ 
         duration: 0.8, 
         delay, 
@@ -48,8 +48,8 @@ export default function Home() {
 
   return (
     <div className="relative bg-black min-h-screen text-white selection:bg-white selection:text-black">
-        {/* 1. Top Marquee Grid (Restored) */}
-        <div className="relative z-10 py-8">
+        {/* 1. Top Marquee Grid (Micro Margin for Header) */}
+        <div className="relative z-10 mt-1 pt-0 pb-0 top-0 overflow-hidden">
           <ProductGrid />
         </div>
 
@@ -57,7 +57,7 @@ export default function Home() {
         <Hero />
 
         {/* 3. Section 1 [THE HOOK]: 45도 3D 제품 쇼케이스 */}
-        <section className="relative min-h-screen py-32 px-6 overflow-hidden flex items-center justify-center mt-8 bg-black">
+        <section className="relative h-auto py-24 px-6 overflow-hidden flex items-center justify-center bg-black">
           <div className="max-w-7xl mx-auto w-full relative flex flex-col items-center justify-center">
             <div className="flex flex-col items-center justify-center min-h-[80vh] w-full">
               {/* 3D Canvas Container - Floating in Deep Black */}
@@ -96,14 +96,21 @@ export default function Home() {
         </section>
 
         {/* Section 2 [THE SOLUTION]: 45도 자석 조립 애니메이션 */}
-        <MountingAnimation />
+        <div className="relative z-30">
+          <MountingAnimation />
+        </div>
+
+        {/* Spacer to prevent overlap between Mounting and Material sections */}
+        <div className="h-32 bg-black" />
 
         {/* Section 3 [THE MATERIAL]: 1.15mm 매크로 엣지 뷰 */}
-        <MaterialEdgeAnimation />
+        <div className="relative z-20">
+          <MaterialEdgeAnimation />
+        </div>
 
         {/* Section 4 [THE EXPERIENCE]: 하단 마키 갤러리 (통일성 부여) */}
-        <div className="py-32 bg-black">
-          <div className="max-w-7xl mx-auto px-6 mb-16 text-center">
+        <div className="pt-0 pb-24 bg-black overflow-hidden">
+          <div className="max-w-7xl mx-auto px-6 mb-12 text-center">
             <Reveal y={40}>
               <div className="space-y-6">
                 <span className="text-xs font-black uppercase tracking-[0.5em] text-zinc-600">Archive</span>
