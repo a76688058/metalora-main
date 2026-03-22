@@ -1,52 +1,68 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
+import { useProducts } from '../context/ProductContext';
 
 export default function MountingAnimation() {
+  const { products } = useProducts();
+  const [selectedImage, setSelectedImage] = useState('https://picsum.photos/seed/metalora_fallback/1200/1697');
   const tunnelRef = useRef<HTMLDivElement>(null);
+  
+  // Randomly select one image from the actual product pool when products are loaded
+  useEffect(() => {
+    if (products && products.length > 0) {
+      const visibleProducts = products.filter(p => p.is_visible !== false);
+      if (visibleProducts.length > 0) {
+        const randomProduct = visibleProducts[Math.floor(Math.random() * visibleProducts.length)];
+        setSelectedImage(randomProduct.front_image || randomProduct.image);
+      }
+    }
+  }, [products]);
+
   const { scrollYProgress } = useScroll({
     target: tunnelRef,
     offset: ["start start", "end end"]
   });
 
-  // Smooth scroll progress for fluid animation
+  // Smooth scroll progress for fluid animation - Adjusted for "Elegant Fly-in"
   const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 100,
-    damping: 30,
+    stiffness: 40,
+    damping: 15,
+    mass: 1,
     restDelta: 0.001
   });
 
   if (!tunnelRef) return null;
 
-  // Layer 1: Wall (0.0 -> 0.15)
+  // Layer 1: Wall (0.0 -> 0.1)
   const wallOpacity = useTransform(smoothProgress, [0, 0.05], [0, 1]);
-  const wallScale = useTransform(smoothProgress, [0, 0.15], [0.8, 1]);
+  const wallScale = useTransform(smoothProgress, [0, 0.1], [0.8, 1]);
 
-  // Layer 2: Adhesive Sticker (0.15 -> 0.35)
-  const stickerOpacity = useTransform(smoothProgress, [0.15, 0.2], [0, 1]);
-  const stickerX = useTransform(smoothProgress, [0.15, 0.35], [600, 0]);
-  const stickerY = useTransform(smoothProgress, [0.15, 0.35], [-400, 0]);
-  const stickerZ = useTransform(smoothProgress, [0.15, 0.35], [1000, 0]);
-  const stickerScale = useTransform(smoothProgress, [0.15, 0.35], [1.5, 1]);
-  const stickerShadow = useTransform(smoothProgress, [0.15, 0.35], ["-60px 100px 120px rgba(0,0,0,0.6)", "0 0px 0px rgba(0,0,0,0)"]);
+  // Layer 2: Adhesive Sticker (0.1 -> 0.35) - Staggered
+  const stickerOpacity = useTransform(smoothProgress, [0.1, 0.15], [0, 1]);
+  const stickerX = useTransform(smoothProgress, [0.1, 0.35], [800, 0]);
+  const stickerY = 0;
+  const stickerZ = useTransform(smoothProgress, [0.1, 0.35], [400, 0]);
+  const stickerScale = useTransform(smoothProgress, [0.1, 0.35], [1.2, 1]);
+  const stickerShadow = useTransform(smoothProgress, [0.1, 0.35], ["-100px 0px 120px rgba(0,0,0,0.4)", "0 0px 0px rgba(0,0,0,0)"]);
 
-  // Layer 3: Magnetic Bar (0.35 -> 0.55)
+  // Layer 3: Magnetic Bar (0.35 -> 0.6) - Staggered
   const magnetOpacity = useTransform(smoothProgress, [0.35, 0.4], [0, 1]);
-  const magnetX = useTransform(smoothProgress, [0.35, 0.55], [500, 0]);
-  const magnetY = useTransform(smoothProgress, [0.35, 0.55], [-300, 0]);
-  const magnetZ = useTransform(smoothProgress, [0.35, 0.55], [800, 0]);
-  const magnetScale = useTransform(smoothProgress, [0.35, 0.55], [1.3, 1]);
-  const magnetShadow = useTransform(smoothProgress, [0.35, 0.55], ["-40px 70px 80px rgba(0,0,0,0.8)", "0 0px 0px rgba(0,0,0,0)"]);
+  const magnetX = useTransform(smoothProgress, [0.35, 0.6], [700, 0]);
+  const magnetY = 0;
+  const magnetZ = useTransform(smoothProgress, [0.35, 0.6], [300, 0]);
+  const magnetScale = useTransform(smoothProgress, [0.35, 0.6], [1.1, 1]);
+  const magnetShadow = useTransform(smoothProgress, [0.35, 0.6], ["-80px 0px 80px rgba(0,0,0,0.6)", "0 0px 0px rgba(0,0,0,0)"]);
 
-  // Layer 4: Metal Poster (0.55 -> 0.7)
-  const posterOpacity = useTransform(smoothProgress, [0.55, 0.6], [0, 1]);
-  const posterX = useTransform(smoothProgress, [0.55, 0.7], [400, 0]);
-  const posterY = useTransform(smoothProgress, [0.55, 0.7], [-200, 0]);
-  const posterZ = useTransform(smoothProgress, [0.55, 0.7], [600, 0]);
-  const posterScale = useTransform(smoothProgress, [0.55, 0.7], [1.2, 1]);
-  const posterShadow = useTransform(smoothProgress, [0.55, 0.7], ["-50px 80px 100px rgba(0,0,0,0.9)", "-5px 10px 30px rgba(0,0,0,0.5)"]);
+  // Layer 4: Metal Poster (0.6 -> 0.85) - Staggered
+  const posterOpacity = useTransform(smoothProgress, [0.6, 0.65], [0, 1]);
+  const posterX = useTransform(smoothProgress, [0.6, 0.85], [600, 0]);
+  const posterY = 0;
+  const posterZ = useTransform(smoothProgress, [0.6, 0.85], [200, 0]);
+  const posterScale = useTransform(smoothProgress, [0.6, 0.85], [1.05, 1]);
+  const posterShadow = useTransform(smoothProgress, [0.6, 0.85], ["-100px 0px 100px rgba(0,0,0,0.8)", "-5px 10px 30px rgba(0,0,0,0.5)"]);
 
-  // Exit Animation (Sticky container moves up at the end)
-  const stickyExitY = useTransform(smoothProgress, [0.95, 1], [0, -1500]);
+  // Exit Animation (Sticky container moves up at the end) - Smoother Exit Range
+  const stickyExitY = useTransform(smoothProgress, [0.9, 1], [0, -1500]);
 
   return (
     <div className="relative bg-black z-20">
@@ -63,9 +79,9 @@ export default function MountingAnimation() {
             {/* Assembly Visualizer (Centered) */}
             <div className="relative h-[50vh] lg:h-[60vh] w-full flex items-center justify-center perspective-[3000px] transform-gpu">
               
-              {/* 45-Degree Perspective Wrapper */}
+              {/* Increased Y-axis Tilt Perspective Wrapper */}
               <motion.div 
-                style={{ rotateX: 30, rotateY: -45 }}
+                style={{ rotateX: 5, rotateY: -25 }}
                 className="relative w-full h-full flex items-center justify-center preserve-3d"
               >
                 {/* 1. 벽 (Wall - Fixed Base) */}
@@ -124,7 +140,7 @@ export default function MountingAnimation() {
                   {/* Main Surface */}
                   <div className="absolute inset-0 bg-zinc-900 rounded-xl border border-white/10 overflow-hidden">
                     <img 
-                      src="https://picsum.photos/seed/metalora_poster_demo/1200/1697" 
+                      src={selectedImage} 
                       alt="Metal Poster Demo" 
                       className="w-full h-full object-cover opacity-90"
                       referrerPolicy="no-referrer"

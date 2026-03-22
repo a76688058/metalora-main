@@ -101,24 +101,81 @@ export default function Home() {
           <MountingAnimation />
         </div>
 
-        {/* 5. [SCAR-FREE Text Section]: 목업이 완전히 올라간 후 나타나는 '벽에 상처를...' 텍스트. */}
-        <section className="relative z-[60] pt-16 pb-40 bg-black overflow-hidden">
-          <div className="max-w-7xl mx-auto px-6 text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: false, margin: "-10% 0px 0px 0px" }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-              className="space-y-8"
-            >
-              <h2 className="text-4xl md:text-7xl font-light tracking-tight leading-tight text-white">
-                벽에 상처를 남기지 마십시오.<br/>
-                <span className="text-zinc-500">오직 예술만 남기십시오.</span>
-              </h2>
-              <p className="text-xl md:text-2xl font-thin tracking-[0.4em] text-zinc-400 uppercase">
-                3단계. 1분. 도구 불필요.
-              </p>
-            </motion.div>
+        {/* 5. [SCAR-FREE Text Section]: Cinematic Brand Narrative */}
+        <section className="relative z-[60] min-h-screen pt-40 pb-80 bg-black flex items-center overflow-hidden">
+          <div className="max-w-7xl mx-auto px-6 text-left w-full">
+            <div className="space-y-40">
+              {/* Chunk 1: Narrative Statement 1 */}
+              <div className="space-y-2">
+                <div className="overflow-hidden">
+                  <motion.h2
+                    initial={{ y: "100%" }}
+                    whileInView={{ y: 0 }}
+                    viewport={{ once: true, amount: 0.5 }}
+                    transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
+                    className="text-6xl md:text-[10rem] font-bold tracking-tighter leading-[0.9] text-[#EEEEEE]"
+                  >
+                    벽에 상처를
+                  </motion.h2>
+                </div>
+                <div className="overflow-hidden">
+                  <motion.h2
+                    initial={{ y: "100%" }}
+                    whileInView={{ y: 0 }}
+                    viewport={{ once: true, amount: 0.5 }}
+                    transition={{ duration: 1.4, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+                    className="text-6xl md:text-[10rem] font-bold tracking-tighter leading-[0.9] text-[#EEEEEE]"
+                  >
+                    남기지 마십시오.
+                  </motion.h2>
+                </div>
+              </div>
+              
+              {/* Chunk 2: Narrative Statement 2 (Staggered) */}
+              <div className="space-y-2">
+                <div className="overflow-hidden">
+                  <motion.h2
+                    initial={{ y: "100%" }}
+                    whileInView={{ y: 0 }}
+                    viewport={{ once: true, amount: 0.5 }}
+                    transition={{ duration: 1.4, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                    className="text-6xl md:text-[10rem] font-bold tracking-tighter leading-[0.9] text-[#EEEEEE]"
+                  >
+                    오직 예술만
+                  </motion.h2>
+                </div>
+                <div className="overflow-hidden">
+                  <motion.h2
+                    initial={{ y: "100%" }}
+                    whileInView={{ y: 0 }}
+                    viewport={{ once: true, amount: 0.5 }}
+                    transition={{ duration: 1.4, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                    className="text-6xl md:text-[10rem] font-bold tracking-tighter leading-[0.9] relative inline-block"
+                  >
+                    {/* Metallic Shimmer Text - Steel/Silver Finish */}
+                    <span 
+                      className="relative z-10 bg-clip-text text-transparent bg-[linear-gradient(110deg,#EEEEEE,45%,#71717a,50%,#EEEEEE,55%,#EEEEEE)] bg-[length:250%_100%]" 
+                      style={{ animation: 'shimmer 4s infinite cubic-bezier(0.4, 0, 0.2, 1)' }}
+                    >
+                      남기십시오.
+                    </span>
+                  </motion.h2>
+                </div>
+              </div>
+
+              {/* Chunk 3: Product Features (Staggered) */}
+              <div className="overflow-hidden">
+                <motion.p 
+                  initial={{ y: "100%" }}
+                  whileInView={{ y: 0 }}
+                  viewport={{ once: true, amount: 0.5 }}
+                  transition={{ duration: 1.2, delay: 1.1, ease: [0.16, 1, 0.3, 1] }}
+                  className="text-xl md:text-3xl font-medium tracking-[0.5em] text-zinc-500 uppercase"
+                >
+                  3단계. 1분. 도구 불필요
+                </motion.p>
+              </div>
+            </div>
           </div>
         </section>
 
