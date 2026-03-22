@@ -129,15 +129,19 @@ function Layout() {
   const isAdminPage = location.pathname.startsWith('/admin');
   const isAuthPage = location.pathname === '/login' || location.pathname === '/profile/complete' || location.pathname === '/auth/callback';
 
+  const isProfilePage = location.pathname === '/profile';
+
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black flex flex-col">
       <ScrollToTop />
       <AdminBanner />
       {!isAdminPage && !isAuthPage && <Header />}
-      <main className="flex-1">
-        <AnimatedRoutes />
-      </main>
-      {!isAdminPage && !isAuthPage && <Footer />}
+      <div className={`flex-1 flex flex-col ${isProfilePage ? 'justify-center' : ''}`}>
+        <main className={isProfilePage ? '' : 'flex-1'}>
+          <AnimatedRoutes />
+        </main>
+        {!isAdminPage && !isAuthPage && <Footer />}
+      </div>
     </div>
   );
 }

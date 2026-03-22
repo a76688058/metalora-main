@@ -6,7 +6,7 @@ export default function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="relative bg-black pt-24 pb-12 overflow-hidden">
+    <footer className="relative bg-black pt-12 pb-12 overflow-hidden">
       {/* Background Ambient Glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       
@@ -28,7 +28,7 @@ export default function Footer() {
       </div>
 
       {/* Bottom Bar */}
-      <div className="max-w-7xl mx-auto px-6 mt-24 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-[10px] uppercase tracking-[0.4em] text-zinc-600 font-medium">
+      <div className="max-w-7xl mx-auto px-6 mt-12 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-[10px] uppercase tracking-[0.4em] text-zinc-600 font-medium">
         <p>© {currentYear} METALORA. ALL RIGHTS RESERVED.</p>
         <div className="flex gap-8">
           <a href="#" className="hover:text-white transition-colors">개인정보 처리방침</a>

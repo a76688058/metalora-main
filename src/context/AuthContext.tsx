@@ -67,20 +67,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
         
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 3000)
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
       );
 
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
       
-      if (error && error.code !== 'PGRST116') throw error;
-      setter(data || null);
+      if (error) {
+        if (error.code === 'PGRST116') {
+          setter(null);
+          return;
+        }
+        throw error;
+      }
+      
+      if (data) {
+        setter(data);
+      }
     } catch (error: any) {
-      setter(null);
+      console.error('Profile fetch error:', error);
+      // Keep existing profile data on error to prevent UI flickering
       if (error.message === 'Profile fetch timeout') {
         console.warn('Profile fetch timed out, but keeping session active.');
-        return; // Do not throw, keep session
       }
-      throw error; // Rethrow to handle ghost session
     }
   };
 

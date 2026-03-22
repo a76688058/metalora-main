@@ -88,47 +88,48 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[9999] bg-[#121212] w-screen h-screen flex flex-col overflow-y-auto custom-scrollbar p-6 md:p-10"
+          className="fixed inset-0 z-[100000] bg-black w-screen h-screen flex flex-col !overflow-y-auto custom-scrollbar p-6 md:p-10"
+          style={{ WebkitOverflowScrolling: 'touch' }}
         >
           <div className="max-w-3xl mx-auto w-full my-auto">
             <div className="flex items-center justify-between mb-12">
-              <h2 className="text-3xl font-bold text-white tracking-tight">1:1 문의하기</h2>
+              <h2 className="text-4xl font-black text-white tracking-tighter uppercase">1:1 문의하기</h2>
               <button
                 onClick={onClose}
-                className="fixed top-6 right-6 p-3 bg-white/5 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition-all active:scale-90 z-[10000]"
+                className="fixed top-8 right-8 p-3 bg-white/5 hover:bg-white/10 rounded-full text-zinc-500 hover:text-white transition-all active:scale-90 z-[10000]"
               >
                 <X size={32} />
               </button>
             </div>
 
-            <p className="text-zinc-500 text-lg mb-10 tracking-tight">궁금하신 점을 남겨주시면 빠르게 답변해 드리겠습니다.</p>
+            <p className="text-zinc-500 text-lg mb-10 tracking-tight font-light">궁금하신 점을 남겨주시면 빠르게 답변해 드리겠습니다.</p>
 
             <form onSubmit={handleSubmit} className="space-y-8">
               <div className="space-y-3">
-                <label className="text-sm font-bold text-zinc-500 uppercase tracking-widest ml-1">제목</label>
+                <label className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] ml-1">제목</label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="문의 제목을 입력하세요"
-                  className="w-full h-16 bg-[#1C1C1E] border border-white/5 rounded-2xl px-6 text-white text-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-all tracking-tight"
+                  className="w-full h-16 bg-white/[0.03] border border-white/5 rounded-2xl px-6 text-white text-lg placeholder:text-zinc-700 focus:outline-none focus:border-white/20 transition-all tracking-tight font-medium"
                 />
               </div>
 
               <div className="space-y-3">
-                <label className="text-sm font-bold text-zinc-500 uppercase tracking-widest ml-1">내용</label>
+                <label className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] ml-1">내용</label>
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="문의하실 내용을 상세히 적어주세요"
-                  className="w-full h-[400px] bg-[#1C1C1E] border border-white/5 rounded-2xl p-6 text-white text-lg placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-all resize-none tracking-tight"
+                  className="w-full h-[400px] bg-white/[0.03] border border-white/5 rounded-2xl p-6 text-white text-lg placeholder:text-zinc-700 focus:outline-none focus:border-white/20 transition-all resize-none tracking-tight font-medium"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-20 bg-white text-black font-bold tracking-tight rounded-2xl hover:bg-zinc-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50 text-xl mt-8 shadow-2xl shadow-white/5"
+                className="w-full h-20 bg-white text-black font-black tracking-tight rounded-2xl hover:bg-zinc-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50 text-xl mt-8 shadow-2xl shadow-white/5 active:scale-[0.98]"
               >
                 {isLoading ? (
                   <Loader2 className="animate-spin" size={28} />
