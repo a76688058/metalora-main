@@ -1,6 +1,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import Poster3D from './Poster3D';
 import { useProducts } from '../context/ProductContext';
 import { Product } from '../data/products';
@@ -25,15 +26,20 @@ export default function Hero() {
   const backImage = randomProduct?.back_image || randomProduct?.backImage || frontImage;
 
   return (
-    <section className="relative w-full flex flex-col items-center py-12 overflow-hidden bg-black min-h-[60vh]">
+    <section className="relative w-full flex flex-col items-center justify-center py-32 overflow-hidden bg-black min-h-[80vh]">
       {/* 3D Interactive Frame */}
-      <div className="relative w-[80vw] h-[50vh] mx-auto z-10 flex items-center justify-center">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 1.2, ease: [0.17, 0.67, 0.83, 0.67] }}
+        className="relative w-[80vw] h-[60vh] mx-auto z-10 flex items-center justify-center"
+      >
         {frontImage ? (
           <Canvas camera={{ position: [0, 0, 4.5], fov: 45 }} className="w-full h-full pointer-events-none">
             <Suspense fallback={null}>
               <Poster3D 
                 interactive={false} 
-                scale={2.0}
+                scale={2.2}
                 imageUrl={frontImage}
                 backImageUrl={backImage}
               />
@@ -42,17 +48,22 @@ export default function Hero() {
         ) : (
           <div className="w-full h-full bg-black" />
         )}
-      </div>
+      </motion.div>
 
       {/* CTA Button */}
-      <div className="relative z-20 mt-12 mb-8">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, delay: 0.5, ease: [0.17, 0.67, 0.83, 0.67] }}
+        className="relative z-20 mt-16 mb-8"
+      >
         <button 
           onClick={handleMoreClick}
-          className="px-24 py-4 rounded-full bg-white text-black font-bold tracking-tight text-lg hover:bg-zinc-200 transition-all duration-300 shadow-2xl transform-gpu"
+          className="px-24 py-5 rounded-full bg-white text-black font-black tracking-tight text-xl hover:bg-zinc-200 transition-all duration-500 shadow-2xl transform-gpu active:scale-95"
         >
           작품 더보기
         </button>
-      </div>
+      </motion.div>
     </section>
   );
 }

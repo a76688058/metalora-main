@@ -105,7 +105,7 @@ export default function ProductGrid() {
   }
 
   return (
-    <section id="product-grid" className="relative w-full pt-0 pb-4 overflow-x-hidden overflow-y-visible bg-black flex items-center">
+    <section id="product-grid" className="relative w-full py-0 overflow-x-hidden overflow-y-visible bg-black flex items-center">
       {/* Fade Masks for smooth appearance/disappearance */}
       <div className="absolute left-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-r from-black to-transparent z-20 pointer-events-none" />
       <div className="absolute right-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-l from-black to-transparent z-20 pointer-events-none" />

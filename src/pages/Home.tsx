@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
 import { useNavigate } from 'react-router-dom';
 import Poster3D from '../components/Poster3D';
+import Hook3D from '../components/Hook3D';
+import MountingAnimation from '../components/MountingAnimation';
+import MaterialEdgeAnimation from '../components/MaterialEdgeAnimation';
 import Hero from '../components/Hero';
 import ProductGrid from '../components/ProductGrid';
 import { useLanguage } from '../context/LanguageContext';
@@ -10,16 +13,16 @@ import { useAuth } from '../context/AuthContext';
 import { useProducts } from '../context/ProductContext';
 import { ZoomIn, ShieldCheck, Truck, Layers, Zap, MousePointer2, Sparkles } from 'lucide-react';
 
-const Reveal = ({ children, delay = 0, scale = 1, y = 40 }: { children: React.ReactNode, delay?: number, scale?: number, y?: number }) => {
+const Reveal = ({ children, delay = 0, scale = 1, x = 0, y = 40 }: { children: React.ReactNode, delay?: number, scale?: number, x?: number, y?: number }) => {
   return (
     <motion.div
-      initial={{ opacity: 0, y, scale }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: false, margin: "-100px" }}
+      initial={{ opacity: 0, y, x, scale }}
+      whileInView={{ opacity: 1, y: 0, x: 0, scale: 1 }}
+      viewport={{ once: true, margin: "-100px 0px -100px 0px", amount: 0.2 }}
       transition={{ 
         duration: 0.8, 
         delay, 
-        ease: [0.21, 0.47, 0.32, 0.98] 
+        ease: [0.17, 0.67, 0.83, 0.67] 
       }}
     >
       {children}
@@ -32,6 +35,8 @@ export default function Home() {
   const { user } = useAuth();
   const { fetchProducts } = useProducts();
   const navigate = useNavigate();
+  const { scrollYProgress } = useScroll();
+  const textY = useTransform(scrollYProgress, [0, 1], [0, 200]);
 
   useEffect(() => {
     fetchProducts();
@@ -43,164 +48,115 @@ export default function Home() {
 
   return (
     <div className="relative bg-black min-h-screen text-white selection:bg-white selection:text-black">
-        {/* Product Collection Section (Top) */}
-        <ProductGrid />
+        {/* 1. Top Marquee Grid (Restored) */}
+        <div className="relative z-10 py-8">
+          <ProductGrid />
+        </div>
 
-        {/* New Cinematic Hero */}
+        {/* 2. Hero 3D Section (Restored) */}
         <Hero />
 
-        {/* Bento Grid Features */}
-        <section id="technology" className="relative bg-black py-48 px-6 z-10">
-          <div className="mx-auto max-w-7xl">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Large Feature 1: Material */}
-              <div className="md:col-span-2">
-                <Reveal y={60} scale={0.95}>
-                  <div className="relative h-[600px] rounded-[2.5rem] bg-zinc-900 overflow-hidden border border-white/5 group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-zinc-800/50 to-transparent z-10" />
-                    <div className="absolute bottom-16 left-16 z-20 max-w-md">
-                      <Layers className="mb-8 text-zinc-500" size={40} />
-                      <h3 className="text-5xl font-extrabold tracking-tight mb-6">소재의 혁신</h3>
-                      <p className="text-zinc-400 text-lg font-light leading-relaxed">
-                        1.15mm의 초정밀 알루미늄 합금. 종이의 한계를 넘어, 영원히 변치 않는 가치를 선사합니다.
-                      </p>
-                    </div>
-                    <div className="absolute top-0 right-0 w-1/2 h-full opacity-30 group-hover:opacity-50 transition-opacity">
-                      <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
-                        <React.Suspense fallback={null}>
-                          <Poster3D interactive={false} imageUrl="https://picsum.photos/seed/metalora_material/1024/1448" />
-                        </React.Suspense>
-                      </Canvas>
-                    </div>
-                  </div>
-                </Reveal>
+        {/* 3. Section 1 [THE HOOK]: 45도 3D 제품 쇼케이스 */}
+        <section className="relative min-h-screen py-32 px-6 overflow-hidden flex items-center justify-center mt-8 bg-black">
+          <div className="max-w-7xl mx-auto w-full relative flex flex-col items-center justify-center">
+            <div className="flex flex-col items-center justify-center min-h-[80vh] w-full">
+              {/* 3D Canvas Container - Floating in Deep Black */}
+              <div className="absolute inset-0 z-0 opacity-80">
+                <Canvas gl={{ antialias: true, alpha: true }}>
+                  <React.Suspense fallback={null}>
+                    <Hook3D imageUrl="https://picsum.photos/seed/metalora_hook/1024/1448" />
+                  </React.Suspense>
+                </Canvas>
               </div>
 
-              {/* Small Feature 1: Precision */}
-              <Reveal delay={0.1} y={60} scale={0.95}>
-                <div className="relative h-[600px] rounded-[2.5rem] bg-zinc-900 p-16 border border-white/5 flex flex-col justify-end">
-                  <Zap className="mb-8 text-zinc-500" size={40} />
-                  <h3 className="text-3xl font-extrabold tracking-tight mb-6">초정밀 공정</h3>
-                  <p className="text-zinc-500 text-base font-light leading-relaxed">
-                    마이크로 단위의 정밀한 가공으로 완성된 완벽한 마감.
-                  </p>
-                </div>
-              </Reveal>
-
-              {/* Small Feature 2: Magnet */}
-              <Reveal delay={0.2} y={60} scale={0.95}>
-                <div className="relative h-[600px] rounded-[2.5rem] bg-zinc-900 p-16 border border-white/5 flex flex-col justify-end">
-                  <MousePointer2 className="mb-8 text-zinc-500" size={40} />
-                  <h3 className="text-3xl font-extrabold tracking-tight mb-6">마그네틱 결합</h3>
-                  <p className="text-zinc-500 text-base font-light leading-relaxed">
-                    보이지 않는 자력으로 완성되는 직관적이고 우아한 설치 경험.
-                  </p>
-                </div>
-              </Reveal>
-
-              {/* Large Feature 2: Light */}
-              <div className="md:col-span-2">
-                <Reveal delay={0.3} y={60} scale={0.95}>
-                  <div className="relative h-[600px] rounded-[2.5rem] bg-gradient-to-tr from-zinc-900 to-zinc-800 overflow-hidden border border-white/5">
-                    <div className="absolute inset-0 flex items-center justify-center opacity-10">
-                      <Sparkles size={400} className="text-white" />
-                    </div>
-                    <div className="absolute inset-0 p-16 flex flex-col justify-center max-w-xl">
-                      <h3 className="text-5xl font-extrabold tracking-tight mb-6">빛의 연금술</h3>
-                      <p className="text-zinc-400 text-lg font-light leading-relaxed">
-                        이방성 셰이더 기술이 적용된 표면은 빛의 각도에 따라 끊임없이 변화하며 살아숨쉬는 듯한 생동감을 부여합니다.
-                      </p>
-                    </div>
+              {/* Parallax Text Overlay */}
+              <motion.div 
+                style={{ y: textY }}
+                className="relative z-10 text-center pointer-events-none"
+              >
+                <Reveal y={100} delay={0.2}>
+                  <div className="space-y-6">
+                    <h2 className="text-5xl md:text-8xl font-thin tracking-[0.2em] uppercase leading-none text-white/90">
+                      NOT A POSTER.
+                    </h2>
+                    <h2 className="text-4xl md:text-7xl font-light tracking-[0.2em] uppercase leading-none text-zinc-500">
+                      ENGINEERED ART.
+                    </h2>
                   </div>
                 </Reveal>
-              </div>
+                
+                <Reveal y={40} delay={0.5}>
+                  <p className="mt-16 text-xl md:text-2xl font-thin tracking-[0.3em] text-zinc-400 uppercase">
+                    포스터가 아닙니다. 엔지니어링된 작품입니다.
+                  </p>
+                </Reveal>
+              </motion.div>
             </div>
           </div>
         </section>
 
-        {/* Product Detail Section: The Object */}
-        <section id="collection" className="relative min-h-screen bg-zinc-950 py-64 px-8 overflow-hidden z-10">
-          <div className="max-w-7xl mx-auto grid grid-cols-1 gap-32 items-center">
-            <div className="space-y-20 max-w-2xl mx-auto lg:mx-0">
+        {/* Section 2 [THE SOLUTION]: 45도 자석 조립 애니메이션 */}
+        <MountingAnimation />
+
+        {/* Section 3 [THE MATERIAL]: 1.15mm 매크로 엣지 뷰 */}
+        <MaterialEdgeAnimation />
+
+        {/* Section 4 [THE EXPERIENCE]: 하단 마키 갤러리 (통일성 부여) */}
+        <div className="py-32 bg-black">
+          <div className="max-w-7xl mx-auto px-6 mb-16 text-center">
+            <Reveal y={40}>
+              <div className="space-y-6">
+                <span className="text-xs font-black uppercase tracking-[0.5em] text-zinc-600">Archive</span>
+                <h2 className="text-3xl md:text-5xl font-light tracking-[0.2em] text-white/80 uppercase">
+                  지나간 작품도 다시 확인해보세요.
+                </h2>
+              </div>
+            </Reveal>
+          </div>
+          <ProductGrid />
+        </div>
+
+        {/* Section 5 [THE CONCLUSION]: 정밀 공정 스텝퍼 및 푸터 연결 */}
+        <section className="relative min-h-[80vh] py-32 px-6 flex items-center justify-center bg-black">
+          <div className="max-w-4xl mx-auto text-center space-y-24 w-full">
+            <Reveal y={40}>
               <div className="space-y-8">
-                <Reveal y={30}>
-                  <span className="text-xs font-bold uppercase tracking-[0.4em] text-zinc-500 block mb-4">에디션 01</span>
-                  <h2 className="text-7xl md:text-8xl font-extrabold tracking-tighter leading-none">오브제의 탄생</h2>
-                </Reveal>
-                <Reveal delay={0.1} y={30}>
-                  <p className="text-2xl text-zinc-400 font-light leading-relaxed max-w-lg">
-                    단순한 그림이 아닙니다. 공간을 지배하는 하나의 완벽한 금속 오브제입니다.
-                  </p>
-                </Reveal>
+                <h2 className="text-5xl md:text-7xl font-black tracking-tighter uppercase">신뢰의 지표</h2>
+                <p className="text-xl text-zinc-500 font-light">정밀한 공정과 투명한 과정을 통해 당신의 예술을 배달합니다.</p>
               </div>
+            </Reveal>
 
-              <div className="space-y-16">
-                <Reveal delay={0.2} y={30}>
-                  <div className="flex gap-10">
-                    <div className="shrink-0 h-12 w-12 rounded-full bg-zinc-900 flex items-center justify-center border border-white/10">
-                      <ZoomIn className="h-6 w-6 text-zinc-300" />
+            <Reveal delay={0.2} y={40}>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
+                {/* Connector Line */}
+                <div className="hidden md:block absolute top-1/2 left-0 right-0 h-px bg-white/5 -translate-y-1/2 z-0" />
+                
+                {[
+                  { icon: <Zap size={24} />, title: "결제 완료", desc: "주문 즉시 공정 대기" },
+                  { icon: <Layers size={24} />, title: "정밀 공정", desc: "1.15mm 알루미늄 가공" },
+                  { icon: <Truck size={24} />, title: "안전 배송", desc: "전 세계 프리미엄 배송" }
+                ].map((item, idx) => (
+                  <div key={idx} className="relative z-10 flex flex-col items-center space-y-6 group">
+                    <div className="w-16 h-16 rounded-2xl bg-zinc-900 flex items-center justify-center border border-white/10 group-hover:bg-white group-hover:text-black transition-all duration-500">
+                      {item.icon}
                     </div>
-                    <div>
-                      <h3 className="text-2xl font-extrabold mb-3">8K 초고해상도</h3>
-                      <p className="text-zinc-500 text-lg font-light leading-relaxed">
-                        육안으로 구별할 수 없는 극한의 선명함.
-                      </p>
-                    </div>
-                  </div>
-                </Reveal>
-                <Reveal delay={0.3} y={30}>
-                  <div className="flex gap-10">
-                    <div className="shrink-0 h-12 w-12 rounded-full bg-zinc-900 flex items-center justify-center border border-white/10">
-                      <ShieldCheck className="h-6 w-6 text-zinc-300" />
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-extrabold mb-3">자성 마운트 시스템</h3>
-                      <p className="text-zinc-500 text-lg font-light leading-relaxed">
-                        벽에 흠집을 내지 않는 혁신적인 부착 방식.
-                      </p>
+                    <div className="space-y-2">
+                      <h3 className="text-xl font-bold">{item.title}</h3>
+                      <p className="text-zinc-500 text-sm font-light">{item.desc}</p>
                     </div>
                   </div>
-                </Reveal>
+                ))}
               </div>
-
-              <Reveal delay={0.4} y={30}>
-                <div className="flex flex-col sm:flex-row items-center gap-10 pt-16 border-t border-white/5">
-                  <button
-                    onClick={handleBuyClick}
-                    className="w-full sm:w-auto px-16 py-6 rounded-full bg-white text-black font-extrabold text-base tracking-tight hover:bg-zinc-200 transition-all active:scale-95 shadow-xl shadow-white/5"
-                  >
-                    컬렉션 보기
-                  </button>
-                  <div className="flex items-center gap-4 text-xs text-zinc-500 uppercase tracking-[0.2em] font-semibold">
-                    <Truck size={20} />
-                    <span>전 세계 무료 배송</span>
-                  </div>
-                </div>
-              </Reveal>
-            </div>
-          </div>
-        </section>
-
-        {/* Comparison / CTA Section */}
-        <section className="bg-zinc-900 text-white py-64 px-6 text-center overflow-hidden z-10 border-t border-white/5">
-          <div className="max-w-5xl mx-auto space-y-16">
-            <Reveal y={50}>
-              <h2 className="text-6xl md:text-8xl lg:text-9xl font-extrabold tracking-tighter leading-[1.1]">
-                종이를 넘어.<br />전통을 넘어.
-              </h2>
             </Reveal>
-            <Reveal delay={0.1} y={50}>
-              <p className="text-2xl md:text-3xl text-zinc-400 max-w-3xl mx-auto font-light leading-tight">
-                월 아트의 미래를 경험하십시오.<br/>견고하고, 자성을 띠며, 숨막히도록 선명합니다.
-              </p>
-            </Reveal>
-            <Reveal delay={0.2} y={50}>
+
+            <Reveal delay={0.4} y={40}>
               <div className="pt-12">
-                <button 
+                <button
                   onClick={handleBuyClick}
-                  className="px-16 py-6 rounded-full bg-white text-black font-extrabold text-lg tracking-tight hover:bg-zinc-200 transition-all active:scale-95 shadow-2xl"
+                  className="group relative px-20 py-8 rounded-full bg-white text-black font-black text-xl tracking-tight overflow-hidden transition-all active:scale-95"
                 >
-                  컬렉션 보기
+                  <span className="relative z-10">지금 컬렉션 시작하기</span>
+                  <div className="absolute inset-0 bg-zinc-200 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
                 </button>
               </div>
             </Reveal>
