@@ -7,66 +7,90 @@ import * as THREE from 'three';
 function MacroEdgeModel({ scrollProgress }: { scrollProgress: any }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const lightRef = useRef<THREE.SpotLight>(null);
+  const backLightRef = useRef<THREE.PointLight>(null);
 
-  // 0.0 ~ 0.2: Initial reveal
-  // 0.2 ~ 0.8: Active Shimmer/Tilt (Enhanced)
-  // 0.8 ~ 1.0: Hold (Maintain final tilt)
-  const rotationY = useTransform(scrollProgress, [0, 0.2, 0.8, 1], [-Math.PI / 4, -Math.PI / 4, -Math.PI / 3.2, -Math.PI / 3.2]);
-  const rotationX = useTransform(scrollProgress, [0, 0.2, 0.8, 1], [0.2, 0.2, 0.4, 0.4]);
+  // Extreme close-up angles
+  const rotationY = useTransform(scrollProgress, [0, 1], [-Math.PI / 2.1, -Math.PI / 1.95]);
+  const rotationX = useTransform(scrollProgress, [0, 1], [0.1, -0.1]);
   
   // Shimmer effect: light position moves across the edge based on scroll
-  const lightX = useTransform(scrollProgress, [0.2, 0.8, 1], [-10, 10, 10]);
-  const lightIntensity = useTransform(scrollProgress, [0, 0.2, 0.4, 0.6, 0.8, 1], [50, 300, 600, 600, 300, 300]);
+  const lightY = useTransform(scrollProgress, [0, 1], [5, -5]);
+  const lightIntensity = useTransform(scrollProgress, [0, 0.5, 1], [200, 1000, 200]);
+  
+  // Backlight intensity pulsing slightly with scroll
+  const backLightIntensity = useTransform(scrollProgress, [0, 0.5, 1], [100, 250, 100]);
 
-  useFrame((state) => {
+  useFrame(() => {
     if (meshRef.current) {
       meshRef.current.rotation.y = rotationY.get();
       meshRef.current.rotation.x = rotationX.get();
     }
     
     if (lightRef.current) {
-      lightRef.current.position.x = lightX.get();
+      lightRef.current.position.y = lightY.get();
       lightRef.current.intensity = lightIntensity.get();
+    }
+
+    if (backLightRef.current) {
+      backLightRef.current.intensity = backLightIntensity.get();
     }
   });
 
   const materials = useMemo(() => {
+    // Highly reflective edge material
     const edgeMaterial = new THREE.MeshStandardMaterial({
       color: '#ffffff',
       metalness: 1,
-      roughness: 0.02, // Sharper reflections
+      roughness: 0.05,
       emissive: '#ffffff',
-      emissiveIntensity: 0.1,
+      emissiveIntensity: 0.08,
     });
 
+    // Dark matte surface material
     const surfaceMaterial = new THREE.MeshStandardMaterial({
       color: '#050505',
-      metalness: 1,
-      roughness: 0.3,
+      metalness: 0.9,
+      roughness: 0.15,
     });
 
     return [
-      edgeMaterial, edgeMaterial, edgeMaterial, edgeMaterial,
-      surfaceMaterial, surfaceMaterial
+      edgeMaterial, // +x
+      edgeMaterial, // -x
+      edgeMaterial, // +y
+      edgeMaterial, // -y
+      surfaceMaterial, // +z
+      surfaceMaterial  // -z
     ];
   }, []);
 
   return (
     <>
-      <PerspectiveCamera makeDefault position={[0, 0, 5]} fov={20} />
-      <ambientLight intensity={0.2} />
+      <PerspectiveCamera makeDefault position={[0, 0, 2]} fov={15} />
+      <ambientLight intensity={0.05} />
+      
+      {/* Main Shimmer Light */}
       <spotLight
         ref={lightRef}
-        position={[0, 2, 4]}
-        angle={0.3}
+        position={[2, 5, 2]}
+        angle={0.15}
         penumbra={1}
-        intensity={150}
+        intensity={400}
         color="#ffffff"
       />
-      <pointLight position={[-2, -1, 3]} intensity={40} color="#ffffff" />
+
+      {/* Backlight for Silhouette definition */}
+      <pointLight
+        ref={backLightRef}
+        position={[-3, 0, -2]}
+        intensity={150}
+        color="#4a4a4a"
+      />
+
+      <pointLight position={[-2, 0, 2]} intensity={40} color="#ffffff" />
       
+      {/* The "Poster" - scaled up for extreme close-up of the edge */}
       <mesh ref={meshRef} material={materials}>
-        <boxGeometry args={[4.5, 2.8, 0.0115]} />
+        <boxGeometry args={[10, 10, 0.0115]} />
       </mesh>
       <Environment preset="night" />
     </>
@@ -77,36 +101,37 @@ export default function MaterialEdgeAnimation() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
     target: containerRef,
-    offset: ["start center", "end end"]
+    offset: ["start start", "end end"]
   });
 
   const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 100,
-    damping: 30,
+    stiffness: 40,
+    damping: 20,
     restDelta: 0.001
   });
 
-  // 0.0 ~ 0.2: Fade in
-  // 0.2 ~ 0.8: Active Shimmer/Tilt (Holding from 0.8 to 1.0)
-  const textOpacity = useTransform(smoothProgress, [0, 0.1, 0.8, 1], [0, 1, 1, 1]);
-  const textY = useTransform(smoothProgress, [0, 0.1, 0.8, 1], [50, 0, 0, 0]);
-  const edgeLineOpacity = useTransform(smoothProgress, [0.05, 0.1, 0.8, 1], [0, 1, 1, 1]);
-  const modelOpacity = useTransform(smoothProgress, [0, 0.1, 0.8, 1], [0, 1, 1, 1]);
-
-  if (!containerRef) return null;
+  const textOpacity = useTransform(smoothProgress, [0.3, 0.5, 0.8, 0.95], [0, 1, 1, 0]);
+  const textY = useTransform(smoothProgress, [0.3, 0.5, 0.8, 0.95], [30, 0, 0, -30]);
+  const modelOpacity = useTransform(smoothProgress, [0, 0.2, 0.8, 0.95], [0, 1, 1, 0]);
+  const glowOpacity = useTransform(smoothProgress, [0, 0.5, 0.8, 0.95], [0.1, 0.3, 0.3, 0]);
 
   return (
-    <section ref={containerRef} className="relative h-[200vh] bg-black">
+    <section ref={containerRef} className="relative h-[200vh] bg-[#000000]">
       <div className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden">
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: false, margin: "-10% 0px 0px 0px" }}
-          transition={{ duration: 0.8 }}
-          className="relative w-full h-full flex items-center justify-center"
+        
+        {/* Backlight Glow Layer */}
+        <motion.div 
+          style={{ opacity: glowOpacity }}
+          className="absolute inset-0 z-0 pointer-events-none"
         >
-          {/* 3D Macro View - Shifted to the right for better text placement */}
-          <motion.div style={{ opacity: modelOpacity }} className="absolute inset-0 z-0 lg:left-[20%]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_60%_50%,#1a1a1a_0%,transparent_70%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_40%_50%,#0f172a_0%,transparent_60%)] opacity-50" />
+        </motion.div>
+
+        <div className="relative w-full h-full flex items-center justify-center">
+          
+          {/* 3D Macro View - Extreme Close-up of the 1.15mm Edge */}
+          <motion.div style={{ opacity: modelOpacity }} className="absolute inset-0 z-0">
             <Canvas gl={{ antialias: true, alpha: true }}>
               <React.Suspense fallback={null}>
                 <MacroEdgeModel scrollProgress={smoothProgress} />
@@ -114,49 +139,50 @@ export default function MaterialEdgeAnimation() {
             </Canvas>
           </motion.div>
 
-          {/* Overlay Content - Shifted to the left */}
+          {/* Dark Overlay for Text Contrast (Left side) */}
+          <div className="absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-black/40 to-transparent z-5 pointer-events-none" />
+
+          {/* Overlay Content - Left Aligned */}
           <div className="relative z-10 w-full max-w-7xl mx-auto px-6 pointer-events-none">
             <motion.div 
               style={{ opacity: textOpacity, y: textY }}
-              className="flex flex-col items-start text-left space-y-12 lg:w-1/2"
+              className="flex flex-col items-start text-left space-y-8 drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]"
             >
-              <div className="space-y-8">
-                <h2 className="text-5xl md:text-8xl font-thin tracking-tight leading-tight text-white">
-                  영원히 바래지 않는 <br/>
-                  <span className="relative inline-block">
-                    <span className="font-bold bg-gradient-to-r from-zinc-400 via-white to-zinc-400 bg-clip-text text-transparent">
-                      1.15mm
-                    </span>
-                    <motion.div 
-                      style={{ opacity: edgeLineOpacity }}
-                      className="absolute -bottom-4 left-0 right-0 h-px bg-white/30"
-                    >
-                      <div className="absolute -right-20 -top-2 text-[10px] font-bold text-zinc-500 tracking-[0.3em] uppercase">
-                        Precision Edge
-                      </div>
-                    </motion.div>
+              <div className="space-y-4">
+                <h2 className="text-5xl md:text-8xl font-thin tracking-tight leading-tight text-[#FFFFFF]">
+                  <span className="font-bold bg-gradient-to-r from-zinc-300 via-white to-zinc-300 bg-clip-text text-transparent">
+                    1.15mm
                   </span>
                   의 영속성.
                 </h2>
-                <p className="text-xl md:text-3xl font-thin tracking-[0.1em] text-zinc-500 max-w-2xl leading-relaxed">
+                <p className="text-xl md:text-2xl font-thin tracking-[0.1em] text-zinc-400 max-w-xl leading-relaxed">
                   종이보다 강인하게, 철보다 가볍게.<br/>
                   세월이 흘러도 변치 않는 압도적 발색력을 경험하십시오.
                 </p>
               </div>
+              
+              {/* Micro Detail Label */}
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-px bg-white/40" />
+                <span className="text-[10px] font-bold text-zinc-400 tracking-[0.4em] uppercase">
+                  Precision Edge Technology
+                </span>
+              </div>
             </motion.div>
           </div>
 
-          {/* 1.15mm Comparison Line (Visual Guide) */}
+          {/* Bottom Indicator */}
           <motion.div 
-            style={{ opacity: edgeLineOpacity }}
-            className="absolute bottom-24 left-1/2 -translate-x-1/2 flex flex-col items-center space-y-4"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 0.3 }}
+            className="absolute bottom-12 left-6 flex flex-col items-start space-y-2"
           >
-            <div className="w-px h-32 bg-gradient-to-t from-white/40 to-transparent" />
-            <div className="text-[10px] font-black tracking-[0.5em] text-white/40 uppercase">
-              1.15mm Engineered Thickness
+            <div className="text-[9px] font-black tracking-[0.5em] text-white uppercase">
+              Material Permanence
             </div>
+            <div className="w-24 h-px bg-white/20" />
           </motion.div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );

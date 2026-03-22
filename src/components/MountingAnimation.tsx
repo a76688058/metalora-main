@@ -67,7 +67,7 @@ export default function MountingAnimation() {
   return (
     <div className="relative bg-black z-20">
       {/* Section A: 3D Assembly Mockup (The Scroll Tunnel) */}
-      <section ref={tunnelRef} className="relative h-[300vh]">
+      <section ref={tunnelRef} className="relative h-[210vh]">
         <motion.div 
           style={{ y: stickyExitY }}
           className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden"

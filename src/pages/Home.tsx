@@ -101,96 +101,89 @@ export default function Home() {
           <MountingAnimation />
         </div>
 
-        {/* 5. [SCAR-FREE Text Section]: Cinematic Brand Narrative */}
-        <section className="relative z-[60] min-h-screen pt-40 pb-80 bg-black flex items-center overflow-hidden">
+        {/* 5. [SCAR-FREE Text Section]: Final Polish */}
+        <section className="relative z-[60] min-h-screen pt-28 pb-20 bg-[#000000] flex items-center">
           <div className="max-w-7xl mx-auto px-6 text-left w-full">
-            <div className="space-y-40">
-              {/* Chunk 1: Narrative Statement 1 */}
-              <div className="space-y-2">
-                <div className="overflow-hidden">
-                  <motion.h2
-                    initial={{ y: "100%" }}
-                    whileInView={{ y: 0 }}
-                    viewport={{ once: true, amount: 0.5 }}
-                    transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
-                    className="text-6xl md:text-[10rem] font-bold tracking-tighter leading-[0.9] text-[#EEEEEE]"
-                  >
-                    벽에 상처를
-                  </motion.h2>
-                </div>
-                <div className="overflow-hidden">
-                  <motion.h2
-                    initial={{ y: "100%" }}
-                    whileInView={{ y: 0 }}
-                    viewport={{ once: true, amount: 0.5 }}
-                    transition={{ duration: 1.4, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-                    className="text-6xl md:text-[10rem] font-bold tracking-tighter leading-[0.9] text-[#EEEEEE]"
-                  >
-                    남기지 마십시오.
-                  </motion.h2>
-                </div>
+            <div className="space-y-32">
+              {/* Chunk 1: 벽에 상처를 남기지 마세요. */}
+              <div className="space-y-6">
+                <motion.h2
+                  initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                  whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  viewport={{ once: true, amount: 0.8 }}
+                  transition={{ duration: 0.8, ease: "easeOut" }}
+                  className="text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] text-[#F2F2F7]"
+                >
+                  벽에 상처를
+                </motion.h2>
+                <motion.h2
+                  initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                  whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  viewport={{ once: true, amount: 0.8 }}
+                  transition={{ duration: 0.8, delay: 0.1, ease: "easeOut" }}
+                  className="text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] text-[#F2F2F7]"
+                >
+                  남기지 마세요.
+                </motion.h2>
               </div>
               
-              {/* Chunk 2: Narrative Statement 2 (Staggered) */}
-              <div className="space-y-2">
-                <div className="overflow-hidden">
-                  <motion.h2
-                    initial={{ y: "100%" }}
-                    whileInView={{ y: 0 }}
-                    viewport={{ once: true, amount: 0.5 }}
-                    transition={{ duration: 1.4, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                    className="text-6xl md:text-[10rem] font-bold tracking-tighter leading-[0.9] text-[#EEEEEE]"
+              {/* Chunk 2: 오직 예술만 남기세요. */}
+              <div className="space-y-6">
+                <motion.h2
+                  initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                  whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  viewport={{ once: true, amount: 0.8 }}
+                  transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
+                  className="text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] text-[#F2F2F7]"
+                >
+                  오직 예술만
+                </motion.h2>
+                <motion.h2
+                  initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                  whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  viewport={{ once: true, amount: 0.8 }}
+                  transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
+                  className="text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] relative inline-block"
+                >
+                  {/* Metallic Shimmer Text */}
+                  <span 
+                    className="relative z-10 bg-clip-text text-transparent bg-[linear-gradient(110deg,#F2F2F7,45%,#71717a,50%,#F2F2F7,55%,#F2F2F7)] bg-[length:250%_100%]" 
+                    style={{ animation: 'shimmer 4s infinite cubic-bezier(0.4, 0, 0.2, 1)' }}
                   >
-                    오직 예술만
-                  </motion.h2>
-                </div>
-                <div className="overflow-hidden">
-                  <motion.h2
-                    initial={{ y: "100%" }}
-                    whileInView={{ y: 0 }}
-                    viewport={{ once: true, amount: 0.5 }}
-                    transition={{ duration: 1.4, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                    className="text-6xl md:text-[10rem] font-bold tracking-tighter leading-[0.9] relative inline-block"
-                  >
-                    {/* Metallic Shimmer Text - Steel/Silver Finish */}
-                    <span 
-                      className="relative z-10 bg-clip-text text-transparent bg-[linear-gradient(110deg,#EEEEEE,45%,#71717a,50%,#EEEEEE,55%,#EEEEEE)] bg-[length:250%_100%]" 
-                      style={{ animation: 'shimmer 4s infinite cubic-bezier(0.4, 0, 0.2, 1)' }}
-                    >
-                      남기십시오.
-                    </span>
-                  </motion.h2>
-                </div>
+                    남기세요.
+                  </span>
+                </motion.h2>
               </div>
 
-              {/* Chunk 3: Product Features (Staggered) */}
-              <div className="overflow-hidden">
-                <motion.p 
-                  initial={{ y: "100%" }}
-                  whileInView={{ y: 0 }}
-                  viewport={{ once: true, amount: 0.5 }}
-                  transition={{ duration: 1.2, delay: 1.1, ease: [0.16, 1, 0.3, 1] }}
-                  className="text-xl md:text-3xl font-medium tracking-[0.5em] text-zinc-500 uppercase"
-                >
+              {/* Chunk 3: 3단계. 1분. 도구 불필요 */}
+              <motion.div
+                initial={{ opacity: 0, y: 20, filter: 'blur(5px)' }}
+                whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                viewport={{ once: true, amount: 0.8 }}
+                transition={{ duration: 0.8, delay: 0.6, ease: "easeOut" }}
+                className="flex items-center gap-4"
+              >
+                <div className="w-1 h-8 bg-[#8E8E93]/30 rounded-full" />
+                <p className="text-xl md:text-3xl font-light tracking-[0.3em] text-[#8E8E93] uppercase">
                   3단계. 1분. 도구 불필요
-                </motion.p>
-              </div>
+                </p>
+              </motion.div>
             </div>
           </div>
         </section>
 
         {/* 6. [THE MATERIAL (Sticky Tunnel)]: 1.15mm 영속성 섹션. */}
-        <div className="relative z-[50]">
+        <div className="relative z-[50] pb-[35vh]">
           <MaterialEdgeAnimation />
         </div>
 
         {/* 7. [Bottom Marquee]: 최상단 마키와 동일한 데이터로 통일성 있게 마무리. */}
-        <div className="relative z-[40] pt-0 pb-24 bg-black overflow-hidden">
-          <div className="max-w-7xl mx-auto px-6 mb-12 text-center">
+        <div className="relative z-[40] pt-40 pb-24 bg-black overflow-hidden">
+          <div className="max-w-7xl mx-auto px-6 mb-12 text-left">
             <Reveal y={40}>
               <div className="space-y-6">
                 <span className="text-xs font-black uppercase tracking-[0.5em] text-zinc-600">Archive</span>
-                <h2 className="text-3xl md:text-5xl font-light tracking-[0.2em] text-white/80 uppercase">
+                <h2 className="text-4xl md:text-6xl font-light tracking-[0.2em] text-white/80 uppercase">
                   지나간 작품도 다시 확인해보세요.
                 </h2>
               </div>
