@@ -15,49 +15,46 @@ export default function MountingAnimation() {
     restDelta: 0.001
   });
 
-  // Layer 1: Wall (0.0 -> 0.1)
-  const wallOpacity = useTransform(smoothProgress, [0, 0.02, 0.9, 1], [0, 1, 1, 0]);
-  const wallScale = useTransform(smoothProgress, [0, 0.1], [0.8, 1]);
+  if (!tunnelRef) return null;
 
-  // Layer 2: Adhesive Sticker (0.1 -> 0.3)
-  const stickerOpacity = useTransform(smoothProgress, [0.1, 0.15, 0.9, 1], [0, 1, 1, 0]);
-  const stickerX = useTransform(smoothProgress, [0.1, 0.3], [600, 0]);
-  const stickerY = useTransform(smoothProgress, [0.1, 0.3], [-400, 0]);
-  const stickerZ = useTransform(smoothProgress, [0.1, 0.3], [1000, 0]);
-  const stickerScale = useTransform(smoothProgress, [0.1, 0.3], [1.5, 1]);
-  const stickerShadow = useTransform(smoothProgress, [0.1, 0.3], ["-60px 100px 120px rgba(0,0,0,0.6)", "0 0px 0px rgba(0,0,0,0)"]);
+  // Layer 1: Wall (0.0 -> 0.15)
+  const wallOpacity = useTransform(smoothProgress, [0, 0.05], [0, 1]);
+  const wallScale = useTransform(smoothProgress, [0, 0.15], [0.8, 1]);
 
-  // Layer 3: Magnetic Bar (0.3 -> 0.5)
-  const magnetOpacity = useTransform(smoothProgress, [0.3, 0.35, 0.9, 1], [0, 1, 1, 0]);
-  const magnetX = useTransform(smoothProgress, [0.3, 0.5], [500, 0]);
-  const magnetY = useTransform(smoothProgress, [0.3, 0.5], [-300, 0]);
-  const magnetZ = useTransform(smoothProgress, [0.3, 0.5], [800, 0]);
-  const magnetScale = useTransform(smoothProgress, [0.3, 0.5], [1.3, 1]);
-  const magnetShadow = useTransform(smoothProgress, [0.3, 0.5], ["-40px 70px 80px rgba(0,0,0,0.8)", "0 0px 0px rgba(0,0,0,0)"]);
+  // Layer 2: Adhesive Sticker (0.15 -> 0.35)
+  const stickerOpacity = useTransform(smoothProgress, [0.15, 0.2], [0, 1]);
+  const stickerX = useTransform(smoothProgress, [0.15, 0.35], [600, 0]);
+  const stickerY = useTransform(smoothProgress, [0.15, 0.35], [-400, 0]);
+  const stickerZ = useTransform(smoothProgress, [0.15, 0.35], [1000, 0]);
+  const stickerScale = useTransform(smoothProgress, [0.15, 0.35], [1.5, 1]);
+  const stickerShadow = useTransform(smoothProgress, [0.15, 0.35], ["-60px 100px 120px rgba(0,0,0,0.6)", "0 0px 0px rgba(0,0,0,0)"]);
 
-  // Layer 4: Metal Poster (0.5 -> 0.7)
-  const posterOpacity = useTransform(smoothProgress, [0.5, 0.55, 0.9, 1], [0, 1, 1, 0]);
-  const posterX = useTransform(smoothProgress, [0.5, 0.7], [400, 0]);
-  const posterY = useTransform(smoothProgress, [0.5, 0.7], [-200, 0]);
-  const posterZ = useTransform(smoothProgress, [0.5, 0.7], [600, 0]);
-  const posterScale = useTransform(smoothProgress, [0.5, 0.7], [1.2, 1]);
-  const posterShadow = useTransform(smoothProgress, [0.5, 0.7], ["-50px 80px 100px rgba(0,0,0,0.9)", "-5px 10px 30px rgba(0,0,0,0.5)"]);
+  // Layer 3: Magnetic Bar (0.35 -> 0.55)
+  const magnetOpacity = useTransform(smoothProgress, [0.35, 0.4], [0, 1]);
+  const magnetX = useTransform(smoothProgress, [0.35, 0.55], [500, 0]);
+  const magnetY = useTransform(smoothProgress, [0.35, 0.55], [-300, 0]);
+  const magnetZ = useTransform(smoothProgress, [0.35, 0.55], [800, 0]);
+  const magnetScale = useTransform(smoothProgress, [0.35, 0.55], [1.3, 1]);
+  const magnetShadow = useTransform(smoothProgress, [0.35, 0.55], ["-40px 70px 80px rgba(0,0,0,0.8)", "0 0px 0px rgba(0,0,0,0)"]);
 
-  // Narrative Text (Appears after assembly: 0.7 -> 0.8)
-  const narrativeOpacity = useTransform(smoothProgress, [0.7, 0.8, 0.9, 1], [0, 1, 1, 0]);
-  const narrativeY = useTransform(smoothProgress, [0.7, 0.8, 0.9, 1], [30, 0, 0, -30]);
+  // Layer 4: Metal Poster (0.55 -> 0.7)
+  const posterOpacity = useTransform(smoothProgress, [0.55, 0.6], [0, 1]);
+  const posterX = useTransform(smoothProgress, [0.55, 0.7], [400, 0]);
+  const posterY = useTransform(smoothProgress, [0.55, 0.7], [-200, 0]);
+  const posterZ = useTransform(smoothProgress, [0.55, 0.7], [600, 0]);
+  const posterScale = useTransform(smoothProgress, [0.55, 0.7], [1.2, 1]);
+  const posterShadow = useTransform(smoothProgress, [0.55, 0.7], ["-50px 80px 100px rgba(0,0,0,0.9)", "-5px 10px 30px rgba(0,0,0,0.5)"]);
 
   // Exit Animation (Sticky container moves up at the end)
-  const stickyExitY = useTransform(smoothProgress, [0.9, 1], [0, -150]);
-  const stickyExitOpacity = useTransform(smoothProgress, [0.9, 1], [1, 0]);
+  const stickyExitY = useTransform(smoothProgress, [0.95, 1], [0, -1500]);
 
   return (
-    <div className="relative bg-black">
+    <div className="relative bg-black z-20">
       {/* Section A: 3D Assembly Mockup (The Scroll Tunnel) */}
       <section ref={tunnelRef} className="relative h-[300vh]">
         <motion.div 
-          style={{ y: stickyExitY, opacity: stickyExitOpacity }}
-          className="sticky top-0 h-screen w-full flex flex-col items-center justify-center overflow-hidden"
+          style={{ y: stickyExitY }}
+          className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden"
         >
           {/* Background Wall Texture */}
           <div className="absolute inset-0 bg-black" />
@@ -68,7 +65,7 @@ export default function MountingAnimation() {
               
               {/* 45-Degree Perspective Wrapper */}
               <motion.div 
-                style={{ rotateX: 20, rotateY: -30 }}
+                style={{ rotateX: 30, rotateY: -45 }}
                 className="relative w-full h-full flex items-center justify-center preserve-3d"
               >
                 {/* 1. 벽 (Wall - Fixed Base) */}
@@ -145,22 +142,6 @@ export default function MountingAnimation() {
                 </motion.div>
               </motion.div>
             </div>
-
-            {/* Narrative Text (Integrated into sticky wrapper) */}
-            <motion.div 
-              style={{ opacity: narrativeOpacity, y: narrativeY }}
-              className="absolute bottom-20 left-0 right-0 px-6 text-center z-40 pointer-events-none"
-            >
-              <div className="space-y-4">
-                <h2 className="text-3xl md:text-5xl font-light tracking-tight leading-tight text-white">
-                  벽에 상처를 남기지 마십시오.<br/>
-                  <span className="text-zinc-500">오직 예술만 남기십시오.</span>
-                </h2>
-                <p className="text-lg md:text-xl font-thin tracking-[0.3em] text-zinc-400 uppercase">
-                  3단계. 1분. 도구 불필요.
-                </p>
-              </div>
-            </motion.div>
           </div>
         </motion.div>
       </section>

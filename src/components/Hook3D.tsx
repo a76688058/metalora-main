@@ -18,29 +18,28 @@ export default function Hook3D({ imageUrl }: Hook3DProps) {
   const materialProps = useMemo(() => ({
     metalness: 1,
     roughness: 0.15,
-    envMapIntensity: 2,
+    envMapIntensity: 1,
     color: '#ffffff',
   }), []);
 
   const materials = useMemo(() => {
     // 1.15mm thin edges
     const edgeMaterial = new THREE.MeshStandardMaterial({
-      color: '#444444',
+      color: '#222222',
       metalness: 1,
-      roughness: 0.1,
+      roughness: 0.2,
     });
 
     const frontMaterial = new THREE.MeshStandardMaterial({
       ...materialProps,
       map: texture,
-      emissive: new THREE.Color('#ffffff'),
-      emissiveIntensity: 0.1,
+      color: '#ffffff',
     });
 
     const backMaterial = new THREE.MeshStandardMaterial({
-      color: '#111111',
+      color: '#050505',
       metalness: 1,
-      roughness: 0.2,
+      roughness: 0.5,
     });
 
     // Order: Right, Left, Top, Bottom, Front, Back
@@ -51,28 +50,8 @@ export default function Hook3D({ imageUrl }: Hook3DProps) {
   }, [texture, materialProps]);
 
   useFrame((state, delta) => {
-    if (!meshRef.current) return;
-
-    // 1. Auto-orbit (Slow Y rotation)
-    meshRef.current.rotation.y += delta * 0.15;
-
-    // 2. Interactive Tilt with Damping (0.85+)
-    // Target rotation based on mouse position
-    const targetX = (mouse.y * viewport.height * Math.PI) / 20;
-    const targetY = (mouse.x * viewport.width * Math.PI) / 20;
-
-    // Apply damping (lerp)
-    meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, targetX, 0.05);
-    // We add the auto-rotation on top of the tilt, but we need to be careful.
-    // Actually, let's combine them.
-    // meshRef.current.rotation.y is already incrementing. 
-    // Let's just lerp the X and Z for tilt.
-    meshRef.current.rotation.z = THREE.MathUtils.lerp(meshRef.current.rotation.z, -targetY * 0.5, 0.05);
-
-    // 3. Dynamic Spotlight following mouse slightly for specular highlights
-    if (lightRef.current) {
-      lightRef.current.position.x = THREE.MathUtils.lerp(lightRef.current.position.x, mouse.x * 5, 0.1);
-      lightRef.current.position.y = THREE.MathUtils.lerp(lightRef.current.position.y, mouse.y * 5, 0.1);
+    if (meshRef.current) {
+      meshRef.current.rotation.y += delta * 0.15;
     }
   });
 
@@ -80,33 +59,15 @@ export default function Hook3D({ imageUrl }: Hook3DProps) {
     <>
       <PerspectiveCamera makeDefault position={[0, 0, 5]} fov={35} />
       
-      {/* Lighting for Specular Highlights */}
+      {/* Minimal Static Lighting */}
       <ambientLight intensity={0.2} />
-      <SpotLight
-        ref={lightRef}
-        position={[5, 5, 5]}
-        angle={0.3}
-        penumbra={1}
-        intensity={200}
-        castShadow
-        color="#ffffff"
-      />
-      <pointLight position={[-5, 5, -5]} intensity={50} color="#4444ff" />
-      <Environment preset="city" />
+      <directionalLight position={[5, 5, 5]} intensity={0.5} color="#ffffff" />
+      <Environment preset="night" />
 
-      <Float
-        speed={1.5} 
-        rotationIntensity={0.5} 
-        floatIntensity={0.5}
-      >
-        <mesh ref={meshRef} castShadow receiveShadow material={materials}>
-          {/* 1.15mm = 0.00115 depth */}
-          <boxGeometry args={[2, 2.8, 0.01]} /> 
-        </mesh>
-      </Float>
-
-      {/* Subtle floor for shadow if needed, but prompt says "부유" (floating) */}
-      {/* We'll keep it floating in deep black */}
+      <mesh ref={meshRef} material={materials} rotation={[0.1, -0.2, 0]}>
+        {/* 1.15mm = 0.00115 depth */}
+        <boxGeometry args={[1.4, 1.96, 0.01]} /> 
+      </mesh>
     </>
   );
 }

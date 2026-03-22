@@ -6,6 +6,8 @@ import Poster3D from './Poster3D';
 import { useProducts } from '../context/ProductContext';
 import { Product } from '../data/products';
 
+import ErrorBoundary from './ErrorBoundary';
+
 export default function Hero() {
   const { products } = useProducts();
   const [randomProduct, setRandomProduct] = useState<Product | null>(null);
@@ -35,16 +37,18 @@ export default function Hero() {
         className="relative w-[80vw] h-[60vh] mx-auto z-10 flex items-center justify-center"
       >
         {frontImage ? (
-          <Canvas camera={{ position: [0, 0, 4.5], fov: 45 }} className="w-full h-full pointer-events-none">
-            <Suspense fallback={null}>
-              <Poster3D 
-                interactive={false} 
-                scale={2.2}
-                imageUrl={frontImage}
-                backImageUrl={backImage}
-              />
-            </Suspense>
-          </Canvas>
+          <ErrorBoundary>
+            <Canvas camera={{ position: [0, 0, 4.5], fov: 45 }} className="w-full h-full pointer-events-none">
+              <Suspense fallback={null}>
+                <Poster3D 
+                  interactive={false} 
+                  scale={2.2}
+                  imageUrl={frontImage}
+                  backImageUrl={backImage}
+                />
+              </Suspense>
+            </Canvas>
+          </ErrorBoundary>
         ) : (
           <div className="w-full h-full bg-black" />
         )}
@@ -55,7 +59,7 @@ export default function Hero() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, delay: 0.5, ease: [0.17, 0.67, 0.83, 0.67] }}
-        className="relative z-20 mt-8 mb-8"
+        className="relative z-20 mt-2 mb-8"
       >
         <button 
           onClick={handleMoreClick}

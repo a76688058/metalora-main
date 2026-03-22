@@ -83,11 +83,11 @@ export default function Poster3D({
     if (meshRef.current) {
       if (!interactive) {
         // Always auto-rotate if not interactive
-        meshRef.current.rotation.y += delta * 0.2;
+        meshRef.current.rotation.y += delta * 0.4;
         meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0, delta * 5);
       } else if (!active && !hovered) {
         // Auto rotate when not hovered
-        meshRef.current.rotation.y += delta * 0.2;
+        meshRef.current.rotation.y += delta * 0.4;
         meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0, delta * 5);
       } else if (hovered && !active) {
         // Mouse tracking tilt

@@ -1,17 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
 import { useNavigate } from 'react-router-dom';
-import Poster3D from '../components/Poster3D';
 import Hook3D from '../components/Hook3D';
 import MountingAnimation from '../components/MountingAnimation';
 import MaterialEdgeAnimation from '../components/MaterialEdgeAnimation';
+import ErrorBoundary from '../components/ErrorBoundary';
 import Hero from '../components/Hero';
 import ProductGrid from '../components/ProductGrid';
-import { useLanguage } from '../context/LanguageContext';
-import { useAuth } from '../context/AuthContext';
 import { useProducts } from '../context/ProductContext';
-import { ZoomIn, ShieldCheck, Truck, Layers, Zap, MousePointer2, Sparkles } from 'lucide-react';
+import { Truck, Layers, Zap } from 'lucide-react';
 
 const Reveal = ({ children, delay = 0, scale = 1, x = 0, y = 40 }: { children: React.ReactNode, delay?: number, scale?: number, x?: number, y?: number }) => {
   return (
@@ -31,8 +29,6 @@ const Reveal = ({ children, delay = 0, scale = 1, x = 0, y = 40 }: { children: R
 };
 
 export default function Home() {
-  const { t } = useLanguage();
-  const { user } = useAuth();
   const { fetchProducts } = useProducts();
   const navigate = useNavigate();
   const { scrollYProgress } = useScroll();
@@ -48,38 +44,43 @@ export default function Home() {
 
   return (
     <div className="relative bg-black min-h-screen text-white selection:bg-white selection:text-black">
-        {/* 1. Top Marquee Grid (Micro Margin for Header) */}
-        <div className="relative z-10 mt-1 pt-0 pb-0 top-0 overflow-hidden">
+        {/* 1. [Top Marquee]: 헤더 아래 mt-2 여백 유지. 좌측 무한 흐름 그리드. */}
+        <div className="relative z-[100] mt-2 pt-0 pb-0 top-0 overflow-hidden">
           <ProductGrid />
         </div>
 
-        {/* 2. Hero 3D Section (Restored) */}
-        <Hero />
+        {/* 2. [Hero Section]: 중앙 자동 회전 3D 액자 + '작품 더보기' 버튼 */}
+        <div className="relative z-[90]">
+          <Hero />
+        </div>
 
-        {/* 3. Section 1 [THE HOOK]: 45도 3D 제품 쇼케이스 */}
-        <section className="relative h-auto py-24 px-6 overflow-hidden flex items-center justify-center bg-black">
-          <div className="max-w-7xl mx-auto w-full relative flex flex-col items-center justify-center">
-            <div className="flex flex-col items-center justify-center min-h-[80vh] w-full">
+        {/* 3. [NOT A POSTER]: 브랜드의 첫 선언. 새벽녘 장노출 은하수와 산맥 사진. */}
+        <section className="relative z-[80] h-auto py-24 px-6 overflow-hidden flex items-center justify-center bg-black">
+          <div className="max-w-7xl mx-auto w-full relative flex flex-col items-start justify-center">
+            <div className="flex flex-col items-start justify-center min-h-[80vh] w-full">
               {/* 3D Canvas Container - Floating in Deep Black */}
-              <div className="absolute inset-0 z-0 opacity-80">
-                <Canvas gl={{ antialias: true, alpha: true }}>
-                  <React.Suspense fallback={null}>
-                    <Hook3D imageUrl="https://picsum.photos/seed/metalora_hook/1024/1448" />
-                  </React.Suspense>
-                </Canvas>
+              <div className="absolute inset-0 z-0">
+                <ErrorBoundary>
+                  <Canvas gl={{ antialias: true, alpha: true }}>
+                    <React.Suspense fallback={null}>
+                      <Hook3D imageUrl="https://images.unsplash.com/photo-1464802686167-b939a6910659?auto=format&fit=crop&q=80&w=2070" />
+                    </React.Suspense>
+                  </Canvas>
+                </ErrorBoundary>
               </div>
 
-              {/* Parallax Text Overlay */}
+              {/* Parallax Text Overlay - Left Aligned */}
               <motion.div 
                 style={{ y: textY }}
-                className="relative z-10 text-center pointer-events-none"
+                className="relative z-10 text-left pointer-events-none"
               >
                 <Reveal y={100} delay={0.2}>
                   <div className="space-y-6">
-                    <h2 className="text-5xl md:text-8xl font-thin tracking-[0.2em] uppercase leading-none text-white/90">
-                      NOT A POSTER.
+                    <h2 className="text-6xl md:text-9xl font-thin tracking-[0.2em] uppercase leading-[0.9] text-white/90">
+                      NOT A<br/>
+                      POSTER.
                     </h2>
-                    <h2 className="text-4xl md:text-7xl font-light tracking-[0.2em] uppercase leading-none text-zinc-500">
+                    <h2 className="text-3xl md:text-5xl font-light tracking-[0.2em] uppercase leading-none text-zinc-500">
                       ENGINEERED ART.
                     </h2>
                   </div>
@@ -95,21 +96,39 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Section 2 [THE SOLUTION]: 45도 자석 조립 애니메이션 */}
-        <div className="relative z-30">
+        {/* 4. [THE SOLUTION (Sticky Tunnel)]: h-[300vh] 부모 내에서 중앙 고정 조립. */}
+        <div className="relative z-[70]">
           <MountingAnimation />
         </div>
 
-        {/* Spacer to prevent overlap between Mounting and Material sections */}
-        <div className="h-32 bg-black" />
+        {/* 5. [SCAR-FREE Text Section]: 목업이 완전히 올라간 후 나타나는 '벽에 상처를...' 텍스트. */}
+        <section className="relative z-[60] pt-16 pb-40 bg-black overflow-hidden">
+          <div className="max-w-7xl mx-auto px-6 text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: false, margin: "-10% 0px 0px 0px" }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="space-y-8"
+            >
+              <h2 className="text-4xl md:text-7xl font-light tracking-tight leading-tight text-white">
+                벽에 상처를 남기지 마십시오.<br/>
+                <span className="text-zinc-500">오직 예술만 남기십시오.</span>
+              </h2>
+              <p className="text-xl md:text-2xl font-thin tracking-[0.4em] text-zinc-400 uppercase">
+                3단계. 1분. 도구 불필요.
+              </p>
+            </motion.div>
+          </div>
+        </section>
 
-        {/* Section 3 [THE MATERIAL]: 1.15mm 매크로 엣지 뷰 */}
-        <div className="relative z-20">
+        {/* 6. [THE MATERIAL (Sticky Tunnel)]: 1.15mm 영속성 섹션. */}
+        <div className="relative z-[50]">
           <MaterialEdgeAnimation />
         </div>
 
-        {/* Section 4 [THE EXPERIENCE]: 하단 마키 갤러리 (통일성 부여) */}
-        <div className="pt-0 pb-24 bg-black overflow-hidden">
+        {/* 7. [Bottom Marquee]: 최상단 마키와 동일한 데이터로 통일성 있게 마무리. */}
+        <div className="relative z-[40] pt-0 pb-24 bg-black overflow-hidden">
           <div className="max-w-7xl mx-auto px-6 mb-12 text-center">
             <Reveal y={40}>
               <div className="space-y-6">
@@ -123,8 +142,8 @@ export default function Home() {
           <ProductGrid />
         </div>
 
-        {/* Section 5 [THE CONCLUSION]: 정밀 공정 스텝퍼 및 푸터 연결 */}
-        <section className="relative min-h-[80vh] py-32 px-6 flex items-center justify-center bg-black">
+        {/* 8. [Footer]: 최종 푸터 연결. */}
+        <section className="relative z-[30] min-h-[80vh] py-32 px-6 flex items-center justify-center bg-black">
           <div className="max-w-4xl mx-auto text-center space-y-24 w-full">
             <Reveal y={40}>
               <div className="space-y-8">
