@@ -27,9 +27,21 @@ export default function Login() {
   useEffect(() => {
     // 세션 자동 복구: 앱 시작 시 세션 확인
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        navigate(redirectUrl);
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          if (error.message?.includes('Lock was stolen') || String(error).includes('Lock was stolen')) {
+            console.warn('Login checkSession: Lock was stolen by another request. Retrying...');
+            setTimeout(checkSession, 500);
+            return;
+          }
+          throw error;
+        }
+        if (data.session) {
+          navigate(redirectUrl);
+        }
+      } catch (err) {
+        console.error('Login checkSession error:', err);
       }
     };
     checkSession();

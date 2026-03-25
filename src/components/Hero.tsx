@@ -8,6 +8,8 @@ import { Product } from '../data/products';
 
 import ErrorBoundary from './ErrorBoundary';
 
+import { Html } from '@react-three/drei';
+
 export default function Hero() {
   const { products } = useProducts();
   const [randomProduct, setRandomProduct] = useState<Product | null>(null);
@@ -28,18 +30,27 @@ export default function Hero() {
   const backImage = randomProduct?.back_image || randomProduct?.backImage || frontImage;
 
   return (
-    <section className="relative w-full flex flex-col items-center justify-center pt-0 pb-0 overflow-hidden bg-black min-h-[60vh]">
+    <section className="relative w-full flex flex-col items-center justify-center pt-10 pb-10 overflow-hidden bg-black min-h-[60vh]">
       {/* 3D Interactive Frame */}
       <motion.div 
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         transition={{ duration: 1.2, ease: [0.17, 0.67, 0.83, 0.67] }}
-        className="relative w-[80vw] h-[60vh] mx-auto z-10 flex items-center justify-center"
+        className="relative w-full max-w-[80vw] h-[60vh] mx-auto z-10 flex items-center justify-center"
       >
         {frontImage ? (
           <ErrorBoundary>
-            <Canvas camera={{ position: [0, 0, 4.5], fov: 45 }} className="w-full h-full pointer-events-none">
-              <Suspense fallback={null}>
+            <Canvas 
+              frameloop="always" 
+              camera={{ position: [0, 0, 4.5], fov: 45 }} 
+              className="w-full h-full pointer-events-none" 
+              gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
+              onCreated={() => {
+                // Dispatch event when 3D context is ready
+                window.dispatchEvent(new CustomEvent('3d-poster-loaded'));
+              }}
+            >
+              <Suspense fallback={<Html center><div className="w-full h-full bg-transparent" /></Html>}>
                 <Poster3D 
                   interactive={false} 
                   scale={2.2}
@@ -50,16 +61,16 @@ export default function Hero() {
             </Canvas>
           </ErrorBoundary>
         ) : (
-          <div className="w-full h-full bg-black" />
+          <div className="w-full h-full bg-black flex items-center justify-center" />
         )}
       </motion.div>
 
       {/* CTA Button */}
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         transition={{ duration: 0.8, delay: 0.5, ease: [0.17, 0.67, 0.83, 0.67] }}
-        className="relative z-20 mt-2 mb-8"
+        className="relative z-20 mt-8 mb-8 flex justify-center items-center w-full"
       >
         <button 
           onClick={handleMoreClick}

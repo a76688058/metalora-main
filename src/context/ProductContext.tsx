@@ -44,7 +44,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
         .order('display_order', { ascending: true });
         
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 5000)
+        setTimeout(() => reject(new Error('Timeout')), 15000)
       );
       
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;

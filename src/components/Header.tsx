@@ -76,20 +76,22 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   return (
     <>
       <header
-        className="sticky top-0 left-0 right-0 z-50 bg-black/40 backdrop-blur-xl transition-all duration-300"
+        className="fixed top-0 left-0 w-full z-[10000] bg-black/80 backdrop-blur-md transition-all duration-300 border-b border-white/5"
         ref={searchRef}
       >
         <motion.div layout className="flex flex-col w-full">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between relative w-full">
-            {/* Left: Search Icon */}
+            {/* Left: Search Icon (Conditional Visibility) */}
             <div className="flex-1 flex justify-start">
-              <button 
-                onClick={() => setIsSearchOpen(!isSearchOpen)}
-                className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
-                title="Search"
-              >
-                <Search size={24} strokeWidth={1} />
-              </button>
+              {location.pathname === '/collection' && (
+                <button 
+                  onClick={() => setIsSearchOpen(!isSearchOpen)}
+                  className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
+                  title="Search"
+                >
+                  <Search size={24} strokeWidth={1} />
+                </button>
+              )}
             </div>
 
             {/* Center: Logo (Absolute Center) */}
@@ -117,15 +119,18 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
             <div className="flex-1 flex justify-end items-center gap-x-5">
               {user ? (
                 <Link 
-                  to="/profile" 
+                  to="/mypage"
                   className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
-                  title="Profile"
+                  title="My Info"
                 >
                   <User size={24} strokeWidth={1} />
                 </Link>
               ) : (
                 <button 
-                  onClick={() => setIsLoginModalOpen(true)} 
+                  onClick={() => {
+                    setIsCartOpen(false);
+                    setIsLoginModalOpen(true);
+                  }} 
                   className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
                   title="Login"
                 >
@@ -136,9 +141,10 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
               <button 
                 onClick={() => {
                   if (!user) {
+                    setIsCartOpen(false);
                     setIsLoginModalOpen(true);
                   } else {
-                    setIsCartOpen(true);
+                    setIsCartOpen(!isCartOpen);
                   }
                 }}
                 className="text-white opacity-60 hover:opacity-100 transition-all duration-300 relative"

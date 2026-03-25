@@ -1,7 +1,7 @@
 import React, { useRef, useMemo } from 'react';
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Environment, Float, PerspectiveCamera } from '@react-three/drei';
+import { Environment, Float, PerspectiveCamera, Html } from '@react-three/drei';
 import * as THREE from 'three';
 
 function MacroEdgeModel({ scrollProgress }: { scrollProgress: any }) {
@@ -132,8 +132,14 @@ export default function MaterialEdgeAnimation() {
           
           {/* 3D Macro View - Extreme Close-up of the 1.15mm Edge */}
           <motion.div style={{ opacity: modelOpacity }} className="absolute inset-0 z-0">
-            <Canvas gl={{ antialias: true, alpha: true }}>
-              <React.Suspense fallback={null}>
+            <Canvas 
+              frameloop="always" 
+              gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
+              onCreated={() => {
+                window.dispatchEvent(new CustomEvent('3d-poster-loaded'));
+              }}
+            >
+              <React.Suspense fallback={<Html center><div className="w-full h-full bg-transparent" /></Html>}>
                 <MacroEdgeModel scrollProgress={smoothProgress} />
               </React.Suspense>
             </Canvas>

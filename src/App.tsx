@@ -15,6 +15,9 @@ import Login from './pages/Login';
 import ProfileComplete from './pages/ProfileComplete';
 import AuthCallback from './pages/AuthCallback';
 import Profile from './pages/Profile';
+import Inquiry from './pages/Inquiry';
+import ProfileEdit from './pages/ProfileEdit';
+import Orders from './pages/Orders';
 import BrandStory from './pages/BrandStory';
 import Collection from './pages/Collection';
 import PaymentSuccess from './pages/PaymentSuccess';
@@ -25,6 +28,15 @@ import { ProductProvider } from './context/ProductContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { CartProvider } from './context/CartContext';
+
+import GlobalSplash from './components/GlobalSplash';
+
+import Atelier from './pages/Atelier';
+import WorkshopLobby from './pages/WorkshopLobby';
+import WorkshopCopyright from './pages/WorkshopCopyright';
+import WorkshopSingle from './pages/WorkshopSingle';
+import WorkshopDual from './pages/WorkshopDual';
+import WorkshopAI from './pages/WorkshopAI';
 
 // Scroll to top on route change
 function ScrollToTop() {
@@ -86,6 +98,12 @@ function AnimatedRoutes() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/brand-story" element={<BrandStory />} />
         <Route path="/collection" element={<Collection />} />
+        <Route path="/atelier" element={<ProtectedRoute><Atelier /></ProtectedRoute>} />
+        <Route path="/workshop/copyright" element={<ProtectedRoute><WorkshopCopyright /></ProtectedRoute>} />
+        <Route path="/workshop/lobby" element={<ProtectedRoute><WorkshopLobby /></ProtectedRoute>} />
+        <Route path="/workshop/single" element={<ProtectedRoute><WorkshopSingle /></ProtectedRoute>} />
+        <Route path="/workshop/dual" element={<ProtectedRoute><WorkshopDual /></ProtectedRoute>} />
+        <Route path="/workshop/ai" element={<ProtectedRoute><WorkshopAI /></ProtectedRoute>} />
         
         {/* Profile Complete - Skip for Admins */}
         <Route 
@@ -98,11 +116,36 @@ function AnimatedRoutes() {
         />
         
         <Route 
-          path="/profile" 
+          path="/mypage" 
           element={
             (adminProfile?.is_admin || profile?.is_admin) ? 
             <Navigate to="/admin" replace /> : 
             <ProtectedRoute><Profile /></ProtectedRoute>
+          } 
+        />
+        <Route path="/profile" element={<Navigate to="/mypage" replace />} />
+        <Route 
+          path="/mypage/inquiry" 
+          element={
+            (adminProfile?.is_admin || profile?.is_admin) ? 
+            <Navigate to="/admin" replace /> : 
+            <ProtectedRoute><Inquiry /></ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/mypage/profile" 
+          element={
+            (adminProfile?.is_admin || profile?.is_admin) ? 
+            <Navigate to="/admin" replace /> : 
+            <ProtectedRoute><ProfileEdit /></ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/mypage/orders" 
+          element={
+            (adminProfile?.is_admin || profile?.is_admin) ? 
+            <Navigate to="/admin" replace /> : 
+            <ProtectedRoute><Orders /></ProtectedRoute>
           } 
         />
         
@@ -127,17 +170,27 @@ function AnimatedRoutes() {
 function Layout() {
   const location = useLocation();
   const isAdminPage = location.pathname.startsWith('/admin');
+  const isAtelierPage = location.pathname === '/atelier' || location.pathname.startsWith('/workshop');
   const isAuthPage = location.pathname === '/login' || location.pathname === '/profile/complete' || location.pathname === '/auth/callback';
 
-  const isProfilePage = location.pathname === '/profile';
+  const isMyPage = location.pathname === '/mypage';
+
+  if (isAtelierPage) {
+    return (
+      <div className="min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black">
+        <ScrollToTop />
+        <AnimatedRoutes />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black flex flex-col">
       <ScrollToTop />
       <AdminBanner />
       {!isAdminPage && !isAuthPage && <Header isHome={location.pathname === '/'} />}
-      <div className={`flex-1 flex flex-col ${isProfilePage ? 'justify-center' : ''}`}>
-        <main className={isProfilePage ? '' : 'flex-1'}>
+      <div className={`flex-1 flex flex-col ${isMyPage ? 'justify-center' : ''}`}>
+        <main className={`${isMyPage ? '' : 'flex-1'} ${!isAdminPage && !isAuthPage ? 'pt-16' : ''}`}>
           <AnimatedRoutes />
         </main>
         {!isAdminPage && !isAuthPage && <Footer />}
@@ -152,6 +205,7 @@ export default function App() {
       <AuthProvider>
         <ProductProvider>
           <CartProvider>
+            <GlobalSplash />
             <Router>
               <Layout />
             </Router>

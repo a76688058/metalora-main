@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Loader2 } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
@@ -184,8 +184,9 @@ export default function PaymentSuccess() {
   return (
     <div className="min-h-screen p-6 flex items-center justify-center">
       <div className="max-w-md w-full glass rounded-3xl p-8 text-center">
-        <div className="flex items-center justify-center w-24 h-24 mx-auto mb-8">
+        <div className="relative flex items-center justify-center w-24 h-24 mx-auto mb-8">
           <motion.svg 
+            className="absolute inset-0 w-full h-full"
             viewBox="0 0 100 100"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -200,14 +201,15 @@ export default function PaymentSuccess() {
               animate={{ pathLength: 1 }}
               transition={{ duration: 1, ease: "easeInOut" }}
             />
-            <motion.g
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 1, type: "spring", stiffness: 200, damping: 10 }}
-            >
-              <CheckCircle2 size={48} className="text-indigo-500" />
-            </motion.g>
           </motion.svg>
+          <motion.div
+            className="absolute inset-0 flex items-center justify-center origin-center"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 1, type: "spring", stiffness: 200, damping: 10 }}
+          >
+            <Check size={48} className="text-indigo-500" />
+          </motion.div>
         </div>
         <h1 className="text-3xl font-bold text-white mb-8 tracking-tight">결제 완료</h1>
         

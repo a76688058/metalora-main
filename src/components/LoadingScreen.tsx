@@ -1,35 +1,49 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
 
 export default function LoadingScreen() {
   return (
-    <div className="fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center">
+    <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center">
       <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        className="flex flex-col items-center"
+        initial={{ scale: 1 }}
+        exit={{ scale: 0.8, opacity: 0 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        className="relative flex items-center justify-center"
       >
-        <div className="relative mb-8">
-          <div className="w-20 h-20 border-4 border-zinc-800 rounded-full" />
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-            className="absolute inset-0 w-20 h-20 border-4 border-t-indigo-500 border-r-transparent border-b-transparent border-l-transparent rounded-full"
+        <motion.div
+          animate={{ scale: [1, 1.05, 1] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          className="relative"
+        >
+          {/* Base Logo */}
+          <img
+            src="https://postfiles.pstatic.net/MjAyNjAzMTZfMjM2/MDAxNzczNjQzMzQ3MDUw.zR_7l4ozVWSXDJOr1CA_6tw0H8LF8ZQenQvN8Tw3swEg.i_g5v5uqKHopzrE-iqVmSsuKM-nhT3X3N0tWVC_DDBgg.PNG/METALORA_LOGO.png?type=w3840"
+            alt="METALORA"
+            className="h-12 md:h-16 object-contain filter invert opacity-30"
+            referrerPolicy="no-referrer"
           />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="text-indigo-500 animate-pulse" size={32} />
-          </div>
-        </div>
-        
-        <h2 className="text-2xl font-black text-white tracking-[0.2em] mb-2">METALORA</h2>
-        <div className="flex items-center gap-2">
-          <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
-          <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-          <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
-        </div>
-        <p className="text-zinc-500 text-sm font-medium mt-6 tracking-tight">인증 정보를 확인 중입니다...</p>
+          
+          {/* Shimmer Logo */}
+          <motion.div
+            className="absolute inset-0 z-10"
+            style={{
+              WebkitMaskImage: `url(https://postfiles.pstatic.net/MjAyNjAzMTZfMjM2/MDAxNzczNjQzMzQ3MDUw.zR_7l4ozVWSXDJOr1CA_6tw0H8LF8ZQenQvN8Tw3swEg.i_g5v5uqKHopzrE-iqVmSsuKM-nhT3X3N0tWVC_DDBgg.PNG/METALORA_LOGO.png?type=w3840)`,
+              WebkitMaskSize: 'contain',
+              WebkitMaskRepeat: 'no-repeat',
+              WebkitMaskPosition: 'center',
+              background: 'linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)',
+              backgroundSize: '200% 100%',
+            }}
+            animate={{
+              backgroundPosition: ['200% 0', '-200% 0'],
+            }}
+            transition={{
+              duration: 2.5,
+              repeat: Infinity,
+              ease: 'linear',
+            }}
+          />
+        </motion.div>
       </motion.div>
     </div>
   );

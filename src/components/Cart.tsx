@@ -302,24 +302,26 @@ export default function Cart({ isOpen, onClose }: CartProps) {
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[9999] bg-[#121212] flex flex-col overflow-y-auto w-screen h-screen custom-scrollbar">
+        <div className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md flex flex-col overflow-y-auto w-screen h-screen custom-scrollbar">
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="relative w-full min-h-full flex flex-col will-change-transform max-w-2xl mx-auto px-6 py-6 md:py-10"
+            className="relative w-full min-h-full flex flex-col will-change-transform max-w-2xl mx-auto px-6 pt-20 pb-6 md:pb-10"
           >
+            <button 
+              onClick={onClose}
+              className="absolute top-20 right-6 text-white/70 hover:text-white transition-colors z-[10001] p-2"
+              aria-label="닫기"
+            >
+              <X size={32} strokeWidth={1} />
+            </button>
+
             {/* Header Section - Minimized Whitespace */}
-            <div className="flex flex-col gap-2 mb-6">
+            <div className="flex flex-col gap-2 mb-6 mt-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-black text-white tracking-tighter">내 컬렉션 큐레이션</h2>
-                <button 
-                  onClick={onClose}
-                  className="p-2 hover:bg-white/5 rounded-full text-zinc-500 hover:text-white transition-all active:scale-90"
-                >
-                  <X size={28} />
-                </button>
               </div>
               
               {/* Order Steps - Tightened */}

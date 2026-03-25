@@ -11,6 +11,8 @@ import ProductGrid from '../components/ProductGrid';
 import { useProducts } from '../context/ProductContext';
 import { Truck, Layers, Zap } from 'lucide-react';
 
+import { Html } from '@react-three/drei';
+
 const Reveal = ({ children, delay = 0, scale = 1, x = 0, y = 40 }: { children: React.ReactNode, delay?: number, scale?: number, x?: number, y?: number }) => {
   return (
     <motion.div
@@ -45,7 +47,7 @@ export default function Home() {
   return (
     <div className="relative bg-black min-h-screen text-white selection:bg-white selection:text-black">
         {/* 1. [Top Marquee]: 헤더 아래 mt-2 여백 유지. 좌측 무한 흐름 그리드. */}
-        <div className="relative z-[100] mt-2 pt-0 pb-0 top-0 overflow-hidden">
+        <div className="relative z-10 mt-2 pt-0 pb-0 top-0 overflow-hidden">
           <ProductGrid />
         </div>
 
@@ -61,8 +63,14 @@ export default function Home() {
               {/* 3D Canvas Container - Floating in Deep Black */}
               <div className="absolute inset-0 z-0">
                 <ErrorBoundary>
-                  <Canvas gl={{ antialias: true, alpha: true }}>
-                    <React.Suspense fallback={null}>
+                  <Canvas 
+                    frameloop="always" 
+                    gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
+                    onCreated={() => {
+                      window.dispatchEvent(new CustomEvent('3d-poster-loaded'));
+                    }}
+                  >
+                    <React.Suspense fallback={<Html center><div className="w-full h-full bg-transparent" /></Html>}>
                       <Hook3D imageUrl="https://images.unsplash.com/photo-1464802686167-b939a6910659?auto=format&fit=crop&q=80&w=2070" />
                     </React.Suspense>
                   </Canvas>
@@ -192,46 +200,48 @@ export default function Home() {
           <ProductGrid />
         </div>
 
-        {/* 8. [Footer]: 최종 푸터 연결. */}
-        <section className="relative z-[30] min-h-[80vh] py-32 px-6 flex items-center justify-center bg-black">
+        {/* 8. [Trust Indicators]: 신뢰의 지표 섹션. */}
+        <section className="relative z-[30] min-h-[80vh] pt-40 pb-32 px-6 flex items-center justify-center bg-black">
           <div className="max-w-4xl mx-auto text-center space-y-24 w-full">
             <Reveal y={40}>
               <div className="space-y-8">
-                <h2 className="text-5xl md:text-7xl font-black tracking-tighter uppercase">신뢰의 지표</h2>
-                <p className="text-xl text-zinc-500 font-light">정밀한 공정과 투명한 과정을 통해 당신의 예술을 배달합니다.</p>
+                <h2 className="text-5xl md:text-7xl font-black tracking-tighter uppercase text-white">신뢰의 지표</h2>
+                <p className="text-xl text-zinc-500 font-light max-w-2xl mx-auto">정밀한 공정과 투명한 과정을 통해 당신의 예술을 배달합니다.</p>
               </div>
             </Reveal>
 
-            <Reveal delay={0.2} y={40}>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
-                {/* Connector Line */}
-                <div className="hidden md:block absolute top-1/2 left-0 right-0 h-px bg-white/5 -translate-y-1/2 z-0" />
-                
-                {[
-                  { icon: <Zap size={24} />, title: "결제 완료", desc: "주문 즉시 공정 대기" },
-                  { icon: <Layers size={24} />, title: "정밀 공정", desc: "1.15mm 알루미늄 가공" },
-                  { icon: <Truck size={24} />, title: "안전 배송", desc: "전 세계 프리미엄 배송" }
-                ].map((item, idx) => (
-                  <div key={idx} className="relative z-10 flex flex-col items-center space-y-6 group">
-                    <div className="w-16 h-16 rounded-2xl bg-zinc-900 flex items-center justify-center border border-white/10 group-hover:bg-white group-hover:text-black transition-all duration-500">
-                      {item.icon}
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-xl font-bold">{item.title}</h3>
-                      <p className="text-zinc-500 text-sm font-light">{item.desc}</p>
-                    </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
+              {[
+                { icon: <Zap size={24} />, title: "결제 완료", desc: "주문 즉시 공정 대기", delay: 0 },
+                { icon: <Layers size={24} />, title: "정밀 공정", desc: "1.15mm 알루미늄 가공", delay: 0.2 },
+                { icon: <Truck size={24} />, title: "안전 배송", desc: "전 세계 프리미엄 배송", delay: 0.4 }
+              ].map((item, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.8, delay: item.delay, ease: [0.16, 1, 0.3, 1] }}
+                  className="relative z-10 flex flex-col items-center text-center space-y-6 group"
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-zinc-900 flex items-center justify-center border border-white/10 group-hover:bg-white group-hover:text-black transition-all duration-500">
+                    {item.icon}
                   </div>
-                ))}
-              </div>
-            </Reveal>
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-bold text-white">{item.title}</h3>
+                    <p className="text-zinc-500 text-sm font-light">{item.desc}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
 
-            <Reveal delay={0.4} y={40}>
-              <div className="pt-12">
+            <Reveal delay={0.6} y={40}>
+              <div className="pt-12 flex justify-center">
                 <button
                   onClick={handleBuyClick}
-                  className="group relative px-20 py-8 rounded-full bg-white text-black font-black text-xl tracking-tight overflow-hidden transition-all active:scale-95"
+                  className="group relative px-8 py-3 rounded-full bg-white text-black font-bold text-lg tracking-tight overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_10px_30px_rgba(255,255,255,0.05)]"
                 >
-                  <span className="relative z-10">지금 컬렉션 시작하기</span>
+                  <span className="relative z-10">컬렉션 구경하기</span>
                   <div className="absolute inset-0 bg-zinc-200 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
                 </button>
               </div>

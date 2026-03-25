@@ -13,6 +13,11 @@ export default function AuthCallback() {
       const { data: { session }, error } = await supabase.auth.getSession();
       
       if (error) {
+        if (error.message?.includes('Lock was stolen') || String(error).includes('Lock was stolen')) {
+          console.warn('Auth callback: Lock was stolen by another request. Retrying in 1s...');
+          setTimeout(handleAuthCallback, 1000);
+          return;
+        }
         console.error('Auth callback error:', error);
         navigate('/login');
         return;

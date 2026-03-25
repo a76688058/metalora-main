@@ -270,124 +270,123 @@ export default function LoginModal({ isOpen, onClose, redirectUrl = '/' }: Login
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[9999] bg-[#121212] w-screen h-screen flex flex-col overflow-y-auto p-6 md:p-10">
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 w-screen h-screen z-[9999] bg-black/95 flex items-center justify-center"
+        >
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ type: "spring", damping: 25, stiffness: 220 }}
-            className="relative w-full max-w-lg mx-auto my-auto will-change-transform"
+            className="relative w-full max-w-lg h-full overflow-y-auto px-6 pt-20 pb-6 md:pb-10 will-change-transform scrollbar-hide flex flex-col justify-center"
           >
             {/* Close Button */}
             <button 
               onClick={handleClose}
-              className="fixed top-6 right-6 text-zinc-500 hover:text-white transition-colors z-[10000] p-2 bg-white/5 rounded-full"
+              className="absolute top-20 right-6 text-white/70 hover:text-white transition-colors z-[10001] p-2"
               aria-label="닫기"
             >
-              <X size={28} />
+              <X size={32} strokeWidth={1} />
             </button>
 
-            <div className="text-center mb-12">
-              <img 
-                src="https://postfiles.pstatic.net/MjAyNjAzMTZfMjM2/MDAxNzczNjQzMzQ3MDUw.zR_7l4ozVWSXDJOr1CA_6tw0H8LF8ZQenQvN8Tw3swEg.i_g5v5uqKHopzrE-iqVmSsuKM-nhT3X3N0tWVC_DDBgg.PNG/METALORA_LOGO.png?type=w3840" 
-                alt="METALORA" 
-                className="h-10 object-contain mb-4 dark:invert filter invert mx-auto" 
-                referrerPolicy="no-referrer"
-              />
+            <div className="text-center mb-8 mt-2">
               <p className="text-zinc-400 font-medium tracking-tight">프리미엄 메탈 포스터 멤버십</p>
             </div>
 
-        <form onSubmit={handleAuth} className="space-y-6">
-          {!isLoginMode && (
-            <>
+            <form onSubmit={handleAuth} className="space-y-6">
+              {!isLoginMode && (
+                <>
+                  <div>
+                    <input
+                      type="text"
+                      name="full_name"
+                      required
+                      value={formData.full_name}
+                      onChange={handleInputChange}
+                      placeholder="실명"
+                      className="w-full bg-[#1C1C1E] border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="tel"
+                      name="phone_number"
+                      required
+                      value={formData.phone_number}
+                      onChange={handleInputChange}
+                      placeholder="휴대폰 번호 (010-0000-0000)"
+                      className="w-full bg-[#1C1C1E] border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
+                    />
+                  </div>
+                </>
+              )}
               <div>
                 <input
                   type="text"
-                  name="full_name"
+                  name="username"
                   required
-                  value={formData.full_name}
+                  value={formData.username}
                   onChange={handleInputChange}
-                  placeholder="실명"
+                  placeholder="아이디"
                   className="w-full bg-[#1C1C1E] border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
                 />
               </div>
               <div>
                 <input
-                  type="tel"
-                  name="phone_number"
+                  type="password"
+                  name="password"
                   required
-                  value={formData.phone_number}
+                  value={formData.password}
                   onChange={handleInputChange}
-                  placeholder="휴대폰 번호 (010-0000-0000)"
+                  placeholder="비밀번호"
                   className="w-full bg-[#1C1C1E] border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
                 />
               </div>
-            </>
-          )}
-          <div>
-            <input
-              type="text"
-              name="username"
-              required
-              value={formData.username}
-              onChange={handleInputChange}
-              placeholder="아이디"
-              className="w-full bg-[#1C1C1E] border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
-            />
-          </div>
-          <div>
-            <input
-              type="password"
-              name="password"
-              required
-              value={formData.password}
-              onChange={handleInputChange}
-              placeholder="비밀번호"
-              className="w-full bg-[#1C1C1E] border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
-            />
-          </div>
 
-          {errorMsg && (
-            <div className="text-red-500 text-sm px-2 pt-1 font-bold tracking-tight">
-              {errorMsg}
+              {errorMsg && (
+                <div className="text-red-500 text-sm px-2 pt-1 font-bold tracking-tight text-center">
+                  {errorMsg}
+                </div>
+              )}
+
+              {successMsg && (
+                <div className="text-emerald-400 text-sm px-2 pt-1 font-bold tracking-tight text-center">
+                  {successMsg}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-white text-black font-bold py-6 rounded-2xl hover:bg-zinc-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-xl mt-8 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xl shadow-white/5 tracking-tight"
+              >
+                {isLoading ? <Loader2 className="animate-spin" size={24} /> : null}
+                {isLoginMode ? '로그인' : '가입하기'}
+              </button>
+            </form>
+
+            <div className="mt-10 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLoginMode(!isLoginMode);
+                  setErrorMsg('');
+                  setSuccessMsg('');
+                }}
+                className="text-zinc-400 hover:text-white text-sm font-bold transition-colors tracking-tight"
+              >
+                {isLoginMode ? '계정이 없으신가요? 간편 가입하기' : '이미 계정이 있으신가요? 로그인하기'}
+              </button>
             </div>
-          )}
 
-          {successMsg && (
-            <div className="text-emerald-400 text-sm px-2 pt-1 font-bold tracking-tight">
-              {successMsg}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-white text-black font-bold py-6 rounded-2xl hover:bg-zinc-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-xl mt-8 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xl shadow-white/5 tracking-tight"
-          >
-            {isLoading ? <Loader2 className="animate-spin" size={24} /> : null}
-            {isLoginMode ? '로그인' : '가입하기'}
-          </button>
-        </form>
-
-        <div className="mt-10 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              setIsLoginMode(!isLoginMode);
-              setErrorMsg('');
-              setSuccessMsg('');
-            }}
-            className="text-zinc-400 hover:text-white text-sm font-bold transition-colors tracking-tight"
-          >
-            {isLoginMode ? '계정이 없으신가요? 간편 가입하기' : '이미 계정이 있으신가요? 로그인하기'}
-          </button>
-        </div>
-
-          <p className="text-center text-zinc-600 text-[11px] mt-12 font-medium tracking-tight">
-            가입 시 METALORA의 이용약관 및 개인정보처리방침에 동의하게 됩니다.
-          </p>
+            <p className="text-center text-zinc-600 text-[11px] mt-12 font-medium tracking-tight">
+              가입 시 METALORA의 이용약관 및 개인정보처리방침에 동의하게 됩니다.
+            </p>
           </motion.div>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>
   );

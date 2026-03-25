@@ -2,7 +2,7 @@ import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useProducts } from '../context/ProductContext';
 import { useAuth } from '../context/AuthContext';
@@ -136,7 +136,16 @@ export default function ProductDetail() {
       setIsAddingToCart(true);
       
       // Get current user session explicitly
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        if (userError.message?.includes('Lock was stolen') || String(userError).includes('Lock was stolen')) {
+          showToast('인증 세션 충돌이 발생했습니다. 다시 시도해주세요.', 'error');
+          return;
+        }
+        throw userError;
+      }
+
       if (!currentUser) {
         showToast('로그인이 필요한 서비스입니다.', 'info');
         setIsLoginModalOpen(true);
@@ -227,6 +236,7 @@ export default function ProductDetail() {
               >
                 <CanvasErrorBoundary>
                   <Canvas 
+                    frameloop="always"
                     shadows 
                     dpr={[1, 2]} 
                     gl={{ antialias: true, preserveDrawingBuffer: true, alpha: true }}
@@ -235,10 +245,11 @@ export default function ProductDetail() {
                     onCreated={({ gl }) => {
                       gl.outputColorSpace = THREE.SRGBColorSpace;
                       gl.setClearColor(0x000000, 0); // Transparent background
+                      window.dispatchEvent(new CustomEvent('3d-poster-loaded'));
                     }}
                     style={{ background: 'transparent' }}
                   >
-                    <Suspense fallback={null}>
+                    <Suspense fallback={<Html center><CanvasLoader /></Html>}>
                       <Poster3D 
                         product={product}
                         scale={1.8}

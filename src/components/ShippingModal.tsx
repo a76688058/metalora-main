@@ -92,7 +92,16 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
     const fetchShippingInfo = async () => {
       if (!supabase) return;
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError) {
+          if (userError.message?.includes('Lock was stolen') || String(userError).includes('Lock was stolen')) {
+            console.warn('fetchShippingInfo: Lock was stolen. Skipping.');
+            return;
+          }
+          throw userError;
+        }
+
         if (!user) return;
         
         const { data, error } = await supabase
@@ -135,7 +144,17 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
 
       // 1. 유저 세션 확실하게 가져오기 (비동기 지연 방지)
       const { data: { session }, error: authError } = await supabase.auth.getSession();
-      if (authError || !session?.user) throw new Error("로그인 세션이 유효하지 않습니다.");
+      
+      if (authError) {
+        if (authError.message?.includes('Lock was stolen') || String(authError).includes('Lock was stolen')) {
+          showToast('인증 세션 충돌이 발생했습니다. 다시 시도해주세요.', 'error');
+          setIsLoading(false);
+          return;
+        }
+        throw new Error("로그인 세션이 유효하지 않습니다.");
+      }
+      
+      if (!session?.user) throw new Error("로그인 세션이 유효하지 않습니다.");
       const userId = session.user.id;
 
       // 2. Update profile directly

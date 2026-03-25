@@ -30,13 +30,32 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { user } = useAuth();
+  const { user, session: authSession } = useAuth();
   const { showToast } = useToast();
 
   const refreshCart = useCallback(async () => {
     try {
-      // 1. 현재 세션 상태를 먼저 확인 (가장 확실한 방법 - Resurrection Logic)
-      const { data: { session } } = await supabase.auth.getSession();
+      // 1. Check if we already have a session from AuthContext
+      let session = authSession;
+      
+      if (!session) {
+        // If not, try to get it from supabase (might trigger refresh)
+        const { data: { session: s }, error } = await supabase.auth.getSession();
+        if (error) {
+          const errorMsg = error.message || String(error);
+          if (errorMsg.includes('Lock was stolen')) {
+            console.warn('Cart Refresh: Lock was stolen by another request. Skipping this cycle.');
+            return;
+          }
+          if (errorMsg.includes('Invalid Refresh Token') || errorMsg.includes('Refresh Token Not Found')) {
+            console.warn('Cart Refresh: Session invalid or expired. Clearing cart.');
+            setCartItems([]);
+            return;
+          }
+          throw error;
+        }
+        session = s;
+      }
       
       if (!session) {
         console.warn("Session lost, cart refresh skipped.");
@@ -57,6 +76,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       setCartItems(data || []);
     } catch (error) {
+      const errorStr = String(error);
+      if (errorStr.includes('Lock was stolen')) {
+        console.warn('refreshCart caught lock stolen error:', error);
+        return;
+      }
+      if (errorStr.includes('Invalid Refresh Token') || errorStr.includes('Refresh Token Not Found')) {
+        console.warn('refreshCart: Session invalid or expired. Clearing cart.');
+        setCartItems([]);
+        return;
+      }
       console.error('Error fetching cart:', error);
     } finally {
       setIsLoading(false);
@@ -85,7 +114,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       
       // Get current user session explicitly to ensure user_id is present
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        if (userError.message?.includes('Lock was stolen') || String(userError).includes('Lock was stolen')) {
+          showToast('인증 세션 충돌이 발생했습니다. 다시 시도해주세요.', 'error');
+          return;
+        }
+        throw userError;
+      }
       
       if (!currentUser) {
         showToast('로그인이 필요합니다.', 'error');
