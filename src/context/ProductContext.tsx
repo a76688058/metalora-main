@@ -5,6 +5,7 @@ import { supabase, supabasePublic } from '../lib/supabase';
 interface ProductContextType {
   products: Product[];
   isLoading: boolean;
+  isError: boolean;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   fetchProducts: () => Promise<void>;
@@ -26,6 +27,7 @@ export const useProducts = () => {
 export const ProductProvider = ({ children }: { children: ReactNode }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isError, setIsError] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
   const fetchProducts = useCallback(async () => {
@@ -34,30 +36,56 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
     // Check global flag to prevent fetching during signout
     if ((window as any).isLoggingOutFlag) return;
 
-    try {
-      setIsLoading(true);
-      
-      // Fetch products with a timeout to prevent infinite skeleton
-      const fetchPromise = supabasePublic
-        .from('products')
-        .select('*')
-        .order('display_order', { ascending: true });
+    setIsLoading(true);
+    setIsError(false);
+    
+    let attempt = 0;
+    const maxRetries = 3;
+    let success = false;
+
+    while (attempt < maxRetries && !success) {
+      try {
+        // Query Optimization: Select only necessary columns and limit results
+        const fetchPromise = supabasePublic
+          .from('products')
+          .select('id, title, subtitle, front_image, back_image, description, is_limited, is_visible, options, created_at, display_order')
+          .order('display_order', { ascending: true })
+          .limit(20);
+          
+        // Timeout Extension: 25 seconds to allow for Cold Start
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 25000)
+        );
         
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 15000)
-      );
-      
-      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
-      
-      if (error) throw error;
-      if (data) {
-        setProducts(data as Product[]);
+        const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
+        
+        if (error) throw error;
+        
+        if (data) {
+          const mappedData = data.map((item: any) => ({
+            ...item,
+            artist: item.subtitle || 'Unknown Artist',
+            price: item.options?.[0]?.price || 0,
+            image: item.front_image || '',
+            limited: item.is_limited || false,
+          }));
+          setProducts(mappedData as Product[]);
+          success = true;
+        }
+      } catch (error: any) {
+        attempt++;
+        if (attempt >= maxRetries) {
+          console.error("Failed to fetch products after 3 attempts:", error);
+          setIsError(true);
+        } else {
+          console.warn(`Product fetch attempt ${attempt} failed. Retrying in ${attempt}s...`);
+          // Exponential Backoff: 1s, then 2s
+          await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+        }
       }
-    } catch (error) {
-      console.error("Failed to fetch products:", error);
-    } finally {
-      setIsLoading(false);
     }
+    
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -117,7 +145,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <ProductContext.Provider value={{ products, isLoading, searchTerm, setSearchTerm, fetchProducts, addProduct, updateProduct, deleteProduct }}>
+    <ProductContext.Provider value={{ products, isLoading, isError, searchTerm, setSearchTerm, fetchProducts, addProduct, updateProduct, deleteProduct }}>
       {children}
     </ProductContext.Provider>
   );

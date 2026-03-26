@@ -4,7 +4,7 @@ import { useProducts } from '../context/ProductContext';
 import { Link } from 'react-router-dom';
 
 export default function Collection() {
-  const { products, isLoading } = useProducts();
+  const { products, isLoading, isError, fetchProducts } = useProducts();
 
   const visibleProducts = useMemo(() => {
     return products
@@ -17,8 +17,17 @@ export default function Collection() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center text-zinc-500 tracking-widest text-sm">
-        로딩 중...
+      <div className="min-h-screen bg-black pt-24 flex items-center justify-center">
+        <div className="text-zinc-500 animate-pulse">Loading collection...</div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-black pt-24 flex flex-col items-center justify-center gap-4">
+        <div className="text-red-400">Failed to load collection.</div>
+        <button onClick={fetchProducts} className="px-4 py-2 bg-white text-black rounded-lg">Retry</button>
       </div>
     );
   }

@@ -11,7 +11,7 @@ import { useCart } from '../context/CartContext';
 import { supabase } from '../lib/supabase';
 import Poster3D from './Poster3D';
 import LoginModal from './LoginModal';
-import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, RotateCw, Frame } from 'lucide-react';
+import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, RotateCw, Frame, RefreshCw } from 'lucide-react';
 import Skeleton from './Skeleton';
 
 declare global {
@@ -72,7 +72,7 @@ class CanvasErrorBoundary extends React.Component<{ children: React.ReactNode },
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
-  const { products, fetchProducts } = useProducts();
+  const { products, fetchProducts, isLoading, isError } = useProducts();
   const { user, profile } = useAuth();
   const { showToast } = useToast();
   const { addToCart, refreshCart } = useCart();
@@ -99,13 +99,39 @@ export default function ProductDetail() {
     }
   }, [product]);
 
-  if (products.length === 0) {
+  if (isLoading && products.length === 0) {
     return (
       <div className="max-w-7xl mx-auto px-6 pt-4 pb-24 space-y-8">
         <Skeleton className="h-96 w-full" />
         <Skeleton className="h-12 w-1/2" />
         <Skeleton className="h-6 w-full" />
         <Skeleton className="h-6 w-full" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="w-full h-[500px] flex flex-col items-center justify-center bg-black px-6 text-center">
+        <div className="bg-zinc-900/50 backdrop-blur-md border border-white/10 p-8 rounded-3xl max-w-md w-full shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+          <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6">
+            <RefreshCw className="text-red-400 w-8 h-8" />
+          </div>
+          <h3 className="text-xl font-bold text-white mb-3">
+            대표님, 서버 응답이 조금 늦네요.
+          </h3>
+          <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
+            메타로라의 마스터피스 데이터를 불러오는 중<br/>
+            일시적인 지연이 발생했습니다.
+          </p>
+          <button
+            onClick={fetchProducts}
+            className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded-2xl transition-all transform active:scale-95 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(34,211,238,0.3)]"
+          >
+            <RefreshCw size={18} />
+            다시 불러오기
+          </button>
+        </div>
       </div>
     );
   }

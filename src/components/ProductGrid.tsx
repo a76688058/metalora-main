@@ -10,7 +10,7 @@ const wrap = (min: number, max: number, v: number) => {
 };
 
 export default function ProductGrid() {
-  const { products: allProducts, isLoading } = useProducts();
+  const { products: allProducts, isLoading, isError, fetchProducts } = useProducts();
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [contentWidth, setContentWidth] = useState(0);
@@ -94,8 +94,17 @@ export default function ProductGrid() {
 
   if (isLoading) {
     return (
-      <div className="w-full h-[500px] flex items-center justify-center text-zinc-500 tracking-widest text-sm bg-black">
-        로딩 중...
+      <div className="py-24 flex items-center justify-center">
+        <div className="text-zinc-500 animate-pulse">Loading products...</div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="py-24 flex flex-col items-center justify-center gap-4">
+        <div className="text-red-400">Failed to load products.</div>
+        <button onClick={fetchProducts} className="px-4 py-2 bg-white text-black rounded-lg">Retry</button>
       </div>
     );
   }
