@@ -22,8 +22,17 @@ function AnimatedPrice({ value }: { value: number }) {
 // Default placeholder image (Premium Abstract/Graffiti vibe)
 const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop";
 
+// --- Constants & Pricing ---
+const STEPS = [
+  { id: 1, title: '재질 확인 및 사이즈 선택' },
+  { id: 2, title: '이미지 업로드 및 3D 프리뷰' },
+  { id: 3, title: '최종 확인 및 주문' },
+];
+
+type SizeType = 'A4' | 'Custom';
+
 // --- 3D Poster Component (Ported from Main Landing) ---
-function WorkshopPoster3D({ imageUrl, materialType, interactive = false }: { imageUrl: string | null, materialType: string, interactive?: boolean }) {
+function WorkshopPoster3D({ imageUrl, materialType, interactive = false, size = 'A4' }: { imageUrl: string | null, materialType: string, interactive?: boolean, size?: SizeType }) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
@@ -32,11 +41,15 @@ function WorkshopPoster3D({ imageUrl, materialType, interactive = false }: { ima
   const textureUrl = imageUrl || DEFAULT_IMAGE;
   const texture = useTexture(textureUrl);
 
+  const targetAspect = useMemo(() => {
+    if (size === 'A4') return 1 / 1.414;
+    return 1 / 1.414; // Default or Custom
+  }, [size]);
+
   useMemo(() => {
     if (!texture || !texture.image) return;
-    const img = texture.image;
+    const img = texture.image as HTMLImageElement;
     const imageAspect = img.width / img.height;
-    const targetAspect = 1 / 1.414;
     
     if (imageAspect > targetAspect) {
       texture.repeat.set(targetAspect / imageAspect, 1);
@@ -51,7 +64,7 @@ function WorkshopPoster3D({ imageUrl, materialType, interactive = false }: { ima
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
     texture.needsUpdate = true;
-  }, [texture]);
+  }, [texture, targetAspect]);
 
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
@@ -119,6 +132,12 @@ function WorkshopPoster3D({ imageUrl, materialType, interactive = false }: { ima
   const isAluminum = materialType === 'aluminum';
   const depth = isAluminum ? 0.008 : 0.04;
 
+  const geometryArgs = useMemo(() => {
+    const width = 1;
+    const height = size === 'A4' ? 1.414 : 1.414;
+    return [width, height, depth] as [number, number, number];
+  }, [size, depth]);
+
   return (
     <>
       <ambientLight intensity={0.8} />
@@ -134,23 +153,12 @@ function WorkshopPoster3D({ imageUrl, materialType, interactive = false }: { ima
           onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
           material={materials}
         >
-          <boxGeometry args={[1, 1.414, depth]} /> 
+          <boxGeometry args={geometryArgs} /> 
         </mesh>
       </group>
     </>
   );
 }
-
-// --- Constants & Pricing ---
-const STEPS = [
-  { id: 1, title: '재질 확인 및 사이즈 선택' },
-  { id: 2, title: '이미지 업로드 및 3D 프리뷰' },
-  { id: 3, title: '최종 확인 및 주문' },
-];
-
-type SizeType = 'A4' | 'Custom';
-
-
 
 export default function WorkshopSingle() {
   const navigate = useNavigate();
@@ -167,6 +175,10 @@ export default function WorkshopSingle() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentStep]);
 
 
 
@@ -244,9 +256,9 @@ export default function WorkshopSingle() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-0 z-[110] bg-black flex flex-col"
+            className="fixed inset-0 z-[9999] bg-black flex flex-col pt-24"
           >
-            <div className="absolute top-6 right-6 z-20">
+            <div className="absolute top-12 right-6 z-50">
               <button 
                 onClick={() => setIsModalOpen(false)} 
                 className="p-3 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-white/20 transition-colors"
@@ -256,8 +268,8 @@ export default function WorkshopSingle() {
             </div>
 
             <div className="absolute top-24 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-              <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 text-sm text-white animate-fade-out-guide">
-                터치하여 자유롭게 회전해보세요
+              <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 text-sm text-white animate-fade-out-guide whitespace-nowrap">
+                터치하여 움직여보세요
               </div>
             </div>
 
@@ -268,6 +280,7 @@ export default function WorkshopSingle() {
                     imageUrl={uploadedImage} 
                     materialType={materialType} 
                     interactive={true}
+                    size={size}
                   />
                 </Suspense>
                 <ContactShadows position={[0, -1, 0]} opacity={0.5} scale={5} blur={2} far={2} color="#000000" />
@@ -275,14 +288,19 @@ export default function WorkshopSingle() {
               </Canvas>
             </div>
 
-            <div className="pb-12 pt-4 text-center text-zinc-500 text-sm">
-              터치하여 자유롭게 회전해보세요
+            <div className="pb-12 pt-4 flex items-center justify-center gap-2 text-zinc-500 text-sm">
+              <motion.div 
+                animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]"
+              />
+              <span>터치하여 움직여보세요</span>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="relative z-10 flex-1 flex flex-col pt-24 pb-40">
+      <div className="relative z-10 flex-1 flex flex-col pt-24 pb-12">
         {/* Step Indicator */}
         <div className="max-w-xl mx-auto w-full px-6 mb-8">
             <div className="flex flex-col gap-1 mb-4">
@@ -364,12 +382,14 @@ export default function WorkshopSingle() {
                       Live 3D Preview
                     </div>
                     
-                    <button 
+                    <motion.button 
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
                       onClick={() => setIsModalOpen(true)}
                       className="absolute top-4 right-4 p-3 bg-white/5 backdrop-blur-md rounded-full border border-white/10 z-10 hover:bg-white/10 transition-colors"
                     >
                       <Maximize size={18} className="text-white" />
-                    </button>
+                    </motion.button>
                     
                     <Canvas shadows camera={{ position: [0, 0, 2.5], fov: 45 }} style={{ pointerEvents: 'none' }}>
                       <Suspense fallback={null}>
@@ -377,6 +397,7 @@ export default function WorkshopSingle() {
                           imageUrl={uploadedImage} 
                           materialType={materialType} 
                           interactive={false}
+                          size={size}
                         />
                       </Suspense>
                       <ContactShadows position={[0, -1, 0]} opacity={0.5} scale={5} blur={2} far={2} color="#000000" />
@@ -387,14 +408,14 @@ export default function WorkshopSingle() {
                     <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4 text-white">
                       <Upload size={28} />
                     </div>
-                    <h3 className="text-lg font-bold text-white mb-2">고객님의 마스터피스를 업로드하세요.</h3>
+                    <h3 className="text-lg font-bold text-white mb-2">고객님의 이미지를 업로드하세요.</h3>
                     <p className="text-zinc-400 text-sm leading-relaxed mb-6">
                       고해상도 이미지일수록 알루미늄의 광택이<br/>더 선명하게 살아납니다.
                     </p>
                     <button 
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isUploading}
-                      className="w-full py-4 bg-purple-600 text-white font-bold rounded-2xl hover:bg-purple-500 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-[0_0_15px_rgba(168,85,247,0.4)]"
+                      className="w-full py-4 bg-zinc-800/80 text-zinc-300 border border-zinc-700/50 font-bold rounded-2xl hover:bg-zinc-700/80 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                       {isUploading ? (
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -403,6 +424,9 @@ export default function WorkshopSingle() {
                       )}
                       {isUploading ? '업로드 중...' : uploadedImage ? '사진 변경하기' : '사진 등록하기'}
                     </button>
+                    <p className="text-[10px] text-zinc-600 mt-4 text-center leading-tight break-keep">
+                      ※ 타인의 저작권, 초상권, 개인정보를 침해할 경우 모든 책임은 이용자에게 있습니다.
+                    </p>
                     <input 
                       type="file" 
                       ref={fileInputRef} 
@@ -433,7 +457,7 @@ export default function WorkshopSingle() {
       </div>
 
       {/* --- Integrated Bottom Action Bar (Toss Style 2-Layer) --- */}
-      <div className="fixed bottom-0 left-0 w-full bg-black/80 backdrop-blur-xl border-t border-white/5 px-6 pb-10 pt-6 z-50">
+      <div className="w-full bg-[#0c0c0c] border-t border-white/5 px-6 pb-10 pt-8 mt-auto z-50">
         <div className="flex flex-col max-w-xl mx-auto w-full">
           {/* Upper Layer: Summary & Price */}
           <div className="flex items-end justify-between">
@@ -444,29 +468,29 @@ export default function WorkshopSingle() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -5 }}
                 transition={{ duration: 0.2 }}
-                className="text-sm text-zinc-400"
+                className="text-[15px] font-medium text-zinc-500 tracking-wide"
               >
                 알루미늄 패널 · A4
               </motion.span>
             </AnimatePresence>
-            <div className="text-xl font-bold text-white flex items-baseline gap-1">
+            <div className="text-[22px] font-bold text-white flex items-baseline gap-1 tracking-tight">
               <AnimatedPrice value={49000} />
-              <span className="text-base font-normal text-zinc-400">원</span>
+              <span className="text-lg font-normal text-zinc-400">원</span>
             </div>
           </div>
 
           {/* Lower Layer: Dual Navigation Buttons */}
-          <div className="flex gap-3 mt-5">
+          <div className="flex gap-3 mt-6">
             <button
               onClick={handleBack}
-              className="flex-1 bg-zinc-900/80 text-zinc-400 py-4 rounded-2xl font-bold transition-all active:scale-95"
+              className="flex-1 bg-zinc-900 text-zinc-400 py-4 rounded-[18px] font-semibold transition-transform active:scale-[0.97]"
             >
               이전으로
             </button>
             <button
               onClick={handleActionClick}
               disabled={isButtonDisabled}
-              className="flex-[2] bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white py-4 rounded-2xl font-bold transition-all transform active:scale-95 flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(168,85,247,0.4)] disabled:shadow-none"
+              className="flex-[2.5] bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white py-4 rounded-[18px] font-bold transition-transform active:scale-[0.97] flex items-center justify-center gap-2 shadow-lg shadow-purple-900/20 disabled:shadow-none"
             >
               {currentStep === totalSteps ? '제작 확정' : '다음으로'}
             </button>

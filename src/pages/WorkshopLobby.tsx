@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
 import { Layout, Columns, Wand2, ChevronRight } from 'lucide-react';
 import Header from '../components/Header';
@@ -16,6 +17,7 @@ interface RecentProject {
 export default function WorkshopLobby() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
+  const { showToast } = useToast();
   const [recentProject, setRecentProject] = useState<RecentProject | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -54,21 +56,24 @@ export default function WorkshopLobby() {
       title: '싱글 제작',
       description: '사진 한 장으로 만드는 마스터피스',
       icon: <Layout size={24} className="text-white" />,
-      path: '/workshop/single'
+      path: '/workshop/single',
+      isReady: true
     },
     {
       id: 'dual',
       title: '듀얼 비교 제작',
       description: '두 장을 비교하며 최적의 결과 찾기',
       icon: <Columns size={24} className="text-white" />,
-      path: '/workshop/dual'
+      path: '/workshop/dual',
+      isReady: false
     },
     {
       id: 'ai',
       title: 'AI 창작 제작',
       description: '프롬프트로 새로운 이미지 연성하기',
       icon: <Wand2 size={24} className="text-[#8A2BE2]" />,
-      path: '/workshop/ai'
+      path: '/workshop/ai',
+      isReady: false
     }
   ];
 
@@ -98,7 +103,7 @@ export default function WorkshopLobby() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className="bg-zinc-900 rounded-3xl p-6 mb-10 flex justify-between items-center cursor-pointer hover:bg-zinc-800 transition-colors border border-white/5"
-            onClick={() => navigate('/workshop/ai')}
+            onClick={() => showToast('해당 기능은 준비 중입니다.', 'info')}
           >
             <div className="flex items-center gap-4">
               <div className="w-2 h-2 rounded-full bg-[#8A2BE2] shadow-[0_0_10px_rgba(138,43,226,0.5)]" />
@@ -118,8 +123,8 @@ export default function WorkshopLobby() {
             <motion.button
               key={menu.id}
               whileTap={{ scale: 0.96 }}
-              onClick={() => navigate(menu.path)}
-              className="w-full bg-zinc-900/40 hover:bg-zinc-900 transition-all duration-300 rounded-[2.5rem] p-8 flex items-center justify-between text-left group border border-white/5 hover:border-white/10"
+              onClick={() => menu.isReady ? navigate(menu.path) : showToast('해당 기능은 준비 중입니다.', 'info')}
+              className="w-full bg-zinc-900/40 hover:bg-zinc-900 transition-all duration-300 rounded-[2.5rem] p-8 flex items-center justify-between text-left group border border-white/5 hover:border-white/10 relative overflow-hidden"
             >
               <div className="flex items-center gap-6">
                 <div className="w-16 h-16 rounded-3xl bg-zinc-800 flex items-center justify-center group-hover:bg-zinc-700 transition-colors">
@@ -130,6 +135,11 @@ export default function WorkshopLobby() {
                   <p className="text-zinc-500 text-[0.95rem] font-medium">{menu.description}</p>
                 </div>
               </div>
+              {!menu.isReady && (
+                <div className="absolute top-0 right-0 bg-zinc-800 text-zinc-400 text-[10px] px-3 py-1.5 rounded-bl-xl border-b border-l border-zinc-700 font-bold">
+                  준비 중
+                </div>
+              )}
               <ChevronRight size={24} className="text-zinc-700 group-hover:text-zinc-400 transition-colors" />
             </motion.button>
           ))}

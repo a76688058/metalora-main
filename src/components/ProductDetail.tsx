@@ -87,10 +87,6 @@ export default function ProductDetail() {
   const [cartParticles, setCartParticles] = useState<{ id: number; x: number; y: number; img: string }[]>([]);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
-
   // Set initial selected option
   useEffect(() => {
     if (product?.options && product.options.length > 0) {

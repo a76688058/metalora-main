@@ -31,14 +31,9 @@ const Reveal = ({ children, delay = 0, scale = 1, x = 0, y = 40 }: { children: R
 };
 
 export default function Home() {
-  const { fetchProducts } = useProducts();
   const navigate = useNavigate();
   const { scrollYProgress } = useScroll();
   const textY = useTransform(scrollYProgress, [0, 1], [0, 200]);
-
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
 
   const handleBuyClick = () => {
     navigate('/collection');

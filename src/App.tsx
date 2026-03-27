@@ -31,12 +31,9 @@ import { CartProvider } from './context/CartContext';
 
 import GlobalSplash from './components/GlobalSplash';
 
-import Atelier from './pages/Atelier';
 import WorkshopLobby from './pages/WorkshopLobby';
 import WorkshopCopyright from './pages/WorkshopCopyright';
 import WorkshopSingle from './pages/WorkshopSingle';
-import WorkshopDual from './pages/WorkshopDual';
-import WorkshopAI from './pages/WorkshopAI';
 
 // Scroll to top on route change
 function ScrollToTop() {
@@ -98,12 +95,9 @@ function AnimatedRoutes() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/brand-story" element={<BrandStory />} />
         <Route path="/collection" element={<Collection />} />
-        <Route path="/atelier" element={<ProtectedRoute><Atelier /></ProtectedRoute>} />
         <Route path="/workshop/copyright" element={<ProtectedRoute><WorkshopCopyright /></ProtectedRoute>} />
         <Route path="/workshop/lobby" element={<ProtectedRoute><WorkshopLobby /></ProtectedRoute>} />
         <Route path="/workshop/single" element={<ProtectedRoute><WorkshopSingle /></ProtectedRoute>} />
-        <Route path="/workshop/dual" element={<ProtectedRoute><WorkshopDual /></ProtectedRoute>} />
-        <Route path="/workshop/ai" element={<ProtectedRoute><WorkshopAI /></ProtectedRoute>} />
         
         {/* Profile Complete - Skip for Admins */}
         <Route 
@@ -170,7 +164,7 @@ function AnimatedRoutes() {
 function Layout() {
   const location = useLocation();
   const isAdminPage = location.pathname.startsWith('/admin');
-  const isAtelierPage = location.pathname === '/atelier' || location.pathname.startsWith('/workshop');
+  const isAtelierPage = location.pathname.startsWith('/workshop');
   const isAuthPage = location.pathname === '/login' || location.pathname === '/profile/complete' || location.pathname === '/auth/callback';
 
   const isMyPage = location.pathname === '/mypage';
