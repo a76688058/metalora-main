@@ -1,6 +1,7 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { useProducts } from '../context/ProductContext';
+import { ChevronDown } from 'lucide-react';
 
 export default function MountingAnimation() {
   const { products } = useProducts();
@@ -23,12 +24,12 @@ export default function MountingAnimation() {
     offset: ["start start", "end end"]
   });
 
-  // Smooth scroll progress for fluid animation - Adjusted for "Elegant Fly-in"
+  // Smooth scroll progress for fluid animation - Unified "Premium Heavy" feel
   const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 40,
-    damping: 15,
-    mass: 1,
-    restDelta: 0.001
+    stiffness: 25,
+    damping: 30,
+    mass: 1.5,
+    restDelta: 0.0001
   });
 
   if (!tunnelRef) return null;
@@ -37,43 +38,81 @@ export default function MountingAnimation() {
   const wallOpacity = useTransform(smoothProgress, [0, 0.05], [0, 1]);
   const wallScale = useTransform(smoothProgress, [0, 0.1], [0.8, 1]);
 
-  // Layer 2: Adhesive Sticker (0.1 -> 0.35) - Staggered
+  // Layer 2: Adhesive Sticker (0.1 -> 0.3) - Staggered
   const stickerOpacity = useTransform(smoothProgress, [0.1, 0.15], [0, 1]);
-  const stickerX = useTransform(smoothProgress, [0.1, 0.35], [800, 0]);
+  const stickerX = useTransform(smoothProgress, [0.1, 0.3], [1000, 0]);
   const stickerY = 0;
-  const stickerZ = useTransform(smoothProgress, [0.1, 0.35], [400, 0]);
-  const stickerScale = useTransform(smoothProgress, [0.1, 0.35], [1.2, 1]);
-  const stickerShadow = useTransform(smoothProgress, [0.1, 0.35], ["-100px 0px 120px rgba(0,0,0,0.4)", "0 0px 0px rgba(0,0,0,0)"]);
+  const stickerZ = useTransform(smoothProgress, [0.1, 0.3], [600, 0]);
+  const stickerScale = useTransform(smoothProgress, [0.1, 0.3], [1.3, 1]);
+  const stickerShadow = useTransform(smoothProgress, [0.1, 0.3], ["-150px 0px 150px rgba(0,0,0,0.4)", "0 0px 0px rgba(0,0,0,0)"]);
 
-  // Layer 3: Magnetic Bar (0.35 -> 0.6) - Staggered
-  const magnetOpacity = useTransform(smoothProgress, [0.35, 0.4], [0, 1]);
-  const magnetX = useTransform(smoothProgress, [0.35, 0.6], [700, 0]);
+  // Layer 3: Magnetic Bar (0.3 -> 0.5) - Staggered
+  const magnetOpacity = useTransform(smoothProgress, [0.3, 0.35], [0, 1]);
+  const magnetX = useTransform(smoothProgress, [0.3, 0.5], [800, 0]);
   const magnetY = 0;
-  const magnetZ = useTransform(smoothProgress, [0.35, 0.6], [300, 0]);
-  const magnetScale = useTransform(smoothProgress, [0.35, 0.6], [1.1, 1]);
-  const magnetShadow = useTransform(smoothProgress, [0.35, 0.6], ["-80px 0px 80px rgba(0,0,0,0.6)", "0 0px 0px rgba(0,0,0,0)"]);
+  const magnetZ = useTransform(smoothProgress, [0.3, 0.5], [400, 0]);
+  const magnetScale = useTransform(smoothProgress, [0.3, 0.5], [1.2, 1]);
+  const magnetShadow = useTransform(smoothProgress, [0.3, 0.5], ["-100px 0px 100px rgba(0,0,0,0.6)", "0 0px 0px rgba(0,0,0,0)"]);
 
-  // Layer 4: Metal Poster (0.6 -> 0.85) - Staggered
-  const posterOpacity = useTransform(smoothProgress, [0.6, 0.65], [0, 1]);
-  const posterX = useTransform(smoothProgress, [0.6, 0.85], [600, 0]);
-  const posterY = 0;
-  const posterZ = useTransform(smoothProgress, [0.6, 0.85], [200, 0]);
-  const posterScale = useTransform(smoothProgress, [0.6, 0.85], [1.05, 1]);
-  const posterShadow = useTransform(smoothProgress, [0.6, 0.85], ["-100px 0px 100px rgba(0,0,0,0.8)", "-5px 10px 30px rgba(0,0,0,0.5)"]);
+  // Layer 4: Metal Poster (0.5 -> 0.7) - Staggered
+  const posterOpacity = useTransform(smoothProgress, [0.5, 0.55], [0, 1]);
+  const posterX = useTransform(smoothProgress, [0.5, 0.7], [600, 0]);
+  const posterY = useTransform(smoothProgress, [0.5, 0.7], [-50, 0]);
+  const posterZ = useTransform(smoothProgress, [0.5, 0.7], [200, 0]);
+  const posterRotateZ = useTransform(smoothProgress, [0.5, 0.7], [-5, 0]);
+  const posterScale = useTransform(smoothProgress, [0.5, 0.7], [1.1, 1]);
+  const posterShadow = useTransform(smoothProgress, [0.5, 0.7], [
+    "-150px 50px 150px rgba(0,0,0,0.9)", 
+    "-10px 20px 50px rgba(0,0,0,0.7)"
+  ]);
+  
+  // Dynamic Gloss Shimmer
+  const glossX = useTransform(smoothProgress, [0.5, 0.7], ["-150%", "150%"]);
+  const glossOpacity = useTransform(smoothProgress, [0.5, 0.6, 0.7], [0, 0.6, 0.2]);
 
-  // Exit Animation (Sticky container moves up at the end) - Smoother Exit Range
+  // Exit Animation (Sticky container moves up at the end) - Starts after a "Stay Fixed" period (0.7 -> 0.9)
   const stickyExitY = useTransform(smoothProgress, [0.9, 1], [0, -1500]);
+
+  // Scroll Indicator (Visible throughout the assembly until exit)
+  const indicatorOpacity = useTransform(smoothProgress, [0, 0.05, 0.9, 0.95], [0, 1, 1, 0]);
+  const indicatorY = useTransform(smoothProgress, [0, 0.2], [20, 0]);
 
   return (
     <div className="relative bg-black z-20">
       {/* Section A: 3D Assembly Mockup (The Scroll Tunnel) */}
-      <section ref={tunnelRef} className="relative h-[210vh]">
+      <section ref={tunnelRef} className="relative h-[500vh]">
         <motion.div 
           style={{ y: stickyExitY }}
           className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden"
         >
           {/* Background Wall Texture */}
           <div className="absolute inset-0 bg-black" />
+
+          {/* Scroll Guide Indicator */}
+          <motion.div 
+            style={{ opacity: indicatorOpacity, y: indicatorY }}
+            className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-3 pointer-events-none"
+          >
+            <motion.div 
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              className="flex flex-col items-center gap-1"
+            >
+              <span className="text-[10px] font-bold tracking-[0.4em] text-white/40 uppercase">
+                Keep Scrolling
+              </span>
+              <span className="text-xs font-medium tracking-tight text-white/60">
+                계속해서 아래로 내려가세요
+              </span>
+            </motion.div>
+            <motion.div 
+              animate={{ y: [0, 5, 0], opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              className="text-white/40"
+            >
+              <ChevronDown size={20} strokeWidth={1.5} />
+            </motion.div>
+          </motion.div>
 
           <div className="relative w-full max-w-7xl mx-auto px-6 flex items-center justify-center">
             {/* Assembly Visualizer (Centered) */}
@@ -132,22 +171,27 @@ export default function MountingAnimation() {
                     x: posterX,
                     y: posterY,
                     z: posterZ,
+                    rotateZ: posterRotateZ,
                     scale: posterScale,
                     boxShadow: posterShadow
                   }}
-                  className="absolute w-64 h-[90%] md:w-80 md:h-[113%] z-30 preserve-3d"
+                  className="absolute w-[280px] aspect-[210/297] md:w-[400px] z-30 preserve-3d"
                 >
                   {/* Main Surface */}
                   <div className="absolute inset-0 bg-zinc-900 rounded-xl border border-white/10 overflow-hidden">
                     <img 
                       src={selectedImage} 
                       alt="Metal Poster Demo" 
-                      className="w-full h-full object-cover opacity-90"
+                      className="w-full h-full object-cover opacity-95"
                       referrerPolicy="no-referrer"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                    {/* Gloss effect */}
-                    <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 opacity-50" />
+                    
+                    {/* Dynamic Gloss Shimmer effect */}
+                    <motion.div 
+                      style={{ x: glossX, opacity: glossOpacity }}
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12"
+                    />
                   </div>
 
                   {/* 1.15mm Edge Simulation (Right Side) */}

@@ -5,13 +5,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import LoginModal from './LoginModal';
-import Cart from './Cart';
+
+const LOGO_URL = "https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840";
 
 export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, adminUser } = useAuth();
   const { cartItems } = useCart();
   
   const [searchParams, setSearchParams] = useSearchParams();
@@ -23,6 +23,8 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const isComposing = useRef(false);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  const currentUser = user || adminUser;
 
   useEffect(() => {
     setLocalSearch(searchQuery);
@@ -45,14 +47,10 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   }, [isSearchOpen]);
 
   const updateSearch = (value: string) => {
-    if (location.pathname !== '/') {
-      navigate(`/?q=${encodeURIComponent(value)}`);
+    if (value) {
+      setSearchParams({ q: value });
     } else {
-      if (value) {
-        setSearchParams({ q: value });
-      } else {
-        setSearchParams({});
-      }
+      setSearchParams({});
     }
   };
 
@@ -107,9 +105,9 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 }}
               >
                 <img 
-                  src="https://postfiles.pstatic.net/MjAyNjAzMTZfMjM2/MDAxNzczNjQzMzQ3MDUw.zR_7l4ozVWSXDJOr1CA_6tw0H8LF8ZQenQvN8Tw3swEg.i_g5v5uqKHopzrE-iqVmSsuKM-nhT3X3N0tWVC_DDBgg.PNG/METALORA_LOGO.png?type=w3840" 
+                  src={LOGO_URL} 
                   alt="METALORA" 
-                  className="h-10 md:h-12 object-contain filter invert" 
+                  className="h-9 md:h-11 object-contain filter invert" 
                   referrerPolicy="no-referrer"
                 />
               </Link>
@@ -117,18 +115,17 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
 
             {/* Right: User & Collection Icons */}
             <div className="flex-1 flex justify-end items-center gap-x-5">
-              {user ? (
+              {currentUser ? (
                 <Link 
-                  to="/mypage"
+                  to={adminUser ? "/admin" : "/mypage"}
                   className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
-                  title="My Info"
+                  title={adminUser ? "Admin Dashboard" : "My Info"}
                 >
                   <User size={24} strokeWidth={1} />
                 </Link>
               ) : (
                 <button 
                   onClick={() => {
-                    setIsCartOpen(false);
                     setIsLoginModalOpen(true);
                   }} 
                   className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
@@ -138,25 +135,24 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 </button>
               )}
 
-              <button 
-                onClick={() => {
-                  if (!user) {
-                    setIsCartOpen(false);
-                    setIsLoginModalOpen(true);
-                  } else {
-                    setIsCartOpen(!isCartOpen);
-                  }
-                }}
+              <Link 
+                to="/my-collection"
                 className="text-white opacity-60 hover:opacity-100 transition-all duration-300 relative"
                 title="My Collection"
+                onClick={(e) => {
+                  if (!currentUser) {
+                    e.preventDefault();
+                    setIsLoginModalOpen(true);
+                  }
+                }}
               >
                 <Frame size={24} strokeWidth={1} />
-                {user && cartItems.length > 0 && (
+                {currentUser && cartItems.length > 0 && (
                   <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-white text-black text-[9px] font-bold rounded-full flex items-center justify-center">
                     {cartItems.length}
                   </span>
                 )}
-              </button>
+              </Link>
             </div>
           </div>
 
@@ -194,11 +190,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
       <LoginModal 
         isOpen={isLoginModalOpen} 
         onClose={() => setIsLoginModalOpen(false)} 
-      />
-
-      <Cart 
-        isOpen={isCartOpen} 
-        onClose={() => setIsCartOpen(false)} 
+        onSuccess={() => setIsLoginModalOpen(false)}
       />
     </>
   );

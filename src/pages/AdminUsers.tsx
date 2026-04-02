@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { Search, Filter, TrendingUp, Users, ArrowUpDown, X, Save, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../context/ToastContext';
+import LoadingScreen from '../components/LoadingScreen';
 
 interface Profile {
   id: string;
@@ -201,11 +202,8 @@ export default function AdminUsers() {
               <tbody className="divide-y divide-zinc-800">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-24 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="animate-spin text-indigo-500" size={32} />
-                        <p className="text-zinc-400 font-medium tracking-tight">회원 정보를 불러오는 중입니다...</p>
-                      </div>
+                    <td colSpan={5} className="p-0">
+                      <LoadingScreen />
                     </td>
                   </tr>
                 ) : !filteredUsers || filteredUsers.length === 0 ? (

@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Package, Truck, CheckCircle, Clock, XCircle, X, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-import Skeleton from '../components/Skeleton';
+import LoadingScreen from '../components/LoadingScreen';
 
 interface OrderItem {
   id: string;
@@ -224,22 +224,7 @@ export default function AdminOrders() {
         {/* 주문 리스트 (카드 형태) */}
         <div className="space-y-4">
           {loading ? (
-            Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="bg-zinc-900 rounded-2xl p-6 border border-zinc-800 space-y-4">
-                <div className="flex justify-between items-center">
-                  <Skeleton className="h-5 w-32" />
-                  <Skeleton className="h-6 w-20 rounded-full" />
-                </div>
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-48" />
-                  <Skeleton className="h-4 w-64" />
-                </div>
-                <div className="pt-4 border-t border-zinc-800 flex gap-2">
-                  <Skeleton className="h-10 w-24 rounded-xl" />
-                  <Skeleton className="h-10 w-24 rounded-xl" />
-                </div>
-              </div>
-            ))
+            <LoadingScreen />
           ) : fetchError ? (
             <div className="bg-zinc-900 rounded-3xl p-12 border border-zinc-800 text-center">
               <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">

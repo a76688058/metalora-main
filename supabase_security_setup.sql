@@ -127,7 +127,25 @@ USING (
   )
 );
 
--- 7. Storage Policies (Run this in the Storage settings or SQL)
+-- 7. Cart Items Table Policies
+ALTER TABLE cart_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own cart items"
+ON cart_items FOR ALL
+TO authenticated
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+-- 8. User Progress Table Policies
+ALTER TABLE user_progress ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own progress"
+ON user_progress FOR ALL
+TO authenticated
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+-- 9. Storage Policies (Run this in the Storage settings or SQL)
 -- Note: Replace 'products' with your actual bucket name
 -- Allow public read access to product images
 -- CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING ( bucket_id = 'products' );

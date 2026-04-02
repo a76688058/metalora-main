@@ -2,6 +2,9 @@ import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useProducts } from '../context/ProductContext';
 import ProductCard from './ProductCard';
 import { motion, useMotionValue, useAnimationFrame } from 'framer-motion';
+import { Loader2 } from 'lucide-react';
+
+import LoadingScreen from './LoadingScreen';
 
 // Custom wrap function
 const wrap = (min: number, max: number, v: number) => {
@@ -16,7 +19,7 @@ export default function ProductGrid() {
   const [contentWidth, setContentWidth] = useState(0);
   
   const x = useMotionValue(0);
-  const baseVelocity = -0.5; // pixels per frame
+  const baseVelocity = -1.0; // pixels per frame
   const lastDragTime = useRef(0);
   const isAutoPlaying = useRef(true);
 
@@ -93,11 +96,7 @@ export default function ProductGrid() {
   });
 
   if (isLoading) {
-    return (
-      <div className="py-24 flex items-center justify-center">
-        <div className="text-zinc-500 animate-pulse">Loading products...</div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (isError) {

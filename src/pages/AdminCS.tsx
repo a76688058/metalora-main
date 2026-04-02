@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, CheckCircle, Clock, X, Loader2 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-import Skeleton from '../components/Skeleton';
+import LoadingScreen from '../components/LoadingScreen';
 
 interface CSInquiry {
   id: string;
@@ -138,14 +138,11 @@ export default function AdminCS() {
               </thead>
               <tbody className="divide-y divide-zinc-800">
                 {loading ? (
-                  Array(5).fill(0).map((_, i) => (
-                    <tr key={i}>
-                      <td className="px-6 py-4"><Skeleton className="h-6 w-16" /></td>
-                      <td className="px-6 py-4"><Skeleton className="h-4 w-48" /></td>
-                      <td className="px-6 py-4"><Skeleton className="h-4 w-24" /></td>
-                      <td className="px-6 py-4"><Skeleton className="h-4 w-32" /></td>
-                    </tr>
-                  ))
+                  <tr>
+                    <td colSpan={4} className="p-0">
+                      <LoadingScreen />
+                    </td>
+                  </tr>
                 ) : inquiries.length > 0 ? (
                   inquiries.map((inquiry) => (
                     <tr 

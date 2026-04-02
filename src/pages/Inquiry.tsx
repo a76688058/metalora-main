@@ -8,6 +8,8 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
+import LoadingScreen from '../components/LoadingScreen';
+
 export default function Inquiry() {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -88,6 +90,10 @@ export default function Inquiry() {
       setIsSubmitting(false);
     }
   };
+
+  if (isLoading && inquiries.length === 0) {
+    return <LoadingScreen />;
+  }
 
   return (
     <div className="min-h-screen bg-black flex flex-col">

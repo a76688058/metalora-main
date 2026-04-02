@@ -7,6 +7,8 @@ import {
   Loader2, ChevronLeft, Package, ShoppingBag
 } from 'lucide-react';
 
+import LoadingScreen from '../components/LoadingScreen';
+
 const OrderStepper = ({ status }: { status: string }) => {
   const steps = ['결제완료', '제품공정', '배송시작', '배송완료'];
   
@@ -93,12 +95,8 @@ export default function Orders() {
     }
   }, [user]);
 
-  if (authLoading || !profile) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <Loader2 className="animate-spin text-zinc-700" size={32} />
-      </div>
-    );
+  if (authLoading || !profile || (isLoadingOrders && orders.length === 0)) {
+    return <LoadingScreen />;
   }
 
   return (
@@ -122,9 +120,15 @@ export default function Orders() {
                 <Loader2 className="animate-spin text-zinc-700" size={32} />
               </div>
             ) : orders.length === 0 ? (
-              <div className="text-center py-32 bg-zinc-900/20 border border-dashed border-white/5 rounded-[2.5rem]">
+              <div className="text-center py-32 bg-zinc-900/20 border border-dashed border-white/5 rounded-[2.5rem] flex flex-col items-center justify-center">
                 <Package size={48} strokeWidth={1} className="mx-auto text-zinc-800 mb-4" />
-                <p className="text-zinc-600 font-medium">주문 내역이 없습니다.</p>
+                <p className="text-zinc-600 font-medium mb-6">주문 내역이 없습니다.</p>
+                <button 
+                  onClick={() => navigate('/collection')}
+                  className="px-6 py-3 bg-zinc-800 text-white font-medium rounded-2xl hover:bg-zinc-700 transition-colors"
+                >
+                  상품 둘러보기
+                </button>
               </div>
             ) : (
               orders.map((order, idx) => (

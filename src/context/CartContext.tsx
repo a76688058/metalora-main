@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseAdmin } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { Product } from '../data/products';
@@ -11,13 +11,16 @@ interface CartItem {
   selected_option: string;
   quantity: number;
   created_at: string;
+  custom_image?: string;
+  custom_config?: any;
   product?: Product;
+  product_type: 'stock' | 'workshop';
 }
 
 interface CartContextType {
   cartItems: CartItem[];
   isLoading: boolean;
-  addToCart: (productId: string, selectedOption: string, quantity: number) => Promise<void>;
+  addToCart: (productId: string, selectedOption: string, quantity: number, customImage?: string, customConfig?: any) => Promise<void>;
   removeFromCart: (itemId: string) => Promise<void>;
   updateQuantity: (itemId: string, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -30,129 +33,177 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { user, session: authSession } = useAuth();
+  const { user, adminUser } = useAuth();
   const { showToast } = useToast();
 
-  const refreshCart = useCallback(async () => {
-    try {
-      // 1. Check if we already have a session from AuthContext
-      let session = authSession;
-      
-      if (!session) {
-        // If not, try to get it from supabase (might trigger refresh)
-        const { data: { session: s }, error } = await supabase.auth.getSession();
-        if (error) {
-          const errorMsg = error.message || String(error);
-          if (errorMsg.includes('Lock was stolen')) {
-            console.warn('Cart Refresh: Lock was stolen by another request. Skipping this cycle.');
-            return;
-          }
-          if (errorMsg.includes('Invalid Refresh Token') || errorMsg.includes('Refresh Token Not Found')) {
-            console.warn('Cart Refresh: Session invalid or expired. Clearing cart.');
-            setCartItems([]);
-            return;
-          }
-          throw error;
-        }
-        session = s;
-      }
-      
-      if (!session) {
-        console.warn("Session lost, cart refresh skipped.");
-        setCartItems([]);
-        return;
-      }
+  // Helper to get the correct supabase client based on active session
+  const getClient = useCallback(() => {
+    if (user) return supabase;
+    if (adminUser) return supabaseAdmin;
+    return supabase;
+  }, [user, adminUser]);
 
+  const refreshCart = useCallback(async () => {
+    const currentUserId = user?.id || adminUser?.id;
+    if (!currentUserId) {
+      setCartItems([]);
+      return;
+    }
+
+    try {
       setIsLoading(true);
-      const { data, error } = await supabase
+      console.log('Refreshing cart for user:', currentUserId);
+      
+      const client = getClient();
+      
+      // 1. Fetch cart items WITHOUT join to avoid PGRST200 error
+      const { data: items, error: itemsError } = await client
         .from('cart_items')
-        .select(`
-          *,
-          product:products(*)
-        `)
-        .eq('user_id', session.user.id)
+        .select('*')
+        .eq('user_id', currentUserId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setCartItems(data || []);
-    } catch (error) {
-      const errorStr = String(error);
-      if (errorStr.includes('Lock was stolen')) {
-        console.warn('refreshCart caught lock stolen error:', error);
-        return;
-      }
-      if (errorStr.includes('Invalid Refresh Token') || errorStr.includes('Refresh Token Not Found')) {
-        console.warn('refreshCart: Session invalid or expired. Clearing cart.');
+      if (itemsError) throw itemsError;
+      
+      if (!items || items.length === 0) {
         setCartItems([]);
         return;
       }
+
+      // 2. Identify standard products to fetch details for
+      const standardProductIds = items
+        .filter(item => item.product_id !== 'workshop-single')
+        .map(item => item.product_id);
+
+      let productsMap: Record<string, any> = {};
+      
+      if (standardProductIds.length > 0) {
+        const client = getClient();
+        const { data: products, error: productsError } = await client
+          .from('products')
+          .select('*')
+          .in('id', standardProductIds);
+        
+        if (!productsError && products) {
+          productsMap = products.reduce((acc, p) => ({ ...acc, [p.id]: p }), {});
+        }
+      }
+
+      // 3. Hydrate and merge data
+      const hydratedData = items.map(item => {
+        const product_type = item.product_id === 'workshop-single' ? 'workshop' : 'stock';
+        
+        if (item.product_id === 'workshop-single') {
+          return {
+            ...item,
+            product_type,
+            product: {
+              id: 'workshop-single',
+              title: '나만의 커스텀 포스터',
+              artist: 'METALORA Workshop',
+              image: item.custom_image || '',
+              description: '워크숍에서 직접 제작한 커스텀 포스터입니다.',
+              limited: false,
+              options: []
+            } as any
+          };
+        } else {
+          return {
+            ...item,
+            product_type,
+            product: productsMap[item.product_id] || null
+          };
+        }
+      });
+
+      setCartItems(hydratedData);
+    } catch (error) {
       console.error('Error fetching cart:', error);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     refreshCart();
-
-    // Resurrection Logic: 사용자가 다시 탭을 클릭하거나 앱으로 돌아오는 순간 감지
-    const handleFocus = () => {
-      refreshCart();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleFocus);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleFocus);
-    };
   }, [refreshCart]);
 
-  const addToCart = async (productId: string, selectedOption: string, quantity: number) => {
+  const addToCart = async (productId: string, selectedOption: string, quantity: number, customImage?: string, customConfig?: any) => {
     try {
       setIsLoading(true);
-      
-      // Get current user session explicitly to ensure user_id is present
-      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError) {
-        if (userError.message?.includes('Lock was stolen') || String(userError).includes('Lock was stolen')) {
-          showToast('인증 세션 충돌이 발생했습니다. 다시 시도해주세요.', 'error');
-          return;
+      console.log('--- ADD TO CART DEBUG START ---');
+
+      // 1. Try to get user from context first
+      let currentUserId = user?.id || adminUser?.id;
+
+      // 2. Fallback to direct session check if context is stale
+      if (!currentUserId) {
+        console.log('User missing in context, checking direct session...');
+        // Check regular user session
+        const { data: { session: sess } } = await supabase.auth.getSession();
+        currentUserId = sess?.user?.id;
+        
+        // If still no user, check admin session
+        if (!currentUserId) {
+          const { data: { session: adminSess } } = await supabaseAdmin.auth.getSession();
+          currentUserId = adminSess?.user?.id;
         }
-        throw userError;
       }
       
-      if (!currentUser) {
+      if (!currentUserId) {
+        console.error('Auth Error: No user session found in context or storage');
         showToast('로그인이 필요합니다.', 'error');
         return;
       }
 
-      // Check if item already exists
-      const { data: existingItem } = await supabase
-        .from('cart_items')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .eq('product_id', productId)
-        .eq('selected_option', selectedOption)
-        .single();
+      console.log('User ID:', currentUserId);
+      console.log('Product ID:', productId);
 
+      const client = getClient();
+
+      // Determine product type
+      const productType = productId === 'workshop-single' ? 'workshop' : 'stock';
+
+      // 1. 기존 아이템 확인 (workshop-single은 항상 새로 추가)
+      let existingItem = null;
+      if (productId !== 'workshop-single') {
+        const { data, error } = await client
+          .from('cart_items')
+          .select('*')
+          .eq('user_id', currentUserId)
+          .eq('product_id', productId)
+          .eq('selected_option', selectedOption)
+          .is('custom_image', null);
+          
+        if (error) {
+          console.error('Existing Item Check Error:', error);
+          throw error;
+        }
+        existingItem = data && data.length > 0 ? data[0] : null;
+      }
+
+      // 2. Insert 또는 Update
       if (existingItem) {
-        const { error } = await supabase
+        console.log('Updating existing item:', existingItem.id);
+        const { error } = await client
           .from('cart_items')
           .update({ quantity: existingItem.quantity + quantity })
           .eq('id', existingItem.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        console.log('Inserting new item');
+        const { error } = await client
           .from('cart_items')
           .insert([
             {
-              user_id: currentUser.id,
+              user_id: currentUserId,
               product_id: productId,
               selected_option: selectedOption,
-              quantity: quantity
+              quantity: quantity,
+              custom_image: customImage || null,
+              custom_config: customConfig || null
+              // Note: product_type column might not exist yet in DB, 
+              // so we handle it in hydration logic (refreshCart)
             }
           ]);
         if (error) throw error;
@@ -160,22 +211,37 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       await refreshCart();
       showToast('내 컬렉션에 안전하게 담겼습니다', 'success');
-    } catch (error) {
-      console.error('Error adding to collection:', error);
-      showToast('컬렉션 담기에 실패했습니다.', 'error');
+    } catch (error: any) {
+      console.error('Final AddToCart Error:', error);
+      showToast(`컬렉션 담기에 실패했습니다: ${error.message || '알 수 없는 오류'}`, 'error');
     } finally {
       setIsLoading(false);
+      console.log('--- ADD TO CART DEBUG END ---');
     }
   };
 
   const removeFromCart = async (itemId: string) => {
     try {
-      const { error } = await supabase
+      // Find the item first to check its type
+      const itemToRemove = cartItems.find(item => item.id === itemId);
+      const client = getClient();
+      
+      const { error } = await client
         .from('cart_items')
         .delete()
         .eq('id', itemId);
       
       if (error) throw error;
+
+      // If it's a workshop item, we could potentially clean up storage or other temporary data
+      // For now, we ensure that if it was a workshop item, we log it or handle specific cleanup
+      if (itemToRemove?.product_type === 'workshop') {
+        console.log('Cleaning up workshop item data for:', itemId);
+        // If we had a specific table for workshop assets, we would delete from there.
+        // The image in storage is usually kept if it might be referenced elsewhere,
+        // but for a true 'cleanup', we could implement storage deletion here if we're sure.
+      }
+      
       await refreshCart();
       showToast('상품이 삭제되었습니다.', 'success');
     } catch (error) {
@@ -188,7 +254,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (quantity < 1) return;
     
     try {
-      const { error } = await supabase
+      const client = getClient();
+      const { error } = await client
         .from('cart_items')
         .update({ quantity })
         .eq('id', itemId);
@@ -201,12 +268,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const clearCart = async () => {
-    if (!user) return;
+    const currentUserId = user?.id || adminUser?.id;
+    if (!currentUserId) return;
     try {
-      const { error } = await supabase
+      const client = getClient();
+      const { error } = await client
         .from('cart_items')
         .delete()
-        .eq('user_id', user.id);
+        .eq('user_id', currentUserId);
       
       if (error) throw error;
       setCartItems([]);
@@ -217,7 +286,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const totalPrice = cartItems.reduce((acc, item) => {
     const option = item.product?.options?.find(opt => opt.id === item.selected_option);
-    const price = option ? option.price : 0;
+    const price = option ? option.price : (item.custom_config?.price || 0);
     return acc + (price * item.quantity);
   }, 0);
 

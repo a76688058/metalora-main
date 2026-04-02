@@ -72,3 +72,27 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(138, 43, 226, 0.6);
 }
+
+/* Global Cyberpunk Button Style */
+.btn-cyberpunk {
+  background: linear-gradient(135deg, #8A2BE2 0%, #FF1493 100%);
+  box-shadow: 0 4px 15px rgba(138, 43, 226, 0.3), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.btn-cyberpunk:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(255, 20, 147, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+.btn-cyberpunk:active:not(:disabled) {
+  transform: translateY(1px);
+  filter: brightness(0.9);
+}
+
+.btn-cyberpunk:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}

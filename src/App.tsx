@@ -20,6 +20,7 @@ import ProfileEdit from './pages/ProfileEdit';
 import Orders from './pages/Orders';
 import BrandStory from './pages/BrandStory';
 import Collection from './pages/Collection';
+import MyCollection from './pages/MyCollection';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFail from './pages/PaymentFail';
 import LoadingScreen from './components/LoadingScreen';
@@ -31,7 +32,6 @@ import { CartProvider } from './context/CartContext';
 
 import GlobalSplash from './components/GlobalSplash';
 
-import WorkshopLobby from './pages/WorkshopLobby';
 import WorkshopCopyright from './pages/WorkshopCopyright';
 import WorkshopSingle from './pages/WorkshopSingle';
 
@@ -95,8 +95,8 @@ function AnimatedRoutes() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/brand-story" element={<BrandStory />} />
         <Route path="/collection" element={<Collection />} />
+        <Route path="/my-collection" element={<ProtectedRoute><MyCollection /></ProtectedRoute>} />
         <Route path="/workshop/copyright" element={<ProtectedRoute><WorkshopCopyright /></ProtectedRoute>} />
-        <Route path="/workshop/lobby" element={<ProtectedRoute><WorkshopLobby /></ProtectedRoute>} />
         <Route path="/workshop/single" element={<ProtectedRoute><WorkshopSingle /></ProtectedRoute>} />
         
         {/* Profile Complete - Skip for Admins */}

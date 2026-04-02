@@ -108,23 +108,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         // Initialize User Session
         const { data: { session: userSess }, error: userErr } = await supabase.auth.getSession();
-        if (userErr) throw userErr;
-        
-        setSession(userSess);
-        setUser(userSess?.user ?? null);
-        if (userSess?.user) {
-          try {
-            await fetchProfile(userSess.user.id, false);
-          } catch (e) {
-            throw new Error('Ghost session detected during initialization');
+        if (userErr) {
+          const userErrMsg = userErr.message || String(userErr);
+          if (userErrMsg.includes('Lock was stolen')) {
+            console.warn('User Session Init: Lock was stolen. Skipping.');
+          } else if (userErrMsg.includes('Invalid Refresh Token') || userErrMsg.includes('Refresh Token Not Found')) {
+            console.warn('User Session Init: Invalid refresh token. Clearing session.');
+            setSession(null);
+            setUser(null);
+            setProfile(null);
+          } else {
+            throw userErr;
+          }
+        } else {
+          setSession(userSess);
+          setUser(userSess?.user ?? null);
+          if (userSess?.user) {
+            try {
+              await fetchProfile(userSess.user.id, false);
+            } catch (e) {
+              console.error('Ghost session detected during initialization:', e);
+            }
           }
         }
 
         // Initialize Admin Session
         const { data: { session: adminSess }, error: adminErr } = await supabaseAdmin.auth.getSession();
         if (adminErr) {
-          if (adminErr.message?.includes('Lock was stolen') || String(adminErr).includes('Lock was stolen')) {
+          const adminErrMsg = adminErr.message || String(adminErr);
+          if (adminErrMsg.includes('Lock was stolen')) {
             console.warn('Admin Session Init: Lock was stolen. Skipping.');
+          } else if (adminErrMsg.includes('Invalid Refresh Token') || adminErrMsg.includes('Refresh Token Not Found')) {
+            console.warn('Admin Session Init: Invalid refresh token. Clearing admin session.');
+            setAdminSession(null);
+            setAdminUser(null);
+            setAdminProfile(null);
           } else {
             throw adminErr;
           }
@@ -136,18 +154,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       } catch (error: any) {
         const errorMsg = error.message || String(error);
+        if (errorMsg.includes('Lock was stolen')) {
+          console.warn('Session initialization caught lock stolen error. Skipping cleanup.');
+          return;
+        }
+        
         if (errorMsg.includes('Invalid Refresh Token') || errorMsg.includes('Refresh Token Not Found')) {
           console.warn("Session expired or invalid refresh token. Clearing session.");
         } else {
           console.error("Session validation failed:", error);
         }
-        // Force clear ghost session
-        localStorage.clear();
-        sessionStorage.clear();
-        document.cookie.split(";").forEach((c) => {
-          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-        });
-        await supabase.auth.signOut().catch(() => {});
+        
+        // Only clear if it's a critical auth failure
         setSession(null);
         setUser(null);
         setProfile(null);
@@ -177,8 +195,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           window.dispatchEvent(new CustomEvent('refresh-products'));
           
           if (event === 'SIGNED_OUT') {
-            localStorage.clear();
-            sessionStorage.clear();
+            // Only clear the specific token for this client if possible, 
+            // but since we don't have the key here, we'll just redirect.
+            // Avoid localStorage.clear() as it kills both user and admin sessions.
             window.location.replace('/');
             return;
           }
@@ -193,18 +212,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error: any) {
         const errorMsg = error.message || String(error);
+        if (errorMsg.includes('Lock was stolen')) {
+          console.warn('Auth state change caught lock stolen error. Skipping cleanup.');
+          return;
+        }
+
         if (errorMsg.includes('Invalid Refresh Token') || errorMsg.includes('Refresh Token Not Found')) {
           console.warn("Auth state change: Invalid refresh token. Clearing session.");
         } else {
           console.error("Auth state change error:", error);
         }
-        // Force clear ghost session
-        localStorage.clear();
-        sessionStorage.clear();
-        document.cookie.split(";").forEach((c) => {
-          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-        });
-        await supabase.auth.signOut().catch(() => {});
+        
         setSession(null);
         setUser(null);
         setProfile(null);
@@ -314,8 +332,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           if (errorMsg.includes('Invalid Refresh Token') || errorMsg.includes('Refresh Token Not Found')) {
             console.warn('Heartbeat: Session invalid or expired. Redirecting to login.');
-            localStorage.clear();
-            sessionStorage.clear();
             window.location.href = '/login';
             return;
           }
@@ -335,8 +351,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } else {
               console.warn('Heartbeat: Session expired and refresh failed. Redirecting to login.');
             }
-            localStorage.clear();
-            sessionStorage.clear();
             window.location.href = '/login';
           }
         }

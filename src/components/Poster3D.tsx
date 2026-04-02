@@ -12,6 +12,7 @@ interface Poster3DProps {
   height?: number;
   scale?: number;
   interactive?: boolean;
+  autoRotate?: boolean;
 }
 
 export default function Poster3D({ 
@@ -21,7 +22,8 @@ export default function Poster3D({
   width = 1, 
   height = 1.414, 
   scale: baseScale = 1, 
-  interactive = true 
+  interactive = true,
+  autoRotate = false
 }: Poster3DProps) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
@@ -81,9 +83,9 @@ export default function Poster3D({
     }
 
     if (meshRef.current) {
-      if (!interactive) {
-        // Always auto-rotate if not interactive
-        meshRef.current.rotation.y += delta * 0.4;
+      if (autoRotate || !interactive) {
+        // Always auto-rotate if requested or not interactive
+        meshRef.current.rotation.y += delta * 0.5;
         meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0, delta * 5);
       } else if (!active && !hovered) {
         // Auto rotate when not hovered
@@ -107,9 +109,9 @@ export default function Poster3D({
 
   const materials = useMemo(() => {
     const fallbackMaterialProps = {
-      color: '#2A2A2A',
-      roughness: 0.2,
-      metalness: 0.8,
+      color: '#1a1a1a',
+      roughness: 0.3, // Prevent wash-out from reflections
+      metalness: 0.7, // Premium metallic feel
     };
 
     return [
@@ -122,8 +124,8 @@ export default function Poster3D({
         map: frontTexture, 
         emissiveMap: frontTexture,
         emissive: new THREE.Color('#ffffff'),
-        emissiveIntensity: 0.4,
-        color: frontTexture ? '#ffffff' : '#2A2A2A',
+        emissiveIntensity: 1.0, // Ultimate emissive for maximum clarity
+        color: frontTexture ? '#ffffff' : '#1a1a1a',
         toneMapped: false
       }), 
       new THREE.MeshStandardMaterial({ 
@@ -131,8 +133,8 @@ export default function Poster3D({
         map: backTexture,
         emissiveMap: backTexture,
         emissive: new THREE.Color('#ffffff'),
-        emissiveIntensity: 0.4,
-        color: backTexture ? '#ffffff' : '#2A2A2A',
+        emissiveIntensity: 1.0,
+        color: backTexture ? '#ffffff' : '#1a1a1a',
         toneMapped: false
       }), 
     ];
@@ -140,11 +142,11 @@ export default function Poster3D({
 
   return (
     <>
-      <ambientLight intensity={0.8} />
-      <directionalLight position={[5, 5, 5]} intensity={0.4} castShadow />
-      <directionalLight position={[-5, -5, -5]} intensity={0.4} />
+      <ambientLight intensity={0.2} />
+      <directionalLight position={[5, 5, 5]} intensity={0.3} castShadow={false} />
+      <directionalLight position={[-5, -5, -5]} intensity={0.2} />
       <pointLight position={[2, 2, 2]} intensity={0.2} color="#ffffff" />
-      <Environment preset="studio" environmentIntensity={0.5} />
+      <Environment preset="studio" environmentIntensity={0.3} />
       
       <group ref={groupRef}>
         <mesh

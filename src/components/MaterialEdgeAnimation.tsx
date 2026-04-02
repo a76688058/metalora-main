@@ -105,18 +105,19 @@ export default function MaterialEdgeAnimation() {
   });
 
   const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 40,
-    damping: 20,
-    restDelta: 0.001
+    stiffness: 25,
+    damping: 30,
+    mass: 1.5,
+    restDelta: 0.0001
   });
 
-  const textOpacity = useTransform(smoothProgress, [0.3, 0.5, 0.8, 0.95], [0, 1, 1, 0]);
-  const textY = useTransform(smoothProgress, [0.3, 0.5, 0.8, 0.95], [30, 0, 0, -30]);
-  const modelOpacity = useTransform(smoothProgress, [0, 0.2, 0.8, 0.95], [0, 1, 1, 0]);
-  const glowOpacity = useTransform(smoothProgress, [0, 0.5, 0.8, 0.95], [0.1, 0.3, 0.3, 0]);
+  const textOpacity = useTransform(smoothProgress, [0.2, 0.4, 0.9, 0.98], [0, 1, 1, 0]);
+  const textY = useTransform(smoothProgress, [0.2, 0.4, 0.9, 0.98], [30, 0, 0, -30]);
+  const modelOpacity = useTransform(smoothProgress, [0, 0.2, 0.9, 0.98], [0, 1, 1, 0]);
+  const glowOpacity = useTransform(smoothProgress, [0, 0.4, 0.9, 0.98], [0.1, 0.3, 0.3, 0]);
 
   return (
-    <section ref={containerRef} className="relative h-[200vh] bg-[#000000]">
+    <section ref={containerRef} className="relative h-[300vh] bg-[#000000]">
       <div className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden">
         
         {/* Backlight Glow Layer */}

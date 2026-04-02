@@ -44,7 +44,7 @@ export default function CopyrightPage({ onAgree }: CopyrightPageProps) {
         if (data && !error) {
           // Already agreed, redirect
           onAgree();
-          navigate('/workshop/lobby');
+          navigate('/workshop/single');
         }
       } catch (err) {
         console.error('Error checking initial agreement:', err);
@@ -86,7 +86,7 @@ export default function CopyrightPage({ onAgree }: CopyrightPageProps) {
       }
 
       onAgree();
-      navigate('/workshop/lobby');
+      navigate('/workshop/single');
     } catch (err) {
       console.error('Error logging agreement:', err);
       alert('네트워크 오류가 발생했습니다. 다시 시도해 주세요.');

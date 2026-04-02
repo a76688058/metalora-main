@@ -4,6 +4,7 @@ import { useProducts } from '../context/ProductContext';
 import { Package, DollarSign, ShoppingBag } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
+import LoadingScreen from '../components/LoadingScreen';
 
 function CountUp({ value, prefix = '', suffix = '' }: { value: number, prefix?: string, suffix?: string }) {
   const count = useMotionValue(0);
@@ -72,6 +73,10 @@ export default function AdminDashboard() {
   }, []);
 
   const totalProducts = products.length;
+
+  if (loadingStats) {
+    return <LoadingScreen />;
+  }
 
   return (
     <AdminLayout>

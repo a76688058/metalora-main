@@ -20,9 +20,9 @@ const Reveal = ({ children, delay = 0, scale = 1, x = 0, y = 40 }: { children: R
       whileInView={{ opacity: 1, y: 0, x: 0, scale: 1 }}
       viewport={{ once: true, margin: "-100px 0px -100px 0px", amount: 0.3 }}
       transition={{ 
-        duration: 0.8, 
+        duration: 1.0, 
         delay, 
-        ease: [0.17, 0.67, 0.83, 0.67] 
+        ease: [0.16, 1, 0.3, 1] 
       }}
     >
       {children}
@@ -57,10 +57,18 @@ export default function Home() {
             <div className="flex flex-col items-start justify-center min-h-[80vh] w-full">
               {/* 3D Canvas Container - Floating in Deep Black */}
               <div className="absolute inset-0 z-0">
+                {/* Bottom Fade Gradient - Restored for elegant depth */}
+                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black via-black/40 to-transparent z-10 pointer-events-none" />
+                
                 <ErrorBoundary>
                   <Canvas 
                     frameloop="always" 
-                    gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
+                    gl={{ 
+                      antialias: true, 
+                      alpha: true, 
+                      preserveDrawingBuffer: true,
+                      toneMappingExposure: 1.3
+                    }}
                     onCreated={() => {
                       window.dispatchEvent(new CustomEvent('3d-poster-loaded'));
                     }}
@@ -90,8 +98,9 @@ export default function Home() {
                 </Reveal>
                 
                 <Reveal y={40} delay={0.5}>
-                  <p className="mt-16 text-xl md:text-2xl font-thin tracking-[0.3em] text-zinc-400 uppercase">
-                    포스터가 아닙니다. 엔지니어링된 작품입니다.
+                  <p className="mt-16 text-xl md:text-2xl font-thin tracking-[0.3em] text-zinc-400 uppercase leading-relaxed">
+                    포스터가 아닙니다.<br/>
+                    엔지니어링 된 작품입니다.
                   </p>
                 </Reveal>
               </motion.div>
@@ -114,7 +123,7 @@ export default function Home() {
                   initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
                   whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                   viewport={{ once: true, amount: 0.8 }}
-                  transition={{ duration: 0.8, ease: "easeOut" }}
+                  transition={{ duration: 1.0, ease: [0.16, 1, 0.3, 1] }}
                   className="text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] text-[#F2F2F7]"
                 >
                   벽에 상처를
@@ -123,7 +132,7 @@ export default function Home() {
                   initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
                   whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                   viewport={{ once: true, amount: 0.8 }}
-                  transition={{ duration: 0.8, delay: 0.1, ease: "easeOut" }}
+                  transition={{ duration: 1.0, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
                   className="text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] text-[#F2F2F7]"
                 >
                   남기지 마세요.
@@ -136,7 +145,7 @@ export default function Home() {
                   initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
                   whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                   viewport={{ once: true, amount: 0.8 }}
-                  transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
+                  transition={{ duration: 1.0, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
                   className="text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] text-[#F2F2F7]"
                 >
                   오직 예술만
@@ -145,7 +154,7 @@ export default function Home() {
                   initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
                   whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                   viewport={{ once: true, amount: 0.8 }}
-                  transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
+                  transition={{ duration: 1.0, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
                   className="text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] relative inline-block"
                 >
                   {/* Metallic Shimmer Text */}
@@ -163,7 +172,7 @@ export default function Home() {
                 initial={{ opacity: 0, y: 20, filter: 'blur(5px)' }}
                 whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 viewport={{ once: true, amount: 0.8 }}
-                transition={{ duration: 0.8, delay: 0.6, ease: "easeOut" }}
+                transition={{ duration: 0.5, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
                 className="flex items-center gap-4"
               >
                 <div className="w-1 h-8 bg-[#8E8E93]/30 rounded-full" />
@@ -216,7 +225,7 @@ export default function Home() {
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  transition={{ duration: 0.8, delay: item.delay, ease: [0.16, 1, 0.3, 1] }}
+                  transition={{ duration: 1.0, delay: item.delay, ease: [0.16, 1, 0.3, 1] }}
                   className="relative z-10 flex flex-col items-center text-center space-y-6 group"
                 >
                   <div className="w-16 h-16 rounded-2xl bg-zinc-900 flex items-center justify-center border border-white/10 group-hover:bg-white group-hover:text-black transition-all duration-500">

@@ -6,8 +6,8 @@ export default function WorkshopCopyright() {
   const navigate = useNavigate();
 
   const handleAgree = () => {
-    // Navigate to Lobby after agreement
-    navigate('/workshop/lobby');
+    // Navigate to Single Production directly after agreement
+    navigate('/workshop/single');
   };
 
   return (

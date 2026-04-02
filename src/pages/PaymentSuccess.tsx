@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Check, Loader2 } from 'lucide-react';
-import { useCart } from '../context/CartContext';
+import { Check, Loader2, Copy } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
+import LoadingScreen from '../components/LoadingScreen';
+import { useCart } from '../context/CartContext';
 
 /**
  * METALORA PII(Personally Identifiable Information) 보호 모듈
@@ -34,9 +35,9 @@ const MaskingUtil = {
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { clearCart } = useCart();
+  const { refreshCart } = useCart();
   const [isConfirming, setIsConfirming] = useState(true);
-  
+  const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const paymentKey = searchParams.get('paymentKey');
@@ -73,7 +74,7 @@ export default function PaymentSuccess() {
         // 1. 주문 상태 확인 (중복 처리 방지) 및 Price Snapshot 호출
         const { data: existingOrder, error: fetchError } = await supabase
           .from('orders')
-          .select('status, shipping_address, user_custom_id, shipping_name, shipping_phone, total_amount')
+          .select('id, status, address, address_detail, shipping_address, user_custom_id, shipping_name, shipping_phone, total_amount')
           .eq('order_number', orderId)
           .single();
 
@@ -130,27 +131,97 @@ export default function PaymentSuccess() {
         
         // 3. 디스코드 알림 발송 (즉시 실행)
         console.log("디스코드 알림 시도 중...");
-        const order = data ? data[0] : null;
-        const finalShippingAddress = shippingAddress || order?.shipping_address || '주소 확인 중';
-        const finalMethod = method || '정보 확인 중';
-        const finalName = order?.shipping_name || existingOrder?.shipping_name || '고객';
-        const finalPhone = order?.shipping_phone || existingOrder?.shipping_phone || '010-0000-0000';
         
+        // 주문 품목 상세 정보 가져오기
+        const { data: orderItems } = await supabase
+          .from('order_items')
+          .select('product_title, option, quantity')
+          .eq('order_id', existingOrder.id);
+
+        const firstItemTitle = orderItems?.[0]?.product_title || '상품';
+        const product_name_summary = orderItems && orderItems.length > 1 
+          ? `${firstItemTitle} 외 ${orderItems.length - 1}건` 
+          : firstItemTitle;
+
+        const options_summary = orderItems?.map(item => `${item.option}(${item.quantity}개)`).join(', ') || '기본';
+
+        const order = data ? data[0] : null;
+        const finalMethod = method || '정보 확인 중';
+        const customer_name = order?.shipping_name || existingOrder?.shipping_name || '고객';
+        const customer_phone = order?.shipping_phone || existingOrder?.shipping_phone || '연락처 없음';
+        const shipping_address = existingOrder?.address || order?.shipping_address || existingOrder?.shipping_address || '주소 없음';
+        const detail_address = existingOrder?.address_detail || '';
+        
+        const discordContent = `💰 어이 강사장! 돈 들어오는 소리 들린다! 노 저어라!! 🚣‍♂️
+
+━━━ 🚀 **[METALORA] 새로운 주문 발생!** ━━━
+
+📌 **주문 요약**
+• **결제금액:** **${Number(totalAmount).toLocaleString()}원** (입금 완료)
+• **주문번호:** \`${orderId}\`
+• **결제수단:** ${finalMethod}
+
+🛒 **주문 품목**
+• **${product_name_summary}**
+*(상세 옵션: ${options_summary})*
+
+👤 **주문자 정보**
+• **성함:** ${customer_name} 님
+• **연락처:** ${customer_phone}
+• **배송지:** ${shipping_address} ${detail_address}
+
+━━━━━━━━━━━━━━━━━━━━━━━━`;
+
         const discordPayload = {
-          content: `🚀 **[METALORA] 새로운 주문 발생!**\n주문번호: ${orderId} / 결제금액: ${Number(totalAmount).toLocaleString()}원 / 결제수단: ${finalMethod}`,
-          embeds: [{
-            color: 0x4f46e5,
-            fields: [
-              { name: "주문자", value: MaskingUtil.name(finalName), inline: true },
-              { name: "연락처", value: MaskingUtil.phone(finalPhone), inline: true },
-              { name: "배송지", value: MaskingUtil.address(finalShippingAddress) }
-            ]
-          }]
+          content: discordContent
         };
 
         await sendDiscordNotification(discordPayload);
         
-        await clearCart();
+        // 4. 장바구니 비우기 (결제된 품목만)
+        if (existingOrder) {
+          const { data: orderItems } = await supabase
+            .from('order_items')
+            .select('product_id, product_title')
+            .eq('order_id', existingOrder.id);
+
+          if (orderItems && orderItems.length > 0) {
+            const { data: userAuth } = await supabase.auth.getUser();
+            const userId = userAuth.user?.id;
+            
+            if (userId) {
+              // product_id가 있는 일반 상품들 (workshop-single 제외)
+              const productIds = orderItems
+                .map(item => item.product_id)
+                .filter(id => id && id !== 'workshop-single');
+                
+              if (productIds.length > 0) {
+                await supabase
+                  .from('cart_items')
+                  .delete()
+                  .eq('user_id', userId)
+                  .in('product_id', productIds);
+              }
+              
+              // 커스텀 작품 (workshop-single) 삭제
+              const hasWorkshopItem = orderItems.some(
+                item => item.product_id === 'workshop-single' || item.product_title === '커스텀 포스터' || item.product_title === '커스텀 작품'
+              );
+              
+              if (hasWorkshopItem) {
+                await supabase
+                  .from('cart_items')
+                  .delete()
+                  .eq('user_id', userId)
+                  .eq('product_id', 'workshop-single');
+              }
+              
+              // 5. 장바구니 상태 즉시 갱신
+              await refreshCart();
+            }
+          }
+        }
+        
         setIsConfirming(false);
       } catch (error: any) {
         console.error('Payment confirmation error:', error);
@@ -160,31 +231,58 @@ export default function PaymentSuccess() {
     };
 
     confirmPayment();
-  }, [paymentKey, orderId, totalAmount, method, clearCart, searchParams]);
+  }, [paymentKey, orderId, totalAmount, method, searchParams]);
+
+  const handleCopy = () => {
+    if (!orderId) return;
+    navigator.clipboard.writeText(orderId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   if (isConfirming) {
-    return (
-      <div className="min-h-screen pt-32 pb-20 px-6 flex flex-col items-center justify-center">
-        <Loader2 className="animate-spin text-indigo-500 mb-4" size={48} />
-        <p className="text-zinc-400 font-bold">결제 정보를 안전하게 기록 중입니다...</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (errorMessage) {
     return (
-      <div className="min-h-screen pt-32 pb-20 px-6 flex items-center justify-center">
-        <div className="max-w-md w-full glass rounded-3xl p-8 text-center">
-          <p className="text-red-500 font-bold">{errorMessage}</p>
+      <div className="min-h-screen bg-[#0F0F11] flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-[#1C1C1E] rounded-3xl p-8 text-center border border-red-500/20">
+          <p className="text-red-500 font-bold mb-6">{errorMessage}</p>
+          <button 
+            onClick={() => navigate('/')}
+            className="px-6 py-3 btn-cyberpunk rounded-2xl font-semibold text-white"
+          >
+            홈으로 이동
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-6 flex items-center justify-center">
-      <div className="max-w-md w-full glass rounded-3xl p-8 text-center">
-        <div className="relative flex items-center justify-center w-24 h-24 mx-auto mb-8">
+    <div className="min-h-screen bg-[#0F0F11] text-white flex flex-col">
+      {/* Step Indicator */}
+      <div className="w-full max-w-2xl mx-auto px-8 pt-8 pb-4 flex items-center justify-center gap-4">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-[#1C1C1E] text-zinc-500 flex items-center justify-center text-xs font-bold">1</div>
+          <span className="text-sm font-medium text-zinc-500 hidden sm:inline">내 컬렉션</span>
+        </div>
+        <div className="w-4 h-[1px] bg-white/10" />
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-[#1C1C1E] text-zinc-500 flex items-center justify-center text-xs font-bold">2</div>
+          <span className="text-sm font-medium text-zinc-500 hidden sm:inline">주문서</span>
+        </div>
+        <div className="w-4 h-[1px] bg-white/10" />
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-[#3182F6] text-white flex items-center justify-center text-xs font-bold">3</div>
+          <span className="text-sm font-medium text-white">결제완료</span>
+        </div>
+      </div>
+
+      <div className="flex-1 flex items-start justify-center p-6 pt-4 md:pt-8">
+        <div className="max-w-md w-full bg-[#1C1C1E] rounded-3xl p-6 md:p-8 text-center shadow-2xl">
+          <div className="relative flex items-center justify-center w-20 h-20 mx-auto mb-6">
           <motion.svg 
             className="absolute inset-0 w-full h-full"
             viewBox="0 0 100 100"
@@ -192,7 +290,7 @@ export default function PaymentSuccess() {
             animate={{ opacity: 1 }}
           >
             <motion.circle 
-              className="text-indigo-500" 
+              className="text-[#3182F6]" 
               strokeWidth="6" 
               stroke="currentColor" 
               fill="transparent" 
@@ -208,30 +306,59 @@ export default function PaymentSuccess() {
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 1, type: "spring", stiffness: 200, damping: 10 }}
           >
-            <Check size={48} className="text-indigo-500" />
+            <Check size={40} className="text-[#3182F6]" />
           </motion.div>
         </div>
-        <h1 className="text-3xl font-bold text-white mb-8 tracking-tight">결제 완료</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-white mb-8 tracking-tight">결제가 완료되었습니다</h1>
         
         <motion.div 
-          className="bg-white/5 rounded-2xl p-6 mb-8 border border-white/10"
+          className="bg-[#0F0F11] rounded-2xl p-5 md:p-6 mb-8"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.2, duration: 0.5 }}
         >
-          <div className="flex justify-between mb-4">
-            <span className="text-zinc-400">주문번호</span>
-            <span className="text-white font-mono">{orderId}</span>
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-zinc-400 text-sm font-medium">주문번호</span>
+            <div className="flex items-center gap-2">
+              <span className="text-white font-mono whitespace-nowrap text-sm">{orderId}</span>
+              <button 
+                onClick={handleCopy}
+                className="p-1.5 rounded-md bg-white/5 hover:bg-white/10 transition-colors text-zinc-400 hover:text-white"
+                title="주문번호 복사"
+              >
+                <AnimatePresence mode="wait">
+                  {copied ? (
+                    <motion.div
+                      key="check"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                    >
+                      <Check size={14} className="text-[#3182F6]" />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="copy"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                    >
+                      <Copy size={14} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </button>
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-zinc-400">결제금액</span>
-            <span className="text-white font-bold text-xl">₩{Number(totalAmount).toLocaleString()}</span>
+          <div className="flex justify-between items-center">
+            <span className="text-zinc-400 text-sm font-medium">결제금액</span>
+            <span className="text-[#3182F6] font-bold text-lg md:text-xl">{Number(totalAmount).toLocaleString()}원</span>
           </div>
         </motion.div>
         
         <motion.button
           onClick={() => navigate('/')}
-          className="w-full h-14 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold rounded-xl hover:opacity-90 transition-all active:scale-95 mb-4"
+          className="w-full h-14 btn-cyberpunk rounded-2xl font-bold text-lg text-white mb-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.7, duration: 0.5 }}
@@ -240,5 +367,6 @@ export default function PaymentSuccess() {
         </motion.button>
       </div>
     </div>
+  </div>
   );
 }

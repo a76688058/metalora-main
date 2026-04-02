@@ -1,18 +1,20 @@
 import React, { useState, useEffect, Suspense, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useProducts } from '../context/ProductContext';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
 import { useCart } from '../context/CartContext';
+import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
 import Poster3D from './Poster3D';
 import LoginModal from './LoginModal';
 import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, RotateCw, Frame, RefreshCw } from 'lucide-react';
 import Skeleton from './Skeleton';
+
+import LoadingScreen from './LoadingScreen';
 
 declare global {
   interface Window {
@@ -72,11 +74,39 @@ class CanvasErrorBoundary extends React.Component<{ children: React.ReactNode },
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const cartItemFromState = location.state?.cartItem;
   const { products, fetchProducts, isLoading, isError } = useProducts();
-  const { user, profile } = useAuth();
+  const { user, adminUser, profile } = useAuth();
   const { showToast } = useToast();
-  const { addToCart, refreshCart } = useCart();
-  const product = products.find((p) => p.id === id);
+  const { addToCart } = useCart();
+  
+  const currentUser = user || adminUser;
+  let product = products.find((p) => p.id === id);
+
+  // Handle workshop-single from cart state
+  if (!product && id === 'workshop-single' && cartItemFromState) {
+    product = {
+      id: 'workshop-single',
+      title: '커스텀 작품',
+      artist: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'METALORA Artist',
+      image: cartItemFromState.custom_image || '',
+      front_image: cartItemFromState.custom_image || '',
+      description: 'METALORA 워크숍에서 제작된 세상에 단 하나뿐인 커스텀 작품입니다.',
+      limited: true,
+      options: [
+        {
+          id: 'custom',
+          name: cartItemFromState.custom_config?.size || '커스텀 옵션',
+          price: cartItemFromState.custom_config?.price || 0,
+          stock: 1,
+          isActive: true,
+          dimension: cartItemFromState.custom_config?.size || 'A4'
+        }
+      ]
+    };
+  }
+
   const navigate = useNavigate();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
@@ -96,14 +126,7 @@ export default function ProductDetail() {
   }, [product]);
 
   if (isLoading && products.length === 0) {
-    return (
-      <div className="max-w-7xl mx-auto px-6 pt-4 pb-24 space-y-8">
-        <Skeleton className="h-96 w-full" />
-        <Skeleton className="h-12 w-1/2" />
-        <Skeleton className="h-6 w-full" />
-        <Skeleton className="h-6 w-full" />
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (isError) {
@@ -141,71 +164,21 @@ export default function ProductDetail() {
   const currentPrice = selectedOption ? selectedOption.price : 0;
 
   const handleAddToCart = async () => {
-    // 1. 데이터 검증
-    if (!product?.id || !selectedOptionId) {
-      showToast('상품 옵션을 선택해주세요.', 'error');
+    if (!currentUser) {
+      setIsLoginModalOpen(true);
       return;
     }
 
-    // 2. 세션 체크
-    if (!user) {
-      showToast('로그인이 필요한 서비스입니다.', 'info');
-      setIsLoginModalOpen(true);
+    if (!product?.id || !selectedOptionId) {
+      showToast('상품 옵션을 선택해주세요.', 'error');
       return;
     }
 
     try {
       setIsAddingToCart(true);
       
-      // Get current user session explicitly
-      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError) {
-        if (userError.message?.includes('Lock was stolen') || String(userError).includes('Lock was stolen')) {
-          showToast('인증 세션 충돌이 발생했습니다. 다시 시도해주세요.', 'error');
-          return;
-        }
-        throw userError;
-      }
+      await addToCart(product.id, selectedOptionId, 1);
 
-      if (!currentUser) {
-        showToast('로그인이 필요한 서비스입니다.', 'info');
-        setIsLoginModalOpen(true);
-        return;
-      }
-
-      // 3. DB 삽입 (Supabase cart_items 테이블)
-      const { data: existingItem } = await supabase
-        .from('cart_items')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .eq('product_id', product.id)
-        .eq('selected_option', selectedOptionId)
-        .single();
-
-      if (existingItem) {
-        const { error } = await supabase
-          .from('cart_items')
-          .update({ quantity: existingItem.quantity + 1 })
-          .eq('id', existingItem.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('cart_items')
-          .insert([
-            {
-              user_id: currentUser.id,
-              product_id: product.id,
-              selected_option: selectedOptionId,
-              quantity: 1
-            }
-          ]);
-        if (error) throw error;
-      }
-
-      // 4. 성공 피드백
-      await refreshCart();
-      
       // 파티클 애니메이션 실행
       if (canvasContainerRef.current) {
         const rect = canvasContainerRef.current.getBoundingClientRect();
@@ -221,12 +194,13 @@ export default function ProductDetail() {
       }
 
       setIsAdded(true);
-      setTimeout(() => setIsAdded(false), 3000);
-      showToast('내 컬렉션에 안전하게 담겼습니다', 'success');
+      
+      // 1단계 목록 화면으로 이동
+      setTimeout(() => {
+        navigate('/my-collection');
+      }, 800);
     } catch (error: any) {
-      // 상세 에러 콘솔 출력
-      console.error('Add to Collection Failed:', error.message || error);
-      showToast('컬렉션 담기에 실패했습니다. 다시 시도해주세요.', 'error');
+      console.error('Add to Cart Failed:', error.message || error);
     } finally {
       setIsAddingToCart(false);
     }
@@ -238,18 +212,19 @@ export default function ProductDetail() {
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
+        onSuccess={() => setIsLoginModalOpen(false)}
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 w-full pb-24">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
           {/* Left Column: Image & Visuals */}
           <div className="space-y-6">
-            <Link to="/" className="group inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors mb-4 py-2 pr-4">
+            <button onClick={() => navigate('/collection')} className="group inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors mb-4 py-2 pr-4">
               <motion.div className="group-hover:-translate-x-1 transition-transform duration-300 ease-out">
                 <ArrowLeft size={16} strokeWidth={1.5} />
               </motion.div>
               <span className="text-[10px] font-light uppercase tracking-[0.2em]">COLLECTION</span>
-            </Link>
+            </button>
 
             <div className="py-0 -mx-4 sm:mx-0"> {/* Safe Scroll Area */}
               <div 
@@ -441,41 +416,51 @@ export default function ProductDetail() {
                     </div>
                   )}
                   <div className="flex gap-3">
-                    <button
-                      onClick={handleAddToCart}
-                      disabled={isSoldOut || isAddingToCart || isAdded}
-                      className={`flex-1 font-bold text-xl tracking-tight h-[64px] rounded-2xl transition-all active:scale-95 duration-150 shadow-2xl flex items-center justify-center gap-3 border-[0.5px] ${
-                        isSoldOut 
-                          ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border-transparent' 
-                          : isAdded
-                            ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                            : 'bg-white text-black hover:bg-zinc-100 shadow-white/10 border-white/20'
-                      }`}
-                    >
-                      {isAddingToCart ? (
-                        <>
-                          <Loader2 className="animate-spin" size={24} />
-                          <span className="ml-1">컬렉션에 담는 중...</span>
-                        </>
-                      ) : isAdded ? (
-                        <>
-                          <Check size={24} className="text-green-400" />
-                          <span className="ml-1">컬렉션에 담겼습니다</span>
-                        </>
-                      ) : isSoldOut ? (
-                        '품절'
-                      ) : (
-                        <div className="flex items-center justify-center gap-3">
-                          <Frame size={24} />
-                          <span>ADD TO COLLECTION</span>
-                        </div>
-                      )}
-                    </button>
+                    {id === 'workshop-single' && cartItemFromState ? (
+                      <button
+                        onClick={() => navigate('/my-collection')}
+                        className="flex-1 font-bold text-xl tracking-tight h-[64px] rounded-2xl transition-all active:scale-95 duration-150 shadow-2xl flex items-center justify-center gap-3 border-[0.5px] bg-white text-black hover:bg-zinc-100 shadow-white/10 border-white/20"
+                      >
+                        <ArrowLeft size={24} />
+                        <span className="tracking-[-0.02em]">내 컬렉션으로</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleAddToCart}
+                        disabled={isSoldOut || isAddingToCart || isAdded}
+                        className={`flex-1 font-bold text-xl tracking-tight h-[64px] rounded-2xl transition-all active:scale-95 duration-150 shadow-2xl flex items-center justify-center gap-3 border-[0.5px] ${
+                          isSoldOut 
+                            ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border-transparent' 
+                            : isAdded
+                              ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                              : 'bg-white text-black hover:bg-zinc-100 shadow-white/10 border-white/20'
+                        }`}
+                      >
+                        {isAddingToCart ? (
+                          <>
+                            <Loader2 className="animate-spin" size={24} />
+                            <span className="ml-1">컬렉션에 담는 중...</span>
+                          </>
+                        ) : isAdded ? (
+                          <>
+                            <Check size={24} className="text-green-400" />
+                            <span className="ml-1">컬렉션에 담겼습니다</span>
+                          </>
+                        ) : isSoldOut ? (
+                          '품절'
+                        ) : (
+                          <div className="flex items-center justify-center gap-3">
+                            <Frame size={24} />
+                            <span>내 컬렉션에 담기</span>
+                          </div>
+                        )}
+                      </button>
+                    )}
                   </div>
                   
-                  <p className="text-center text-zinc-400 text-[10px] font-bold mt-4 flex items-center justify-center gap-2 uppercase tracking-widest opacity-60">
-                    <Truck size={14} />
-                    5만원 이상 구매 시 무료 배송
+                  <p className="text-center text-[#CCCCCC] text-[11px] font-medium mt-6 flex items-center justify-center gap-2 tracking-tight opacity-80">
+                    <Truck size={14} strokeWidth={1.5} />
+                    전 작품 안전 패키징 & 전 지역 무료 배송
                   </p>
                 </div>
               </div>

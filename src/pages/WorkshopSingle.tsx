@@ -1,11 +1,16 @@
-import React, { useState, useRef, Suspense, useMemo, useEffect } from 'react';
+import React, { useState, useRef, Suspense, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion';
-import { Upload, Image as ImageIcon, Check, ChevronLeft, Maximize, X } from 'lucide-react';
+import { Upload, Image as ImageIcon, Check, ChevronLeft, Maximize, X, User } from 'lucide-react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import Header from '../components/Header';
+import LoadingScreen from '../components/LoadingScreen';
+import { supabase } from '../lib/supabase';
+import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 
 // --- Animated Price Component (Toss Style Count Up) ---
 function AnimatedPrice({ value }: { value: number }) {
@@ -32,7 +37,19 @@ const STEPS = [
 type SizeType = 'A4' | 'Custom';
 
 // --- 3D Poster Component (Ported from Main Landing) ---
-function WorkshopPoster3D({ imageUrl, materialType, interactive = false, size = 'A4' }: { imageUrl: string | null, materialType: string, interactive?: boolean, size?: SizeType }) {
+function WorkshopPoster3D({ 
+  imageUrl, 
+  materialType, 
+  interactive = false, 
+  size = 'A4',
+  autoRotate = false 
+}: { 
+  imageUrl: string | null, 
+  materialType: string, 
+  interactive?: boolean, 
+  size?: SizeType,
+  autoRotate?: boolean
+}) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
@@ -68,7 +85,7 @@ function WorkshopPoster3D({ imageUrl, materialType, interactive = false, size = 
 
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
-      if (!interactive && e.beta !== null && e.gamma !== null) {
+      if (!interactive && !autoRotate && e.beta !== null && e.gamma !== null) {
         const maxTilt = Math.PI / 12;
         const tiltX = THREE.MathUtils.clamp((e.beta - 45) * (Math.PI / 180), -maxTilt, maxTilt);
         const tiltY = THREE.MathUtils.clamp(e.gamma * (Math.PI / 180), -maxTilt, maxTilt);
@@ -78,13 +95,16 @@ function WorkshopPoster3D({ imageUrl, materialType, interactive = false, size = 
 
     window.addEventListener('deviceorientation', handleOrientation);
     return () => window.removeEventListener('deviceorientation', handleOrientation);
-  }, [interactive]);
+  }, [interactive, autoRotate]);
 
   useFrame((state, delta) => {
     if (meshRef.current) {
       if (interactive) {
         meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0, delta * 5);
         meshRef.current.rotation.y = THREE.MathUtils.lerp(meshRef.current.rotation.y, 0, delta * 5);
+      } else if (autoRotate) {
+        meshRef.current.rotation.y += delta * 0.35; // ~20 degrees per second
+        meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0, delta * 5);
       } else {
         let targetX = targetRotation.current.x;
         let targetY = targetRotation.current.y;
@@ -102,11 +122,11 @@ function WorkshopPoster3D({ imageUrl, materialType, interactive = false, size = 
 
   const materials = useMemo(() => {
     const isAluminum = materialType === 'aluminum';
-    const roughness = isAluminum ? 0.2 : 0.85;
-    const metalness = isAluminum ? 0.8 : 0.1;
+    const roughness = isAluminum ? 0.3 : 0.85;
+    const metalness = isAluminum ? 0.7 : 0.1;
 
     const fallbackMaterialProps = {
-      color: '#2A2A2A',
+      color: '#1a1a1a',
       roughness,
       metalness,
     };
@@ -121,7 +141,7 @@ function WorkshopPoster3D({ imageUrl, materialType, interactive = false, size = 
         map: texture, 
         emissiveMap: texture,
         emissive: new THREE.Color('#ffffff'),
-        emissiveIntensity: isAluminum ? 0.2 : 0.05,
+        emissiveIntensity: isAluminum ? 1.0 : 0.05,
         color: '#ffffff',
         toneMapped: false
       }), 
@@ -140,11 +160,11 @@ function WorkshopPoster3D({ imageUrl, materialType, interactive = false, size = 
 
   return (
     <>
-      <ambientLight intensity={0.8} />
-      <directionalLight position={[5, 5, 5]} intensity={0.4} castShadow />
-      <directionalLight position={[-5, -5, -5]} intensity={0.4} />
+      <ambientLight intensity={0.2} />
+      <directionalLight position={[5, 5, 5]} intensity={0.3} castShadow={false} />
+      <directionalLight position={[-5, -5, -5]} intensity={0.2} />
       <pointLight position={[2, 2, 2]} intensity={0.2} color="#ffffff" />
-      <Environment preset="studio" environmentIntensity={0.5} />
+      <Environment preset="studio" environmentIntensity={0.3} />
       
       <group ref={groupRef}>
         <mesh
@@ -152,6 +172,8 @@ function WorkshopPoster3D({ imageUrl, materialType, interactive = false, size = 
           onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
           onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
           material={materials}
+          castShadow
+          receiveShadow
         >
           <boxGeometry args={geometryArgs} /> 
         </mesh>
@@ -162,6 +184,9 @@ function WorkshopPoster3D({ imageUrl, materialType, interactive = false, size = 
 
 export default function WorkshopSingle() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const { addToCart } = useCart();
   const [currentStep, setCurrentStep] = useState(1);
   const [direction, setDirection] = useState(1);
   const totalSteps = STEPS.length;
@@ -173,8 +198,173 @@ export default function WorkshopSingle() {
   const [isUploading, setIsUploading] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(true);
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [pendingProgress, setPendingProgress] = useState<any>(null);
+  const [isResumingImage, setIsResumingImage] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // --- Auto Resume Logic ---
+  useEffect(() => {
+    const fetchProgress = async () => {
+      if (!user) {
+        setIsRestoring(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('user_progress')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error) {
+          if (error.code !== 'PGRST116') {
+            console.error('Fetch failed:', error);
+          }
+          setIsRestoring(false);
+          return;
+        }
+
+        if (
+          data && 
+          data.uploaded_image_url && 
+          typeof data.uploaded_image_url === 'string' && 
+          data.uploaded_image_url.trim().length > 0 && 
+          data.uploaded_image_url !== 'null' &&
+          localStorage.getItem('force_new_start') !== 'true'
+        ) {
+          setPendingProgress(data);
+          setShowResumeModal(true);
+          setIsRestoring(false);
+        } else {
+          setIsRestoring(false);
+          if (localStorage.getItem('force_new_start') === 'true') {
+             localStorage.removeItem('force_new_start');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch progress:', err);
+        setIsRestoring(false);
+      }
+    };
+
+    fetchProgress();
+  }, [user]);
+
+  const handleStartNew = async () => {
+    // 0. 진행 중인 저장 작업 즉시 중단
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+
+    setShowResumeModal(false);
+    
+    // 1. React State 파괴적 초기화
+    setUploadedImage(null);
+    setPendingProgress(null);
+    setMaterialType('aluminum');
+    setSize('A4');
+    
+    // 2. LocalStorage / SessionStorage 파괴적 삭제
+    localStorage.removeItem('temp_image_url');
+    localStorage.removeItem('workshop_draft');
+    sessionStorage.removeItem('temp_image_url');
+    sessionStorage.removeItem('workshop_draft');
+    
+    // 강제 새 시작 플래그 설정 (새로고침 시 불러오기 방지)
+    localStorage.setItem('force_new_start', 'true');
+
+    // 3. Supabase Sync (서버 데이터 완전 삭제)
+    if (user) {
+      try {
+        // delete()를 await 하여 확실히 삭제된 후 다음 단계 진행
+        const { error } = await supabase.from('user_progress').delete().eq('user_id', user.id);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Failed to clear progress in Supabase:', err);
+      }
+    }
+    
+    // 4. 즉시 1단계로 이동
+    setCurrentStep(1);
+  };
+
+  const handleResume = () => {
+    if (pendingProgress) {
+      setMaterialType(pendingProgress.selected_material as 'aluminum');
+      setSize(pendingProgress.selected_size as SizeType);
+      if (pendingProgress.uploaded_image_url) {
+        setUploadedImage(pendingProgress.uploaded_image_url);
+        setIsResumingImage(true);
+        setTimeout(() => setIsResumingImage(false), 800);
+      }
+      setCurrentStep(pendingProgress.current_step);
+    }
+    setShowResumeModal(false);
+  };
+
+  // --- Draft State Management (Debounced Save) ---
+  const saveProgress = useCallback(async (step: number, mat: string, sz: string, imgUrl: string | null) => {
+    if (!user) return; // Auth Check: 유저가 로그아웃 상태일 때는 저장 로직 실행 안 함
+
+    const urlToSave = imgUrl?.startsWith('blob:') ? null : imgUrl;
+    if (!urlToSave) return; // 이미지가 없거나 blob URL인 경우 저장하지 않음
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        // Robust Upsert Logic (데이터 강제 저장)
+        const { error } = await supabase
+          .from('user_progress')
+          .upsert({
+            user_id: user.id,
+            current_step: step,
+            selected_material: mat,
+            selected_size: sz,
+            uploaded_image_url: urlToSave,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id' });
+
+        if (error) {
+          console.error('Save failed:', error);
+        }
+      } catch (err) {
+        console.error('Save failed (exception):', err);
+      }
+    }, 1500); // 1.5s debounce
+  }, [user]);
+
+  // Trigger save when relevant state changes, but only after initial restore and ONLY if image is uploaded
+  useEffect(() => {
+    if (!isRestoring && !showResumeModal && uploadedImage) {
+      saveProgress(currentStep, materialType, size, uploadedImage);
+    }
+  }, [currentStep, materialType, size, uploadedImage, isRestoring, showResumeModal, saveProgress]);
+
+  // Clear progress on completion
+  const clearProgress = async () => {
+    if (!user) return;
+
+    // 진행 중인 저장 작업 즉시 중단
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+
+    try {
+      await supabase.from('user_progress').delete().eq('user_id', user.id);
+    } catch (err) {
+      console.error('Failed to clear progress:', err);
+    }
+  };
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -191,43 +381,195 @@ export default function WorkshopSingle() {
 
   const handleBack = () => {
     if (currentStep === 1) {
-      navigate('/workshop/lobby');
+      navigate('/mypage');
     } else {
       setDirection(-1);
       setCurrentStep(prev => prev - 1);
     }
   };
 
-  const handleActionClick = () => {
+  const handleActionClick = async () => {
     if (currentStep === totalSteps) {
-      // Final Step: Trigger Purple Neon Flash
-      setIsFlashing(true);
-      setTimeout(() => {
-        setIsFlashing(false);
-        navigate('/workshop'); // Or navigate to a success/processing page
-      }, 800);
+      // Final Step: Add to Collection
+      setIsUploading(true); // Reuse uploading state for "Processing"
+      
+      try {
+        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !currentUser) {
+          showToast("로그인이 필요합니다.", "error");
+          setIsUploading(false);
+          return;
+        }
+
+        // Integrate with CartContext.addToCart
+        // Using 'workshop-single' as product_id (TEXT)
+        // user_id is handled inside addToCart using currentUser.id (UUID)
+        await addToCart(
+          'workshop-single', 
+          size, 
+          1, 
+          uploadedImage || undefined,
+          {
+            shaderType: '싱글 제작',
+            material: materialType,
+            size: size,
+            price: 49000,
+            serial_number: `WS-${Date.now()}`
+          }
+        );
+
+        setIsFlashing(true);
+        
+        // 1. Supabase 데이터 삭제 및 저장 중단
+        await clearProgress();
+        
+        // 2. 로컬 상태 초기화
+        setUploadedImage(null);
+        setPendingProgress(null);
+        localStorage.removeItem('temp_image_url');
+        localStorage.removeItem('workshop_draft');
+        sessionStorage.removeItem('temp_image_url');
+        sessionStorage.removeItem('workshop_draft');
+        
+        setTimeout(() => {
+          setIsFlashing(false);
+          setIsUploading(false);
+          showToast('내 컬렉션에 안전하게 담겼습니다', 'success');
+          navigate('/my-collection'); // Navigate to unified collection
+        }, 800);
+      } catch (err: any) {
+        console.error('Failed to save to collection:', err);
+        const errorMsg = err.message || err.details || JSON.stringify(err);
+        showToast(`컬렉션 저장 중 오류가 발생했습니다: ${errorMsg}`, "error");
+        setIsUploading(false);
+      }
     } else {
       handleNext();
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setIsUploading(true);
-      setTimeout(() => {
+    if (!file) return;
+
+    setIsUploading(true);
+
+    if (!user) {
+      // 비로그인 상태면 blob URL 사용 (DB에 저장되지 않음)
+      const url = URL.createObjectURL(file);
+      setUploadedImage(url);
+      setIsUploading(false);
+      return;
+    }
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}_${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('workshop')
+        .upload(fileName, file);
+
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        // 업로드 실패 시 임시로 blob 사용
         const url = URL.createObjectURL(file);
         setUploadedImage(url);
-        setIsUploading(false);
-      }, 1500);
+      } else {
+        const { data: { publicUrl } } = supabase.storage
+          .from('workshop')
+          .getPublicUrl(fileName);
+        setUploadedImage(publicUrl);
+      }
+    } catch (err) {
+      console.error('Error uploading image:', err);
+      const url = URL.createObjectURL(file);
+      setUploadedImage(url);
+    } finally {
+      setIsUploading(false);
     }
   };
 
   const isButtonDisabled = (currentStep === 2 && !uploadedImage) || isUploading;
 
+  if (isRestoring) {
+    return <LoadingScreen />;
+  }
+
   return (
     <div className="min-h-screen w-full bg-black text-white flex flex-col font-sans overflow-x-hidden">
-      <Header />
+      {/* Custom Workshop Header */}
+      <header className="fixed top-0 left-0 w-full z-[100] bg-black/80 backdrop-blur-md border-b border-white/5 h-16 flex items-center px-6">
+        <div className="flex-1 flex justify-start">
+          <button 
+            onClick={handleBack}
+            className="text-zinc-400 hover:text-white transition-colors"
+          >
+            <ChevronLeft size={24} />
+          </button>
+        </div>
+        
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
+          <div className="text-[10px] text-cyan-400 font-bold tracking-widest uppercase mb-0.5">
+            Step {currentStep} / {totalSteps}
+          </div>
+          <h1 className="text-sm font-bold text-white tracking-tight">
+            {STEPS[currentStep - 1].title}
+          </h1>
+        </div>
+
+        <div className="flex-1 flex justify-end items-center gap-4">
+          <button 
+            onClick={() => navigate('/mypage')}
+            className="text-zinc-400 hover:text-white transition-colors"
+          >
+            <X size={22} />
+          </button>
+          <button 
+            onClick={() => navigate('/mypage')}
+            className="text-zinc-400 hover:text-white transition-colors"
+          >
+            <User size={22} strokeWidth={1.5} />
+          </button>
+        </div>
+      </header>
+
+      {/* Resume Confirmation Modal */}
+      <AnimatePresence>
+        {showResumeModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10001] flex items-center justify-center px-6"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="w-full max-w-sm bg-zinc-900 rounded-[24px] p-8 text-center shadow-2xl"
+            >
+              <h3 className="text-xl font-bold text-white mb-2">이전에 작업한 이미지가 있습니다.</h3>
+              <p className="text-zinc-400 text-sm mb-8">불러오시겠습니까?</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleStartNew}
+                  className="bg-zinc-800 text-zinc-400 py-4 rounded-[18px] font-semibold flex-1 active:scale-95 transition-transform"
+                >
+                  새로 시작
+                </button>
+                <button
+                  onClick={handleResume}
+                  className="bg-purple-600 text-white py-4 rounded-[18px] font-bold flex-1 active:scale-95 transition-transform shadow-lg shadow-purple-900/20"
+                >
+                  불러오기
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Visual Aesthetic: The Neon Mist */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
@@ -274,7 +616,11 @@ export default function WorkshopSingle() {
             </div>
 
             <div className="flex-1 relative">
-              <Canvas shadows camera={{ position: [0, 0, 2.5], fov: 45 }}>
+              <Canvas 
+                shadows 
+                camera={{ position: [0, 0, 2.5], fov: 45 }}
+                gl={{ toneMappingExposure: 1.3 }}
+              >
                 <Suspense fallback={null}>
                   <WorkshopPoster3D 
                     imageUrl={uploadedImage} 
@@ -301,16 +647,8 @@ export default function WorkshopSingle() {
       </AnimatePresence>
 
       <div className="relative z-10 flex-1 flex flex-col pt-24 pb-12">
-        {/* Step Indicator */}
+        {/* Step Progress Bar (Minimal) */}
         <div className="max-w-xl mx-auto w-full px-6 mb-8">
-            <div className="flex flex-col gap-1 mb-4">
-              <span className="text-cyan-400 font-bold tracking-tighter">
-                {currentStep} / {totalSteps}
-              </span>
-              <h2 className="text-xl font-bold text-white">
-                {STEPS[currentStep - 1].title}
-              </h2>
-            </div>
             <div className="h-[2px] w-full bg-white/10 rounded-full overflow-hidden">
               <motion.div 
                 initial={{ width: 0 }}
@@ -391,6 +729,15 @@ export default function WorkshopSingle() {
                       <Maximize size={18} className="text-white" />
                     </motion.button>
                     
+                    {isResumingImage && uploadedImage && (
+                      <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(34,211,238,0.5)]" />
+                          <span className="text-cyan-400 font-bold text-sm tracking-widest animate-pulse">이미지를 불러오는 중...</span>
+                        </div>
+                      </div>
+                    )}
+
                     <Canvas shadows camera={{ position: [0, 0, 2.5], fov: 45 }} style={{ pointerEvents: 'none' }}>
                       <Suspense fallback={null}>
                         <WorkshopPoster3D 
@@ -440,15 +787,64 @@ export default function WorkshopSingle() {
 
               {/* --- STEP 3: Finalize --- */}
               {currentStep === 3 && (
-                <div className="bg-zinc-900/40 backdrop-blur-md border border-white/5 rounded-3xl p-8 min-h-[400px] flex flex-col items-center justify-center text-center">
-                  <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mb-6 text-green-400">
-                    <Check size={36} />
+                <div className="flex flex-col items-center pt-4">
+                  {/* 3D Poster Showcase Container */}
+                  <motion.div 
+                    initial={{ y: 60, opacity: 0, scale: 0.9 }}
+                    animate={{ y: 0, opacity: 1, scale: 1 }}
+                    transition={{ 
+                      duration: 1.2, 
+                      ease: [0.16, 1, 0.3, 1],
+                      scale: { type: "spring", damping: 20, stiffness: 100 }
+                    }}
+                    className="w-full aspect-[3/4] max-w-lg mx-auto rounded-[40px] overflow-hidden bg-transparent relative mb-16"
+                  >
+                    {/* Enhanced Spotlight effect background */}
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(168,85,247,0.3),transparent_70%)] pointer-events-none" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(34,211,238,0.15),transparent_60%)] pointer-events-none" />
+                    
+                    <Canvas 
+                      shadows 
+                      camera={{ position: [0, 0, 2.8], fov: 40 }}
+                      gl={{ toneMappingExposure: 1.3 }}
+                    >
+                      <Suspense fallback={null}>
+                        <WorkshopPoster3D 
+                          imageUrl={uploadedImage} 
+                          materialType={materialType} 
+                          interactive={false}
+                          size={size}
+                          autoRotate={true}
+                        />
+                      </Suspense>
+                      <ContactShadows position={[0, -1.2, 0]} opacity={0.6} scale={6} blur={2.5} far={2} color="#000000" />
+                      
+                      {/* Dynamic Light for Shimmer Effect */}
+                      <pointLight position={[2, 2, 2]} intensity={0.6} color="#ffffff" />
+                      <pointLight position={[-2, 1, 2]} intensity={0.4} color="#a855f7" />
+                    </Canvas>
+                  </motion.div>
+
+                  <div className="text-center px-4">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.6, duration: 0.8 }}
+                      className="space-y-4"
+                    >
+                      <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight leading-tight">
+                        커스텀 작품이 완성되었습니다.
+                      </h3>
+                      <div className="flex flex-col items-center gap-1">
+                        <p className="text-zinc-400 text-base md:text-lg leading-relaxed">
+                          ‘<span className="text-cyan-300 font-semibold">{user?.user_metadata?.full_name || user?.email?.split('@')[0] || '회원'}</span>’님의 감각이 담긴 단 하나의 작품입니다.
+                        </p>
+                        <p className="text-zinc-400 text-base md:text-lg leading-relaxed">
+                          이제 실물로 만나보세요.
+                        </p>
+                      </div>
+                    </motion.div>
                   </div>
-                  <h3 className="text-xl font-bold text-white mb-2">마스터피스 완성 준비 완료</h3>
-                  <p className="text-zinc-400 text-sm leading-relaxed mb-8">
-                    선택하신 {materialType === 'aluminum' ? '알루미늄' : '캔버스'} 재질로<br />
-                    최고의 퀄리티를 담아 제작을 진행합니다.
-                  </p>
                 </div>
               )}
             </motion.div>
@@ -470,7 +866,7 @@ export default function WorkshopSingle() {
                 transition={{ duration: 0.2 }}
                 className="text-[15px] font-medium text-zinc-500 tracking-wide"
               >
-                알루미늄 패널 · A4
+                {materialType === 'aluminum' ? 'Aluminum' : 'Premium'} · {size}
               </motion.span>
             </AnimatePresence>
             <div className="text-[22px] font-bold text-white flex items-baseline gap-1 tracking-tight">
@@ -492,7 +888,14 @@ export default function WorkshopSingle() {
               disabled={isButtonDisabled}
               className="flex-[2.5] bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white py-4 rounded-[18px] font-bold transition-transform active:scale-[0.97] flex items-center justify-center gap-2 shadow-lg shadow-purple-900/20 disabled:shadow-none"
             >
-              {currentStep === totalSteps ? '제작 확정' : '다음으로'}
+              {currentStep === totalSteps ? (
+                isUploading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    저장 중...
+                  </>
+                ) : '내 컬렉션에 담기'
+              ) : '다음으로'}
             </button>
           </div>
         </div>

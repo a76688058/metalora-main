@@ -10,7 +10,12 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(event.request).then((response) => response || fetch(event.request))
+    caches.match(event.request)
+      .then((response) => response || fetch(event.request))
+      .catch((err) => {
+        console.warn('SW Fetch failed:', err);
+        return new Response('Network error', { status: 408 });
+      })
   );
 });
 

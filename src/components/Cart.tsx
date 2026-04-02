@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Frame, Trash2, Plus, Minus, ArrowRight, Loader2, ChevronRight, MapPin, CreditCard, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence, animate } from 'framer-motion';
+import { X, ShoppingBag, ChevronRight, MapPin, CreditCard, CheckCircle2, Loader2, Trash2, Plus, Minus, Search, Check } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
-import { supabase } from '../lib/supabase';
-import ShippingModal from './ShippingModal';
+import { supabase, supabaseAdmin } from '../lib/supabase';
 import { loadTossPayments } from '@tosspayments/payment-sdk';
 
 interface CartProps {
@@ -14,597 +13,835 @@ interface CartProps {
   onClose: () => void;
 }
 
-export default function Cart({ isOpen, onClose }: CartProps) {
-  const { cartItems, isLoading, removeFromCart, updateQuantity, totalPrice, clearCart } = useCart();
-  const { user, profile, refreshProfile } = useAuth();
-  const { showToast } = useToast();
-  const navigate = useNavigate();
-  const [step, setStep] = useState(1); // 1: Cart, 2: Checkout, 3: Success
-  const [isAutoFilled, setIsAutoFilled] = useState(false);
-  const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
-  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentFailed, setPaymentFailed] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('카드');
+const TOSS_CLIENT_KEY = 'test_ck_Poxy1XQL8R9nPR9Xn61Xr7nO5Wml';
 
-  const [shippingInfo, setShippingInfo] = useState({
-    shipping_name: '',
-    shipping_phone: '',
-    zip_code: '',
+export default function Cart({ isOpen, onClose }: CartProps) {
+  const navigate = useNavigate();
+  const { cartItems, removeFromCart, updateQuantity, totalPrice, isLoading: isCartLoading } = useCart();
+  const { user, adminUser, profile, adminProfile } = useAuth();
+  const { showToast } = useToast();
+  const [step, setStep] = useState(1); // 1: List, 2: Order Form
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [displayPrice, setDisplayPrice] = useState(0);
+
+  // Initialize selection: Select all by default
+  useEffect(() => {
+    if (isOpen && cartItems.length > 0) {
+      setSelectedIds(new Set(cartItems.map(item => item.id)));
+    }
+  }, [isOpen, cartItems.length]);
+
+  const selectedItems = cartItems.filter(item => selectedIds.has(item.id));
+  const selectedTotalPrice = selectedItems.reduce((sum, item) => {
+    const price = item.product_type === 'workshop' 
+      ? (item.custom_config?.price || 0) 
+      : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
+    return sum + (price * item.quantity);
+  }, 0);
+
+  // Toss-style price animation
+  useEffect(() => {
+    const controls = animate(displayPrice, selectedTotalPrice, {
+      duration: 0.8,
+      ease: [0.16, 1, 0.3, 1],
+      onUpdate: (value) => setDisplayPrice(Math.floor(value)),
+    });
+    return () => controls.stop();
+  }, [selectedTotalPrice]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === cartItems.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(cartItems.map(item => item.id)));
+    }
+  };
+
+  const toggleItemSelection = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+  
+  // Shipping Form State
+  const [shippingData, setShippingData] = useState({
+    name: '',
+    phone: '',
+    zipCode: '',
     address: '',
-    address_detail: ''
+    addressDetail: '',
+  });
+  
+  const [isPostcodeOpen, setIsPostcodeOpen] = useState(false);
+  const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+  const postcodeRef = useRef<HTMLDivElement>(null);
+
+  // Consent State
+  const [consents, setConsents] = useState({
+    content: false,
+    refund: false,
+    terms: false,
+  });
+  const [consentModal, setConsentModal] = useState<{ isOpen: boolean; type: 'content' | 'refund' | 'terms' | null }>({
+    isOpen: false,
+    type: null,
   });
 
-  const shippingFee = totalPrice >= 50000 ? 0 : 3000;
-  const finalPrice = totalPrice + shippingFee;
+  const hasWorkshopItems = selectedItems.some(item => item.product_type === 'workshop');
+  const isAllConsented = consents.refund && consents.terms && (!hasWorkshopItems || consents.content);
 
-  // Auto-fill shipping info when entering checkout step
+  // Helper to get the correct supabase client based on active session
+  const getClient = () => {
+    if (user) return supabase;
+    if (adminUser) return supabaseAdmin;
+    return supabase;
+  };
+
+  const CONSENT_TEXTS = {
+    content: {
+      title: '콘텐츠 권리 책임 동의',
+      items: [
+        '업로드한 이미지의 <strong class="text-fuchsia-500">저작권 및 초상권</strong>은 본인에게 있습니다.',
+        '권리자의 허가 없이 사용 시 발생하는 <strong class="text-fuchsia-500">모든 법적 책임</strong>은 본인에게 있습니다.'
+      ]
+    },
+    refund: {
+      title: '환불 정책 동의',
+      items: [
+        '<strong class="text-fuchsia-500">주문 제작 상품</strong>은 단순 변심에 의한 <strong class="text-fuchsia-500">환불이 제한</strong>됩니다.',
+        '<strong class="text-fuchsia-500">하자 또는 오배송</strong> 시에만 재제작 또는 환불이 가능합니다.'
+      ]
+    },
+    terms: {
+      title: '전체 약관 동의',
+      items: [
+        '<strong class="text-fuchsia-500">이용약관, 개인정보처리방침, 쿠키 정책, 커스텀 제작 동의서</strong>를 모두 확인하였으며 이에 동의합니다.'
+      ]
+    }
+  };
+
+  // Initialize shipping data from profile
   useEffect(() => {
-    if (step === 2 && profile && !isAutoFilled) {
-      setShippingInfo({
-        shipping_name: profile.full_name || '',
-        shipping_phone: profile.phone_number || '',
-        zip_code: profile.zip_code || '',
+    if (profile && step === 2) {
+      setShippingData({
+        name: profile.full_name || '',
+        phone: profile.phone_number || '',
+        zipCode: profile.zip_code || '',
         address: profile.address || '',
-        address_detail: profile.address_detail || ''
+        addressDetail: profile.address_detail || '',
       });
-      setIsAutoFilled(true);
-      showToast('저장된 배송지 정보를 불러왔습니다.', 'success');
     }
-  }, [step, profile, isAutoFilled, showToast]);
+  }, [profile, step]);
 
-  const handleShippingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setShippingInfo(prev => ({ ...prev, [name]: value }));
-  };
+  // Daum Postcode Script Loading
+  useEffect(() => {
+    const scriptId = 'daum-postcode-script';
+    if (!document.getElementById(scriptId)) {
+      const script = document.createElement('script');
+      script.id = scriptId;
+      script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
 
-  const handleAddressSearch = () => {
-    new (window as any).daum.Postcode({
-      oncomplete: (data: any) => {
-        let fullAddress = data.address;
-        let extraAddress = '';
+  const handleOpenPostcode = () => {
+    if (!(window as any).daum || !(window as any).daum.Postcode) {
+      showToast('주소 서비스 로딩 중입니다. 잠시 후 다시 시도해주세요.', 'error');
+      return;
+    }
+    
+    setIsPostcodeOpen(true);
+    setTimeout(() => {
+      if (postcodeRef.current) {
+        new (window as any).daum.Postcode({
+          oncomplete: (data: any) => {
+            let fullAddress = data.address;
+            let extraAddress = '';
 
-        if (data.addressType === 'R') {
-          if (data.bname !== '') {
-            extraAddress += data.bname;
-          }
-          if (data.buildingName !== '') {
-            extraAddress += (extraAddress !== '' ? `, ${data.buildingName}` : data.buildingName);
-          }
-          fullAddress += (extraAddress !== '' ? ` (${extraAddress})` : '');
-        }
+            if (data.addressType === 'R') {
+              if (data.bname !== '') extraAddress += data.bname;
+              if (data.buildingName !== '') {
+                extraAddress += extraAddress !== '' ? `, ${data.buildingName}` : data.buildingName;
+              }
+              fullAddress += extraAddress !== '' ? ` (${extraAddress})` : '';
+            }
 
-        setShippingInfo(prev => ({
-          ...prev,
-          zip_code: data.zonecode,
-          address: fullAddress,
-          address_detail: '' // Reset detail address when new address is picked
-        }));
+            setShippingData(prev => ({
+              ...prev,
+              zipCode: data.zonecode,
+              address: fullAddress,
+            }));
+            setIsPostcodeOpen(false);
+          },
+          width: '100%',
+          height: '100%',
+        }).embed(postcodeRef.current);
       }
-    }).open();
+    }, 0);
   };
 
-  const validateShipping = () => {
-    if (!shippingInfo.shipping_name.trim()) {
-      showToast('수령인 이름을 입력해주세요.', 'error');
-      return false;
+  const handlePayment = async () => {
+    const currentUser = user || adminUser;
+    if (!currentUser) return;
+    if (!shippingData.name || !shippingData.phone || !shippingData.address || !shippingData.zipCode || !shippingData.addressDetail) {
+      showToast('배송 정보를 모두 입력해 주세요.', 'error');
+      return;
     }
-    if (!shippingInfo.shipping_phone.trim()) {
-      showToast('연락처를 입력해주세요.', 'error');
-      return false;
-    }
-    if (!shippingInfo.address.trim()) {
-      showToast('배송지 주소를 입력해주세요.', 'error');
-      return false;
-    }
-    return true;
-  };
 
-  const triggerPayment = async () => {
+    if (!isAllConsented) {
+      showToast('필수 약관에 모두 동의해 주세요.', 'error');
+      return;
+    }
+
     try {
-      if (!user) {
-        showToast('로그인이 필요합니다.', 'error');
-        return;
+      setIsProcessing(true);
+      const client = getClient();
+      
+      // 0. Sync Profile Address
+      try {
+        const { error: profileError } = await client
+          .from('profiles')
+          .upsert({
+            id: currentUser.id,
+            full_name: shippingData.name,
+            phone_number: shippingData.phone,
+            zip_code: shippingData.zipCode,
+            address: shippingData.address,
+            address_detail: shippingData.addressDetail,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'id' });
+          
+        if (profileError) {
+          console.error('Profile address sync error:', profileError);
+        }
+      } catch (syncError) {
+        console.error('Profile address sync exception:', syncError);
       }
-
-      // 1. 주문번호 생성: ML-YYYYMMDD-랜덤4자리
-      const date = new Date();
-      const yyyy = date.getFullYear();
-      const mm = String(date.getMonth() + 1).padStart(2, '0');
-      const dd = String(date.getDate()).padStart(2, '0');
-      const random4 = Math.floor(1000 + Math.random() * 9000);
-      const orderNumber = `ML-${yyyy}${mm}${dd}-${random4}`;
-
-      // 필수 필드 검증
-      if (!shippingInfo.shipping_name || !shippingInfo.shipping_phone || !shippingInfo.zip_code || !shippingInfo.address) {
-        throw new Error('배송지 정보가 누락되었습니다.');
-      }
-      if (!finalPrice || finalPrice <= 0) {
-        throw new Error('결제 금액이 올바르지 않습니다.');
-      }
-
-      // 스키마 캐시 갱신 대응: 테이블 구조를 다시 한번 확인하고 데이터를 전송하도록 코드를 보강
-      // Supabase(PostgREST) 스키마 캐시 이슈를 방지하기 위해 테이블을 명시적으로 터치
-      // x-client-info 헤더는 src/lib/supabase.ts에서 글로벌하게 추가됨
-      await supabase.from('orders').select('order_number').limit(1);
-
-      // 1.5. 사용자 프로필 정보 (user_custom_id) 가져오기
-      // 사장님이 관리자 페이지에서 주문자를 한눈에 식별할 수 있게 하기 위함
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('user_custom_id')
-        .eq('id', user.id)
+      
+      // 1. Create Order in Supabase
+      const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      
+      const { data: order, error: orderError } = await client
+        .from('orders')
+        .insert([
+          {
+            order_number: orderNumber,
+            user_id: currentUser.id,
+            total_amount: selectedTotalPrice,
+            total_price: selectedTotalPrice,
+            status: '결제대기',
+            shipping_name: shippingData.name,
+            shipping_phone: shippingData.phone,
+            zip_code: shippingData.zipCode,
+            address: shippingData.address,
+            address_detail: shippingData.addressDetail,
+            shipping_info: {
+              consents: {
+                ...consents,
+                agreed_at: new Date().toISOString()
+              }
+            },
+            ordered_items: selectedItems.map(item => ({
+              product_id: item.product_id,
+              title: item.product?.title || (item.product_id === 'workshop-single' ? '커스텀 포스터' : '제품'),
+              option: item.product_id === 'workshop-single' ? item.custom_config?.size : item.selected_option,
+              quantity: item.quantity,
+              price: item.product_id === 'workshop-single' ? (item.custom_config?.price || 0) : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0),
+              custom_image: item.custom_image,
+              custom_config: item.custom_config
+            }))
+          }
+        ])
+        .select()
         .single();
 
-      const userCustomId = profileData?.user_custom_id || user.email?.split('@')[0] || 'unknown';
+      if (orderError) throw orderError;
 
-      // 2. 임시 주문 생성 (Supabase)
-      const orderedItemsJson = cartItems.map(item => {
-        const option = item.product?.options?.find(opt => opt.id === item.selected_option);
-        return {
-          product_id: item.product_id,
-          product_title: item.product?.title || 'Unknown Product',
-          option_name: option?.name || '기본',
-          quantity: item.quantity,
-          price: option?.price || item.product?.price || 0
-        };
-      });
+      // 2. Create Order Items
+      const orderItems = selectedItems.map(item => {
+        // Calculate price based on item type
+        let price = 0;
+        let title = '';
+        let optionName = '';
 
-      const orderData = {
-        order_number: orderNumber,
-        user_id: user.id,
-        user_custom_id: userCustomId, // 관리자 식별용 ID (son1, son8 등)
-        total_price: Number(finalPrice) || 0, // 총액 (숫자 타입 보장, 0이라도 강제)
-        total_amount: Number(finalPrice) || 0, // 중복 컬럼 대응
-        status: '결제대기',
-        shipping_name: String(shippingInfo.shipping_name).trim(), // 수령인명
-        shipping_phone: String(shippingInfo.shipping_phone).trim(), // 연락처
-        zip_code: String(shippingInfo.zip_code).trim(), // 우편번호
-        address: String(shippingInfo.address || '').trim(), // 주소
-        address_detail: String(shippingInfo.address_detail || '').trim(), // 상세주소
-        ordered_items: orderedItemsJson, // JSON 배열 형식 (Not-Null 제약 조건 해결)
-        shipping_info: {
-          name: String(shippingInfo.shipping_name).trim(),
-          phone: String(shippingInfo.shipping_phone).trim(),
-          zip: String(shippingInfo.zip_code).trim(),
-          address: String(shippingInfo.address || '').trim(),
-          detail: String(shippingInfo.address_detail || '').trim()
+        if (item.product_id === 'workshop-single') {
+          price = item.custom_config?.price || 0;
+          title = item.product?.title || '커스텀 포스터';
+          optionName = item.custom_config?.size || '커스텀';
+        } else {
+          const option = item.product?.options?.find(opt => opt.id === item.selected_option);
+          price = option ? option.price : 0;
+          title = item.product?.title || '제품';
+          optionName = option ? option.name : (item.selected_option || '');
         }
-      };
+        
+        // Check if product_id is a valid UUID to avoid DB errors
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.product_id);
 
-      const { error: orderError } = await supabase
-        .from('orders')
-        .insert(orderData);
-
-      if (orderError) {
-        throw new Error(`주문 생성에 실패했습니다: ${orderError.message}`);
-      }
-
-      // 3. 토스페이먼츠 결제창 즉시 호출 (지체 없이 실행)
-      // 지시: 사장님 전용 테스트 키를 코드에 직접(Hard-coded) 입력
-      const CLIENT_KEY = 'test_ck_Poxy1XQL8R9nPR9Xn61Xr7nO5Wml';
-      
-      const tossPayments = await loadTossPayments(CLIENT_KEY);
-      
-      // 4. 상품 상세 내역 저장 (order_items 테이블 기록)
-      // 지시: 주문 생성 시 order_items 테이블에도 각 상품 정보를 정확히 INSERT
-      const orderItems = cartItems.map(item => {
-        const option = item.product?.options?.find(opt => opt.id === item.selected_option);
         return {
-          order_number: orderNumber,
-          product_id: item.product_id,
-          product_title: item.product?.title || 'Unknown Product',
-          option: option?.name || '기본',
+          order_id: order.id,
+          product_id: isUuid ? item.product_id : null,
+          product_title: title,
+          option: optionName,
           quantity: item.quantity,
-          price: option?.price || item.product?.price || 0
+          price: price
         };
       });
 
-      // 결제창 호출 전에 데이터 기록 보장 (await 사용)
-      const { error: itemsError } = await supabase
+      const { error: itemsError } = await client
         .from('order_items')
         .insert(orderItems);
-      
-      if (itemsError) {
-        console.error('Order items creation error:', itemsError);
-      }
 
-      // 지시: 결제 요청 함수(requestPayment) 정밀 교정
-      // method: 'CARD', orderName: 'METALORA 메탈 포스터 컬렉션', customerName: userCustomId (동적)
+      if (itemsError) throw itemsError;
+
+      // 3. Initialize Toss Payments
+      const tossPayments = await loadTossPayments(TOSS_CLIENT_KEY);
       
-      await tossPayments.requestPayment('CARD', {
-        amount: Number(finalPrice),
+      const orderName = selectedItems.length > 1 
+        ? `${selectedItems[0].product?.title || '커스텀 제품'} 외 ${selectedItems.length - 1}건`
+        : (selectedItems[0].product?.title || '커스텀 제품');
+
+      await tossPayments.requestPayment('카드', {
+        amount: selectedTotalPrice,
         orderId: orderNumber,
-        orderName: 'METALORA 메탈 포스터 컬렉션',
-        customerName: userCustomId, // 동적 사용자 식별 ID (son1 등)
-        successUrl: window.location.origin + '/payment/success',
-        failUrl: window.location.origin + '/payment/fail',
+        orderName: orderName,
+        customerName: shippingData.name,
+        successUrl: `${window.location.origin}/payment/success`,
+        failUrl: `${window.location.origin}/payment/fail`,
       });
 
+      setIsBottomSheetOpen(false);
     } catch (error: any) {
-      console.error('Payment initiation failed:', error);
-      showToast(error.message || '결제 초기화에 실패했습니다. 다시 시도해주세요.', 'error');
-      setPaymentFailed(true);
+      console.error('Payment Error:', error);
+      showToast('결제 요청 중 오류가 발생했습니다.', 'error');
+    } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleResetCart = async () => {
-    await clearCart();
-    setStep(1);
-    setIsAutoFilled(false);
-    setShippingInfo({
-      shipping_name: '',
-      shipping_phone: '',
-      zip_code: '',
-      address: '',
-      address_detail: ''
-    });
-    onClose();
-    navigate('/');
-  };
-
-  const handleCheckout = async () => {
-    if (step === 1) {
-      if (!profile?.address || !profile?.phone_number) {
-        setIsShippingModalOpen(true);
-      } else {
-        setStep(2);
-      }
-    } else if (step === 2) {
-      if (validateShipping()) {
-        setIsProcessing(true);
-        setPaymentFailed(false);
-        try {
-          setIsUpdatingProfile(true);
-          // Update profile with new shipping info
-          const { error } = await supabase
-            .from('profiles')
-            .update({
-              full_name: shippingInfo.shipping_name,
-              phone_number: shippingInfo.shipping_phone,
-              zip_code: shippingInfo.zip_code,
-              address: shippingInfo.address || '',
-              address_detail: shippingInfo.address_detail || '',
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', user?.id);
-            
-          if (error) throw error;
-          
-          // Refresh profile context with new data
-          if (typeof refreshProfile === 'function') {
-            await refreshProfile();
-          }
-        } catch (err) {
-          console.error('Failed to update profile shipping info:', err);
-          // Proceed anyway
-        } finally {
-          setIsUpdatingProfile(false);
-        }
-
-        await triggerPayment();
-      }
-    } else {
-      handleResetCart();
-    }
-  };
-
-  const handleShippingSuccess = () => {
-    setIsShippingModalOpen(false);
-    setStep(2);
-  };
-
-  const handleBack = () => {
-    if (step > 1) setStep(step - 1);
-  };
+  if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md flex flex-col overflow-y-auto w-screen h-screen custom-scrollbar">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="relative w-full min-h-full flex flex-col will-change-transform max-w-2xl mx-auto px-6 pt-20 pb-6 md:pb-10"
+    <div className="fixed inset-0 z-[10000] flex justify-end">
+      {/* Backdrop */}
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+      />
+
+      {/* Cart Panel */}
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+        className="relative w-full max-w-lg bg-[#0F0F11] h-full flex flex-col shadow-2xl"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5">
+          <h2 className="text-2xl font-bold text-white tracking-tight">
+            {step === 1 ? '내 컬렉션' : '주문하기'}
+          </h2>
+          <button 
+            onClick={onClose}
+            className="p-2 bg-zinc-800/50 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-all"
           >
-            <button 
-              onClick={onClose}
-              className="absolute top-20 right-6 text-white/70 hover:text-white transition-colors z-[10001] p-2"
-              aria-label="닫기"
-            >
-              <X size={32} strokeWidth={1} />
-            </button>
+            <X size={20} />
+          </button>
+        </div>
 
-            {/* Header Section - Minimized Whitespace */}
-            <div className="flex flex-col gap-2 mb-6 mt-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-black text-white tracking-tighter">내 컬렉션 큐레이션</h2>
-              </div>
-              
-              {/* Order Steps - Tightened */}
-              <div className="flex items-center gap-3 text-[11px] font-black uppercase tracking-[0.2em]">
-                <span className={step === 1 ? "text-white" : "text-zinc-700"}>01 내 컬렉션</span>
-                <ChevronRight size={12} className="text-zinc-800" />
-                <span className={step === 2 ? "text-white" : "text-zinc-700"}>02 주문서작성</span>
-                <ChevronRight size={12} className="text-zinc-800" />
-                <span className={step === 3 ? "text-white" : "text-zinc-700"}>03 주문완료</span>
-              </div>
-            </div>
+        {/* Step Indicator */}
+        <div className="px-6 pb-4 flex items-center gap-3 text-base font-bold tracking-tighter">
+          <span className={step === 1 ? 'text-white' : 'text-zinc-600'}>1. 내 컬렉션</span>
+          <ChevronRight className="text-zinc-700" size={16} />
+          <span className={step === 2 ? 'text-white' : 'text-zinc-600'}>2. 주문서</span>
+          <ChevronRight className="text-zinc-700" size={16} />
+          <span className="text-zinc-600">3. 결제완료</span>
+        </div>
 
-            {/* Content Area */}
-            <div className="flex-1">
-              {isLoading && cartItems.length === 0 ? (
-                <div className="py-20 flex flex-col items-center justify-center gap-4">
-                  <Loader2 className="animate-spin text-zinc-700" size={32} />
-                  <p className="text-zinc-600 font-bold tracking-tight">데이터를 불러오는 중...</p>
-                </div>
-              ) : cartItems.length === 0 && step !== 3 ? (
-                <div className="py-20 flex flex-col items-center justify-center gap-8 text-center">
-                  <div className="w-20 h-20 rounded-full bg-zinc-900 flex items-center justify-center border border-white/5">
-                    <Frame size={32} className="text-zinc-800" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white tracking-tight">내 컬렉션이 비어있습니다</h3>
-                    <p className="text-zinc-600 mt-1 text-sm tracking-tight">멋진 작품을 찾아보세요!</p>
-                  </div>
-                  <button
-                    onClick={() => { onClose(); navigate('/'); }}
-                    className="px-8 py-4 bg-white text-black font-black rounded-xl hover:bg-zinc-200 transition-all active:scale-95 text-base tracking-tight"
-                  >
-                    작품 보러가기
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-8 pb-32">
-                  {step === 1 && (
-                    <div className="space-y-4">
-                      {cartItems.map((item) => {
-                        const option = item.product?.options?.find(opt => opt.id === item.selected_option);
-                        return (
-                          <motion.div
-                            key={item.id}
-                            layout
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="bg-[#1C1C1E] rounded-2xl p-4 flex gap-5 border border-white/5 relative group"
-                          >
-                            {/* Product Image - Large & Rounded */}
-                            <div className="w-24 h-24 rounded-lg overflow-hidden bg-zinc-900 shrink-0 border border-white/5">
-                              <img 
-                                src={item.product?.front_image || item.product?.image} 
-                                alt={item.product?.title}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-
-                            {/* Product Info */}
-                            <div className="flex-1 flex flex-col justify-between py-0.5">
-                              <div className="relative">
-                                <h4 className="text-base font-semibold text-white tracking-tight pr-8">{item.product?.title}</h4>
-                                <p className="text-xs text-zinc-500 mt-1 tracking-tight">
-                                  {option?.name} • {option?.dimension}
-                                </p>
-                                <button 
-                                  onClick={() => removeFromCart(item.id)}
-                                  className="absolute top-0 right-0 text-zinc-700 hover:text-white transition-colors p-1"
-                                >
-                                  <X size={18} />
-                                </button>
-                              </div>
-
-                              <div className="flex justify-between items-center mt-4">
-                                {/* Modern Quantity Controls */}
-                                <div className="flex items-center gap-1 bg-black/40 rounded-xl p-1 border border-white/5">
-                                  <button 
-                                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                    className="p-1.5 text-zinc-500 hover:text-white transition-colors"
-                                  >
-                                    <Minus size={14} />
-                                  </button>
-                                  <span className="w-8 text-center font-bold text-white text-sm">{item.quantity}</span>
-                                  <button 
-                                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                    className="p-1.5 text-zinc-500 hover:text-white transition-colors"
-                                  >
-                                    <Plus size={14} />
-                                  </button>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-lg font-bold text-white tracking-tight">
-                                    ₩{((option?.price || 0) * item.quantity).toLocaleString()}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-6">
+          <AnimatePresence mode="wait">
+            {step === 1 ? (
+              <motion.div
+                key="step1"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="py-4 space-y-4"
+              >
+                {cartItems.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-32 text-zinc-500 space-y-4">
+                    <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mb-4">
+                      <ShoppingBag size={32} className="text-zinc-600" />
                     </div>
-                  )}
+                    <p className="text-lg font-medium text-zinc-400">내 컬렉션이 비어있어요</p>
+                    <button 
+                      onClick={() => navigate('/collection')}
+                      className="px-6 py-3 bg-zinc-800 text-white font-medium rounded-2xl hover:bg-zinc-700 transition-colors mt-2"
+                    >
+                      상품 둘러보기
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4 pb-8">
+                    {/* Select All Toggle */}
+                    <div className="flex items-center justify-between px-1 mb-6">
+                      <button 
+                        onClick={toggleSelectAll}
+                        className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors"
+                      >
+                        <span className={`text-sm font-bold tracking-tight ${selectedIds.size === cartItems.length ? 'text-fuchsia-500' : ''}`}>
+                          전체 선택
+                        </span>
+                        <span className="text-xs text-zinc-600 font-medium">({selectedIds.size}/{cartItems.length})</span>
+                      </button>
+                    </div>
 
-                  {step === 2 && (
-                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                      {/* Shipping Info Form */}
-                      <div className="space-y-6">
-                        <h3 className="text-lg font-bold text-white flex items-center gap-2 tracking-tight">
-                          <MapPin size={20} className="text-indigo-500" />
-                          배송지 정보
-                        </h3>
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">수령인</label>
-                              <input 
-                                type="text" 
-                                name="shipping_name"
-                                value={shippingInfo.shipping_name}
-                                onChange={handleShippingChange}
-                                placeholder="이름"
-                                className={`w-full h-14 bg-[#1C1C1E] border border-white/5 rounded-xl px-5 text-white focus:outline-none focus:border-white/20 transition-all text-sm ${isAutoFilled ? 'ring-1 ring-indigo-500/30' : ''}`}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">연락처</label>
-                              <input 
-                                type="tel" 
-                                name="shipping_phone"
-                                value={shippingInfo.shipping_phone}
-                                onChange={handleShippingChange}
-                                placeholder="010-0000-0000"
-                                className={`w-full h-14 bg-[#1C1C1E] border border-white/5 rounded-xl px-5 text-white focus:outline-none focus:border-white/20 transition-all text-sm ${isAutoFilled ? 'ring-1 ring-indigo-500/30' : ''}`}
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">주소</label>
-                            <div className="flex gap-2">
-                              <input 
-                                type="text" 
-                                name="zip_code"
-                                value={shippingInfo.zip_code}
-                                placeholder="우편번호"
-                                readOnly
-                                className={`w-32 h-14 bg-[#1C1C1E] border border-white/5 rounded-xl px-5 text-white focus:outline-none text-sm ${isAutoFilled ? 'ring-1 ring-indigo-500/30' : ''}`}
-                              />
+                    {cartItems.map((item) => {
+                      const isWorkshop = item.product_type === 'workshop';
+                      const title = isWorkshop ? (item.product?.title || '커스텀 포스터') : (item.product?.title || '제품');
+                      const optionName = isWorkshop ? (item.custom_config?.size || '커스텀 옵션') : (item.product?.options?.find(opt => opt.id === item.selected_option)?.name || '기본 옵션');
+                      const price = isWorkshop ? (item.custom_config?.price || 0) : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
+                      const image = item.custom_image || item.product?.front_image || item.product?.image || '';
+                      const isSelected = selectedIds.has(item.id);
+                      
+                      const handleItemClick = (e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        if (isWorkshop) {
+                          navigate(`/product/workshop-single`, { state: { cartItem: item } });
+                        } else {
+                          navigate(`/product/${item.product_id}`);
+                        }
+                      };
+
+                      return (
+                        <div 
+                          key={item.id} 
+                          onClick={() => toggleItemSelection(item.id)}
+                          className={`p-6 bg-[#1C1C1E] rounded-[32px] flex gap-6 transition-all cursor-pointer border-[1.5px] ${
+                            isSelected 
+                              ? 'border-fuchsia-500/60 bg-fuchsia-500/[0.12] shadow-[0_0_30px_rgba(217,70,239,0.08)]' 
+                              : 'border-transparent'
+                          }`}
+                        >
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleItemClick(e);
+                            }}
+                            className="w-24 h-24 bg-zinc-800 rounded-2xl overflow-hidden shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                          >
+                            <img 
+                              src={image} 
+                              alt={title}
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          </button>
+                          <div className="flex-1 flex flex-col justify-between py-1">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h3 className="text-white font-semibold text-lg leading-tight tracking-tight">{title}</h3>
+                                <p className="text-zinc-500 text-sm mt-2">{optionName}</p>
+                              </div>
                               <button 
-                                onClick={handleAddressSearch}
-                                className="flex-1 h-14 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl transition-all text-sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeFromCart(item.id);
+                                }}
+                                className="p-2 -mr-2 -mt-2 text-zinc-600 hover:text-white bg-zinc-800/0 hover:bg-zinc-800 rounded-full transition-colors"
                               >
-                                주소 찾기
+                                <X size={18} />
                               </button>
                             </div>
-                            <input 
-                              type="text" 
-                              name="address"
-                              value={shippingInfo.address}
-                              placeholder="기본 주소"
-                              readOnly
-                              className={`w-full h-14 bg-[#1C1C1E] border border-white/5 rounded-xl px-5 text-white focus:outline-none text-sm ${isAutoFilled ? 'ring-1 ring-indigo-500/30' : ''}`}
-                            />
-                            <input 
-                              type="text" 
-                              name="address_detail"
-                              value={shippingInfo.address_detail}
-                              onChange={handleShippingChange}
-                              placeholder="상세 주소"
-                              className={`w-full h-14 bg-[#1C1C1E] border border-white/5 rounded-xl px-5 text-white focus:outline-none focus:border-white/20 transition-all text-sm ${isAutoFilled ? 'ring-1 ring-indigo-500/30' : ''}`}
-                            />
+                            <div className="flex justify-between items-end mt-4">
+                              <div className="flex items-center bg-zinc-900/80 rounded-full p-1">
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateQuantity(item.id, item.quantity - 1);
+                                  }}
+                                  className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-white rounded-full hover:bg-zinc-800 transition-colors"
+                                >
+                                  <Minus size={16} />
+                                </button>
+                                <span className="w-8 text-center text-sm font-bold text-white">{item.quantity}</span>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateQuantity(item.id, item.quantity + 1);
+                                  }}
+                                  className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-white rounded-full hover:bg-zinc-800 transition-colors"
+                                >
+                                  <Plus size={16} />
+                                </button>
+                              </div>
+                              <p className="text-white font-bold text-lg">₩{(price * item.quantity).toLocaleString()}</p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-
-                      {/* Payment Method */}
-                      <div className="space-y-4">
-                        <h3 className="text-lg font-bold text-white flex items-center gap-2 tracking-tight">
-                          <CreditCard size={20} className="text-indigo-500" />
-                          결제 수단
-                        </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {['카드', '카카오페이', '네이버페이', '토스페이', '삼성페이'].map((method) => (
-                            <button
-                              key={method}
-                              onClick={() => setPaymentMethod(method)}
-                              className={`h-14 font-bold rounded-xl flex items-center justify-center gap-2 transition-all ${
-                                paymentMethod === method
-                                  ? 'bg-white text-black ring-2 ring-white ring-offset-2 ring-offset-[#121212]'
-                                  : 'bg-[#1C1C1E] border border-white/5 text-zinc-400 hover:bg-zinc-800 hover:text-white'
-                              }`}
-                            >
-                              {method}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {step === 3 && (
-                    <div className="py-20 flex flex-col items-center justify-center text-center animate-in zoom-in-95 duration-500">
-                      <div className="w-24 h-24 rounded-full bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 mb-8">
-                        <CheckCircle2 size={48} className="text-indigo-500" />
-                      </div>
-                      <h3 className="text-3xl font-black text-white tracking-tighter mb-4">주문이 완료되었습니다!</h3>
-                      <p className="text-zinc-500 text-lg leading-relaxed max-w-xs mx-auto">
-                        METALORA의 작품을 선택해주셔서 감사합니다.<br/>곧 배송이 시작됩니다.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Amount Summary Card - Modern UI */}
-                  {step !== 3 && (
-                    <div className="bg-[#1C1C1E] rounded-3xl p-8 border border-white/5 space-y-6">
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center text-sm font-bold">
-                          <span className="text-zinc-500">총 주문금액</span>
-                          <span className="text-white">₩{totalPrice.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm font-bold">
-                          <span className="text-zinc-500">총 배송비</span>
-                          <span className="text-white">₩{shippingFee.toLocaleString()}</span>
-                        </div>
-                      </div>
-                      <div className="pt-6 border-t border-white/5 flex justify-between items-end">
-                        <span className="text-zinc-500 font-black uppercase tracking-widest text-xs mb-1">최종 결제예정금액</span>
-                        <span className="text-4xl font-black text-white tracking-tighter">₩{finalPrice.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Final CTA Button */}
-            {cartItems.length > 0 && step !== 3 && (
-              <div className="sticky bottom-0 left-0 right-0 pt-10 pb-4 bg-gradient-to-t from-[#121212] via-[#121212] to-transparent z-[80]">
-                <motion.button
-                  onClick={handleCheckout}
-                  disabled={isUpdatingProfile || isProcessing}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full h-16 bg-white text-black font-black text-xl rounded-2xl hover:bg-zinc-200 transition-all flex items-center justify-center gap-3 shadow-2xl tracking-tight disabled:opacity-50"
-                >
-                  {isUpdatingProfile || isProcessing ? <Loader2 className="animate-spin" size={24} /> : null}
-                  <span>
-                    {step === 1 
-                      ? '결제하기' 
-                      : paymentFailed 
-                        ? '다시 시도' 
-                        : `₩${finalPrice.toLocaleString()} 결제하기`}
-                  </span>
-                  <ArrowRight size={24} />
-                </motion.button>
-                {step === 2 && (
-                  <button 
-                    onClick={handleBack}
-                    disabled={isProcessing}
-                    className="w-full py-4 text-zinc-600 hover:text-zinc-400 font-bold text-sm transition-colors disabled:opacity-50"
-                  >
-                    이전 단계로
-                  </button>
+                      );
+                    })}
+                  </div>
                 )}
-              </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="step2"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="py-4 space-y-8 pb-8"
+              >
+                <section>
+                  <h3 className="text-xl font-bold text-white mb-4">주문 상품</h3>
+                  <div className="bg-[#1C1C1E] rounded-3xl p-5 space-y-3">
+                    {selectedItems.map(item => {
+                      const isWorkshop = item.product_type === 'workshop';
+                      const title = isWorkshop ? (item.product?.title || '커스텀 포스터') : (item.product?.title || '제품');
+                      const price = isWorkshop ? (item.custom_config?.price || 0) : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
+                      return (
+                        <div key={item.id} className="flex justify-between items-center text-sm">
+                          <div className="flex flex-col">
+                            <span className="text-white font-medium">{title}</span>
+                            <span className="text-zinc-500 text-xs">수량 {item.quantity}개</span>
+                          </div>
+                          <span className="text-white font-semibold">₩{(price * item.quantity).toLocaleString()}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <section>
+                  <h3 className="text-xl font-bold text-white mb-4">배송지 정보</h3>
+                  <div className="bg-[#1C1C1E] rounded-3xl p-5 space-y-5">
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-zinc-400 mb-2 ml-1">받는 사람</label>
+                        <input 
+                          type="text"
+                          value={shippingData.name}
+                          onChange={(e) => setShippingData({...shippingData, name: e.target.value})}
+                          className="w-full bg-zinc-800/50 border-none rounded-2xl px-4 py-4 text-white placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all"
+                          placeholder="이름을 입력해주세요"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-zinc-400 mb-2 ml-1">연락처</label>
+                        <input 
+                          type="tel"
+                          value={shippingData.phone}
+                          onChange={(e) => setShippingData({...shippingData, phone: e.target.value})}
+                          className="w-full bg-zinc-800/50 border-none rounded-2xl px-4 py-4 text-white placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all"
+                          placeholder="010-0000-0000"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="h-[1px] bg-zinc-800/50 my-2" />
+                    
+                    <div className="space-y-4">
+                      <label className="block text-sm font-medium text-zinc-400 mb-2 ml-1">주소</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text"
+                          readOnly
+                          value={shippingData.zipCode}
+                          className="w-28 bg-zinc-800/50 border-none rounded-2xl px-4 py-4 text-white focus:ring-2 focus:ring-[#3182F6] transition-all"
+                          placeholder="우편번호"
+                        />
+                        <button 
+                          onClick={handleOpenPostcode}
+                          className="px-6 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-2xl transition-all"
+                        >
+                          주소 검색
+                        </button>
+                      </div>
+                      
+                      {isPostcodeOpen && (
+                        <div className="mt-4 border border-zinc-800 rounded-2xl overflow-hidden bg-white">
+                          <div className="flex justify-between items-center p-3 bg-zinc-100 border-b border-zinc-200">
+                            <span className="text-sm font-bold text-zinc-800">우편번호 검색</span>
+                            <button onClick={() => setIsPostcodeOpen(false)} className="text-zinc-500 hover:text-zinc-800 p-1"><X size={18} /></button>
+                          </div>
+                          <div ref={postcodeRef} className="w-full h-[400px]" />
+                        </div>
+                      )}
+                      
+                      <input 
+                        type="text"
+                        readOnly
+                        value={shippingData.address}
+                        className="w-full bg-zinc-800/50 border-none rounded-2xl px-4 py-4 text-white focus:ring-2 focus:ring-[#3182F6] transition-all"
+                        placeholder="기본 주소"
+                      />
+                      <input 
+                        type="text"
+                        value={shippingData.addressDetail}
+                        onChange={(e) => setShippingData({...shippingData, addressDetail: e.target.value})}
+                        className="w-full bg-zinc-800/50 border-none rounded-2xl px-4 py-4 text-white placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all"
+                        placeholder="상세 주소를 입력해주세요"
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-6">
+                  <h3 className="text-xl font-bold text-white mb-4">결제 수단</h3>
+                  <div className="relative bg-[#1C1C1E] rounded-2xl p-6 border-2 border-fuchsia-500/50 shadow-[0_0_15px_rgba(217,70,239,0.15)] transition-all cursor-pointer group overflow-hidden">
+                    {/* Subtle gradient background for active state */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 pointer-events-none" />
+                    
+                    <div className="relative z-10 flex justify-between items-start">
+                      <div className="flex flex-col">
+                        <p className="text-white font-extrabold text-xl tracking-tight">간편 결제</p>
+                        <p className="text-white/60 text-sm font-medium mt-1">신용/체크카드 및 간편 결제 지원</p>
+                      </div>
+                      <CheckCircle2 className="text-fuchsia-500 drop-shadow-[0_0_8px_rgba(217,70,239,0.5)]" size={24} />
+                    </div>
+
+                    <div className="relative z-10 flex items-center gap-3 mt-6">
+                      <div className="w-11 h-11 bg-[#3182F6] rounded-full flex items-center justify-center text-white font-bold text-xs italic border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+                        toss
+                      </div>
+                      <div className="w-11 h-11 bg-[#FEE500] rounded-full flex items-center justify-center text-[#191919] font-bold text-xs border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+                        pay
+                      </div>
+                      <div className="w-11 h-11 bg-[#03C75A] rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+                        N
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </motion.div>
             )}
-            
-            {step === 3 && (
-              <div className="sticky bottom-0 left-0 right-0 pt-10 pb-4 bg-gradient-to-t from-[#121212] via-[#121212] to-transparent z-[80]">
-                <button
-                  onClick={handleResetCart}
-                  className="w-full h-16 bg-white text-black font-black text-xl rounded-2xl hover:bg-zinc-200 transition-all flex items-center justify-center gap-3 shadow-2xl tracking-tight"
+          </AnimatePresence>
+        </div>
+
+        {/* Footer */}
+        <div className="p-6 bg-[#0F0F11] border-t border-white/5 pb-safe">
+          <div className="flex justify-between items-end mb-6 px-2">
+            <span className="text-zinc-400 font-medium">총 결제 금액</span>
+            <span className="text-3xl font-bold text-white">₩{displayPrice.toLocaleString()}</span>
+          </div>
+          
+          <div className="flex gap-3">
+            {step === 2 && (
+              <button 
+                onClick={() => setStep(1)}
+                className="w-1/3 h-14 bg-zinc-800 text-white font-semibold rounded-2xl hover:bg-zinc-700 transition-all"
+              >
+                이전
+              </button>
+            )}
+            <button 
+              onClick={step === 1 ? () => setStep(2) : () => setIsBottomSheetOpen(true)}
+              disabled={selectedItems.length === 0 || isProcessing}
+              className={`flex-1 h-14 text-white font-bold text-lg rounded-2xl flex items-center justify-center gap-2 transition-all ${
+                selectedItems.length === 0 || isProcessing
+                  ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                  : 'btn-cyberpunk'
+              }`}
+            >
+              {isProcessing ? (
+                <Loader2 className="animate-spin" size={24} />
+              ) : (
+                step === 1 ? (selectedIds.size === 0 ? '상품을 선택해주세요' : '주문하기') : '결제하기'
+              )}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Consent Detail Modal */}
+      <AnimatePresence>
+        {consentModal.isOpen && consentModal.type && (
+          <div className="fixed inset-0 z-[100003] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setConsentModal({ isOpen: false, type: null })}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-[#1C1C1E] rounded-[32px] overflow-hidden border border-white/10 shadow-2xl"
+            >
+              <div className="p-6 border-b border-white/5 flex justify-between items-center">
+                <h4 className="text-lg font-bold text-white">{CONSENT_TEXTS[consentModal.type].title}</h4>
+                <button 
+                  onClick={() => setConsentModal({ isOpen: false, type: null })}
+                  className="p-2 text-zinc-500 hover:text-white transition-colors"
                 >
-                  쇼핑 계속하기
+                  <X size={20} />
                 </button>
               </div>
-            )}
-          </motion.div>
-          <ShippingModal
-            isOpen={isShippingModalOpen}
-            onClose={() => setIsShippingModalOpen(false)}
-            onSuccess={handleShippingSuccess}
-          />
-        </div>
-      )}
-    </AnimatePresence>
+              <div className="p-8 max-h-[60vh] overflow-y-auto space-y-6 bg-black">
+                {CONSENT_TEXTS[consentModal.type].items.map((item, idx) => (
+                  <div key={idx} className="flex gap-4 items-start">
+                    <div className="mt-2 w-1.5 h-1.5 rounded-full bg-fuchsia-500 shrink-0 shadow-[0_0_8px_rgba(217,70,239,0.5)]" />
+                    <p 
+                      className="text-zinc-300 text-base leading-relaxed tracking-tight"
+                      dangerouslySetInnerHTML={{ __html: item }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="p-6 bg-zinc-900/50">
+                <button 
+                  onClick={() => setConsentModal({ isOpen: false, type: null })}
+                  className="w-full h-12 bg-white text-black font-bold rounded-xl hover:bg-zinc-200 transition-colors"
+                >
+                  확인
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Toss-style Consent Bottom Sheet */}
+      <AnimatePresence>
+        {isBottomSheetOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsBottomSheetOpen(false)}
+              className="fixed inset-0 z-[10001] bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed bottom-0 left-0 right-0 z-[10002] bg-[#1C1C1E] rounded-t-[32px] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] overflow-hidden"
+            >
+              {/* Handle Bar */}
+              <div className="w-full flex justify-center pt-3 pb-2">
+                <div className="w-12 h-1.5 bg-white/10 rounded-full" />
+              </div>
+              
+              <div className="px-6 pb-12 pt-4">
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="text-xl font-bold text-white">최종 동의</h3>
+                  <button 
+                    onClick={() => setIsBottomSheetOpen(false)}
+                    className="p-2 text-zinc-500 hover:text-white transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+                
+                <div className="space-y-6 mb-10">
+                  {hasWorkshopItems && (
+                    <div className="flex items-center justify-between group">
+                      <label className="flex items-center gap-4 cursor-pointer flex-1 py-2">
+                        <div 
+                          onClick={() => setConsents(prev => ({ ...prev, content: !prev.content }))}
+                          className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all ${
+                            consents.content ? 'bg-fuchsia-500 border-fuchsia-500' : 'border-zinc-700 hover:border-zinc-500'
+                          }`}
+                        >
+                          {consents.content && <Check size={16} className="text-white" />}
+                        </div>
+                        <span className="text-base text-zinc-300 font-medium">
+                          <span className="text-fuchsia-500 mr-1">(필수)</span>
+                          콘텐츠 권리 책임 동의
+                        </span>
+                      </label>
+                      <button 
+                        onClick={() => setConsentModal({ isOpen: true, type: 'content' })}
+                        className="text-sm text-zinc-500 hover:text-zinc-300 underline underline-offset-4 px-3 py-2"
+                      >
+                        보기
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between group">
+                    <label className="flex items-center gap-4 cursor-pointer flex-1 py-2">
+                      <div 
+                        onClick={() => setConsents(prev => ({ ...prev, refund: !prev.refund }))}
+                        className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all ${
+                          consents.refund ? 'bg-fuchsia-500 border-fuchsia-500' : 'border-zinc-700 hover:border-zinc-500'
+                        }`}
+                      >
+                        {consents.refund && <Check size={16} className="text-white" />}
+                      </div>
+                      <span className="text-base text-zinc-300 font-medium">
+                        <span className="text-fuchsia-500 mr-1">(필수)</span>
+                        환불 정책 동의
+                      </span>
+                    </label>
+                    <button 
+                      onClick={() => setConsentModal({ isOpen: true, type: 'refund' })}
+                      className="text-sm text-zinc-500 hover:text-zinc-300 underline underline-offset-4 px-3 py-2"
+                    >
+                      보기
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between group">
+                    <label className="flex items-center gap-4 cursor-pointer flex-1 py-2">
+                      <div 
+                        onClick={() => setConsents(prev => ({ ...prev, terms: !prev.terms }))}
+                        className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all ${
+                          consents.terms ? 'bg-fuchsia-500 border-fuchsia-500' : 'border-zinc-700 hover:border-zinc-500'
+                        }`}
+                      >
+                        {consents.terms && <Check size={16} className="text-white" />}
+                      </div>
+                      <span className="text-base text-zinc-300 font-medium">
+                        <span className="text-fuchsia-500 mr-1">(필수)</span>
+                        전체 약관 동의
+                      </span>
+                    </label>
+                    <button 
+                      onClick={() => setConsentModal({ isOpen: true, type: 'terms' })}
+                      className="text-sm text-zinc-500 hover:text-zinc-300 underline underline-offset-4 px-3 py-2"
+                    >
+                      보기
+                    </button>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={handlePayment}
+                  disabled={!isAllConsented || isProcessing}
+                  className={`w-full h-16 text-white font-bold text-lg rounded-2xl flex items-center justify-center gap-2 transition-all ${
+                    !isAllConsented || isProcessing
+                      ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-fuchsia-600 to-purple-600 shadow-[0_0_20px_rgba(217,70,239,0.3)] active:scale-[0.98]'
+                  }`}
+                >
+                  {isProcessing ? (
+                    <Loader2 className="animate-spin" size={24} />
+                  ) : (
+                    '동의하고 결제하기'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

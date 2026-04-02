@@ -4,16 +4,16 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { 
-  Loader2, ChevronLeft, X, Camera, Check, AlertCircle
+  Loader2, ChevronLeft, X
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import LoadingScreen from '../components/LoadingScreen';
 
 export default function ProfileEdit() {
   const { user, profile, refreshProfile, isLoading: authLoading } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   
   const [formData, setFormData] = useState({
     user_custom_id: '',
@@ -22,17 +22,12 @@ export default function ProfileEdit() {
     zip_code: '',
     address: '',
     address_detail: '',
-    avatar_url: '',
   });
-  const [isNicknameChecked, setIsNicknameChecked] = useState(true);
-  const [isCheckingNickname, setIsCheckingNickname] = useState(false);
-  const [originalNickname, setOriginalNickname] = useState('');
   
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
   const [isPostcodeOpen, setIsPostcodeOpen] = useState(false);
   const detailAddressRef = useRef<HTMLInputElement>(null);
   const postcodeContainerRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const scriptId = 'daum-postcode-script';
@@ -98,106 +93,24 @@ export default function ProfileEdit() {
         zip_code: profile.zip_code || '',
         address: profile.address || '',
         address_detail: profile.address_detail || '',
-        avatar_url: profile.avatar_url || '',
       });
-      setOriginalNickname(profile.user_custom_id || '');
     }
   }, [profile]);
-
-  const checkNickname = async () => {
-    if (!formData.user_custom_id || formData.user_custom_id === originalNickname) {
-      setIsNicknameChecked(true);
-      return;
-    }
-
-    if (formData.user_custom_id.length < 4) {
-      showToast("아이디는 4자 이상이어야 합니다.", 'error');
-      return;
-    }
-
-    try {
-      setIsCheckingNickname(true);
-      const { count, error } = await supabase
-        .from('profiles')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_custom_id', formData.user_custom_id);
-
-      if (error) throw error;
-
-      if (count && count > 0) {
-        showToast("이미 사용 중인 아이디입니다.", 'error');
-        setIsNicknameChecked(false);
-      } else {
-        showToast("사용 가능한 아이디입니다.", 'success');
-        setIsNicknameChecked(true);
-      }
-    } catch (error: any) {
-      showToast("중복 확인 실패: " + error.message, 'error');
-    } finally {
-      setIsCheckingNickname(false);
-    }
-  };
-
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-
-    // Validate file type and size
-    if (!file.type.startsWith('image/')) {
-      showToast("이미지 파일만 업로드 가능합니다.", 'error');
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      showToast("파일 크기는 2MB 이하여야 합니다.", 'error');
-      return;
-    }
-
-    try {
-      setIsUploading(true);
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      setFormData(prev => ({ ...prev, avatar_url: publicUrl }));
-      showToast("이미지가 업로드되었습니다.", 'success');
-    } catch (error: any) {
-      showToast("이미지 업로드 실패: " + error.message, 'error');
-    } finally {
-      setIsUploading(false);
-    }
-  };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-
-    if (!isNicknameChecked && formData.user_custom_id !== originalNickname) {
-      showToast("아이디 중복 확인이 필요합니다.", 'error');
-      return;
-    }
     
     try {
       setIsLoading(true);
       const { error } = await supabase
         .from('profiles')
         .update({
-          user_custom_id: formData.user_custom_id,
           full_name: formData.full_name,
           phone_number: formData.phone_number,
           zip_code: formData.zip_code,
           address: formData.address,
           address_detail: formData.address_detail,
-          avatar_url: formData.avatar_url,
           updated_at: new Date().toISOString(),
         })
         .eq('id', user.id);
@@ -214,12 +127,9 @@ export default function ProfileEdit() {
     }
   };
 
+  // Only show loading screen on initial load when profile data is missing
   if (authLoading || !profile) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <Loader2 className="animate-spin text-zinc-700" size={32} />
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -238,46 +148,6 @@ export default function ProfileEdit() {
       <main className="flex-1 overflow-y-auto custom-scrollbar pb-24 pb-[env(safe-area-inset-bottom)]">
         <div className="max-w-xl mx-auto px-6 py-8">
           <form onSubmit={handleUpdateProfile} className="space-y-10">
-            {/* Avatar Section */}
-            <section className="flex flex-col items-center justify-center space-y-4">
-              <div className="relative group">
-                <div className="w-32 h-32 rounded-full overflow-hidden bg-zinc-900 border-2 border-white/10 shadow-2xl relative">
-                  {formData.avatar_url ? (
-                    <img 
-                      src={formData.avatar_url} 
-                      alt="Profile" 
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-zinc-700">
-                      <Camera size={40} strokeWidth={1.5} />
-                    </div>
-                  )}
-                  {isUploading && (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                      <Loader2 className="animate-spin text-white" size={24} />
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute bottom-0 right-0 w-10 h-10 bg-white text-black rounded-full flex items-center justify-center shadow-xl hover:bg-zinc-200 transition-all active:scale-90"
-                >
-                  <Camera size={20} strokeWidth={2.5} />
-                </button>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleAvatarUpload} 
-                  className="hidden" 
-                  accept="image/*"
-                />
-              </div>
-              <p className="text-xs text-zinc-500 font-medium tracking-tight">프로필 사진을 변경하려면 카메라 아이콘을 누르세요.</p>
-            </section>
-
             {/* Basic Info Section */}
             <section className="space-y-8">
               <div className="flex items-center gap-2 mb-2">
@@ -288,38 +158,13 @@ export default function ProfileEdit() {
               <div className="space-y-5">
                 <div className="space-y-2">
                   <label className="text-[11px] font-bold text-zinc-500 ml-1">아이디</label>
-                  <div className="flex gap-3">
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        required
-                        value={formData.user_custom_id}
-                        onChange={(e) => {
-                          setFormData({ ...formData, user_custom_id: e.target.value });
-                          setIsNicknameChecked(e.target.value === originalNickname);
-                        }}
-                        placeholder="아이디를 입력하세요"
-                        className={`w-full h-16 bg-zinc-900/50 border rounded-2xl px-6 text-white text-base focus:outline-none transition-all placeholder:text-zinc-700 font-medium ${
-                          isNicknameChecked && formData.user_custom_id !== originalNickname
-                            ? 'border-emerald-500/50 focus:border-emerald-500' 
-                            : 'border-white/10 focus:border-cyan-500/50'
-                        }`}
-                      />
-                      {isNicknameChecked && formData.user_custom_id !== originalNickname && (
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500">
-                          <Check size={20} />
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={checkNickname}
-                      disabled={isCheckingNickname || formData.user_custom_id === originalNickname}
-                      className="h-16 px-6 bg-zinc-800 text-white font-bold rounded-2xl hover:bg-zinc-700 transition-all disabled:opacity-50 active:scale-95 whitespace-nowrap"
-                    >
-                      {isCheckingNickname ? <Loader2 className="animate-spin" size={20} /> : "중복 확인"}
-                    </button>
-                  </div>
+                  <input
+                    type="text"
+                    readOnly
+                    disabled
+                    value={formData.user_custom_id}
+                    className="w-full h-16 bg-zinc-900/30 border border-white/5 rounded-2xl px-6 text-zinc-500 text-base font-medium cursor-not-allowed"
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

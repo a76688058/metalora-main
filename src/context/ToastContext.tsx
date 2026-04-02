@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, AlertCircle, X } from 'lucide-react';
 
-type ToastType = 'success' | 'error' | 'info';
+type ToastType = 'success' | 'error' | 'info' | 'purple';
 
 interface Toast {
   id: string;
@@ -48,9 +48,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl backdrop-blur-xl border
                 ${toast.type === 'success' ? 'bg-emerald-500/90 border-emerald-400/20 text-white' : 
                   toast.type === 'error' ? 'bg-red-500/90 border-red-400/20 text-white' : 
+                  toast.type === 'purple' ? 'bg-purple-600/90 border-purple-400/20 text-white' :
                   'bg-zinc-800/90 border-white/10 text-white'}
               `}>
-                {toast.type === 'success' && <CheckCircle size={20} className="shrink-0" />}
+                {(toast.type === 'success' || toast.type === 'purple') && <CheckCircle size={20} className="shrink-0" />}
                 {toast.type === 'error' && <AlertCircle size={20} className="shrink-0" />}
                 <p className="text-sm font-bold flex-1 leading-tight">{toast.message}</p>
                 <button 

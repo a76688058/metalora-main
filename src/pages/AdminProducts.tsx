@@ -8,8 +8,10 @@ import { useToast } from '../context/ToastContext';
 import { Reorder } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 
+import LoadingScreen from '../components/LoadingScreen';
+
 export default function AdminProducts() {
-  const { products, addProduct, updateProduct, deleteProduct, fetchProducts } = useProducts();
+  const { products, addProduct, updateProduct, deleteProduct, fetchProducts, isLoading } = useProducts();
   const { showToast } = useToast();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -104,6 +106,10 @@ export default function AdminProducts() {
     const subtitleMatch = (p.subtitle || '').toLowerCase().includes(searchLower);
     return titleMatch || subtitleMatch;
   });
+
+  if (isLoading && products.length === 0) {
+    return <LoadingScreen />;
+  }
 
   return (
     <AdminLayout>

@@ -5,11 +5,13 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { 
   Loader2, User, MessageCircle, ChevronRight, ChevronLeft, X, 
-  ShoppingBag, Package, Zap
+  ShoppingBag, Package, Zap, Frame
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import Skeleton from '../components/Skeleton';
 import Header from '../components/Header';
+
+import LoadingScreen from '../components/LoadingScreen';
 
 // --- Sub-components ---
 
@@ -24,17 +26,9 @@ export default function Profile() {
     }
   }, [user, navigate]);
 
-  // Only show skeleton on initial load when profile data is missing
+  // Only show loading screen on initial load when profile data is missing
   if (authLoading && !profile) {
-    return (
-      <div className="min-h-screen bg-black pt-20 pb-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto space-y-6">
-          <Skeleton className="h-20 w-full rounded-3xl" />
-          <Skeleton className="h-64 w-full rounded-3xl" />
-          <Skeleton className="h-64 w-full rounded-3xl" />
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!user || !profile) return null;
@@ -48,9 +42,24 @@ export default function Profile() {
         <section className="space-y-6 px-1 min-h-fit">
           {[
             { 
+              id: 'workshop',
+              label: '커스텀 제작', 
+              description: '내가 가지고 있는 이미지로 제작하기',
+              icon: <Zap size={24} />, 
+              isPrimary: true,
+              neonColor: 'rgba(168, 85, 247, 0.5)', // Purple
+              flashColor: 'rgba(168, 85, 247, 0.25)',
+              borderColor: 'border-purple-500/60',
+              shadow: 'shadow-[0_0_20px_rgba(168,85,247,0.3)]',
+              hoverShadow: 'hover:shadow-[0_0_35px_rgba(168,85,247,0.5)]',
+              iconColor: 'text-purple-400',
+              iconBg: 'bg-purple-500/10',
+              onClick: () => navigate('/workshop/copyright')
+            },
+            { 
               id: 'profile',
               label: '프로필 수정', 
-              description: '내 계정 정보와 보안 설정을 수정합니다.',
+              description: '내 계정의 배송지 관리하기',
               icon: <User size={24} />, 
               neonColor: 'rgba(6, 182, 212, 0.3)', // Cyan
               flashColor: 'rgba(6, 182, 212, 0.15)',
@@ -88,21 +97,6 @@ export default function Profile() {
               iconColor: 'text-amber-400',
               iconBg: 'bg-amber-500/10',
               onClick: () => navigate('/mypage/inquiry')
-            },
-            { 
-              id: 'workshop',
-              label: '커스텀 공방', 
-              description: '상상을 현실로 만드는 3D 공방으로 입장합니다.',
-              icon: <Zap size={24} />, 
-              isPrimary: true,
-              neonColor: 'rgba(168, 85, 247, 0.5)', // Purple
-              flashColor: 'rgba(168, 85, 247, 0.25)',
-              borderColor: 'border-purple-500/60',
-              shadow: 'shadow-[0_0_20px_rgba(168,85,247,0.3)]',
-              hoverShadow: 'hover:shadow-[0_0_35px_rgba(168,85,247,0.5)]',
-              iconColor: 'text-purple-400',
-              iconBg: 'bg-purple-500/10',
-              onClick: () => navigate('/workshop/copyright')
             },
           ].map((item, idx) => (
             <motion.div

@@ -2,6 +2,8 @@ import React from 'react';
 import { motion } from 'framer-motion';
 
 export default function LoadingScreen() {
+  const LOGO_URL = "https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840";
+
   return (
     <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center">
       <motion.div
@@ -17,7 +19,7 @@ export default function LoadingScreen() {
         >
           {/* Base Logo */}
           <img
-            src="https://postfiles.pstatic.net/MjAyNjAzMTZfMjM2/MDAxNzczNjQzMzQ3MDUw.zR_7l4ozVWSXDJOr1CA_6tw0H8LF8ZQenQvN8Tw3swEg.i_g5v5uqKHopzrE-iqVmSsuKM-nhT3X3N0tWVC_DDBgg.PNG/METALORA_LOGO.png?type=w3840"
+            src={LOGO_URL}
             alt="METALORA"
             className="h-12 md:h-16 object-contain filter invert opacity-30"
             referrerPolicy="no-referrer"
@@ -27,12 +29,13 @@ export default function LoadingScreen() {
           <motion.div
             className="absolute inset-0 z-10"
             style={{
-              WebkitMaskImage: `url(https://postfiles.pstatic.net/MjAyNjAzMTZfMjM2/MDAxNzczNjQzMzQ3MDUw.zR_7l4ozVWSXDJOr1CA_6tw0H8LF8ZQenQvN8Tw3swEg.i_g5v5uqKHopzrE-iqVmSsuKM-nhT3X3N0tWVC_DDBgg.PNG/METALORA_LOGO.png?type=w3840)`,
+              WebkitMaskImage: `url(${LOGO_URL})`,
               WebkitMaskSize: 'contain',
               WebkitMaskRepeat: 'no-repeat',
               WebkitMaskPosition: 'center',
               background: 'linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)',
               backgroundSize: '200% 100%',
+              filter: 'invert(1)',
             }}
             animate={{
               backgroundPosition: ['200% 0', '-200% 0'],

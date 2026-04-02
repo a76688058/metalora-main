@@ -1,18 +1,79 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, X, Check } from 'lucide-react';
+import PolicyModal from './PolicyModal';
+import { policies } from './Footer';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
   redirectUrl?: string;
 }
 
-export default function LoginModal({ isOpen, onClose, redirectUrl = '/' }: LoginModalProps) {
+const CheckboxRow = ({ 
+  label, 
+  required, 
+  checked, 
+  onChange, 
+  onView 
+}: { 
+  label: string; 
+  required?: boolean; 
+  checked: boolean; 
+  onChange: () => void; 
+  onView?: () => void;
+}) => (
+  <div className="flex items-center gap-3 py-2">
+    <button
+      type="button"
+      onClick={onChange}
+      className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
+        checked ? 'bg-purple-600' : 'bg-zinc-800 border border-white/10'
+      }`}
+    >
+      <AnimatePresence mode="wait">
+        {checked && (
+          <motion.div
+            key="check"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ type: 'spring', damping: 15, stiffness: 300 }}
+          >
+            <Check size={14} className="text-white" strokeWidth={3} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </button>
+    <button 
+      type="button" 
+      onClick={onChange}
+      className="flex-1 text-left flex items-center gap-1.5"
+    >
+      {required && <span className="text-purple-500 text-[14px] font-medium">[필수]</span>}
+      <span className="text-zinc-400 text-[14px]">{label}</span>
+    </button>
+    {onView && (
+      <button
+        type="button"
+        onClick={onView}
+        className="text-[12px] text-zinc-600 underline ml-auto px-2 py-1"
+      >
+        보기
+      </button>
+    )}
+  </div>
+);
+
+export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '/' }: LoginModalProps) {
   const { user, profile, refreshSession } = useAuth();
+  const { showToast } = useToast();
   const [isLoginMode, setIsLoginMode] = useState(true);
+  const [isConsentOpen, setIsConsentOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -22,6 +83,31 @@ export default function LoginModal({ isOpen, onClose, redirectUrl = '/' }: Login
     full_name: '',
     phone_number: '',
   });
+
+  const [agreements, setAgreements] = useState({
+    terms: false,
+    privacy: false,
+    cookie: false,
+  });
+  const [policyModalState, setPolicyModalState] = useState<{ isOpen: boolean; key: keyof typeof policies | null }>({
+    isOpen: false,
+    key: null,
+  });
+
+  const allChecked = agreements.terms && agreements.privacy && agreements.cookie;
+
+  const handleSelectAll = () => {
+    const newValue = !allChecked;
+    setAgreements({
+      terms: newValue,
+      privacy: newValue,
+      cookie: newValue,
+    });
+  };
+
+  const toggleAgreement = (key: keyof typeof agreements) => {
+    setAgreements(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   useEffect(() => {
     if (user && profile && isOpen) {
@@ -85,10 +171,9 @@ export default function LoginModal({ isOpen, onClose, redirectUrl = '/' }: Login
         });
         
         if (signInError) {
-          console.error('[Login Error]:', signInError);
           let errMsg = '인증 중 오류가 발생했습니다.';
           if (signInError.message.includes('Invalid login credentials')) {
-            errMsg = '비밀번호가 틀렸습니다.';
+            errMsg = '아이디 또는 비밀번호가 올바르지 않습니다.';
           }
           throw new Error(errMsg);
         }
@@ -97,15 +182,18 @@ export default function LoginModal({ isOpen, onClose, redirectUrl = '/' }: Login
           await refreshSession();
         }
         
-        onClose();
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          onClose();
+        }
       } else {
+        // Step 1: Validation before showing consent overlay
         if (!formData.username || !formData.full_name || !formData.phone_number) {
           throw new Error('필수 정보가 누락되었습니다.');
         }
 
-        const email = `${formData.username}@metalora.me`;
-        
-        // 1. Check profiles table first
+        // Check profiles table first
         const { count, error: countError } = await supabase
           .from('profiles')
           .select('id', { count: 'exact', head: true })
@@ -115,147 +203,171 @@ export default function LoginModal({ isOpen, onClose, redirectUrl = '/' }: Login
           throw new Error('이미 사용 중인 아이디입니다.');
         }
 
-        let authUser = null;
-        let authSession = null;
+        // If valid, open consent overlay
+        setIsConsentOpen(true);
+        setIsLoading(false);
+      }
+    } catch (error: any) {
+      setErrorMsg(error.message || '인증 중 오류가 발생했습니다.');
+      setIsLoading(false);
+    }
+  };
 
-        // 2. Try sign up
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password: formData.password,
-          options: {
-            data: {
-              full_name: formData.full_name,
-              phone_number: formData.phone_number,
-              user_custom_id: formData.username
-            },
+  const handleFinalSignUp = async () => {
+    if (isLoading || !allChecked) return;
+    
+    setIsLoading(true);
+    setErrorMsg('');
+
+    try {
+      const email = `${formData.username}@metalora.me`;
+      
+      let authUser = null;
+      let authSession = null;
+
+      // 2. Try sign up
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.full_name,
+            phone_number: formData.phone_number,
+            user_custom_id: formData.username,
+            agreed_to_terms_at: new Date().toISOString(),
+            agreed_to_privacy_at: new Date().toISOString(),
+            agreed_to_cookie_at: new Date().toISOString(),
           },
-        });
+        },
+      });
+      
+      if (error) {
+        let errMsg = "정보를 저장하는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요";
         
-        if (error) {
-          let errMsg = "정보를 저장하는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요";
+        if (error.message?.includes('User already registered')) {
+          // 3. Partial failure recovery: try to sign in
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password: formData.password,
+          });
           
-          if (error.message?.includes('User already registered')) {
-            // 3. Partial failure recovery: try to sign in
-            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-              email,
-              password: formData.password,
-            });
-            
-            if (signInError) {
-              // If sign in fails, it means the ID is taken by someone else or wrong password
-              console.error('[SignUp Error - Ghost Account Recovery Failed]:', signInError);
-              throw new Error('이미 사용 중인 아이디입니다.');
-            } else {
-              // Sign in succeeded! We recovered the ghost account.
-              authUser = signInData.user;
-              authSession = signInData.session;
-            }
+          if (signInError) {
+            throw new Error('이미 사용 중인 아이디입니다.');
           } else {
-            console.error('[SignUp Error]:', error);
-            if (error.message?.includes('Email address is invalid')) {
-              errMsg = '올바른 아이디 형식이 아닙니다.';
-              throw new Error(errMsg);
-            } else if (error.message?.includes('Password should be at least')) {
-              errMsg = '비밀번호가 너무 짧습니다. 6자 이상으로 설정해주세요.';
-              throw new Error(errMsg);
-            } else {
-              throw new Error(errMsg);
-            }
+            authUser = signInData.user;
+            authSession = signInData.session;
           }
         } else {
-          authUser = data?.user;
-          authSession = data?.session;
-        }
-
-        if (authUser) {
-          // 데이터 무결성 보장: profiles 테이블에 즉시 업데이트 시도 (Retry 로직 포함)
-          let updateSuccess = false;
-          let retryCount = 0;
-          const maxRetries = 3;
-
-          // 트리거가 실행될 시간을 1초 대기
-          await new Promise(resolve => setTimeout(resolve, 1000));
-
-          // 1. Check if profile was created by trigger
-          const { data: existingProfile, error: checkError } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', authUser.id)
-            .maybeSingle();
-
-          if (existingProfile) {
-            // Trigger succeeded, just update the fields to be safe
-            updateSuccess = true;
-            await supabase
-              .from('profiles')
-              .update({
-                full_name: formData.full_name,
-                phone_number: formData.phone_number,
-                user_custom_id: formData.username
-              })
-              .eq('id', authUser.id);
+          console.error('[SignUp Error]:', error);
+          if (error.message?.includes('Email address is invalid')) {
+            errMsg = '올바른 아이디 형식이 아닙니다.';
+            throw new Error(errMsg);
+          } else if (error.message?.includes('Password should be at least')) {
+            errMsg = '비밀번호가 너무 짧습니다. 6자 이상으로 설정해주세요.';
+            throw new Error(errMsg);
           } else {
-            // Trigger failed or delayed, manual upsert
-            while (!updateSuccess && retryCount < maxRetries) {
-              try {
-                const { error: updateError } = await supabase
-                  .from('profiles')
-                  .upsert({
-                    id: authUser.id,
-                    full_name: formData.full_name,
-                    phone_number: formData.phone_number,
-                    user_custom_id: formData.username
-                  });
-                
-                if (!updateError) {
-                  updateSuccess = true;
-                } else {
-                  console.warn(`[Profile Upsert Retry ${retryCount + 1}]:`, updateError);
-                  await new Promise(resolve => setTimeout(resolve, 500 * (retryCount + 1))); // 지수 백오프
-                  retryCount++;
-                }
-              } catch (err) {
-                console.error(`[Profile Upsert Exception Retry ${retryCount + 1}]:`, err);
+            throw new Error(errMsg);
+          }
+        }
+      } else {
+        authUser = data?.user;
+        authSession = data?.session;
+      }
+
+      if (authUser) {
+        // 데이터 무결성 보장: profiles 테이블에 즉시 업데이트 시도 (Retry 로직 포함)
+        let updateSuccess = false;
+        let retryCount = 0;
+        const maxRetries = 3;
+
+        // 트리거가 실행될 시간을 1초 대기
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // 1. Check if profile was created by trigger
+        const { data: existingProfile, error: checkError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', authUser.id)
+          .maybeSingle();
+
+        if (existingProfile) {
+          updateSuccess = true;
+          await supabase
+            .from('profiles')
+            .update({
+              full_name: formData.full_name,
+              phone_number: formData.phone_number,
+              user_custom_id: formData.username,
+              agreed_to_terms_at: new Date().toISOString(),
+              agreed_to_privacy_at: new Date().toISOString(),
+              agreed_to_cookie_at: new Date().toISOString(),
+            })
+            .eq('id', authUser.id);
+        } else {
+          while (!updateSuccess && retryCount < maxRetries) {
+            try {
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .upsert({
+                  id: authUser.id,
+                  full_name: formData.full_name,
+                  phone_number: formData.phone_number,
+                  user_custom_id: formData.username,
+                  agreed_to_terms_at: new Date().toISOString(),
+                  agreed_to_privacy_at: new Date().toISOString(),
+                  agreed_to_cookie_at: new Date().toISOString(),
+                });
+              
+              if (!updateError) {
+                updateSuccess = true;
+              } else {
+                console.warn(`[Profile Upsert Retry ${retryCount + 1}]:`, updateError);
+                await new Promise(resolve => setTimeout(resolve, 500 * (retryCount + 1)));
                 retryCount++;
               }
+            } catch (err) {
+              console.error(`[Profile Upsert Exception Retry ${retryCount + 1}]:`, err);
+              retryCount++;
             }
           }
+        }
 
-          if (!updateSuccess) {
-            console.error('[Profile Upsert Failed after retries]');
-            throw new Error('계정 생성은 완료되었으나 추가 정보 저장에 실패했습니다. 관리자에게 문의해주세요.');
+        if (!updateSuccess) {
+          throw new Error('계정 생성은 완료되었으나 추가 정보 저장에 실패했습니다. 관리자에게 문의해주세요.');
+        }
+
+        if (authSession) {
+          await refreshSession();
+        } else {
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password: formData.password,
+          });
+          
+          if (signInError) {
+            if (signInError.message.includes('Email not confirmed')) {
+              showToast('회원가입은 완료되었으나 이메일 인증이 필요합니다.', 'info');
+              setIsConsentOpen(false);
+              return;
+            }
+            throw new Error('회원가입은 완료되었으나 자동 로그인에 실패했습니다.');
           }
 
-          if (!authSession) {
-            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-              email,
-              password: formData.password,
-            });
-            
-            if (signInError) {
-              if (signInError.message.includes('Email not confirmed')) {
-                const confirmMsg = '회원가입은 완료되었으나 이메일 인증이 필요합니다.';
-                setSuccessMsg(confirmMsg);
-                return;
-              }
-              throw new Error('회원가입은 완료되었으나 자동 로그인에 실패했습니다.');
-            }
-
-            if (signInData.session) {
-              await refreshSession();
-            }
-          } else {
+          if (signInData.session) {
             await refreshSession();
           }
-          
-          setSuccessMsg('METALORA 멤버십 가입을 환영합니다!');
-          window.location.href = '/';
+        }
+        
+        showToast('METALORA 멤버십 가입을 환영합니다!', 'purple');
+        setIsConsentOpen(false);
+        if (onSuccess) {
+          onSuccess();
+        } else {
           onClose();
         }
       }
     } catch (error: any) {
-      console.error('[Auth Error]:', error);
-      setErrorMsg(error.message || '인증 중 오류가 발생했습니다.');
+      setErrorMsg(error.message || '가입 중 오류가 발생했습니다.');
     } finally {
       setIsLoading(false);
     }
@@ -267,36 +379,45 @@ export default function LoginModal({ isOpen, onClose, redirectUrl = '/' }: Login
     if (errorMsg) setErrorMsg('');
   };
 
+  const isSignUpValid = Boolean(formData.full_name && formData.phone_number && formData.username && formData.password);
+  const isLoginValid = Boolean(formData.username && formData.password);
+
   return (
+    <>
     <AnimatePresence>
       {isOpen && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 w-screen h-screen z-[9999] bg-black/95 flex items-center justify-center"
-        >
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ type: "spring", damping: 25, stiffness: 220 }}
-            className="relative w-full max-w-lg h-full overflow-y-auto px-6 pt-20 pb-6 md:pb-10 will-change-transform scrollbar-hide flex flex-col justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 w-screen h-screen z-[50000] bg-[#0c0c0c] flex items-center justify-center"
           >
-            {/* Close Button */}
+            {/* Close Button - Moved outside scrolling container for visibility */}
             <button 
               onClick={handleClose}
-              className="absolute top-20 right-6 text-white/70 hover:text-white transition-colors z-[10001] p-2"
+              className="absolute top-6 right-6 md:top-8 md:right-8 text-white/70 hover:text-white transition-colors z-[10001] p-2"
               aria-label="닫기"
             >
-              <X size={32} strokeWidth={1} />
+              <X size={24} strokeWidth={2} />
             </button>
-
-            <div className="text-center mb-8 mt-2">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className="relative w-full max-w-lg h-full overflow-y-auto px-6 pt-24 pb-6 md:pb-10 will-change-transform scrollbar-hide flex flex-col items-center justify-center border border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,1)]"
+            >
+            <div className="flex flex-col items-center mb-10">
+              <img 
+                src="https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840" 
+                alt="METALORA" 
+                className="w-36 md:w-44 object-contain filter invert mb-6" 
+                referrerPolicy="no-referrer"
+              />
               <p className="text-zinc-400 font-medium tracking-tight">프리미엄 메탈 포스터 멤버십</p>
             </div>
 
-            <form onSubmit={handleAuth} className="space-y-6">
+            <form onSubmit={handleAuth} className="space-y-6 w-full">
               {!isLoginMode && (
                 <>
                   <div>
@@ -307,7 +428,7 @@ export default function LoginModal({ isOpen, onClose, redirectUrl = '/' }: Login
                       value={formData.full_name}
                       onChange={handleInputChange}
                       placeholder="실명"
-                      className="w-full bg-[#1C1C1E] border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
+                      className="w-full bg-zinc-900 border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
                     />
                   </div>
                   <div>
@@ -318,7 +439,7 @@ export default function LoginModal({ isOpen, onClose, redirectUrl = '/' }: Login
                       value={formData.phone_number}
                       onChange={handleInputChange}
                       placeholder="휴대폰 번호 (010-0000-0000)"
-                      className="w-full bg-[#1C1C1E] border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
+                      className="w-full bg-zinc-900 border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
                     />
                   </div>
                 </>
@@ -331,7 +452,7 @@ export default function LoginModal({ isOpen, onClose, redirectUrl = '/' }: Login
                   value={formData.username}
                   onChange={handleInputChange}
                   placeholder="아이디"
-                  className="w-full bg-[#1C1C1E] border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
+                  className="w-full bg-zinc-900 border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
                 />
               </div>
               <div>
@@ -342,7 +463,7 @@ export default function LoginModal({ isOpen, onClose, redirectUrl = '/' }: Login
                   value={formData.password}
                   onChange={handleInputChange}
                   placeholder="비밀번호"
-                  className="w-full bg-[#1C1C1E] border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
+                  className="w-full bg-zinc-900 border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
                 />
               </div>
 
@@ -360,8 +481,12 @@ export default function LoginModal({ isOpen, onClose, redirectUrl = '/' }: Login
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className="w-full bg-white text-black font-bold py-6 rounded-2xl hover:bg-zinc-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-xl mt-8 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xl shadow-white/5 tracking-tight"
+                disabled={isLoading || (isLoginMode ? !isLoginValid : !isSignUpValid)}
+                className={`w-full font-bold py-6 rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-xl mt-8 shadow-2xl tracking-tight ${
+                  isLoginMode 
+                    ? 'bg-white text-black hover:bg-zinc-200 shadow-white/5 disabled:opacity-50 disabled:cursor-not-allowed'
+                    : 'btn-cyberpunk text-white'
+                }`}
               >
                 {isLoading ? <Loader2 className="animate-spin" size={24} /> : null}
                 {isLoginMode ? '로그인' : '가입하기'}
@@ -389,5 +514,83 @@ export default function LoginModal({ isOpen, onClose, redirectUrl = '/' }: Login
         </motion.div>
       )}
     </AnimatePresence>
+
+    {/* Consent Overlay */}
+    <AnimatePresence>
+      {isConsentOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-[#0c0c0c] z-[60000] flex items-end sm:items-center justify-center"
+        >
+          <motion.div
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="w-full max-w-md bg-zinc-900 rounded-t-[32px] sm:rounded-[28px] p-8 text-white relative border border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,1)]"
+          >
+            <button 
+              onClick={() => setIsConsentOpen(false)}
+              className="absolute top-8 right-8 text-zinc-500 hover:text-white transition-colors"
+            >
+              <X size={24} />
+            </button>
+
+            <h3 className="text-xl font-bold mb-8 tracking-tight">[서비스 이용을 위한 약관 동의]</h3>
+
+            <div className="space-y-1">
+              <CheckboxRow
+                label="이용약관 동의"
+                required
+                checked={agreements.terms}
+                onChange={() => toggleAgreement('terms')}
+                onView={() => setPolicyModalState({ isOpen: true, key: 'terms' })}
+              />
+              <CheckboxRow
+                label="개인정보처리방침 동의"
+                required
+                checked={agreements.privacy}
+                onChange={() => toggleAgreement('privacy')}
+                onView={() => setPolicyModalState({ isOpen: true, key: 'privacy' })}
+              />
+              <CheckboxRow
+                label="쿠키 정책 동의"
+                required
+                checked={agreements.cookie}
+                onChange={() => toggleAgreement('cookie')}
+                onView={() => setPolicyModalState({ isOpen: true, key: 'cookie' })}
+              />
+
+              <div className="h-[1px] bg-white/5 my-6" />
+
+              <CheckboxRow
+                label="전체 동의 (선택)"
+                checked={allChecked}
+                onChange={handleSelectAll}
+              />
+            </div>
+
+            <button
+              onClick={handleFinalSignUp}
+              disabled={isLoading || !allChecked}
+              className="w-full font-bold py-5 rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-lg mt-10 shadow-2xl tracking-tight btn-cyberpunk text-white"
+            >
+              {isLoading ? <Loader2 className="animate-spin" size={20} /> : null}
+              동의하고 가입하기
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+    
+    <PolicyModal
+      isOpen={policyModalState.isOpen}
+      onClose={() => setPolicyModalState({ isOpen: false, key: null })}
+      title={policyModalState.key ? policies[policyModalState.key].title : ''}
+      content={policyModalState.key ? policies[policyModalState.key].content : null}
+    />
+    </>
   );
 }
