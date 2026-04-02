@@ -11,9 +11,24 @@ export default function Login() {
 
   useEffect(() => {
     if (!isLoading && user && profile) {
-      navigate(redirectUrl, { replace: true });
+      // Admin Redirect Logic
+      if (profile.is_admin) {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate(redirectUrl, { replace: true });
+      }
     }
   }, [user, profile, isLoading, navigate, redirectUrl]);
+
+  const handleSuccess = () => {
+    // The useEffect above will handle the redirect once profile is loaded
+    // But we can also trigger it here if profile is already available
+    if (profile?.is_admin) {
+      navigate('/admin', { replace: true });
+    } else {
+      navigate(redirectUrl, { replace: true });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#040D12] flex items-center justify-center relative overflow-hidden">
@@ -24,7 +39,7 @@ export default function Login() {
       <LoginModal 
         isOpen={true} 
         onClose={() => navigate('/')} 
-        onSuccess={() => navigate(redirectUrl, { replace: true })}
+        onSuccess={handleSuccess}
         redirectUrl={redirectUrl} 
       />
     </div>

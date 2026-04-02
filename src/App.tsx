@@ -25,6 +25,7 @@ import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFail from './pages/PaymentFail';
 import LoadingScreen from './components/LoadingScreen';
 import AdminBanner from './components/AdminBanner';
+import PresenceTracker from './components/PresenceTracker';
 import { ProductProvider } from './context/ProductContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider, useToast } from './context/ToastContext';
@@ -53,20 +54,21 @@ function ScrollToTop() {
 // Middleware Protected Route Component
 function ProtectedRoute({ children, requireAdmin = false }: { children: React.ReactNode, requireAdmin?: boolean }) {
   const { user, profile, adminUser, adminProfile, isLoading } = useAuth();
-  const [isChecking, setIsChecking] = React.useState(true);
-  
-  React.useEffect(() => {
-    if (!isLoading) {
-      setIsChecking(false);
-    }
-  }, [isLoading]);
+  const { showToast } = useToast();
 
-  if (isLoading || isChecking) {
+  if (isLoading) {
     return <LoadingScreen />;
   }
   
   if (requireAdmin) {
-    if (!adminUser || !adminProfile?.is_admin) {
+    // Allow access if either adminProfile or regular profile has is_admin flag
+    const isAdmin = adminProfile?.is_admin || profile?.is_admin;
+    if (!isAdmin) {
+      if (user || adminUser) {
+        // Logged in but not an admin
+        showToast('관리자 권한이 없습니다.', 'error');
+        return <Navigate to="/" replace />;
+      }
       return <Navigate to="/admin/login" replace />;
     }
     return <>{children}</>;
@@ -200,6 +202,7 @@ export default function App() {
         <ProductProvider>
           <CartProvider>
             <GlobalSplash />
+            <PresenceTracker />
             <Router>
               <Layout />
             </Router>

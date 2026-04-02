@@ -15,6 +15,7 @@ interface Profile {
   avatar_url?: string | null;
   total_spent: number;
   is_admin: boolean;
+  role?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -106,52 +107,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const initializeSessions = async () => {
       try {
-        // Initialize User Session
-        const { data: { session: userSess }, error: userErr } = await supabase.auth.getSession();
-        if (userErr) {
-          const userErrMsg = userErr.message || String(userErr);
-          if (userErrMsg.includes('Lock was stolen')) {
-            console.warn('User Session Init: Lock was stolen. Skipping.');
-          } else if (userErrMsg.includes('Invalid Refresh Token') || userErrMsg.includes('Refresh Token Not Found')) {
-            console.warn('User Session Init: Invalid refresh token. Clearing session.');
+        // Initialize Session (Unified)
+        const { data: { session: sess }, error: sessErr } = await supabase.auth.getSession();
+        
+        if (sessErr) {
+          const errMsg = sessErr.message || String(sessErr);
+          if (errMsg.includes('Lock was stolen')) {
+            console.warn('Session Init: Lock was stolen. Skipping.');
+          } else if (errMsg.includes('Invalid Refresh Token') || errMsg.includes('Refresh Token Not Found')) {
+            console.warn('Session Init: Invalid refresh token. Clearing session.');
             setSession(null);
             setUser(null);
             setProfile(null);
+            setAdminSession(null);
+            setAdminUser(null);
+            setAdminProfile(null);
           } else {
-            throw userErr;
+            throw sessErr;
           }
         } else {
-          setSession(userSess);
-          setUser(userSess?.user ?? null);
-          if (userSess?.user) {
+          // Set both user and admin states from the same session
+          setSession(sess);
+          setUser(sess?.user ?? null);
+          setAdminSession(sess);
+          setAdminUser(sess?.user ?? null);
+          
+          // Manually set session for admin client if it has a different storage key
+          if (sess) {
+            await supabaseAdmin.auth.setSession(sess);
+          } else {
+            await supabaseAdmin.auth.signOut().catch(() => {});
+          }
+          
+          if (sess?.user) {
             try {
-              await fetchProfile(userSess.user.id, false);
+              // Fetch profile for both user and admin states
+              await Promise.all([
+                fetchProfile(sess.user.id, false),
+                fetchProfile(sess.user.id, true)
+              ]);
             } catch (e) {
               console.error('Ghost session detected during initialization:', e);
             }
           }
         }
-
-        // Initialize Admin Session
-        const { data: { session: adminSess }, error: adminErr } = await supabaseAdmin.auth.getSession();
-        if (adminErr) {
-          const adminErrMsg = adminErr.message || String(adminErr);
-          if (adminErrMsg.includes('Lock was stolen')) {
-            console.warn('Admin Session Init: Lock was stolen. Skipping.');
-          } else if (adminErrMsg.includes('Invalid Refresh Token') || adminErrMsg.includes('Refresh Token Not Found')) {
-            console.warn('Admin Session Init: Invalid refresh token. Clearing admin session.');
-            setAdminSession(null);
-            setAdminUser(null);
-            setAdminProfile(null);
-          } else {
-            throw adminErr;
-          }
-        }
-        
-        setAdminSession(adminSess);
-        setAdminUser(adminSess?.user ?? null);
-        if (adminSess?.user) await fetchProfile(adminSess.user.id, true);
-
       } catch (error: any) {
         const errorMsg = error.message || String(error);
         if (errorMsg.includes('Lock was stolen')) {
@@ -177,37 +176,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initializeSessions();
 
-    // Subscribe to User Auth Changes
-    const { data: { subscription: userSub } } = supabase.auth.onAuthStateChange(async (event, sess) => {
+    // Subscribe to Auth Changes (Unified)
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, sess) => {
       try {
         if (event === 'INITIAL_SESSION' && !sess) {
           setIsLoading(false);
-          return; // Skip DB calls if initial session is null
+          return;
         }
         
+        // Update both user and admin states
         setSession(sess);
         setUser(sess?.user ?? null);
+        setAdminSession(sess);
+        setAdminUser(sess?.user ?? null);
+        
+        // Sync admin client
+        if (sess) {
+          await supabaseAdmin.auth.setSession(sess).catch(() => {});
+        } else {
+          await supabaseAdmin.auth.signOut().catch(() => {});
+        }
         
         if (event === 'SIGNED_OUT' || !sess) {
           setProfile(null);
+          setAdminProfile(null);
           setIsLoading(false);
-          // Stop any ongoing fetches by not calling fetchProfile
           window.dispatchEvent(new CustomEvent('refresh-products'));
           
           if (event === 'SIGNED_OUT') {
-            // Only clear the specific token for this client if possible, 
-            // but since we don't have the key here, we'll just redirect.
-            // Avoid localStorage.clear() as it kills both user and admin sessions.
             window.location.replace('/');
             return;
           }
         } else if (sess?.user) {
           try {
-            await fetchProfile(sess.user.id, false);
+            await Promise.all([
+              fetchProfile(sess.user.id, false),
+              fetchProfile(sess.user.id, true)
+            ]);
           } catch (e) {
             console.error('Ghost session detected during auth state change:', e);
-            // Don't throw, just clear the profile to prevent infinite loops
             setProfile(null);
+            setAdminProfile(null);
           }
         }
       } catch (error: any) {
@@ -226,23 +235,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setUser(null);
         setProfile(null);
-      } finally {
-        setIsLoading(false);
-      }
-    });
-
-    // Subscribe to Admin Auth Changes
-    const { data: { subscription: adminSub } } = supabaseAdmin.auth.onAuthStateChange(async (event, sess) => {
-      try {
-        setAdminSession(sess);
-        setAdminUser(sess?.user ?? null);
-        if (event === 'SIGNED_OUT') {
-          setAdminProfile(null);
-        } else if (sess?.user) {
-          await fetchProfile(sess.user.id, true);
-        }
-      } catch (error) {
-        console.error("Admin auth state change error:", error);
+        setAdminSession(null);
+        setAdminUser(null);
+        setAdminProfile(null);
       } finally {
         setIsLoading(false);
       }
@@ -250,8 +245,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       clearTimeout(authTimeout);
-      userSub.unsubscribe();
-      adminSub.unsubscribe();
+      authSub.unsubscribe();
     };
   }, []);
 
@@ -320,7 +314,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
     
-    const heartbeat = setInterval(async () => {
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+
+    const performHeartbeat = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
         
@@ -348,20 +345,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
             if (refreshErrorMsg.includes('Invalid Refresh Token') || refreshErrorMsg.includes('Refresh Token Not Found')) {
               console.warn('Heartbeat Refresh: Invalid token. Redirecting to login.');
+              window.location.href = '/login';
+              return;
             } else {
-              console.warn('Heartbeat: Session expired and refresh failed. Redirecting to login.');
+              throw refreshError; // Throw to trigger retry
             }
-            window.location.href = '/login';
           }
         }
+        // Reset retry count on success
+        retryCount = 0;
       } catch (err) {
         if (String(err).includes('Lock was stolen')) {
           console.warn('Heartbeat caught lock stolen error:', err);
           return;
         }
         console.error('Heartbeat error:', err);
+        
+        if (retryCount < MAX_RETRIES) {
+          retryCount++;
+          console.log(`Retrying heartbeat in 5 seconds... (Attempt ${retryCount}/${MAX_RETRIES})`);
+          setTimeout(performHeartbeat, 5000);
+        } else {
+          console.error('Max retries reached for heartbeat. Assuming network is down, keeping session alive locally.');
+          // Do not redirect to login, let the user stay on the page.
+          // The next heartbeat or API call will try again.
+        }
       }
-    }, 5 * 60 * 1000); // 5 minutes
+    };
+
+    const heartbeat = setInterval(performHeartbeat, 5 * 60 * 1000); // 5 minutes
 
     return () => clearInterval(heartbeat);
   }, [user]);
@@ -449,6 +461,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setSession(sess);
       setUser(sess?.user ?? null);
+      
+      // Sync admin client
+      if (sess) {
+        await supabaseAdmin.auth.setSession(sess).catch(() => {});
+      } else {
+        await supabaseAdmin.auth.signOut().catch(() => {});
+      }
+      
       if (sess?.user) {
         await fetchProfile(sess.user.id, false);
       }

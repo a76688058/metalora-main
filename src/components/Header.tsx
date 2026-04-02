@@ -11,7 +11,7 @@ const LOGO_URL = "https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQ
 export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const { user, adminUser } = useAuth();
+  const { user, adminUser, profile, adminProfile } = useAuth();
   const { cartItems } = useCart();
   
   const [searchParams, setSearchParams] = useSearchParams();
@@ -25,6 +25,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const searchRef = useRef<HTMLDivElement>(null);
 
   const currentUser = user || adminUser;
+  const isAdmin = profile?.is_admin || adminProfile?.is_admin;
 
   useEffect(() => {
     setLocalSearch(searchQuery);
@@ -117,9 +118,9 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
             <div className="flex-1 flex justify-end items-center gap-x-5">
               {currentUser ? (
                 <Link 
-                  to={adminUser ? "/admin" : "/mypage"}
+                  to={isAdmin ? "/admin" : "/mypage"}
                   className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
-                  title={adminUser ? "Admin Dashboard" : "My Info"}
+                  title={isAdmin ? "Admin Dashboard" : "My Info"}
                 >
                   <User size={24} strokeWidth={1} />
                 </Link>

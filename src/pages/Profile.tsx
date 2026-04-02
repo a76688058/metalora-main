@@ -41,6 +41,21 @@ export default function Profile() {
         {/* The Core 4 Cards (Vertical List) */}
         <section className="space-y-6 px-1 min-h-fit">
           {[
+            ...(profile?.is_admin ? [{ 
+              id: 'admin',
+              label: '🛠️ 관리자 대시보드', 
+              description: '매출 분석 및 전체 시스템 관리',
+              icon: <Zap size={24} />, 
+              isPrimary: true,
+              neonColor: 'rgba(139, 92, 246, 0.6)', // Deep Purple
+              flashColor: 'rgba(139, 92, 246, 0.3)',
+              borderColor: 'border-purple-600/80',
+              shadow: 'shadow-[0_0_25px_rgba(139,92,246,0.4)]',
+              hoverShadow: 'hover:shadow-[0_0_40px_rgba(139,92,246,0.6)]',
+              iconColor: 'text-purple-100',
+              iconBg: 'bg-gradient-to-br from-purple-600 to-indigo-700',
+              onClick: () => navigate('/admin')
+            }] : []),
             { 
               id: 'workshop',
               label: '커스텀 제작', 
