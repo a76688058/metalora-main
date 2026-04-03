@@ -212,6 +212,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // --- Auto Resume Logic ---
   useEffect(() => {
@@ -366,7 +367,9 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
   };
 
   useEffect(() => {
-    window.scrollTo(0, 0);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo(0, 0);
+    }
   }, [currentStep]);
 
   const handleNext = () => {
@@ -408,7 +411,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
           1, 
           uploadedImage || undefined,
           {
-            shaderType: '싱글 제작',
+            shaderType: '커스텀 제작',
             material: materialType,
             size: size,
             price: 49000,
@@ -568,7 +571,10 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
         )}
       </AnimatePresence>
 
-      <div className="relative z-10 flex-1 flex flex-col pt-8 pb-12 overflow-y-auto custom-scrollbar overscroll-contain touch-pan-y">
+      <div 
+        ref={scrollContainerRef}
+        className="relative z-10 flex-1 flex flex-col pt-8 pb-12 overflow-y-auto custom-scrollbar overscroll-contain touch-pan-y"
+      >
         {/* Step Progress Bar (Minimal) */}
         <div className="max-w-xl mx-auto w-full px-6 mb-8">
             <div className="h-[2px] w-full bg-white/10 rounded-full overflow-hidden">
@@ -747,7 +753,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                       <div className="space-y-5">
                         <div className="flex justify-between items-center">
                           <span className="text-zinc-400 text-sm">제작 방식</span>
-                          <span className="text-white font-bold">싱글 커스텀 제작</span>
+                          <span className="text-white font-bold">커스텀 제작</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-zinc-400 text-sm">재질</span>
@@ -815,6 +821,58 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[10002] bg-white pointer-events-none"
           />
+        )}
+      </AnimatePresence>
+
+      {/* 3D Interactive Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[10005] bg-black/95 backdrop-blur-xl flex flex-col pointer-events-auto"
+          >
+            <div className="absolute top-0 left-0 w-full h-20 flex items-center justify-between px-6 z-20">
+              <div className="flex flex-col">
+                <span className="text-[10px] text-cyan-400 font-bold tracking-[0.3em] uppercase mb-1">Interactive</span>
+                <h3 className="text-white font-bold tracking-tight">3D 프리뷰</h3>
+              </div>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex-1 relative">
+              <Canvas shadows camera={{ position: [0, 0, 3], fov: 45 }}>
+                <Suspense fallback={null}>
+                  <WorkshopPoster3D 
+                    imageUrl={uploadedImage} 
+                    materialType={materialType} 
+                    interactive={true}
+                    size={size}
+                  />
+                  <OrbitControls 
+                    enablePan={false}
+                    enableZoom={true}
+                    minDistance={1.5}
+                    maxDistance={6}
+                  />
+                </Suspense>
+                <ContactShadows position={[0, -1.2, 0]} opacity={0.4} scale={6} blur={2.5} far={2} color="#000000" />
+              </Canvas>
+
+              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-none flex flex-col items-center gap-3">
+                <div className="px-4 py-2 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                  <span className="text-[11px] text-white/70 font-medium tracking-wider">손가락으로 자유롭게 돌려보세요</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
