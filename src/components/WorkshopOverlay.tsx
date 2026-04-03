@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import CopyrightPage from './Workshop/CopyrightPage';
 import WorkshopView from './Workshop/WorkshopView';
@@ -12,7 +12,7 @@ interface WorkshopOverlayProps {
 }
 
 export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProps) {
-  const { user } = useAuth();
+  const { user, openProfile } = useAuth();
   const [view, setView] = useState<'copyright' | 'workshop'>('copyright');
   const [isCheckingAgreement, setIsCheckingAgreement] = useState(true);
 
@@ -76,6 +76,13 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
 
   if (!isOpen) return null;
 
+  const handleBackToProfile = () => {
+    onClose();
+    setTimeout(() => {
+      openProfile();
+    }, 100);
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -116,12 +123,12 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
               exit={{ opacity: 0, x: -20 }}
               className="flex-1 flex flex-col h-full overflow-hidden"
             >
-              <div className="absolute top-6 right-6 z-[101]">
+              <div className="absolute top-6 left-6 z-[101]">
                 <button 
-                  onClick={onClose}
+                  onClick={handleBackToProfile}
                   className="p-2 bg-zinc-800/50 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-all"
                 >
-                  <X size={20} />
+                  <ChevronLeft size={20} />
                 </button>
               </div>
               <CopyrightPage 
@@ -140,7 +147,7 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
               <WorkshopView 
                 onClose={onClose} 
                 hideHeader={true}
-                onBack={() => setView('copyright')}
+                onBack={handleBackToProfile}
               />
             </motion.div>
           )}

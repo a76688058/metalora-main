@@ -1,5 +1,4 @@
 import React, { useState, useRef, Suspense, useMemo, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion';
 import { Upload, Image as ImageIcon, Check, ChevronLeft, Maximize, X, User, Loader2, ShoppingBag } from 'lucide-react';
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -190,7 +189,6 @@ interface WorkshopViewProps {
 }
 
 export default function WorkshopView({ onBack, onClose, hideHeader = false }: WorkshopViewProps) {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const { showToast } = useToast();
   const { addToCart, openCart } = useCart();
@@ -213,6 +211,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
   const fileInputRef = useRef<HTMLInputElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isClearingRef = useRef(false);
 
   // --- Auto Resume Logic ---
   useEffect(() => {
@@ -233,26 +232,38 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
           if (error.code !== 'PGRST116') {
             console.error('Fetch failed:', error);
           }
+          // No data found or error occurred
+          localStorage.removeItem('force_new_start');
+          sessionStorage.removeItem('workshop_just_finished');
           setIsRestoring(false);
           return;
         }
 
-        if (
-          data && 
-          data.uploaded_image_url && 
-          typeof data.uploaded_image_url === 'string' && 
-          data.uploaded_image_url.trim().length > 0 && 
-          data.uploaded_image_url !== 'null' &&
-          localStorage.getItem('force_new_start') !== 'true'
-        ) {
-          setPendingProgress(data);
-          setShowResumeModal(true);
-          setIsRestoring(false);
-        } else {
-          setIsRestoring(false);
-          if (localStorage.getItem('force_new_start') === 'true') {
-             localStorage.removeItem('force_new_start');
+        const hasValidData = data && data.uploaded_image_url && 
+                             typeof data.uploaded_image_url === 'string' && 
+                             data.uploaded_image_url.trim().length > 0 && 
+                             data.uploaded_image_url !== 'null';
+
+        if (hasValidData) {
+          const forceNew = localStorage.getItem('force_new_start') === 'true' || 
+                           sessionStorage.getItem('workshop_just_finished') === 'true';
+
+          if (forceNew) {
+            // Force new start was requested, but data still exists.
+            // Delete it and don't show modal.
+            await supabase.from('user_progress').delete().eq('user_id', user.id);
+            localStorage.removeItem('force_new_start');
+            sessionStorage.removeItem('workshop_just_finished');
+            setIsRestoring(false);
+          } else {
+            setPendingProgress(data);
+            setShowResumeModal(true);
+            setIsRestoring(false);
           }
+        } else {
+          localStorage.removeItem('force_new_start');
+          sessionStorage.removeItem('workshop_just_finished');
+          setIsRestoring(false);
         }
       } catch (err) {
         console.error('Failed to fetch progress:', err);
@@ -270,6 +281,8 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
     }
 
     setShowResumeModal(false);
+    isClearingRef.current = true;
+    
     setUploadedImage(null);
     setPendingProgress(null);
     setMaterialType('aluminum');
@@ -283,13 +296,13 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
 
     if (user) {
       try {
-        const { error } = await supabase.from('user_progress').delete().eq('user_id', user.id);
-        if (error) throw error;
+        await supabase.from('user_progress').delete().eq('user_id', user.id);
       } catch (err) {
         console.error('Failed to clear progress in Supabase:', err);
       }
     }
     
+    isClearingRef.current = false;
     setCurrentStep(1);
   };
 
@@ -318,6 +331,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
     }
 
     saveTimeoutRef.current = setTimeout(async () => {
+      if (isClearingRef.current) return;
       try {
         const { error } = await supabase
           .from('user_progress')
@@ -347,6 +361,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
 
   const clearProgress = async () => {
     if (!user) return;
+    isClearingRef.current = true;
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -363,6 +378,9 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
       localStorage.setItem('force_new_start', 'true');
     } catch (err) {
       console.error('Failed to clear progress:', err);
+    } finally {
+      // We don't reset isClearingRef here because usually we navigate away
+      // If we don't navigate, it will be reset by the caller if needed
     }
   };
 
@@ -383,8 +401,8 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
     if (currentStep === 1) {
       if (onBack) {
         onBack();
-      } else {
-        navigate('/mypage');
+      } else if (onClose) {
+        onClose();
       }
     } else {
       setDirection(-1);
@@ -427,6 +445,8 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
         localStorage.removeItem('workshop_draft');
         sessionStorage.removeItem('temp_image_url');
         sessionStorage.removeItem('workshop_draft');
+        // 세션 내에서 방금 완료했음을 표시하여 즉시 재진입 시 모달 방지
+        sessionStorage.setItem('workshop_just_finished', 'true');
         
         setIsFlashing(false);
         setIsUploading(false);
@@ -434,8 +454,6 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
         
         if (onClose) {
           onClose();
-        } else {
-          navigate('/my-collection');
         }
         setTimeout(() => openCart(), 100);
       } catch (err: any) {
@@ -519,19 +537,11 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
 
         <div className="flex-1 flex justify-end items-center gap-4">
           <button 
-            onClick={() => onClose ? onClose() : navigate('/mypage')}
+            onClick={() => onClose && onClose()}
             className="text-zinc-400 hover:text-white transition-colors"
           >
             <X size={22} />
           </button>
-          {!onClose && (
-            <button 
-              onClick={() => navigate('/mypage')}
-              className="text-zinc-400 hover:text-white transition-colors"
-            >
-              <User size={22} strokeWidth={1.5} />
-            </button>
-          )}
         </div>
       </header>
 

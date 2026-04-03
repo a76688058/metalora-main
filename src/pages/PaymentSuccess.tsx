@@ -221,7 +221,7 @@ export default function PaymentSuccess() {
               
               // 커스텀 작품 (workshop-single) 삭제
               const hasWorkshopItem = orderItems.some(
-                item => item.product_id === 'workshop-single' || item.product_title === '커스텀 포스터' || item.product_title === '커스텀 작품'
+                item => item.product_id === 'workshop-single' || item.product_title?.includes('커스텀') || item.product_id === null
               );
               
               if (hasWorkshopItem) {

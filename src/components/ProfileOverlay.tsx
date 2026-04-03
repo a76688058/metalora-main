@@ -13,7 +13,7 @@ interface ProfileOverlayProps {
 }
 
 export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps) {
-  const { user, profile, signOut, openWorkshop } = useAuth();
+    const { user, profile, signOut, openWorkshop, openProfileEdit, openOrders, openInquiry } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -83,7 +83,7 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
       iconBg: 'bg-cyan-500/10',
       onClick: () => {
         onClose();
-        navigate('/mypage/profile');
+        openProfileEdit();
       }
     },
     { 
@@ -97,7 +97,7 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
       iconBg: 'bg-emerald-500/10',
       onClick: () => {
         onClose();
-        navigate('/mypage/orders');
+        openOrders();
       }
     },
     { 
@@ -111,7 +111,7 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
       iconBg: 'bg-amber-500/10',
       onClick: () => {
         onClose();
-        navigate('/mypage/inquiry');
+        openInquiry();
       }
     },
   ];

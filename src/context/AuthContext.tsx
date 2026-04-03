@@ -35,6 +35,9 @@ interface AuthContextType {
   isLoggingOut: boolean;
   isProfileOpen: boolean;
   isWorkshopOpen: boolean;
+  isProfileEditOpen: boolean;
+  isOrdersOpen: boolean;
+  isInquiryOpen: boolean;
   
   signOut: (options?: { adminOnly?: boolean }) => Promise<void>;
   refreshProfile: (isAdmin?: boolean) => Promise<void>;
@@ -43,6 +46,12 @@ interface AuthContextType {
   closeProfile: () => void;
   openWorkshop: () => void;
   closeWorkshop: () => void;
+  openProfileEdit: () => void;
+  closeProfileEdit: () => void;
+  openOrders: () => void;
+  closeOrders: () => void;
+  openInquiry: () => void;
+  closeInquiry: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -64,11 +73,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isWorkshopOpen, setIsWorkshopOpen] = useState(false);
+  const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
+  const [isOrdersOpen, setIsOrdersOpen] = useState(false);
+  const [isInquiryOpen, setIsInquiryOpen] = useState(false);
 
   const openProfile = () => setIsProfileOpen(true);
   const closeProfile = () => setIsProfileOpen(false);
   const openWorkshop = () => setIsWorkshopOpen(true);
   const closeWorkshop = () => setIsWorkshopOpen(false);
+  const openProfileEdit = () => setIsProfileEditOpen(true);
+  const closeProfileEdit = () => setIsProfileEditOpen(false);
+  const openOrders = () => setIsOrdersOpen(true);
+  const closeOrders = () => setIsOrdersOpen(false);
+  const openInquiry = () => setIsInquiryOpen(true);
+  const closeInquiry = () => setIsInquiryOpen(false);
 
   const fetchProfile = async (userId: string, isAdmin = false) => {
     const client = isAdmin ? supabaseAdmin : supabase;
@@ -498,9 +516,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{ 
       session, user, profile, 
       adminSession, adminUser, adminProfile,
-      isLoading, isLoggingOut, isProfileOpen, isWorkshopOpen,
+      isLoading, isLoggingOut, isProfileOpen, isWorkshopOpen, isProfileEditOpen, isOrdersOpen, isInquiryOpen,
       signOut, refreshProfile, refreshSession,
-      openProfile, closeProfile, openWorkshop, closeWorkshop
+      openProfile, closeProfile, openWorkshop, closeWorkshop,
+      openProfileEdit, closeProfileEdit, openOrders, closeOrders,
+      openInquiry, closeInquiry
     }}>
       {children}
     </AuthContext.Provider>

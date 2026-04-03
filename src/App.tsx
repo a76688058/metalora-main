@@ -15,10 +15,6 @@ import AdminBestSellers from './pages/AdminBestSellers';
 import Login from './pages/Login';
 import ProfileComplete from './pages/ProfileComplete';
 import AuthCallback from './pages/AuthCallback';
-import Profile from './pages/Profile';
-import Inquiry from './pages/Inquiry';
-import ProfileEdit from './pages/ProfileEdit';
-import Orders from './pages/Orders';
 import BrandStory from './pages/BrandStory';
 import Collection from './pages/Collection';
 import PaymentSuccess from './pages/PaymentSuccess';
@@ -28,6 +24,9 @@ import AdminBanner from './components/AdminBanner';
 import PresenceTracker from './components/PresenceTracker';
 import Cart from './components/Cart';
 import ProfileOverlay from './components/ProfileOverlay';
+import ProfileEditModal from './components/ProfileEditModal';
+import OrdersModal from './components/OrdersModal';
+import InquiryModal from './components/InquiryModal';
 import WorkshopOverlay from './components/WorkshopOverlay';
 import { ProductProvider } from './context/ProductContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -35,9 +34,6 @@ import { ToastProvider, useToast } from './context/ToastContext';
 import { CartProvider, useCart } from './context/CartContext';
 
 import GlobalSplash from './components/GlobalSplash';
-
-import WorkshopCopyright from './pages/WorkshopCopyright';
-import WorkshopSingle from './pages/WorkshopSingle';
 
 // Scroll to top on route change
 function ScrollToTop() {
@@ -100,8 +96,6 @@ function AnimatedRoutes() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/brand-story" element={<BrandStory />} />
         <Route path="/collection" element={<Collection />} />
-        <Route path="/workshop/copyright" element={<ProtectedRoute><WorkshopCopyright /></ProtectedRoute>} />
-        <Route path="/workshop/single" element={<ProtectedRoute><WorkshopSingle /></ProtectedRoute>} />
         
         {/* Profile Complete - Skip for Admins */}
         <Route 
@@ -113,43 +107,7 @@ function AnimatedRoutes() {
           } 
         />
         
-        <Route 
-          path="/mypage" 
-          element={
-            (adminProfile?.is_admin || profile?.is_admin) ? 
-            <Navigate to="/admin" replace /> : 
-            <ProtectedRoute><Profile /></ProtectedRoute>
-          } 
-        />
-        <Route path="/profile" element={<Navigate to="/mypage" replace />} />
-        <Route 
-          path="/mypage/inquiry" 
-          element={
-            (adminProfile?.is_admin || profile?.is_admin) ? 
-            <Navigate to="/admin" replace /> : 
-            <ProtectedRoute><Inquiry /></ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/mypage/profile" 
-          element={
-            (adminProfile?.is_admin || profile?.is_admin) ? 
-            <Navigate to="/admin" replace /> : 
-            <ProtectedRoute><ProfileEdit /></ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/mypage/orders" 
-          element={
-            (adminProfile?.is_admin || profile?.is_admin) ? 
-            <Navigate to="/admin" replace /> : 
-            <ProtectedRoute><Orders /></ProtectedRoute>
-          } 
-        />
-        
         {/* Member Only Routes */}
-        <Route path="/cart" element={<ProtectedRoute><Navigate to="/" replace /></ProtectedRoute>} />
-        <Route path="/inquiry" element={<ProtectedRoute><Navigate to="/" replace /></ProtectedRoute>} />
         <Route path="/payment/success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
         <Route path="/payment/fail" element={<ProtectedRoute><PaymentFail /></ProtectedRoute>} />
         
@@ -168,35 +126,26 @@ function AnimatedRoutes() {
 
 function Layout() {
   const location = useLocation();
-  const { isProfileOpen, closeProfile, isWorkshopOpen, closeWorkshop } = useAuth();
+  const { isProfileOpen, closeProfile, isWorkshopOpen, closeWorkshop, isProfileEditOpen, closeProfileEdit, isOrdersOpen, closeOrders, isInquiryOpen, closeInquiry } = useAuth();
   const { isCartOpen, closeCart } = useCart();
   const isAdminPage = location.pathname.startsWith('/admin');
-  const isAtelierPage = location.pathname.startsWith('/workshop');
   const isAuthPage = location.pathname === '/login' || location.pathname === '/profile/complete' || location.pathname === '/auth/callback';
-
-  const isMyPage = location.pathname === '/mypage';
-
-  if (isAtelierPage) {
-    return (
-      <div className="min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black">
-        <ScrollToTop />
-        <AnimatedRoutes />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black flex flex-col">
       <AnimatePresence>
         {isCartOpen && <Cart key="cart-overlay" />}
         {isProfileOpen && <ProfileOverlay key="profile-overlay" isOpen={isProfileOpen} onClose={closeProfile} />}
+        {isProfileEditOpen && <ProfileEditModal key="profile-edit-modal" isOpen={isProfileEditOpen} onClose={closeProfileEdit} />}
+        {isOrdersOpen && <OrdersModal key="orders-modal" isOpen={isOrdersOpen} onClose={closeOrders} />}
+        {isInquiryOpen && <InquiryModal key="inquiry-modal" isOpen={isInquiryOpen} onClose={closeInquiry} />}
         {isWorkshopOpen && <WorkshopOverlay key="workshop-overlay" isOpen={isWorkshopOpen} onClose={closeWorkshop} />}
       </AnimatePresence>
       <ScrollToTop />
       <AdminBanner />
       {!isAdminPage && !isAuthPage && <Header isHome={location.pathname === '/'} />}
-      <div className={`flex-1 flex flex-col ${isMyPage ? 'justify-center' : ''}`}>
-        <main className={`${isMyPage ? '' : 'flex-1'} ${!isAdminPage && !isAuthPage ? 'pt-16' : ''}`}>
+      <div className="flex-1 flex flex-col">
+        <main className={`flex-1 ${!isAdminPage && !isAuthPage ? 'pt-16' : ''}`}>
           <AnimatedRoutes />
         </main>
         {!isAdminPage && !isAuthPage && <Footer />}
