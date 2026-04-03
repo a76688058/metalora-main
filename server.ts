@@ -17,6 +17,7 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    console.log("Running in development mode");
     const vite = await createViteServer({
       server: { 
         middlewareMode: true,
@@ -27,8 +28,9 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.resolve(__dirname, 'dist');
-    app.use(express.static(distPath, { index: false }));
+    console.log("Running in production mode");
+    const distPath = process.cwd();
+    app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });

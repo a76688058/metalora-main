@@ -21,16 +21,18 @@ import ProfileEdit from './pages/ProfileEdit';
 import Orders from './pages/Orders';
 import BrandStory from './pages/BrandStory';
 import Collection from './pages/Collection';
-import MyCollection from './pages/MyCollection';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFail from './pages/PaymentFail';
 import LoadingScreen from './components/LoadingScreen';
 import AdminBanner from './components/AdminBanner';
 import PresenceTracker from './components/PresenceTracker';
+import Cart from './components/Cart';
+import ProfileOverlay from './components/ProfileOverlay';
+import WorkshopOverlay from './components/WorkshopOverlay';
 import { ProductProvider } from './context/ProductContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider, useToast } from './context/ToastContext';
-import { CartProvider } from './context/CartContext';
+import { CartProvider, useCart } from './context/CartContext';
 
 import GlobalSplash from './components/GlobalSplash';
 
@@ -98,7 +100,6 @@ function AnimatedRoutes() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/brand-story" element={<BrandStory />} />
         <Route path="/collection" element={<Collection />} />
-        <Route path="/my-collection" element={<ProtectedRoute><MyCollection /></ProtectedRoute>} />
         <Route path="/workshop/copyright" element={<ProtectedRoute><WorkshopCopyright /></ProtectedRoute>} />
         <Route path="/workshop/single" element={<ProtectedRoute><WorkshopSingle /></ProtectedRoute>} />
         
@@ -167,6 +168,8 @@ function AnimatedRoutes() {
 
 function Layout() {
   const location = useLocation();
+  const { isProfileOpen, closeProfile, isWorkshopOpen, closeWorkshop } = useAuth();
+  const { isCartOpen, closeCart } = useCart();
   const isAdminPage = location.pathname.startsWith('/admin');
   const isAtelierPage = location.pathname.startsWith('/workshop');
   const isAuthPage = location.pathname === '/login' || location.pathname === '/profile/complete' || location.pathname === '/auth/callback';
@@ -184,6 +187,11 @@ function Layout() {
 
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black flex flex-col">
+      <AnimatePresence>
+        {isCartOpen && <Cart key="cart-overlay" />}
+        {isProfileOpen && <ProfileOverlay key="profile-overlay" isOpen={isProfileOpen} onClose={closeProfile} />}
+        {isWorkshopOpen && <WorkshopOverlay key="workshop-overlay" isOpen={isWorkshopOpen} onClose={closeWorkshop} />}
+      </AnimatePresence>
       <ScrollToTop />
       <AdminBanner />
       {!isAdminPage && !isAuthPage && <Header isHome={location.pathname === '/'} />}

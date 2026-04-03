@@ -26,6 +26,9 @@ interface CartContextType {
   clearCart: () => Promise<void>;
   totalPrice: number;
   refreshCart: () => Promise<void>;
+  isCartOpen: boolean;
+  openCart: () => void;
+  closeCart: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -33,8 +36,12 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
   const { user, adminUser } = useAuth();
   const { showToast } = useToast();
+
+  const openCart = () => setIsCartOpen(true);
+  const closeCart = () => setIsCartOpen(false);
 
   // Helper to get the correct supabase client based on active session
   const getClient = useCallback(() => {
@@ -299,7 +306,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       updateQuantity, 
       clearCart,
       totalPrice,
-      refreshCart
+      refreshCart,
+      isCartOpen,
+      openCart,
+      closeCart
     }}>
       {children}
     </CartContext.Provider>

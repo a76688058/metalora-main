@@ -42,7 +42,7 @@ export interface Order {
   order_number: string; // 주문번호 (표시용)
   created_at: string;
   status: 'PAID' | 'PRODUCTION' | 'SHIPPING' | 'COMPLETED' | string;
-  total_amount: number;
+  total_price: number;
   shipping_name: string;
   shipping_phone: string;
   address: string;

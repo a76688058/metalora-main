@@ -16,7 +16,7 @@ import LoadingScreen from '../components/LoadingScreen';
 // --- Sub-components ---
 
 export default function Profile() {
-  const { user, profile, refreshProfile, signOut, isLoading: authLoading } = useAuth();
+  const { user, profile, refreshProfile, signOut, isLoading: authLoading, openWorkshop } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   
@@ -69,7 +69,7 @@ export default function Profile() {
               hoverShadow: 'hover:shadow-[0_0_35px_rgba(168,85,247,0.5)]',
               iconColor: 'text-purple-400',
               iconBg: 'bg-purple-500/10',
-              onClick: () => navigate('/workshop/copyright')
+              onClick: () => openWorkshop()
             },
             { 
               id: 'profile',

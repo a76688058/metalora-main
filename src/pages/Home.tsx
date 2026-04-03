@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Hook3D from '../components/Hook3D';
 import MountingAnimation from '../components/MountingAnimation';
 import MaterialEdgeAnimation from '../components/MaterialEdgeAnimation';
@@ -9,6 +9,7 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import Hero from '../components/Hero';
 import ProductGrid from '../components/ProductGrid';
 import { useProducts } from '../context/ProductContext';
+import { useCart } from '../context/CartContext';
 import { Truck, Layers, Zap } from 'lucide-react';
 
 import { Html } from '@react-three/drei';
@@ -32,8 +33,17 @@ const Reveal = ({ children, delay = 0, scale = 1, x = 0, y = 40 }: { children: R
 
 export default function Home() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { openCart } = useCart();
   const { scrollYProgress } = useScroll();
   const textY = useTransform(scrollYProgress, [0, 1], [0, 200]);
+
+  useEffect(() => {
+    if (location.state?.openCart) {
+      openCart();
+      navigate('/', { replace: true, state: {} });
+    }
+  }, [location, openCart, navigate]);
 
   const handleBuyClick = () => {
     navigate('/collection');

@@ -15,9 +15,37 @@ interface CartProps {
 
 const TOSS_CLIENT_KEY = 'test_ck_Poxy1XQL8R9nPR9Xn61Xr7nO5Wml';
 
-export default function Cart({ isOpen, onClose }: CartProps) {
+export default function Cart() {
   const navigate = useNavigate();
-  const { cartItems, removeFromCart, updateQuantity, totalPrice, isLoading: isCartLoading } = useCart();
+  const { cartItems, removeFromCart, updateQuantity, totalPrice, isLoading: isCartLoading, isCartOpen, closeCart } = useCart();
+  const isOpen = isCartOpen;
+  const onClose = closeCart;
+
+  useEffect(() => {
+    if (isOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflowY = 'scroll';
+    } else {
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.overflowY = '';
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || '0') * -1);
+      }
+    }
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.overflowY = '';
+    };
+  }, [isOpen]);
+
   const { user, adminUser, profile, adminProfile } = useAuth();
   const { showToast } = useToast();
   const [step, setStep] = useState(1); // 1: List, 2: Order Form
@@ -91,6 +119,13 @@ export default function Cart({ isOpen, onClose }: CartProps) {
     isOpen: false,
     type: null,
   });
+
+  // Reset consents when opening bottom sheet
+  useEffect(() => {
+    if (isBottomSheetOpen) {
+      setConsents({ content: false, refund: false, terms: false });
+    }
+  }, [isBottomSheetOpen]);
 
   const hasWorkshopItems = selectedItems.some(item => item.product_type === 'workshop');
   const isAllConsented = consents.refund && consents.terms && (!hasWorkshopItems || consents.content);
@@ -233,7 +268,7 @@ export default function Cart({ isOpen, onClose }: CartProps) {
           {
             order_number: orderNumber,
             user_id: currentUser.id,
-            total_amount: selectedTotalPrice,
+            user_custom_id: profile?.user_custom_id || null,
             total_price: selectedTotalPrice,
             status: '결제대기',
             shipping_name: shippingData.name,
@@ -281,17 +316,13 @@ export default function Cart({ isOpen, onClose }: CartProps) {
           optionName = option ? option.name : (item.selected_option || '');
         }
         
-        // Check if product_id is a valid UUID to avoid DB errors
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.product_id);
-
         return {
           order_id: order.id,
-          product_id: isUuid ? item.product_id : null,
+          product_id: item.product_id === 'workshop-single' ? null : item.product_id,
           product_title: title,
           option: optionName,
           quantity: item.quantity,
           price: price,
-          user_image_url: item.custom_image
         };
       });
 
@@ -320,23 +351,24 @@ export default function Cart({ isOpen, onClose }: CartProps) {
       setIsBottomSheetOpen(false);
     } catch (error: any) {
       console.error('Payment Error:', error);
-      showToast('결제 요청 중 오류가 발생했습니다.', 'error');
+      const errorMessage = error?.message || '결제 요청 중 오류가 발생했습니다.';
+      showToast(errorMessage, 'error');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-[10000] flex justify-end">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[11000] flex justify-end pointer-events-auto"
+    >
       {/* Backdrop */}
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+      <div 
         onClick={onClose}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto touch-none"
       />
 
       {/* Cart Panel */}
@@ -345,7 +377,7 @@ export default function Cart({ isOpen, onClose }: CartProps) {
         animate={{ x: 0 }}
         exit={{ x: '100%' }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className="relative w-full max-w-lg bg-[#0F0F11] h-full flex flex-col shadow-2xl"
+        className="relative w-full max-w-lg bg-[#0F0F11] h-full flex flex-col shadow-2xl pointer-events-auto"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5">
@@ -387,7 +419,10 @@ export default function Cart({ isOpen, onClose }: CartProps) {
                     </div>
                     <p className="text-lg font-medium text-zinc-400">내 컬렉션이 비어있어요</p>
                     <button 
-                      onClick={() => navigate('/collection')}
+                      onClick={() => {
+                        onClose();
+                        navigate('/collection');
+                      }}
                       className="px-6 py-3 bg-zinc-800 text-white font-medium rounded-2xl hover:bg-zinc-700 transition-colors mt-2"
                     >
                       상품 둘러보기
@@ -418,6 +453,7 @@ export default function Cart({ isOpen, onClose }: CartProps) {
                       
                       const handleItemClick = (e: React.MouseEvent) => {
                         e.stopPropagation();
+                        onClose();
                         if (isWorkshop) {
                           navigate(`/product/workshop-single`, { state: { cartItem: item } });
                         } else {
@@ -843,6 +879,6 @@ export default function Cart({ isOpen, onClose }: CartProps) {
           </>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }

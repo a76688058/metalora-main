@@ -74,7 +74,7 @@ export default function PaymentSuccess() {
         // 1. 주문 상태 확인 (중복 처리 방지) 및 Price Snapshot 호출
         const { data: existingOrder, error: fetchError } = await supabase
           .from('orders')
-          .select('id, status, address, address_detail, shipping_address, user_custom_id, shipping_name, shipping_phone, total_amount')
+          .select('id, status, address, address_detail, shipping_address, user_custom_id, shipping_name, shipping_phone, total_price')
           .eq('order_number', orderId)
           .single();
 
@@ -85,15 +85,15 @@ export default function PaymentSuccess() {
         }
 
         // 2. 무결성 검증 (Integrity Check)
-        // 클라이언트에서 전달된 결제 금액(amount)이 DB의 total_amount와 일치하는지 확인
-        if (existingOrder.total_amount !== Number(totalAmount)) {
+        // 클라이언트에서 전달된 결제 금액(amount)이 DB의 total_price와 일치하는지 확인
+        if (existingOrder.total_price !== Number(totalAmount)) {
           // 보안 위반 발생 시 즉시 리포트 생성 및 결제 중단
           const mismatchError = new Error(`[SECURITY_ALERT] Amount mismatch detected. Order: ${orderId}`);
           console.error(mismatchError);
           
           // 디스코드 알림 발송 (보안 위반)
           const alertPayload = {
-            content: `🚨 **[SECURITY_ALERT] 결제 금액 불일치 감지!**\n주문번호: ${orderId}\nDB 금액: ${existingOrder.total_amount}원\n요청 금액: ${totalAmount}원`,
+            content: `🚨 **[SECURITY_ALERT] 결제 금액 불일치 감지!**\n주문번호: ${orderId}\nDB 금액: ${existingOrder.total_price}원\n요청 금액: ${totalAmount}원`,
             embeds: [{
               color: 0xff0000,
               fields: [
@@ -117,7 +117,7 @@ export default function PaymentSuccess() {
           status: 'PAID',
           paymentKey,
           method: method || '정보 확인 중',
-          totalAmount: Number(totalAmount),
+          total_price: Number(totalAmount),
           shipping_address: shippingAddress
         };
 
@@ -125,11 +125,28 @@ export default function PaymentSuccess() {
           .from('orders')
           .update(updateData)
           .eq('order_number', orderId)
-          .select('user_custom_id, shipping_address, shipping_name, shipping_phone');
+          .select('user_custom_id, shipping_address, shipping_name, shipping_phone, user_id'); // user_id 추가
             
         if (error) throw error;
         
-        // 3. 디스코드 알림 발송 (즉시 실행)
+        // 3.1. [추가] 회원 총 결제 금액(total_spent) 업데이트
+        const order = data ? data[0] : null;
+        if (order && order.user_id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('total_spent')
+            .eq('id', order.user_id)
+            .single();
+          
+          if (profile) {
+            await supabase
+              .from('profiles')
+              .update({ total_spent: (profile.total_spent || 0) + Number(totalAmount) })
+              .eq('id', order.user_id);
+          }
+        }
+        
+        // 3.2. 디스코드 알림 발송 (즉시 실행)
         console.log("디스코드 알림 시도 중...");
         
         // 주문 품목 상세 정보 가져오기
@@ -145,7 +162,6 @@ export default function PaymentSuccess() {
 
         const options_summary = orderItems?.map(item => `${item.option}(${item.quantity}개)`).join(', ') || '기본';
 
-        const order = data ? data[0] : null;
         const finalMethod = method || '정보 확인 중';
         const customer_name = order?.shipping_name || existingOrder?.shipping_name || '고객';
         const customer_phone = order?.shipping_phone || existingOrder?.shipping_phone || '연락처 없음';

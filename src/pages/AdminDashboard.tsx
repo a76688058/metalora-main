@@ -363,7 +363,7 @@ export default function AdminDashboard() {
       const productStats: Record<string, { count: number; revenue: number; isWorkshop: boolean }> = {};
 
       data?.forEach(order => {
-        totalRevenue += (order.total_amount || 0);
+        totalRevenue += (order.total_price || 0);
         
         const items = order.order_items || [];
 
@@ -444,20 +444,20 @@ export default function AdminDashboard() {
       // 1. Current Period Stats
       const { data: currentData, error: currentError } = await supabase
         .from('orders')
-        .select('total_amount, created_at, status')
+        .select('total_price, created_at, status')
         .gte('created_at', startUTC.toISOString())
         .lte('created_at', endUTC.toISOString())
         .eq('status', '구매확정');
 
       if (currentError) throw currentError;
 
-      const currentTotal = currentData?.reduce((sum, o) => sum + (o.total_amount || 0), 0) || 0;
+      const currentTotal = currentData?.reduce((sum, o) => sum + (o.total_price || 0), 0) || 0;
       const currentOrders = currentData?.length || 0;
 
       // 2. Previous Period for Comparison
       const { data: prevData, error: prevError } = await supabase
         .from('orders')
-        .select('total_amount')
+        .select('total_price')
         .gte('created_at', startPrevUTC.toISOString())
         .lte('created_at', endPrevUTC.toISOString())
         .eq('status', '구매확정');
@@ -465,7 +465,7 @@ export default function AdminDashboard() {
       if (prevError) throw prevError;
 
 
-      const prevTotal = prevData?.reduce((sum, o) => sum + (o.total_amount || 0), 0) || 0;
+      const prevTotal = prevData?.reduce((sum, o) => sum + (o.total_price || 0), 0) || 0;
       
       let compValue = 0;
       let isIncrease = true;
@@ -507,7 +507,7 @@ export default function AdminDashboard() {
 
       const { data, error } = await supabase
         .from('orders')
-        .select('total_amount, created_at')
+        .select('total_price, created_at')
         .gte('created_at', startOfMonth.toISOString())
         .lte('created_at', endOfMonth.toISOString())
         .eq('status', '구매확정');
@@ -523,7 +523,7 @@ export default function AdminDashboard() {
         if (!aggregated[key]) {
           aggregated[key] = { revenue: 0, orders: 0 };
         }
-        aggregated[key].revenue += (order.total_amount || 0);
+        aggregated[key].revenue += (order.total_price || 0);
         aggregated[key].orders += 1;
       });
 

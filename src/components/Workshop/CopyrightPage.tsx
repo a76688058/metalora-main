@@ -8,9 +8,10 @@ import { useNavigate } from 'react-router-dom';
 
 interface CopyrightPageProps {
   onAgree: () => void;
+  hideHeader?: boolean;
 }
 
-export default function CopyrightPage({ onAgree }: CopyrightPageProps) {
+export default function CopyrightPage({ onAgree, hideHeader = false }: CopyrightPageProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [agreements, setAgreements] = useState({
@@ -85,8 +86,11 @@ export default function CopyrightPage({ onAgree }: CopyrightPageProps) {
         throw error;
       }
 
-      onAgree();
-      navigate('/workshop/single');
+      if (onAgree) {
+        onAgree();
+      } else {
+        navigate('/workshop/single');
+      }
     } catch (err) {
       console.error('Error logging agreement:', err);
       alert('네트워크 오류가 발생했습니다. 다시 시도해 주세요.');
@@ -127,11 +131,11 @@ export default function CopyrightPage({ onAgree }: CopyrightPageProps) {
   ];
 
   return (
-    <div className="min-h-screen bg-black flex flex-col overflow-hidden">
-      <Header />
+    <div className={`bg-black flex flex-col h-full overflow-hidden ${hideHeader ? '' : 'min-h-screen'}`}>
+      {!hideHeader && <Header />}
       
-      {/* Fixed Header Area */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-black pt-24 pb-6 px-6 touch-none">
+      {/* Header Area */}
+      <div className={`flex-none bg-black px-6 ${hideHeader ? 'pt-16 pb-6' : 'pt-24 pb-6'}`}>
         <div className="max-w-xl mx-auto">
           <motion.h1 
             initial={{ opacity: 0, y: -10 }}
@@ -152,7 +156,7 @@ export default function CopyrightPage({ onAgree }: CopyrightPageProps) {
       </div>
 
       {/* Article Checkbox List (Scrollable Area) */}
-      <div className="flex-1 overflow-y-auto mt-[220px] px-6 pb-20 scrollbar-hide">
+      <div className="flex-1 overflow-y-auto px-6 pb-20 scrollbar-hide overscroll-contain touch-pan-y">
         <div className="max-w-xl mx-auto space-y-4">
           {articles.map((article, index) => (
             <motion.div

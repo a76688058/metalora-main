@@ -162,7 +162,7 @@ export default function AdminOrders() {
                       <span className="bg-[#8B5CF6]/20 text-[#8B5CF6] text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">Custom</span>
                     )}
                   </div>
-                  <p className="text-[11px] text-zinc-500 font-bold">{order.shipping_name} • ₩{order.total_amount.toLocaleString()}</p>
+                  <p className="text-[11px] text-zinc-500 font-bold">{order.shipping_name} • ₩{order.total_price.toLocaleString()}</p>
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <span className={`px-2.5 py-1 rounded-full text-[9px] font-black text-white ${STATUS_STEPS.find(s => s.key === order.status)?.color || 'bg-zinc-700'}`}>

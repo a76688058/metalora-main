@@ -11,8 +11,18 @@ const LOGO_URL = "https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQ
 export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const { user, adminUser, profile, adminProfile } = useAuth();
-  const { cartItems } = useCart();
+  const { 
+    user, 
+    adminUser, 
+    profile, 
+    adminProfile, 
+    isProfileOpen, 
+    openProfile, 
+    closeProfile,
+    isWorkshopOpen,
+    closeWorkshop
+  } = useAuth();
+  const { cartItems, isCartOpen, openCart, closeCart } = useCart();
   
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -99,6 +109,11 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 to="/" 
                 className="flex items-center"
                 onClick={(e) => {
+                  // Close any open overlays
+                  if (isCartOpen) closeCart();
+                  if (isProfileOpen) closeProfile();
+                  if (isWorkshopOpen) closeWorkshop();
+
                   if (location.pathname === '/') {
                     e.preventDefault();
                     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -117,16 +132,25 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
             {/* Right: User & Collection Icons */}
             <div className="flex-1 flex justify-end items-center gap-x-5">
               {currentUser ? (
-                <Link 
-                  to={isAdmin ? "/admin" : "/mypage"}
+                <button 
+                  onClick={() => {
+                    if (isProfileOpen) {
+                      closeProfile();
+                    } else {
+                      if (isCartOpen) closeCart();
+                      if (isWorkshopOpen) closeWorkshop();
+                      openProfile();
+                    }
+                  }}
                   className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
                   title={isAdmin ? "Admin Dashboard" : "My Info"}
                 >
                   <User size={24} strokeWidth={1} />
-                </Link>
+                </button>
               ) : (
                 <button 
                   onClick={() => {
+                    if (isWorkshopOpen) closeWorkshop();
                     setIsLoginModalOpen(true);
                   }} 
                   className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
@@ -136,16 +160,24 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 </button>
               )}
 
-              <Link 
-                to="/my-collection"
-                className="text-white opacity-60 hover:opacity-100 transition-all duration-300 relative"
-                title="My Collection"
+              <button 
                 onClick={(e) => {
                   if (!currentUser) {
                     e.preventDefault();
+                    if (isWorkshopOpen) closeWorkshop();
                     setIsLoginModalOpen(true);
+                    return;
+                  }
+                  if (isCartOpen) {
+                    closeCart();
+                  } else {
+                    if (isProfileOpen) closeProfile();
+                    if (isWorkshopOpen) closeWorkshop();
+                    openCart();
                   }
                 }}
+                className="text-white opacity-60 hover:opacity-100 transition-all duration-300 relative"
+                title="My Collection"
               >
                 <Frame size={24} strokeWidth={1} />
                 {currentUser && cartItems.length > 0 && (
@@ -153,7 +185,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                     {cartItems.length}
                   </span>
                 )}
-              </Link>
+              </button>
             </div>
           </div>
 

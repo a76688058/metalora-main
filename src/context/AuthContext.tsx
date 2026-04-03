@@ -33,10 +33,16 @@ interface AuthContextType {
   
   isLoading: boolean;
   isLoggingOut: boolean;
+  isProfileOpen: boolean;
+  isWorkshopOpen: boolean;
   
   signOut: (options?: { adminOnly?: boolean }) => Promise<void>;
   refreshProfile: (isAdmin?: boolean) => Promise<void>;
   refreshSession: () => Promise<void>;
+  openProfile: () => void;
+  closeProfile: () => void;
+  openWorkshop: () => void;
+  closeWorkshop: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -56,6 +62,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isWorkshopOpen, setIsWorkshopOpen] = useState(false);
+
+  const openProfile = () => setIsProfileOpen(true);
+  const closeProfile = () => setIsProfileOpen(false);
+  const openWorkshop = () => setIsWorkshopOpen(true);
+  const closeWorkshop = () => setIsWorkshopOpen(false);
 
   const fetchProfile = async (userId: string, isAdmin = false) => {
     const client = isAdmin ? supabaseAdmin : supabase;
@@ -485,8 +498,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{ 
       session, user, profile, 
       adminSession, adminUser, adminProfile,
-      isLoading, isLoggingOut, signOut, refreshProfile,
-      refreshSession
+      isLoading, isLoggingOut, isProfileOpen, isWorkshopOpen,
+      signOut, refreshProfile, refreshSession,
+      openProfile, closeProfile, openWorkshop, closeWorkshop
     }}>
       {children}
     </AuthContext.Provider>
