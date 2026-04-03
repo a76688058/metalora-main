@@ -242,32 +242,52 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
       });
       
       if (error) {
-        let errMsg = "정보를 저장하는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요";
+        console.error('Supabase SignUp Error:', error);
         
         if (error.message?.includes('User already registered')) {
-          // 3. Partial failure recovery: try to sign in
+          // 이미 가입된 경우 로그인을 시도하여 세션을 획득합니다.
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email,
             password: formData.password,
           });
-          
+
           if (signInError) {
-            throw new Error('이미 사용 중인 아이디입니다.');
-          } else {
-            authUser = signInData.user;
-            authSession = signInData.session;
+            throw new Error('이미 사용 중인 아이디입니다. 비밀번호를 확인해주세요.');
+          }
+          
+          authUser = signInData.user;
+          authSession = signInData.session;
+          
+          // 로그인 성공 시 프로필이 있는지 확인하고 없으면 생성합니다.
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id, is_admin')
+            .eq('id', authUser.id)
+            .single();
+
+          if (!profile) {
+            console.log('Profile missing for existing user, creating with new schema...');
+            await supabase.from('profiles').insert({
+              id: authUser.id,
+              full_name: formData.full_name,
+              phone_number: formData.phone_number,
+              user_custom_id: formData.username,
+              is_admin: false,
+              total_spent: 0,
+              agreed_to_terms_at: new Date().toISOString(),
+              agreed_to_privacy_at: new Date().toISOString(),
+              agreed_to_cookie_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
           }
         } else {
-          console.error('[SignUp Error]:', error);
+          let errMsg = error.message || "정보를 저장하는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요";
           if (error.message?.includes('Email address is invalid')) {
             errMsg = '올바른 아이디 형식이 아닙니다.';
-            throw new Error(errMsg);
           } else if (error.message?.includes('Password should be at least')) {
             errMsg = '비밀번호가 너무 짧습니다. 6자 이상으로 설정해주세요.';
-            throw new Error(errMsg);
-          } else {
-            throw new Error(errMsg);
           }
+          throw new Error(errMsg);
         }
       } else {
         authUser = data?.user;
@@ -298,9 +318,12 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
               full_name: formData.full_name,
               phone_number: formData.phone_number,
               user_custom_id: formData.username,
+              is_admin: false,
+              total_spent: 0,
               agreed_to_terms_at: new Date().toISOString(),
               agreed_to_privacy_at: new Date().toISOString(),
               agreed_to_cookie_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
             })
             .eq('id', authUser.id);
         } else {
@@ -313,9 +336,12 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                   full_name: formData.full_name,
                   phone_number: formData.phone_number,
                   user_custom_id: formData.username,
+                  is_admin: false,
+                  total_spent: 0,
                   agreed_to_terms_at: new Date().toISOString(),
                   agreed_to_privacy_at: new Date().toISOString(),
                   agreed_to_cookie_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
                 });
               
               if (!updateError) {

@@ -1,7 +1,28 @@
+export interface ProductOption {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  isActive: boolean;
+  dimension: string;
+}
+
 export interface Product {
   id: string;
   title: string;
+  subtitle?: string;
+  description: string;
+  created_at: string;
+  options: ProductOption[];
   front_image: string;
+  back_image?: string;
+  is_new: boolean;
+  is_limited: boolean;
+  is_sale: boolean;
+  is_visible: boolean;
+  display_order: number;
+  category?: string;
+  viewers?: number;
 }
 
 export interface OrderItem {
