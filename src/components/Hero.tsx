@@ -60,7 +60,11 @@ export default function Hero() {
         className="relative w-full max-w-[80vw] h-[60vh] mx-auto z-10 flex items-center justify-center"
       >
         {frontImage ? (
-          <ErrorBoundary>
+          <ErrorBoundary fallback={
+            <div className="w-full h-full flex items-center justify-center p-8">
+              <img src={frontImage} alt="Product" className="max-w-full max-h-full object-contain drop-shadow-2xl" />
+            </div>
+          }>
             <Canvas 
               frameloop="always" 
               camera={{ position: [0, 0, 4.5], fov: 45 }} 

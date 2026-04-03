@@ -30,7 +30,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     flowType: 'pkce',
     storageKey: 'metalora-auth-token', // Unified key for both
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    lockSession: true,
   },
   global: {
     headers: { 'x-client-info': 'metalora-checkout' },
@@ -47,7 +46,6 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseAnonKey, {
     flowType: 'pkce',
     storageKey: 'metalora-admin-auth-token', // Different key for admin
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    lockSession: true,
   },
   global: {
     headers: { 'x-client-info': 'metalora-checkout' },

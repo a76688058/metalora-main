@@ -33,8 +33,8 @@ function CanvasLoader() {
   );
 }
 
-class CanvasErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
-  constructor(props: { children: React.ReactNode }) {
+class CanvasErrorBoundary extends React.Component<{ children: React.ReactNode, fallback?: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode, fallback?: React.ReactNode }) {
     super(props);
     this.state = { hasError: false };
   }
@@ -44,25 +44,18 @@ class CanvasErrorBoundary extends React.Component<{ children: React.ReactNode },
   }
 
   componentDidCatch(error: any, errorInfo: any) {
-    console.error("Canvas Error:", error, errorInfo);
+    // Suppress logging here as we already patched console.error
   }
 
   render() {
     if (this.state.hasError) {
-      return (
+      return this.props.fallback || (
         <div className="absolute inset-0 flex items-center justify-center bg-transparent p-8 text-center">
           <div className="flex flex-col items-center gap-4">
             <AlertCircle className="text-red-500/50" size={32} />
             <p className="text-white/60 text-xs font-light leading-relaxed">
-              3D 모델을 불러오는 중 오류가 발생했습니다.<br />
-              페이지를 새로고침하거나 나중에 다시 시도해주세요.
+              3D 모델을 불러올 수 없습니다.
             </p>
-            <button 
-              onClick={() => window.location.reload()}
-              className="mt-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white/80 text-[10px] font-bold uppercase tracking-widest transition-colors"
-            >
-              새로고침
-            </button>
           </div>
         </div>
       );
@@ -231,7 +224,11 @@ export default function ProductDetail() {
                 ref={canvasContainerRef}
                 className="relative aspect-square w-full md:w-[150%] md:-ml-[25%] lg:w-[150%] lg:-ml-[25%] overflow-visible bg-transparent cursor-grab active:cursor-grabbing"
               >
-                <CanvasErrorBoundary>
+                <CanvasErrorBoundary fallback={
+                  <div className="w-full h-full flex items-center justify-center p-8">
+                    <img src={product.front_image || product.image} alt={product.title} className="w-full h-full object-contain drop-shadow-2xl" />
+                  </div>
+                }>
                   <Canvas 
                     frameloop="always"
                     shadows 

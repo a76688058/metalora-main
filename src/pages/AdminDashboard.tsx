@@ -44,7 +44,12 @@ interface DailyReport {
   date: string;
   totalRevenue: number;
   orderCount: number;
-  topItem: { name: string; price: number } | null;
+  topItem: { 
+    name: string; 
+    count: number; 
+    revenue: number;
+    isWorkshop: boolean;
+  } | null;
 }
 
 const RevenueCalendar = React.memo(({ 
@@ -70,7 +75,8 @@ const RevenueCalendar = React.memo(({
   }, [data]);
 
   const today = new Date();
-  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const kstToday = new Date(today.getTime() + 9 * 60 * 60 * 1000);
+  const todayKey = `${kstToday.getFullYear()}-${String(kstToday.getMonth() + 1).padStart(2, '0')}-${String(kstToday.getDate()).padStart(2, '0')}`;
 
   const getIntensity = (rev: number) => {
     if (rev === 0) return 'bg-zinc-900/40 text-zinc-600 hover:bg-zinc-800/60';
@@ -265,13 +271,23 @@ const DailyBottomSheet = React.memo(({
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest block mb-1">Top Item</span>
-                    <span className="text-white font-black text-lg tracking-tighter truncate block">
-                      {report.topItem ? (
-                        <span className="text-purple-400">
-                          {report.topItem.name} <span className="text-white">({report.topItem.count}건)</span>
-                        </span>
-                      ) : '데이터 없음'}
-                    </span>
+                    <div className="flex flex-col">
+                      <span className="text-white font-black text-lg tracking-tighter truncate flex items-center gap-2">
+                        {report.topItem ? (
+                          <>
+                            <span className="text-xl">{report.topItem.isWorkshop ? '🎨' : '📦'}</span>
+                            <span className="text-purple-400 truncate">{report.topItem.name}</span>
+                          </>
+                        ) : '데이터 없음'}
+                      </span>
+                      {report.topItem && (
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-zinc-400 text-xs font-bold">{report.topItem.count}건 판매</span>
+                          <span className="text-zinc-600 text-[10px]">•</span>
+                          <span className="text-zinc-400 text-xs font-mono">₩{report.topItem.revenue.toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -323,40 +339,66 @@ export default function AdminDashboard() {
       setLoadingReport(true);
       setSelectedReport(null);
 
-      // KST (UTC+9) conversion
+      // Parse the clicked date (which is in KST like '2026-04-02')
       const [year, month, day] = dateKey.split('-').map(Number);
-      const startOfDay = new Date(Date.UTC(year, month - 1, day, -9, 0, 0));
-      const endOfDay = new Date(Date.UTC(year, month - 1, day, 14, 59, 59, 999));
+      const startKST = new Date(year, month - 1, day);
+      const endKST = new Date(year, month - 1, day, 23, 59, 59, 999);
+
+      const startUTC = new Date(startKST.getTime() - 9 * 60 * 60 * 1000);
+      const endUTC = new Date(endKST.getTime() - 9 * 60 * 60 * 1000);
 
       const { data, error } = await supabase
         .from('orders')
-        .select('total_price, order_items(product_title, quantity)')
-        .gte('created_at', startOfDay.toISOString())
-        .lte('created_at', endOfDay.toISOString())
-        .neq('status', '결제대기');
+        .select('*, order_items(*, products(id, name, main_image))')
+        .gte('created_at', startUTC.toISOString())
+        .lte('created_at', endUTC.toISOString())
+        .eq('status', '구매확정');
 
       if (error) throw error;
 
       let totalRevenue = 0;
       let orderCount = data?.length || 0;
-      const productCounts: Record<string, number> = {};
+      
+      // Aggregation Map: Key is product title
+      const productStats: Record<string, { count: number; revenue: number; isWorkshop: boolean }> = {};
 
       data?.forEach(order => {
-        totalRevenue += (order.total_price || 0);
-        order.order_items?.forEach((item: any) => {
-          const name = item.product_title || '커스텀 작품(Workshop)';
-          productCounts[name] = (productCounts[name] || 0) + (item.quantity || 1);
+        totalRevenue += (order.total_amount || 0);
+        
+        const items = order.order_items || [];
+
+        items.forEach((item: any) => {
+          const name = item.products?.title || '커스텀 작품(Workshop)';
+          const quantity = Number(item.quantity) || 1;
+          const price = Number(item.price) || 0;
+          const revenue = quantity * price;
+          
+          // Workshop detection: No product_id or specific keywords in title
+          const isWorkshop = !item.product_id || 
+                            name.includes('커스텀') || 
+                            name.includes('Workshop') || 
+                            name.includes('Atelier') ||
+                            name === '커스텀 작품(Workshop)' ||
+                            !!item.user_image_url;
+
+          if (!productStats[name]) {
+            productStats[name] = { count: 0, revenue: 0, isWorkshop };
+          }
+          
+          productStats[name].count += quantity;
+          productStats[name].revenue += revenue;
         });
       });
 
-      let topItem = null;
-      let maxCount = 0;
-      Object.entries(productCounts).forEach(([name, count]) => {
-        if (count > maxCount) {
-          maxCount = count;
-          topItem = { name, count };
-        }
-      });
+      // Sorting Logic: Quantity DESC, then Revenue DESC
+      const sortedItems = Object.entries(productStats)
+        .map(([name, stats]) => ({ name, ...stats }))
+        .sort((a, b) => {
+          if (b.count !== a.count) return b.count - a.count;
+          return b.revenue - a.revenue;
+        });
+
+      const topItem = sortedItems.length > 0 ? sortedItems[0] : null;
 
       setSelectedReport({
         date: dateKey,
@@ -390,50 +432,40 @@ export default function AdminDashboard() {
       setLoadingStats(true);
       
       const now = new Date();
-      let startOfCurrent: Date;
-      let startOfPrevious: Date;
-      let endOfPrevious: Date;
+      
+      // UTC 기준 오늘 시작과 끝
+      const startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      const endUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
 
-      if (targetRange === 'daily') {
-        startOfCurrent = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        startOfPrevious = new Date(startOfCurrent);
-        startOfPrevious.setDate(startOfPrevious.getDate() - 1);
-        endOfPrevious = new Date(startOfCurrent);
-      } else if (targetRange === 'monthly') {
-        startOfCurrent = new Date(now.getFullYear(), now.getMonth(), 1);
-        startOfPrevious = new Date(startOfCurrent);
-        startOfPrevious.setMonth(startOfPrevious.getMonth() - 1);
-        endOfPrevious = new Date(startOfCurrent);
-      } else {
-        startOfCurrent = new Date(now.getFullYear(), 0, 1);
-        startOfPrevious = new Date(startOfCurrent);
-        startOfPrevious.setFullYear(startOfPrevious.getFullYear() - 1);
-        endOfPrevious = new Date(startOfCurrent);
-      }
+      // 이전 기간 계산 (UTC 기준)
+      const startPrevUTC = new Date(startUTC.getTime() - 24 * 60 * 60 * 1000);
+      const endPrevUTC = new Date(endUTC.getTime() - 24 * 60 * 60 * 1000);
 
       // 1. Current Period Stats
       const { data: currentData, error: currentError } = await supabase
         .from('orders')
-        .select('total_price, created_at')
-        .gte('created_at', startOfCurrent.toISOString())
-        .neq('status', '결제대기');
+        .select('total_amount, created_at, status')
+        .gte('created_at', startUTC.toISOString())
+        .lte('created_at', endUTC.toISOString())
+        .eq('status', '구매확정');
 
       if (currentError) throw currentError;
 
-      const currentTotal = currentData?.reduce((sum, o) => sum + (o.total_price || 0), 0) || 0;
+      const currentTotal = currentData?.reduce((sum, o) => sum + (o.total_amount || 0), 0) || 0;
       const currentOrders = currentData?.length || 0;
 
       // 2. Previous Period for Comparison
       const { data: prevData, error: prevError } = await supabase
         .from('orders')
-        .select('total_price')
-        .gte('created_at', startOfPrevious.toISOString())
-        .lt('created_at', endOfPrevious.toISOString())
-        .neq('status', '결제대기');
+        .select('total_amount')
+        .gte('created_at', startPrevUTC.toISOString())
+        .lte('created_at', endPrevUTC.toISOString())
+        .eq('status', '구매확정');
 
       if (prevError) throw prevError;
 
-      const prevTotal = prevData?.reduce((sum, o) => sum + (o.total_price || 0), 0) || 0;
+
+      const prevTotal = prevData?.reduce((sum, o) => sum + (o.total_amount || 0), 0) || 0;
       
       let compValue = 0;
       let isIncrease = true;
@@ -466,26 +498,32 @@ export default function AdminDashboard() {
   const fetchCalendarData = useCallback(async () => {
     if (!supabase) return;
     try {
-      const startOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
-      const endOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0, 23, 59, 59);
+      const kstMonth = new Date(calendarMonth.getTime() + 9 * 60 * 60 * 1000);
+      const startKST = new Date(kstMonth.getFullYear(), kstMonth.getMonth(), 1);
+      const endKST = new Date(kstMonth.getFullYear(), kstMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const startOfMonth = new Date(startKST.getTime() - 9 * 60 * 60 * 1000);
+      const endOfMonth = new Date(endKST.getTime() - 9 * 60 * 60 * 1000);
 
       const { data, error } = await supabase
         .from('orders')
-        .select('total_price, created_at')
+        .select('total_amount, created_at')
         .gte('created_at', startOfMonth.toISOString())
         .lte('created_at', endOfMonth.toISOString())
-        .neq('status', '결제대기');
+        .eq('status', '구매확정');
 
       if (error) throw error;
 
       const aggregated: Record<string, CalendarDayData> = {};
       data?.forEach(order => {
-        const date = new Date(order.created_at);
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        // Convert order.created_at to KST date string
+        const dateUTC = new Date(order.created_at);
+        const dateKST = new Date(dateUTC.getTime() + 9 * 60 * 60 * 1000);
+        const key = `${dateKST.getFullYear()}-${String(dateKST.getMonth() + 1).padStart(2, '0')}-${String(dateKST.getDate()).padStart(2, '0')}`;
         if (!aggregated[key]) {
           aggregated[key] = { revenue: 0, orders: 0 };
         }
-        aggregated[key].revenue += (order.total_price || 0);
+        aggregated[key].revenue += (order.total_amount || 0);
         aggregated[key].orders += 1;
       });
 

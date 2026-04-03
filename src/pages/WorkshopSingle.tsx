@@ -7,6 +7,7 @@ import { OrbitControls, Environment, ContactShadows, useTexture } from '@react-t
 import * as THREE from 'three';
 import Header from '../components/Header';
 import LoadingScreen from '../components/LoadingScreen';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { supabase } from '../lib/supabase';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
@@ -616,22 +617,28 @@ export default function WorkshopSingle() {
             </div>
 
             <div className="flex-1 relative">
-              <Canvas 
-                shadows 
-                camera={{ position: [0, 0, 2.5], fov: 45 }}
-                gl={{ toneMappingExposure: 1.3 }}
-              >
-                <Suspense fallback={null}>
-                  <WorkshopPoster3D 
-                    imageUrl={uploadedImage} 
-                    materialType={materialType} 
-                    interactive={true}
-                    size={size}
-                  />
-                </Suspense>
-                <ContactShadows position={[0, -1, 0]} opacity={0.5} scale={5} blur={2} far={2} color="#000000" />
-                <OrbitControls enablePan={false} enableZoom={true} minDistance={1.5} maxDistance={4} />
-              </Canvas>
+              <ErrorBoundary fallback={
+                <div className="w-full h-full flex items-center justify-center p-8">
+                  {uploadedImage && <img src={uploadedImage} alt="Preview" className="max-w-full max-h-full object-contain" />}
+                </div>
+              }>
+                <Canvas 
+                  shadows 
+                  camera={{ position: [0, 0, 2.5], fov: 45 }}
+                  gl={{ toneMappingExposure: 1.3 }}
+                >
+                  <Suspense fallback={null}>
+                    <WorkshopPoster3D 
+                      imageUrl={uploadedImage} 
+                      materialType={materialType} 
+                      interactive={true}
+                      size={size}
+                    />
+                  </Suspense>
+                  <ContactShadows position={[0, -1, 0]} opacity={0.5} scale={5} blur={2} far={2} color="#000000" />
+                  <OrbitControls enablePan={false} enableZoom={true} minDistance={1.5} maxDistance={4} />
+                </Canvas>
+              </ErrorBoundary>
             </div>
 
             <div className="pb-12 pt-4 flex items-center justify-center gap-2 text-zinc-500 text-sm">
@@ -738,17 +745,23 @@ export default function WorkshopSingle() {
                       </div>
                     )}
 
-                    <Canvas shadows camera={{ position: [0, 0, 2.5], fov: 45 }} style={{ pointerEvents: 'none' }}>
-                      <Suspense fallback={null}>
-                        <WorkshopPoster3D 
-                          imageUrl={uploadedImage} 
-                          materialType={materialType} 
-                          interactive={false}
-                          size={size}
-                        />
-                      </Suspense>
-                      <ContactShadows position={[0, -1, 0]} opacity={0.5} scale={5} blur={2} far={2} color="#000000" />
-                    </Canvas>
+                    <ErrorBoundary fallback={
+                      <div className="w-full h-full flex items-center justify-center p-8">
+                        {uploadedImage && <img src={uploadedImage} alt="Preview" className="max-w-full max-h-full object-contain" />}
+                      </div>
+                    }>
+                      <Canvas shadows camera={{ position: [0, 0, 2.5], fov: 45 }} style={{ pointerEvents: 'none' }}>
+                        <Suspense fallback={null}>
+                          <WorkshopPoster3D 
+                            imageUrl={uploadedImage} 
+                            materialType={materialType} 
+                            interactive={false}
+                            size={size}
+                          />
+                        </Suspense>
+                        <ContactShadows position={[0, -1, 0]} opacity={0.5} scale={5} blur={2} far={2} color="#000000" />
+                      </Canvas>
+                    </ErrorBoundary>
                   </div>
 
                   <div className="bg-zinc-900/40 backdrop-blur-md border border-white/5 rounded-3xl p-6 text-center">
@@ -803,26 +816,32 @@ export default function WorkshopSingle() {
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(168,85,247,0.3),transparent_70%)] pointer-events-none" />
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(34,211,238,0.15),transparent_60%)] pointer-events-none" />
                     
-                    <Canvas 
-                      shadows 
-                      camera={{ position: [0, 0, 2.8], fov: 40 }}
-                      gl={{ toneMappingExposure: 1.3 }}
-                    >
-                      <Suspense fallback={null}>
-                        <WorkshopPoster3D 
-                          imageUrl={uploadedImage} 
-                          materialType={materialType} 
-                          interactive={false}
-                          size={size}
-                          autoRotate={true}
-                        />
-                      </Suspense>
-                      <ContactShadows position={[0, -1.2, 0]} opacity={0.6} scale={6} blur={2.5} far={2} color="#000000" />
-                      
-                      {/* Dynamic Light for Shimmer Effect */}
-                      <pointLight position={[2, 2, 2]} intensity={0.6} color="#ffffff" />
-                      <pointLight position={[-2, 1, 2]} intensity={0.4} color="#a855f7" />
-                    </Canvas>
+                    <ErrorBoundary fallback={
+                      <div className="w-full h-full flex items-center justify-center p-8">
+                        {uploadedImage && <img src={uploadedImage} alt="Preview" className="max-w-full max-h-full object-contain" />}
+                      </div>
+                    }>
+                      <Canvas 
+                        shadows 
+                        camera={{ position: [0, 0, 2.8], fov: 40 }}
+                        gl={{ toneMappingExposure: 1.3 }}
+                      >
+                        <Suspense fallback={null}>
+                          <WorkshopPoster3D 
+                            imageUrl={uploadedImage} 
+                            materialType={materialType} 
+                            interactive={false}
+                            size={size}
+                            autoRotate={true}
+                          />
+                        </Suspense>
+                        <ContactShadows position={[0, -1.2, 0]} opacity={0.6} scale={6} blur={2.5} far={2} color="#000000" />
+                        
+                        {/* Dynamic Light for Shimmer Effect */}
+                        <pointLight position={[2, 2, 2]} intensity={0.6} color="#ffffff" />
+                        <pointLight position={[-2, 1, 2]} intensity={0.4} color="#a855f7" />
+                      </Canvas>
+                    </ErrorBoundary>
                   </motion.div>
 
                   <div className="text-center px-4">

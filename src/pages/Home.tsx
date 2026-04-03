@@ -60,7 +60,11 @@ export default function Home() {
                 {/* Bottom Fade Gradient - Restored for elegant depth */}
                 <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black via-black/40 to-transparent z-10 pointer-events-none" />
                 
-                <ErrorBoundary>
+                <ErrorBoundary fallback={
+                  <div className="w-full h-full flex items-center justify-center opacity-50">
+                    <img src="https://images.unsplash.com/photo-1464802686167-b939a6910659?auto=format&fit=crop&q=80&w=2070" alt="Background" className="w-full h-full object-cover" />
+                  </div>
+                }>
                   <Canvas 
                     frameloop="always" 
                     gl={{ 

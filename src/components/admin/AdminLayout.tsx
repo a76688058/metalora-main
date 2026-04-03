@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, LogOut, Menu, X, Users, MessageSquare, Globe } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, LogOut, Menu, X, Users, MessageSquare, Globe, Flame } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -29,6 +29,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { name: '대시보드', path: '/admin', icon: LayoutDashboard },
     { name: '회원 관리', path: '/admin/users', icon: Users },
     { name: '상품 관리', path: '/admin/products', icon: Package },
+    { name: '인기 판매 제품', path: '/admin/best-sellers', icon: Flame },
     { name: '주문 관리', path: '/admin/orders', icon: ShoppingCart },
     { name: 'CS 관리', path: '/admin/cs', icon: MessageSquare },
   ];

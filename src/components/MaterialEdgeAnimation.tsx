@@ -3,6 +3,7 @@ import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Environment, Float, PerspectiveCamera, Html } from '@react-three/drei';
 import * as THREE from 'three';
+import ErrorBoundary from './ErrorBoundary';
 
 function MacroEdgeModel({ scrollProgress }: { scrollProgress: any }) {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -133,17 +134,21 @@ export default function MaterialEdgeAnimation() {
           
           {/* 3D Macro View - Extreme Close-up of the 1.15mm Edge */}
           <motion.div style={{ opacity: modelOpacity }} className="absolute inset-0 z-0">
-            <Canvas 
-              frameloop="always" 
-              gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
-              onCreated={() => {
-                window.dispatchEvent(new CustomEvent('3d-poster-loaded'));
-              }}
-            >
-              <React.Suspense fallback={<Html center><div className="w-full h-full bg-transparent" /></Html>}>
-                <MacroEdgeModel scrollProgress={smoothProgress} />
-              </React.Suspense>
-            </Canvas>
+            <ErrorBoundary fallback={
+              <div className="w-full h-full bg-gradient-to-r from-zinc-900 to-black" />
+            }>
+              <Canvas 
+                frameloop="always" 
+                gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
+                onCreated={() => {
+                  window.dispatchEvent(new CustomEvent('3d-poster-loaded'));
+                }}
+              >
+                <React.Suspense fallback={<Html center><div className="w-full h-full bg-transparent" /></Html>}>
+                  <MacroEdgeModel scrollProgress={smoothProgress} />
+                </React.Suspense>
+              </Canvas>
+            </ErrorBoundary>
           </motion.div>
 
           {/* Dark Overlay for Text Contrast (Left side) */}

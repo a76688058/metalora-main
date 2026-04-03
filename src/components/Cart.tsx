@@ -253,7 +253,7 @@ export default function Cart({ isOpen, onClose }: CartProps) {
               option: item.product_id === 'workshop-single' ? item.custom_config?.size : item.selected_option,
               quantity: item.quantity,
               price: item.product_id === 'workshop-single' ? (item.custom_config?.price || 0) : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0),
-              custom_image: item.custom_image,
+              user_image_url: item.custom_image,
               custom_config: item.custom_config
             }))
           }
@@ -290,7 +290,8 @@ export default function Cart({ isOpen, onClose }: CartProps) {
           product_title: title,
           option: optionName,
           quantity: item.quantity,
-          price: price
+          price: price,
+          user_image_url: item.custom_image
         };
       });
 

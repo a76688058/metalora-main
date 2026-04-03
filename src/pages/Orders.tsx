@@ -10,14 +10,15 @@ import {
 import LoadingScreen from '../components/LoadingScreen';
 
 const OrderStepper = ({ status }: { status: string }) => {
-  const steps = ['결제완료', '제품공정', '배송시작', '배송완료'];
+  const steps = ['결제완료', '제작중', '배송중', '배송완료'];
   
   const getActiveStep = (status: string) => {
     switch (status) {
       case '결제완료': return 0;
       case '제작중': return 1;
       case '배송중': return 2;
-      case '구매확정': return 3;
+      case '배송완료': return 3;
+      case '구매확정': return 3; // Legacy support
       default: return -1;
     }
   };
@@ -92,6 +93,27 @@ export default function Orders() {
   useEffect(() => {
     if (user) {
       fetchOrders();
+
+      // Real-time subscription for order status updates
+      const channel = supabase
+        .channel(`user-orders-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'orders',
+            filter: `user_id=eq.${user.id}`
+          },
+          () => {
+            fetchOrders();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 
