@@ -5,19 +5,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Truck, CheckCircle, Palette, X, Download, Image, Search, ChevronRight, Package, Clock, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { Order, OrderItem } from '../types/database';
+import { getFullImageUrl } from '../lib/utils';
+import { OrderStepper } from '../components/OrderStepper';
 
 const ORDER_STATUS = {
-  PAID: '결제완료',
-  PRODUCTION: '제작중',
-  SHIPPING: '배송중',
+  PAID: '결제확인',
+  PRODUCTION: '제작/검수 중',
+  SHIPPING: '배송 중',
   COMPLETED: '배송완료'
 };
 
 const STATUS_STEPS = [
-  { key: 'PAID', label: '결제완료', color: 'bg-zinc-700' },
-  { key: 'PRODUCTION', label: '제작중', color: 'bg-[#8B5CF6]' },
-  { key: 'SHIPPING', label: '배송중', color: 'bg-blue-600' },
-  { key: 'COMPLETED', label: '완료', color: 'bg-emerald-600' }
+  { key: 'PAID', label: '결제확인', color: 'bg-zinc-700' },
+  { key: 'PRODUCTION', label: '제작/검수 중', color: 'bg-[#8B5CF6]' },
+  { key: 'SHIPPING', label: '배송 중', color: 'bg-blue-600' },
+  { key: 'COMPLETED', label: '배송완료', color: 'bg-emerald-600' }
 ];
 
 export default function AdminOrders() {
@@ -26,6 +28,9 @@ export default function AdminOrders() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+  const [trackingData, setTrackingData] = useState({ courier: '', tracking_number: '' });
+  const [pendingStatusUpdate, setPendingStatusUpdate] = useState<{orderId: string, status: string} | null>(null);
   const { showToast } = useToast();
 
   const fetchOrders = async () => {
@@ -33,13 +38,7 @@ export default function AdminOrders() {
       setLoading(true);
       const { data, error } = await supabase
         .from('orders')
-        .select(`
-          *,
-          order_items(
-            *,
-            products(id, title, front_image)
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -53,12 +52,6 @@ export default function AdminOrders() {
   };
 
   useEffect(() => { fetchOrders(); }, []);
-
-  const getFullImageUrl = (path: string | null) => {
-    if (!path) return '';
-    if (path.startsWith('http')) return path;
-    return `https://qifloweuwyhvukabgnoa.supabase.co/storage/v1/object/public/${path}`;
-  };
 
   const handleDownload = async (url: string, filename: string) => {
     try {
@@ -78,22 +71,32 @@ export default function AdminOrders() {
     }
   };
 
-  const updateStatus = async (orderId: string, status: string) => {
+  const updateStatus = async (orderId: string, status: string, trackingInfo?: { courier: string, tracking_number: string }) => {
     try {
       setIsSubmitting(true);
+      const updateData: any = { status };
+      if (trackingInfo) {
+        updateData.courier = trackingInfo.courier;
+        updateData.tracking_number = trackingInfo.tracking_number;
+      }
+
       const { error } = await supabase
         .from('orders')
-        .update({ status })
+        .update(updateData)
         .eq('id', orderId);
       
       if (error) throw error;
       
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updateData } : o));
       if (selectedOrder?.id === orderId) {
-        setSelectedOrder(prev => prev ? { ...prev, status } : null);
+        setSelectedOrder(prev => prev ? { ...prev, ...updateData } : null);
       }
-      showToast(`상태가 ${status}로 변경되었습니다.`, "success");
-    } catch {
+      showToast(`상태가 ${ORDER_STATUS[status as keyof typeof ORDER_STATUS] || status}로 변경되었습니다.`, "success");
+      setIsTrackingModalOpen(false);
+      setPendingStatusUpdate(null);
+      setTrackingData({ courier: '', tracking_number: '' });
+    } catch (error: any) {
+      console.error('Update status error:', error);
       showToast("상태 변경에 실패했습니다.", "error");
     } finally {
       setIsSubmitting(false);
@@ -147,20 +150,31 @@ export default function AdminOrders() {
                 className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 flex items-center gap-4 cursor-pointer hover:border-[#8B5CF6]/50 transition-all group active:scale-[0.98]"
               >
                 <div className="w-14 h-14 rounded-xl overflow-hidden bg-zinc-800 flex-shrink-0 border border-white/5">
-                  {order.order_items?.[0] ? (
-                    <img 
-                      src={getFullImageUrl(order.order_items[0].user_image_url || order.order_items[0].products?.front_image || '')} 
-                      className="w-full h-full object-cover" 
-                      onError={(e) => (e.currentTarget.src = 'https://picsum.photos/seed/error/200/200')}
-                    />
-                  ) : <Image className="w-full h-full p-4 text-zinc-700" />}
+                  {(() => {
+                    const firstItem = (order.ordered_items as any[])?.[0];
+                    if (!firstItem) return <Image className="w-full h-full p-4 text-zinc-700" />;
+                    
+                    const isWorkshop = firstItem.product_id === 'workshop-single';
+                    const displayImageUrl = getFullImageUrl(firstItem.user_image_url || firstItem.front_image, isWorkshop);
+                    
+                    return displayImageUrl ? (
+                      <img 
+                        src={displayImageUrl} 
+                        className="w-full h-full object-cover" 
+                        onError={(e) => (e.currentTarget.src = 'https://picsum.photos/seed/error/200/200')}
+                      />
+                    ) : <Image className="w-full h-full p-4 text-zinc-700" />;
+                  })()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <p className="font-black text-white text-sm truncate">{order.order_number}</p>
-                    {order.order_items?.some(i => i.user_image_url) && (
-                      <span className="bg-[#8B5CF6]/20 text-[#8B5CF6] text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">Custom</span>
-                    )}
+                    {(() => {
+                      const hasCustom = (order.ordered_items as any[])?.some(ji => !!ji.user_image_url);
+                      return hasCustom && (
+                        <span className="bg-[#8B5CF6]/20 text-[#8B5CF6] text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">Custom</span>
+                      );
+                    })()}
                   </div>
                   <p className="text-[11px] text-zinc-500 font-bold">{order.shipping_name} • ₩{order.total_price.toLocaleString()}</p>
                 </div>
@@ -222,38 +236,65 @@ export default function AdminOrders() {
                 </div>
 
                 {/* 주문 상품 목록 */}
-                <div>
-                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4 ml-1">주문 상품 목록 ({selectedOrder.order_items?.length})</p>
-                  <div className="space-y-3">
-                    {selectedOrder.order_items?.map((item: OrderItem) => (
-                      <div key={item.id} className="flex items-center gap-4 bg-zinc-900/30 p-4 rounded-2xl border border-zinc-800/30 group/item">
-                        <div className="w-20 h-20 rounded-xl overflow-hidden bg-zinc-800 border border-white/5 flex-shrink-0">
-                          <img 
-                            src={getFullImageUrl(item.user_image_url || item.products?.front_image || '')} 
-                            className="w-full h-full object-cover" 
-                            onError={(e) => (e.currentTarget.src = 'https://picsum.photos/seed/error/200/200')}
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="font-bold text-white text-sm truncate">{item.product_title}</p>
-                            {item.user_image_url && (
-                              <span className="bg-[#8B5CF6]/20 text-[#8B5CF6] text-[8px] font-black px-1.5 py-0.5 rounded">CUSTOM</span>
-                            )}
-                          </div>
-                          <p className="text-xs text-zinc-500 font-medium mb-3">{item.option} • {item.quantity}개</p>
-                          
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={() => handleDownload(getFullImageUrl(item.user_image_url || item.products?.front_image || ''), `order_${selectedOrder.order_number}_${item.product_title}.png`)}
-                              className="flex items-center gap-2 px-3 py-1.5 bg-white text-black rounded-lg text-[10px] font-black hover:bg-zinc-200 transition-all active:scale-95"
-                            >
-                              <Download size={12} /> 원본 다운로드
-                            </button>
-                          </div>
-                        </div>
+                <div className="pt-4">
+                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-6 ml-1">주문 진행 상태</p>
+                  <OrderStepper status={selectedOrder.status} />
+
+                  {selectedOrder.courier && selectedOrder.tracking_number && (
+                    <div className="mt-8 pt-8 border-t border-white/5">
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-1 h-3 bg-indigo-500 rounded-full" />
+                        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">배송 정보</p>
                       </div>
-                    ))}
+                      <div className="flex justify-between items-center bg-black/40 rounded-2xl px-5 py-4 border border-white/5">
+                        <span className="text-xs text-zinc-400 font-bold">{selectedOrder.courier}</span>
+                        <span className="text-sm text-white font-black tracking-wider">{selectedOrder.tracking_number}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4 ml-1">주문 상품 목록 ({(selectedOrder.ordered_items as any[])?.length || 0})</p>
+                  <div className="space-y-3">
+                    {(selectedOrder.ordered_items as any[])?.map((ji: any, index: number) => {
+                      const isWorkshop = ji.product_id === 'workshop-single';
+                      const displayImageUrl = getFullImageUrl(ji.user_image_url || ji.front_image, isWorkshop);
+
+                      return (
+                        <div key={index} className="flex items-center gap-4 bg-zinc-900/30 p-4 rounded-2xl border border-zinc-800/30 group/item">
+                          <div className="w-20 h-20 rounded-xl overflow-hidden bg-zinc-800 border border-white/5 flex-shrink-0">
+                            {displayImageUrl ? (
+                              <img 
+                                src={displayImageUrl} 
+                                className="w-full h-full object-cover" 
+                                onError={(e) => (e.currentTarget.src = 'https://picsum.photos/seed/error/200/200')}
+                              />
+                            ) : <Image className="w-full h-full p-4 text-zinc-700" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-bold text-white text-sm truncate">{ji.title}</p>
+                              {isWorkshop && (
+                                <span className="bg-[#8B5CF6]/20 text-[#8B5CF6] text-[8px] font-black px-1.5 py-0.5 rounded">CUSTOM</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-zinc-500 font-medium mb-3">{ji.option} • {ji.quantity}개</p>
+                            
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => {
+                                  if (displayImageUrl) handleDownload(displayImageUrl, `order_${selectedOrder.order_number}_${ji.title}.png`);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-white text-black rounded-lg text-[10px] font-black hover:bg-zinc-200 transition-all active:scale-95"
+                              >
+                                <Download size={12} /> 원본 다운로드
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -265,7 +306,14 @@ export default function AdminOrders() {
                       <button 
                         key={step.key} 
                         disabled={isSubmitting}
-                        onClick={() => updateStatus(selectedOrder.id, step.key)}
+                        onClick={() => {
+                          if (step.key === 'SHIPPING') {
+                            setPendingStatusUpdate({ orderId: selectedOrder.id, status: step.key });
+                            setIsTrackingModalOpen(true);
+                          } else {
+                            updateStatus(selectedOrder.id, step.key);
+                          }
+                        }}
                         className={`py-3.5 rounded-xl text-[11px] font-black transition-all active:scale-95 flex flex-col items-center gap-1.5
                           ${selectedOrder.status === step.key 
                             ? 'bg-[#8B5CF6] text-white shadow-[0_0_20px_rgba(139,92,246,0.3)]' 
@@ -283,6 +331,69 @@ export default function AdminOrders() {
                     ))}
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isTrackingModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+              onClick={() => setIsTrackingModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="relative bg-zinc-900 w-full max-w-md rounded-[32px] p-8 border border-white/10 shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-black text-white mb-2">배송 정보 입력</h3>
+              <p className="text-zinc-500 text-sm mb-8 font-medium">택배사와 운송장 번호를 입력해주세요.</p>
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">택배사</label>
+                  <input 
+                    type="text"
+                    value={trackingData.courier}
+                    onChange={e => setTrackingData(prev => ({ ...prev, courier: e.target.value }))}
+                    placeholder="예: CJ대한통운"
+                    className="w-full bg-black border border-white/5 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-[#8B5CF6] transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">운송장 번호</label>
+                  <input 
+                    type="text"
+                    value={trackingData.tracking_number}
+                    onChange={e => setTrackingData(prev => ({ ...prev, tracking_number: e.target.value }))}
+                    placeholder="숫자만 입력"
+                    className="w-full bg-black border border-white/5 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-[#8B5CF6] transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-10">
+                <button 
+                  onClick={() => setIsTrackingModalOpen(false)}
+                  className="flex-1 py-4 bg-zinc-800 text-zinc-400 font-bold rounded-2xl hover:bg-zinc-700 transition-all"
+                >
+                  취소
+                </button>
+                <button 
+                  disabled={!trackingData.courier || !trackingData.tracking_number || isSubmitting}
+                  onClick={() => {
+                    if (pendingStatusUpdate) {
+                      updateStatus(pendingStatusUpdate.orderId, pendingStatusUpdate.status, trackingData);
+                    }
+                  }}
+                  className="flex-1 py-4 bg-[#8B5CF6] text-white font-bold rounded-2xl hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : '상태 변경'}
+                </button>
               </div>
             </motion.div>
           </div>

@@ -4,63 +4,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { 
-  Loader2, ChevronLeft, Package
+  Loader2, ChevronLeft, Package, Image
 } from 'lucide-react';
+import { OrderStepper } from './OrderStepper';
+import { getFullImageUrl } from '../lib/utils';
 
 interface OrdersModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-const OrderStepper = ({ status }: { status: string }) => {
-  const steps = ['결제완료', '제작중', '배송중', '배송완료'];
-  
-  const getActiveStep = (status: string) => {
-    switch (status) {
-      case '결제완료': return 0;
-      case '제작중': return 1;
-      case '배송중': return 2;
-      case '배송완료': return 3;
-      case '구매확정': return 3; // Legacy support
-      default: return -1;
-    }
-  };
-
-  const activeIndex = getActiveStep(status);
-
-  return (
-    <div className="w-full pt-6 pb-2">
-      <div className="relative flex justify-between items-center px-2">
-        {/* Background Line */}
-        <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[1px] bg-white/5 z-0" />
-        
-        {steps.map((step, idx) => {
-          const isCompleted = idx < activeIndex;
-          const isActive = idx === activeIndex;
-          
-          return (
-            <div key={step} className="relative z-10 flex flex-col items-center gap-3">
-              <div 
-                className={`w-1.5 h-1.5 rounded-full transition-all duration-500 ${
-                  isActive 
-                    ? 'bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)] scale-125' 
-                    : isCompleted 
-                      ? 'bg-zinc-400' 
-                      : 'bg-zinc-800'
-                }`} 
-              />
-              <span className={`text-[9px] font-light tracking-tighter uppercase ${
-                isActive ? 'text-white font-medium' : 'text-zinc-600'
-              }`}>
-                {step}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
 
 export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
   const { user, openProfile } = useAuth();
@@ -229,12 +181,43 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
                       </div>
                       
                       <div className="pt-5 border-t border-white/5 space-y-6">
-                        <div className="flex justify-between items-center">
+                        <div className="space-y-3">
+                          {(order.ordered_items as any[])?.map((ji: any, index: number) => {
+                            const isWorkshop = ji.product_id === 'workshop-single';
+                            const displayImageUrl = getFullImageUrl(ji.user_image_url || ji.front_image, isWorkshop);
+
+                            return (
+                              <div key={index} className="flex items-center gap-4 bg-zinc-900/30 p-4 rounded-2xl border border-zinc-800/30 group/item">
+                                <div className="w-16 h-16 rounded-xl overflow-hidden bg-zinc-800 border border-white/5 flex-shrink-0">
+                                  {displayImageUrl ? (
+                                    <img 
+                                      src={displayImageUrl} 
+                                      className="w-full h-full object-cover" 
+                                      onError={(e) => (e.currentTarget.src = 'https://picsum.photos/seed/error/200/200')}
+                                    />
+                                  ) : <Image className="w-full h-full p-4 text-zinc-700" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="font-bold text-white text-sm truncate">{ji.title}</p>
+                                    {isWorkshop && (
+                                      <span className="bg-[#8B5CF6]/20 text-[#8B5CF6] text-[8px] font-black px-1.5 py-0.5 rounded">CUSTOM</span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-zinc-500 font-medium">{ji.option} • {ji.quantity}개</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex justify-between items-center pt-5 border-t border-white/5">
                           <span className="text-zinc-500 font-medium">결제 금액</span>
                           <span className="text-white text-xl font-bold">₩{order.total_price?.toLocaleString()}</span>
                         </div>
                         
-                        <div className="bg-black/20 rounded-2xl p-4">
+                        <div className="pt-2">
+                          <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-6 ml-1">주문 진행 상태</p>
                           <OrderStepper status={order.status} />
                         </div>
 

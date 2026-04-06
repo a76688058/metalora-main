@@ -1,10 +1,17 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import AdminLayout from '../components/admin/AdminLayout';
 import { supabase } from '../lib/supabase';
-import { motion } from 'framer-motion';
-import { Flame, TrendingUp, Package, DollarSign, Calendar, Loader2, Search, Download } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Flame, TrendingUp, Package, DollarSign, 
+  Calendar, Loader2, Search, Download,
+  Award, BarChart3, RefreshCcw
+} from 'lucide-react';
+import { getFullImageUrl } from '../lib/utils';
 
-type Period = 'today' | 'month' | 'year' | 'all' | 'custom';
+// --- Types & Constants ---
+type Period = 'today' | 'week' | 'month' | 'year' | 'all' | 'custom';
 
 interface BestSellerItem {
   name: string;
@@ -14,438 +21,420 @@ interface BestSellerItem {
   image?: string;
 }
 
-export default function AdminBestSellers() {
-  const [period, setPeriod] = useState<Period>('month');
-  const [startDateInput, setStartDateInput] = useState('');
-  const [endDateInput, setEndDateInput] = useState('');
-  const [appliedRange, setAppliedRange] = useState<{ start: Date; end: Date } | null>(null);
+const VALID_STATUSES = [
+  'PAID', 'PRODUCTION', 'SHIPPING', 'COMPLETED', 
+  '결제확인', '제작중', '배송중', '배송완료', '구매확정',
+  'paid', 'production', 'shipping', 'completed'
+];
+
+const STORAGE_BASE_URL = 'https://qifloweuwyhvukabgnoa.supabase.co/storage/v1/object/public';
+
+const downloadImage = async (url: string, filename: string) => {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename || 'product-image.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+  } catch (error) {
+    window.open(url, '_blank');
+  }
+};
+
+// --- Custom Hook ---
+const useBestSellers = (period: Period, appliedRange: { start: Date; end: Date } | null) => {
   const [data, setData] = useState<BestSellerItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
 
-  const getFullImageUrl = (path: string | null, isWorkshop: boolean = false) => {
-    if (!path) return '';
-    if (path.startsWith('http')) return path;
-    const bucket = isWorkshop ? 'workshop-images' : 'product-images';
-    const STORAGE_URL = `https://gdwd3qb5rs7eqadnzqidhb.supabase.co/storage/v1/object/public/${bucket}/`;
-    return `${STORAGE_URL}${path}`;
-  };
-
-  const handleDownload = async (url: string, filename: string) => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename || 'product-image.png';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (error) {
-      window.open(url, '_blank');
-    }
-  };
-
-  const fetchBestSellers = async () => {
+  const fetchData = useCallback(async () => {
     if (!supabase) return;
     try {
       setLoading(true);
-      
       const now = new Date();
-      // Convert to KST
       const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      const year = kstNow.getUTCFullYear();
+      const month = kstNow.getUTCMonth();
+      const day = kstNow.getUTCDate();
       
-      let startKST: Date | null = null;
-      let endKST: Date | null = null;
+      let startUTC: Date | null = null;
+      let endUTC: Date | null = null;
 
       if (period === 'today') {
-        startKST = new Date(kstNow.getFullYear(), kstNow.getMonth(), kstNow.getDate());
-        endKST = new Date(kstNow.getFullYear(), kstNow.getMonth(), kstNow.getDate(), 23, 59, 59, 999);
+        const startKST = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+        const endKST = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
+        startUTC = new Date(startKST.getTime() - 9 * 60 * 60 * 1000);
+        endUTC = new Date(endKST.getTime() - 9 * 60 * 60 * 1000);
+      } else if (period === 'week') {
+        // Get the first day of the week (Sunday)
+        const dayOfWeek = kstNow.getUTCDay();
+        const startKST = new Date(Date.UTC(year, month, day - dayOfWeek, 0, 0, 0, 0));
+        const endKST = new Date(Date.UTC(year, month, day + (6 - dayOfWeek), 23, 59, 59, 999));
+        startUTC = new Date(startKST.getTime() - 9 * 60 * 60 * 1000);
+        endUTC = new Date(endKST.getTime() - 9 * 60 * 60 * 1000);
       } else if (period === 'month') {
-        startKST = new Date(kstNow.getFullYear(), kstNow.getMonth(), 1);
-        endKST = new Date(kstNow.getFullYear(), kstNow.getMonth() + 1, 0, 23, 59, 59, 999);
+        const startKST = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+        const endKST = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+        startUTC = new Date(startKST.getTime() - 9 * 60 * 60 * 1000);
+        endUTC = new Date(endKST.getTime() - 9 * 60 * 60 * 1000);
       } else if (period === 'year') {
-        startKST = new Date(kstNow.getFullYear(), 0, 1);
-        endKST = new Date(kstNow.getFullYear(), 11, 31, 23, 59, 59, 999);
+        const startKST = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0));
+        const endKST = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+        startUTC = new Date(startKST.getTime() - 9 * 60 * 60 * 1000);
+        endUTC = new Date(endKST.getTime() - 9 * 60 * 60 * 1000);
       } else if (period === 'custom' && appliedRange) {
-        // Custom range is already assumed to be selected in local time (KST for Korean users)
-        startKST = new Date(appliedRange.start);
-        startKST.setHours(0, 0, 0, 0);
-        endKST = new Date(appliedRange.end);
-        endKST.setHours(23, 59, 59, 999);
-      }
-
-      let startDateUTC: Date | null = null;
-      let endDateUTC: Date | null = null;
-
-      if (startKST) {
-        startDateUTC = new Date(startKST.getTime() - 9 * 60 * 60 * 1000);
-      }
-      if (endKST) {
-        endDateUTC = new Date(endKST.getTime() - 9 * 60 * 60 * 1000);
+        // Ensure custom range is also handled in KST
+        const startKST = new Date(Date.UTC(appliedRange.start.getFullYear(), appliedRange.start.getMonth(), appliedRange.start.getDate(), 0, 0, 0, 0));
+        const endKST = new Date(Date.UTC(appliedRange.end.getFullYear(), appliedRange.end.getMonth(), appliedRange.end.getDate(), 23, 59, 59, 999));
+        startUTC = new Date(startKST.getTime() - 9 * 60 * 60 * 1000);
+        endUTC = new Date(endKST.getTime() - 9 * 60 * 60 * 1000);
+      } else if (period === 'all') {
+        startUTC = null;
+        endUTC = null;
       }
 
       let query = supabase
         .from('orders')
-        .select('*, order_items(*, products(id, title, front_image))')
-        .eq('status', '결제완료');
+        .select('*')
+        .in('status', VALID_STATUSES);
 
-      if (startDateUTC) {
-        query = query.gte('created_at', startDateUTC.toISOString());
-      }
-      
-      if (endDateUTC) {
-        query = query.lte('created_at', endDateUTC.toISOString());
-      }
+      if (startUTC) query = query.gte('created_at', startUTC.toISOString());
+      if (endUTC) query = query.lte('created_at', endUTC.toISOString());
 
       const { data: orders, error } = await query;
+      console.log('[BestSellers] Raw Orders Data:', orders);
+      
+      if (orders && orders.length > 0) {
+        console.log('[BestSellers] Sample Order Items:', orders[0].ordered_items);
+      }
 
       if (error) throw error;
 
-      const aggregation: Record<string, { count: number; revenue: number; isWorkshop: boolean; image: string }> = {};
-
+      const aggregation: Record<string, BestSellerItem> = {};
       orders?.forEach(order => {
-        const items = order.order_items || [];
-
-        items.forEach((item: any) => {
-          const name = item.products?.title || '상품 정보 없음';
-          const quantity = Number(item.quantity) || 1;
-          const price = Number(item.price) || 0;
+        (order.ordered_items as any[] || []).forEach((ji: any) => {
+          const name = ji.title || '상품 정보 없음';
+          const quantity = Number(ji.quantity) || 1;
+          const price = Number(ji.price) || 0;
           const revenue = quantity * price;
           
-          const isWorkshop = !item.product_id || 
+          const userImageUrl = ji.user_image_url;
+          
+          const isWorkshop = ji.product_id === 'workshop-single' || 
                             name.includes('커스텀') || 
                             name.includes('Workshop') || 
                             name.includes('Atelier') ||
                             name === '커스텀 작품(Workshop)' ||
-                            !!item.user_image_url;
+                            !!userImageUrl;
 
-          const productImage = item.user_image_url || item.products?.front_image || '';
+          const productImage = userImageUrl || ji.front_image || '';
 
           if (!aggregation[name]) {
-            aggregation[name] = { count: 0, revenue: 0, isWorkshop, image: productImage };
+            aggregation[name] = { name, count: 0, revenue: 0, isWorkshop, image: productImage };
           }
-          
           aggregation[name].count += quantity;
           aggregation[name].revenue += revenue;
-
-          if (!aggregation[name].image && productImage) {
-            aggregation[name].image = productImage;
-          }
+          if (!aggregation[name].image && productImage) aggregation[name].image = productImage;
         });
       });
 
-      const sorted = Object.entries(aggregation)
-        .map(([name, stats]) => ({ name, ...stats }))
-        .sort((a, b) => b.count - a.count || b.revenue - a.revenue);
-
-      setData(sorted);
-    } catch (error) {
-      console.error('Fetch best sellers error:', error);
+      setData(Object.values(aggregation).sort((a, b) => b.count - a.count || b.revenue - a.revenue));
+    } catch (err: any) {
+      console.error('[BestSellers] Fetch Error:', err);
+      showToast(`데이터를 불러오는데 실패했습니다: ${err.message || '알 수 없는 오류'}`, 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [period, appliedRange, showToast]);
 
   useEffect(() => {
-    if (period !== 'custom') {
-      fetchBestSellers();
-    }
-  }, [period]);
+    fetchData();
+  }, [fetchData]);
+
+  return { data, loading, refetch: fetchData };
+};
+
+// --- Sub-components ---
+const StatCard = ({ title, value, unit, icon: Icon, colorClass, delay = 0 }: any) => (
+  <motion.div 
+    initial={{ opacity: 0, y: 20 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true }}
+    transition={{ delay, duration: 0.5 }}
+    className="bg-[#0A0A0A] p-6 sm:p-8 rounded-[32px] border border-white/5 shadow-xl relative overflow-hidden group hover:border-white/10 transition-all"
+  >
+    <div className={`absolute -top-12 -right-12 w-32 h-32 ${colorClass} blur-3xl rounded-full opacity-[0.03] group-hover:opacity-10 transition-all duration-700`} />
+    <div className="flex items-center gap-4 mb-4 sm:mb-6 relative z-10">
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl ${colorClass.replace('bg-', 'bg-opacity-10 text-')} flex items-center justify-center border border-white/5`}>
+        <Icon size={20} className="sm:w-6 sm:h-6" />
+      </div>
+      <span className="text-zinc-500 font-bold text-sm sm:text-base tracking-tight">{title}</span>
+    </div>
+    <div className="text-2xl sm:text-4xl font-black text-white tracking-tighter relative z-10 flex items-baseline gap-1">
+      {typeof value === 'number' ? value.toLocaleString() : value}
+      <span className="text-sm sm:text-lg text-zinc-600 font-bold">{unit}</span>
+    </div>
+  </motion.div>
+);
+
+export default function AdminBestSellers() {
+  const [period, setPeriod] = useState<Period>('month');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [appliedRange, setAppliedRange] = useState<{ start: Date; end: Date } | null>(null);
+  
+  const { data, loading, refetch } = useBestSellers(period, appliedRange);
 
   const handleCustomSearch = () => {
-    if (!startDateInput || !endDateInput) {
-      alert('시작일과 종료일을 모두 선택해주세요.');
-      return;
-    }
-
-    const start = new Date(startDateInput);
-    const end = new Date(endDateInput);
-    
-    if (end < start) {
-      alert('종료일은 시작일보다 빠를 수 없습니다.');
-      return;
-    }
-
-    // Set end of day for end date
-    end.setHours(23, 59, 59, 999);
-
+    if (!dateRange.start || !dateRange.end) return alert('날짜를 모두 선택해주세요.');
+    const start = new Date(dateRange.start);
+    const end = new Date(dateRange.end);
+    if (end < start) return alert('종료일이 시작일보다 빠릅니다.');
     setAppliedRange({ start, end });
     setPeriod('custom');
-    // We need to call fetchBestSellers manually here because period might already be 'custom'
-    // or we can use a separate useEffect for appliedRange
   };
 
-  useEffect(() => {
-    if (period === 'custom' && appliedRange) {
-      fetchBestSellers();
-    }
-  }, [appliedRange]);
-
-  const handleQuickFilter = (p: Period) => {
-    setPeriod(p);
-    setStartDateInput('');
-    setEndDateInput('');
-    setAppliedRange(null);
-  };
+  const stats = useMemo(() => ({
+    totalCount: data.reduce((sum, item) => sum + item.count, 0),
+    totalRevenue: data.reduce((sum, item) => sum + item.revenue, 0),
+    productCount: data.length,
+    maxCount: Math.max(...data.map(item => item.count), 1)
+  }), [data]);
 
   const reportTitle = useMemo(() => {
-    if (period === 'today') return '오늘의 실적 리포트';
-    if (period === 'month') return '이번 달 실적 리포트';
-    if (period === 'year') return '올해 실적 리포트';
-    if (period === 'all') return '전체 실적 리포트';
+    const titles = { today: '오늘', week: '이번 주', month: '이번 달', year: '올해', all: '전체' };
     if (period === 'custom' && appliedRange) {
-      const startStr = appliedRange.start.toLocaleDateString('ko-KR').replace(/\. /g, '.').replace(/\.$/, '');
-      const endStr = appliedRange.end.toLocaleDateString('ko-KR').replace(/\. /g, '.').replace(/\.$/, '');
-      return `${startStr} ~ ${endStr} 실적 리포트`;
+      return `${appliedRange.start.toLocaleDateString()} ~ ${appliedRange.end.toLocaleDateString()}`;
     }
-    return '실적 리포트';
+    return titles[period as keyof typeof titles] || '';
   }, [period, appliedRange]);
-
-  const totalSalesCount = useMemo(() => data.reduce((sum, item) => sum + item.count, 0), [data]);
-  const maxSalesCount = useMemo(() => Math.max(...data.map(item => item.count), 1), [data]);
 
   return (
     <AdminLayout>
-      <div className="space-y-10 pb-20">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-500 border border-purple-500/20">
-                <Flame size={24} />
-              </div>
-              <h2 className="text-3xl font-black text-white tracking-tighter">인기 판매 제품</h2>
+      <div className="max-w-[1400px] mx-auto space-y-8 pb-20 px-4 sm:px-6">
+        {/* Header Section */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-[#0A0A0A] p-6 sm:p-8 rounded-[32px] border border-white/5 shadow-2xl">
+          <div className="flex items-center gap-4 sm:gap-6">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-white shadow-xl shadow-purple-500/20 ring-1 ring-white/20 flex-shrink-0">
+              <Award className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
-            <p className="text-zinc-500 font-bold tracking-tight">기간별 판매 성과 및 선호도 분석</p>
+            <div>
+              <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight">인기 판매 제품</h2>
+              <p className="text-zinc-500 font-medium mt-1 text-sm sm:text-base">데이터 기반 실시간 판매 분석</p>
+            </div>
           </div>
 
-          {/* Period Filter */}
-          <div className="flex flex-col md:flex-row items-center gap-4">
-            <div className="flex p-1.5 bg-zinc-900/80 rounded-2xl border border-white/10 backdrop-blur-xl">
-              {(['today', 'month', 'year', 'all'] as Period[]).map((p) => (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="flex p-1 bg-zinc-900/60 rounded-xl border border-white/5 overflow-x-auto no-scrollbar">
+              {(['today', 'week', 'month', 'year', 'all'] as Period[]).map((p) => (
                 <button
                   key={p}
-                  onClick={() => handleQuickFilter(p)}
-                  className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all active:scale-95 ${
-                    period === p 
-                      ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.2)]' 
-                      : 'text-zinc-500 hover:text-white'
+                  onClick={() => { setPeriod(p); setAppliedRange(null); }}
+                  className={`px-4 py-2 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all duration-200 ${
+                    period === p ? 'bg-white text-black shadow-lg' : 'text-zinc-500 hover:text-white'
                   }`}
                 >
-                  {p === 'today' ? '오늘' : p === 'month' ? '이번 달' : p === 'year' ? '올해' : '전체'}
+                  {p === 'today' ? '오늘' : p === 'week' ? '이번 주' : p === 'month' ? '이번 달' : p === 'year' ? '올해' : '전체'}
                 </button>
               ))}
             </div>
-
-            <div className="flex items-center gap-2 p-1.5 bg-zinc-900/80 rounded-2xl border border-white/10 backdrop-blur-xl">
-              <div className="flex items-center gap-2 px-3">
+            
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-3 py-2 bg-zinc-900/60 rounded-xl border border-white/5">
                 <input 
                   type="date" 
-                  value={startDateInput}
-                  onChange={(e) => setStartDateInput(e.target.value)}
-                  className="bg-transparent text-white text-xs font-bold outline-none border-b border-white/10 focus:border-purple-500 transition-colors py-1 [color-scheme:dark]"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  className="bg-transparent text-white text-[10px] font-bold outline-none [color-scheme:dark] w-24"
                 />
-                <span className="text-zinc-600 text-xs font-black">~</span>
+                <span className="text-zinc-700 text-[10px]">~</span>
                 <input 
                   type="date" 
-                  value={endDateInput}
-                  onChange={(e) => setEndDateInput(e.target.value)}
-                  className="bg-transparent text-white text-xs font-bold outline-none border-b border-white/10 focus:border-purple-500 transition-colors py-1 [color-scheme:dark]"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  className="bg-transparent text-white text-[10px] font-bold outline-none [color-scheme:dark] w-24"
                 />
+                <button
+                  onClick={handleCustomSearch}
+                  className="p-1.5 bg-purple-600 rounded-lg text-white hover:bg-purple-500 transition-colors"
+                >
+                  <Search size={14} />
+                </button>
               </div>
-              <button
-                onClick={handleCustomSearch}
-                disabled={loading}
-                className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center text-white shadow-[0_0_15px_rgba(168,85,247,0.3)] hover:shadow-[0_0_25px_rgba(168,85,247,0.5)] transition-all active:scale-95 disabled:opacity-50 disabled:scale-100"
+              
+              <button 
+                onClick={() => refetch()}
+                className="p-2.5 bg-zinc-900/60 rounded-xl border border-white/5 text-zinc-500 hover:text-white transition-colors"
               >
-                {loading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                <RefreshCcw size={18} className={loading ? 'animate-spin' : ''} />
               </button>
             </div>
           </div>
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-[#0A0A0A] p-8 rounded-[32px] border border-white/5 shadow-xl relative overflow-hidden group">
-            <div className="absolute -top-12 -right-12 w-32 h-32 bg-purple-500/5 blur-3xl rounded-full group-hover:bg-purple-500/10 transition-all duration-700" />
-            <div className="flex items-center gap-4 mb-6 relative z-10">
-              <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-500 border border-purple-500/20">
-                <TrendingUp size={24} />
-              </div>
-              <span className="text-zinc-400 font-black text-lg tracking-tight">총 판매 수량</span>
-            </div>
-            <div className="text-4xl font-black text-white tracking-tighter relative z-10">
-              {totalSalesCount.toLocaleString()}<span className="text-xl text-zinc-500 ml-1">건</span>
-            </div>
-          </div>
-
-          <div className="bg-[#0A0A0A] p-8 rounded-[32px] border border-white/5 shadow-xl relative overflow-hidden group">
-            <div className="absolute -top-12 -right-12 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full group-hover:bg-emerald-500/10 transition-all duration-700" />
-            <div className="flex items-center gap-4 mb-6 relative z-10">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20">
-                <DollarSign size={24} />
-              </div>
-              <span className="text-zinc-400 font-black text-lg tracking-tight">총 판매 금액</span>
-            </div>
-            <div className="text-4xl font-black text-white tracking-tighter relative z-10">
-              <span className="text-2xl text-zinc-500 mr-1">₩</span>
-              {data.reduce((sum, item) => sum + item.revenue, 0).toLocaleString()}
-            </div>
-          </div>
-
-          <div className="bg-[#0A0A0A] p-8 rounded-[32px] border border-white/5 shadow-xl relative overflow-hidden group">
-            <div className="absolute -top-12 -right-12 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full group-hover:bg-blue-500/10 transition-all duration-700" />
-            <div className="flex items-center gap-4 mb-6 relative z-10">
-              <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20">
-                <Package size={24} />
-              </div>
-              <span className="text-zinc-400 font-black text-lg tracking-tight">분석된 제품 수</span>
-            </div>
-            <div className="text-4xl font-black text-white tracking-tighter relative z-10">
-              {data.length}<span className="text-xl text-zinc-500 ml-1">종</span>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+          <StatCard title="총 판매 수량" value={stats.totalCount} unit="건" icon={TrendingUp} colorClass="bg-purple-500" delay={0.1} />
+          <StatCard title="총 판매 금액" value={stats.totalRevenue} unit="원" icon={DollarSign} colorClass="bg-emerald-500" delay={0.2} />
+          <StatCard title="분석된 제품 수" value={stats.productCount} unit="종" icon={Package} colorClass="bg-blue-500" delay={0.3} />
         </div>
 
-        {/* Best Sellers List */}
-        <div className="bg-[#0A0A0A] border border-white/5 rounded-[40px] overflow-hidden shadow-2xl">
-          <div className="p-8 border-b border-white/5 flex items-center justify-between">
-            <h3 className="text-xl font-black text-white tracking-tight flex items-center gap-3">
-              <Flame size={20} className="text-purple-500" />
-              {reportTitle}
-            </h3>
-            <div className="flex items-center gap-2 text-[10px] font-black text-zinc-600 uppercase tracking-widest">
-              <Calendar size={14} />
-              <span>{new Date().toLocaleDateString()} 기준</span>
+        {/* Ranking List */}
+        <div className="bg-[#0A0A0A] border border-white/5 rounded-[32px] overflow-hidden shadow-2xl">
+          <div className="p-6 sm:p-8 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-500 border border-purple-500/20">
+                <BarChart3 size={20} />
+              </div>
+              <div>
+                <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  <span className="text-purple-500 mr-2">{reportTitle}</span>
+                  판매 랭킹
+                </h3>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 bg-zinc-900/40 rounded-full border border-white/5 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+              <Calendar size={14} className="text-purple-500" />
+              <span>{new Date().toLocaleDateString('ko-KR')} 기준</span>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-zinc-900/30">
-                  <th className="px-8 py-6 text-[10px] font-black text-zinc-500 uppercase tracking-widest">Rank</th>
-                  <th className="px-8 py-6 text-[10px] font-black text-zinc-500 uppercase tracking-widest">Product Info & Popularity</th>
-                  <th className="px-8 py-6 text-[10px] font-black text-zinc-500 uppercase tracking-widest text-right">Performance</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
+          <div className="p-4 sm:p-8">
+            <div className="space-y-4">
+              <AnimatePresence mode="wait">
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i} className="animate-pulse">
-                      <td className="px-8 py-8"><div className="h-6 bg-zinc-900 rounded-lg w-8" /></td>
-                      <td className="px-8 py-8"><div className="h-10 bg-zinc-900 rounded-lg w-full" /></td>
-                      <td className="px-8 py-8"><div className="h-6 bg-zinc-900 rounded-lg w-32 ml-auto" /></td>
-                    </tr>
+                    <div key={i} className="h-24 bg-zinc-900/40 rounded-2xl animate-pulse border border-white/5" />
                   ))
                 ) : data.length > 0 ? (
                   data.map((item, index) => {
                     const rank = index + 1;
-                    const intensity = (item.count / maxSalesCount) * 100;
+                    const percentage = (item.count / stats.maxCount) * 100;
                     
                     return (
-                      <motion.tr 
+                      <motion.div 
                         key={item.name}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className="group hover:bg-white/[0.02] transition-colors"
+                        className="group relative bg-zinc-900/20 hover:bg-white/[0.03] p-4 sm:p-6 rounded-2xl border border-white/5 hover:border-white/10 transition-all duration-300 flex flex-col sm:flex-row items-start sm:items-center gap-6"
                       >
-                        <td className="px-8 py-8">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm ${
-                            rank === 1 ? 'bg-purple-500 text-white shadow-[0_0_20px_rgba(168,85,247,0.4)]' :
-                            rank === 2 ? 'bg-zinc-800 text-zinc-300' :
-                            rank === 3 ? 'bg-zinc-900 text-zinc-500' :
-                            'text-zinc-600'
-                          }`}>
-                            {rank}
-                          </div>
-                        </td>
-                        <td className="px-8 py-8">
-                          <div className="flex items-center gap-4">
-                            <div 
-                              onClick={() => {
-                                const url = getFullImageUrl(item.image, item.isWorkshop);
-                                if (url) handleDownload(url, `${item.name}.png`);
-                              }}
-                              className="relative w-16 h-16 rounded-2xl overflow-hidden border border-white/10 group-hover:border-purple-500/50 transition-all flex-shrink-0 cursor-pointer"
-                            >
-                              {item.image ? (
-                                <>
-                                  <img 
-                                    src={getFullImageUrl(item.image, item.isWorkshop)} 
-                                    alt={item.name}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <Download size={16} className="text-white" />
-                                  </div>
-                                </>
-                              ) : (
-                                <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-800">
-                                  <Package size={24} />
+                        {/* Rank Badge */}
+                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center font-black text-lg sm:text-xl flex-shrink-0 ${
+                          rank === 1 ? 'bg-gradient-to-br from-yellow-400 to-orange-600 text-white shadow-lg shadow-orange-500/20' :
+                          rank === 2 ? 'bg-zinc-800 text-zinc-300' :
+                          rank === 3 ? 'bg-zinc-900 text-zinc-500' :
+                          'bg-transparent text-zinc-700'
+                        }`}>
+                          {rank}
+                        </div>
+
+                        {/* Product Info */}
+                        <div className="flex-1 flex items-center gap-4 sm:gap-6 w-full min-w-0">
+                          <div 
+                            onClick={() => {
+                              const url = getFullImageUrl(item.image, item.isWorkshop);
+                              if (url) downloadImage(url, `${item.name}.png`);
+                            }}
+                            className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border border-white/10 flex-shrink-0 cursor-pointer group-hover:border-purple-500/30 transition-all"
+                          >
+                            {item.image && getFullImageUrl(item.image, item.isWorkshop) ? (
+                              <>
+                                <img 
+                                  src={getFullImageUrl(item.image, item.isWorkshop) || undefined} 
+                                  alt={item.name}
+                                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <Download size={18} className="text-white" />
                                 </div>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-4">
-                                <div className="text-white font-black text-lg tracking-tight group-hover:text-purple-400 transition-colors truncate">
-                                  {item.name}
-                                </div>
-                                <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest whitespace-nowrap">
-                                  {Math.round(intensity)}%
-                                </div>
+                              </>
+                            ) : (
+                              <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-800">
+                                <Package size={24} />
                               </div>
-                              <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden mt-2 border border-white/5">
+                            )}
+                          </div>
+
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4">
+                              <h4 className="text-lg sm:text-xl font-bold text-white truncate tracking-tight group-hover:text-purple-400 transition-colors">
+                                {item.name}
+                              </h4>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter ${
+                                  item.isWorkshop ? 'bg-purple-500/10 text-purple-500' : 'bg-zinc-800 text-zinc-500'
+                                }`}>
+                                  {item.isWorkshop ? 'Workshop' : 'Standard'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Progress Bar */}
+                            <div className="space-y-1.5">
+                              <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                                <span>판매 비중</span>
+                                <span>{Math.round(percentage)}%</span>
+                              </div>
+                              <div className="h-1.5 bg-zinc-900 rounded-full overflow-hidden border border-white/5">
                                 <motion.div 
                                   initial={{ width: 0 }}
-                                  animate={{ width: `${intensity}%` }}
-                                  transition={{ duration: 1, delay: index * 0.1 }}
+                                  animate={{ width: `${percentage}%` }}
+                                  transition={{ duration: 1.5, ease: "easeOut" }}
                                   className={`h-full rounded-full ${
-                                    rank === 1 ? 'bg-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.5)]' :
-                                    rank <= 3 ? 'bg-purple-700' : 'bg-zinc-700'
+                                    rank === 1 ? 'bg-gradient-to-r from-purple-600 to-blue-500' : 'bg-zinc-700'
                                   }`}
                                 />
                               </div>
-                              <div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mt-1">
-                                {item.isWorkshop ? 'Workshop Item' : 'Standard Product'}
-                              </div>
                             </div>
                           </div>
-                        </td>
-                        <td className="px-8 py-8 text-right">
-                          <div className="flex flex-col items-end">
-                            <div className="text-white font-black text-xl tracking-tighter">
-                              {item.count.toLocaleString()}<span className="text-xs text-zinc-500 ml-1">건</span>
-                            </div>
-                            <div className="text-zinc-500 font-mono text-xs mt-1">
-                              ₩{item.revenue.toLocaleString()}
-                            </div>
+                        </div>
+
+                        {/* Performance Stats */}
+                        <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-white/5 gap-2">
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-2xl sm:text-3xl font-black text-white tracking-tighter">{item.count.toLocaleString()}</span>
+                            <span className="text-xs text-zinc-500 font-bold">건</span>
                           </div>
-                        </td>
-                      </motion.tr>
+                          <div className="text-xs sm:text-sm font-medium text-zinc-500 font-mono">
+                            ₩{item.revenue.toLocaleString()}
+                          </div>
+                        </div>
+                      </motion.div>
                     );
                   })
                 ) : (
-                  <tr>
-                    <td colSpan={4} className="px-8 py-32 text-center">
-                      <div className="flex flex-col items-center gap-4">
-                        <div className="w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center text-zinc-700">
-                          <Flame size={32} />
-                        </div>
-                        <p className="text-zinc-500 font-bold">해당 기간에는 판매 데이터가 없습니다.</p>
+                  <div className="py-24 text-center border-2 border-dashed border-white/5 rounded-[32px]">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center text-zinc-800">
+                        <Flame size={32} />
                       </div>
-                    </td>
-                  </tr>
+                      <div className="space-y-1">
+                        <p className="text-xl font-bold text-white">판매 데이터가 없습니다</p>
+                        <p className="text-zinc-500 text-sm">선택하신 기간 동안의 판매 내역이 아직 집계되지 않았습니다.</p>
+                      </div>
+                    </div>
+                  </div>
                 )}
-              </tbody>
-            </table>
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </div>
+      <style>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .animate-shimmer {
+          animation: shimmer 2s infinite;
+        }
+      `}</style>
     </AdminLayout>
   );
 }

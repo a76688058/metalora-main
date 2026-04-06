@@ -63,8 +63,12 @@ const RevenueCalendar = React.memo(({
   onMonthChange: (date: Date) => void,
   onDateClick: (date: string) => void
 }) => {
-  const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
-  const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay();
+  const kstCurrentMonth = new Date(currentMonth.getTime() + 9 * 60 * 60 * 1000);
+  const currentYear = kstCurrentMonth.getUTCFullYear();
+  const currentMonthNum = kstCurrentMonth.getUTCMonth();
+
+  const daysInMonth = new Date(Date.UTC(currentYear, currentMonthNum + 1, 0)).getUTCDate();
+  const firstDayOfMonth = new Date(Date.UTC(currentYear, currentMonthNum, 1)).getUTCDay();
   
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
@@ -76,7 +80,7 @@ const RevenueCalendar = React.memo(({
 
   const today = new Date();
   const kstToday = new Date(today.getTime() + 9 * 60 * 60 * 1000);
-  const todayKey = `${kstToday.getFullYear()}-${String(kstToday.getMonth() + 1).padStart(2, '0')}-${String(kstToday.getDate()).padStart(2, '0')}`;
+  const todayKey = `${kstToday.getUTCFullYear()}-${String(kstToday.getUTCMonth() + 1).padStart(2, '0')}-${String(kstToday.getUTCDate()).padStart(2, '0')}`;
 
   const getIntensity = (rev: number) => {
     if (rev === 0) return 'bg-zinc-900/40 text-zinc-600 hover:bg-zinc-800/60';
@@ -116,7 +120,7 @@ const RevenueCalendar = React.memo(({
             <ChevronLeft size={18} />
           </button>
           <span className="text-sm font-black text-white px-4 min-w-[100px] text-center tracking-tighter">
-            {currentMonth.getFullYear()}. {String(currentMonth.getMonth() + 1).padStart(2, '0')}
+            {currentYear}. {String(currentMonthNum + 1).padStart(2, '0')}
           </span>
           <button 
             onClick={() => {
@@ -137,7 +141,7 @@ const RevenueCalendar = React.memo(({
         ))}
         {blanks.map(b => <div key={`blank-${b}`} />)}
         {days.map(d => {
-          const dateKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const dateKey = `${currentYear}-${String(currentMonthNum + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
           const dayData = data[dateKey] || { revenue: 0, orders: 0 };
           const isToday = dateKey === todayKey;
 
@@ -341,18 +345,20 @@ export default function AdminDashboard() {
 
       // Parse the clicked date (which is in KST like '2026-04-02')
       const [year, month, day] = dateKey.split('-').map(Number);
-      const startKST = new Date(year, month - 1, day);
-      const endKST = new Date(year, month - 1, day, 23, 59, 59, 999);
+      
+      // Create KST boundaries using UTC methods to avoid browser timezone issues
+      const startKST_UTC = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+      const endKST_UTC = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
-      const startUTC = new Date(startKST.getTime() - 9 * 60 * 60 * 1000);
-      const endUTC = new Date(endKST.getTime() - 9 * 60 * 60 * 1000);
+      const startUTC = new Date(startKST_UTC.getTime() - 9 * 60 * 60 * 1000);
+      const endUTC = new Date(endKST_UTC.getTime() - 9 * 60 * 60 * 1000);
 
       const { data, error } = await supabase
         .from('orders')
-        .select('*, order_items(*, products(id, name, main_image))')
+        .select('*')
         .gte('created_at', startUTC.toISOString())
         .lte('created_at', endUTC.toISOString())
-        .eq('status', '구매확정');
+        .in('status', ['PAID', 'PRODUCTION', 'SHIPPING', 'COMPLETED', '결제확인', '제작중', '배송중', '배송완료', '구매확정', 'paid', 'production', 'shipping', 'completed']);
 
       if (error) throw error;
 
@@ -365,21 +371,23 @@ export default function AdminDashboard() {
       data?.forEach(order => {
         totalRevenue += (order.total_price || 0);
         
-        const items = order.order_items || [];
+        const items = (order.ordered_items as any[]) || [];
 
-        items.forEach((item: any) => {
-          const name = item.products?.title || '커스텀 작품(Workshop)';
-          const quantity = Number(item.quantity) || 1;
-          const price = Number(item.price) || 0;
+        items.forEach((ji: any) => {
+          const name = ji.title || '커스텀 작품(Workshop)';
+          const quantity = Number(ji.quantity) || 1;
+          const price = Number(ji.price) || 0;
           const revenue = quantity * price;
           
+          const userImageUrl = ji.user_image_url;
+          
           // Workshop detection: No product_id or specific keywords in title
-          const isWorkshop = !item.product_id || 
+          const isWorkshop = ji.product_id === 'workshop-single' || 
                             name.includes('커스텀') || 
                             name.includes('Workshop') || 
                             name.includes('Atelier') ||
                             name === '커스텀 작품(Workshop)' ||
-                            !!item.user_image_url;
+                            !!userImageUrl;
 
           if (!productStats[name]) {
             productStats[name] = { count: 0, revenue: 0, isWorkshop };
@@ -432,14 +440,39 @@ export default function AdminDashboard() {
       setLoadingStats(true);
       
       const now = new Date();
+      const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
       
-      // UTC 기준 오늘 시작과 끝
-      const startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-      const endUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+      const year = kstNow.getUTCFullYear();
+      const month = kstNow.getUTCMonth();
+      const day = kstNow.getUTCDate();
+      
+      let startKST_UTC: Date;
+      let endKST_UTC: Date;
+      let startPrevKST_UTC: Date;
+      let endPrevKST_UTC: Date;
 
-      // 이전 기간 계산 (UTC 기준)
-      const startPrevUTC = new Date(startUTC.getTime() - 24 * 60 * 60 * 1000);
-      const endPrevUTC = new Date(endUTC.getTime() - 24 * 60 * 60 * 1000);
+      if (targetRange === 'daily') {
+        startKST_UTC = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+        endKST_UTC = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
+        startPrevKST_UTC = new Date(startKST_UTC.getTime() - 24 * 60 * 60 * 1000);
+        endPrevKST_UTC = new Date(endKST_UTC.getTime() - 24 * 60 * 60 * 1000);
+      } else if (targetRange === 'monthly') {
+        startKST_UTC = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+        endKST_UTC = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+        startPrevKST_UTC = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+        endPrevKST_UTC = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+      } else {
+        // yearly
+        startKST_UTC = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0));
+        endKST_UTC = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+        startPrevKST_UTC = new Date(Date.UTC(year - 1, 0, 1, 0, 0, 0, 0));
+        endPrevKST_UTC = new Date(Date.UTC(year - 1, 11, 31, 23, 59, 59, 999));
+      }
+
+      const startUTC = new Date(startKST_UTC.getTime() - 9 * 60 * 60 * 1000);
+      const endUTC = new Date(endKST_UTC.getTime() - 9 * 60 * 60 * 1000);
+      const startPrevUTC = new Date(startPrevKST_UTC.getTime() - 9 * 60 * 60 * 1000);
+      const endPrevUTC = new Date(endPrevKST_UTC.getTime() - 9 * 60 * 60 * 1000);
 
       // 1. Current Period Stats
       const { data: currentData, error: currentError } = await supabase
@@ -447,7 +480,7 @@ export default function AdminDashboard() {
         .select('total_price, created_at, status')
         .gte('created_at', startUTC.toISOString())
         .lte('created_at', endUTC.toISOString())
-        .eq('status', '구매확정');
+        .in('status', ['PAID', 'PRODUCTION', 'SHIPPING', 'COMPLETED', '결제확인', '제작중', '배송중', '배송완료', '구매확정', 'paid', 'production', 'shipping', 'completed']);
 
       if (currentError) throw currentError;
 
@@ -460,7 +493,7 @@ export default function AdminDashboard() {
         .select('total_price')
         .gte('created_at', startPrevUTC.toISOString())
         .lte('created_at', endPrevUTC.toISOString())
-        .eq('status', '구매확정');
+        .in('status', ['PAID', 'PRODUCTION', 'SHIPPING', 'COMPLETED', '결제확인', '제작중', '배송중', '배송완료', '구매확정', 'paid', 'production', 'shipping', 'completed']);
 
       if (prevError) throw prevError;
 
@@ -499,18 +532,21 @@ export default function AdminDashboard() {
     if (!supabase) return;
     try {
       const kstMonth = new Date(calendarMonth.getTime() + 9 * 60 * 60 * 1000);
-      const startKST = new Date(kstMonth.getFullYear(), kstMonth.getMonth(), 1);
-      const endKST = new Date(kstMonth.getFullYear(), kstMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+      const year = kstMonth.getUTCFullYear();
+      const month = kstMonth.getUTCMonth();
+      
+      const startKST_UTC = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+      const endKST_UTC = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
 
-      const startOfMonth = new Date(startKST.getTime() - 9 * 60 * 60 * 1000);
-      const endOfMonth = new Date(endKST.getTime() - 9 * 60 * 60 * 1000);
+      const startOfMonth = new Date(startKST_UTC.getTime() - 9 * 60 * 60 * 1000);
+      const endOfMonth = new Date(endKST_UTC.getTime() - 9 * 60 * 60 * 1000);
 
       const { data, error } = await supabase
         .from('orders')
         .select('total_price, created_at')
         .gte('created_at', startOfMonth.toISOString())
         .lte('created_at', endOfMonth.toISOString())
-        .eq('status', '구매확정');
+        .in('status', ['PAID', 'PRODUCTION', 'SHIPPING', 'COMPLETED', '결제확인', '제작중', '배송중', '배송완료', '구매확정', 'paid', 'production', 'shipping', 'completed']);
 
       if (error) throw error;
 
@@ -519,7 +555,7 @@ export default function AdminDashboard() {
         // Convert order.created_at to KST date string
         const dateUTC = new Date(order.created_at);
         const dateKST = new Date(dateUTC.getTime() + 9 * 60 * 60 * 1000);
-        const key = `${dateKST.getFullYear()}-${String(dateKST.getMonth() + 1).padStart(2, '0')}-${String(dateKST.getDate()).padStart(2, '0')}`;
+        const key = `${dateKST.getUTCFullYear()}-${String(dateKST.getUTCMonth() + 1).padStart(2, '0')}-${String(dateKST.getUTCDate()).padStart(2, '0')}`;
         if (!aggregated[key]) {
           aggregated[key] = { revenue: 0, orders: 0 };
         }
@@ -577,7 +613,20 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  const totalProducts = products.length;
+  const [totalProducts, setTotalProducts] = useState(0);
+
+  useEffect(() => {
+    const fetchTotalProducts = async () => {
+      if (!supabase) return;
+      const { count, error } = await supabase
+        .from('products')
+        .select('*', { count: 'exact', head: true });
+      if (!error && count !== null) {
+        setTotalProducts(count);
+      }
+    };
+    fetchTotalProducts();
+  }, []);
 
   if (loadingStats && stats.revenue === 0) {
     return <LoadingScreen />;

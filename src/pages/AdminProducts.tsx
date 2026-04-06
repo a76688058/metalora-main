@@ -7,6 +7,7 @@ import { Plus, Edit, Eye, EyeOff, Search, Filter, Package, AlertTriangle, Trendi
 import { useToast } from '../context/ToastContext';
 import { Reorder } from 'framer-motion';
 import { supabase } from '../lib/supabase';
+import { getFullImageUrl } from '../lib/utils';
 
 import LoadingScreen from '../components/LoadingScreen';
 
@@ -179,11 +180,17 @@ export default function AdminProducts() {
                     <div className="flex gap-4">
                       {/* 좌측: 썸네일 */}
                       <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-zinc-800 border border-white/5 shrink-0">
-                        <img 
-                          src={product.front_image || product.image} 
-                          alt={product.title} 
-                          className="w-full h-full object-cover" 
-                        />
+                        {getFullImageUrl(product.front_image || product.image) ? (
+                          <img 
+                            src={getFullImageUrl(product.front_image || product.image) || undefined} 
+                            alt={product.title} 
+                            className="w-full h-full object-cover" 
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-zinc-700">
+                            <Package size={24} />
+                          </div>
+                        )}
                         <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
                         
                         {/* 드래그 핸들 (오버레이) */}

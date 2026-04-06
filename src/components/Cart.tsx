@@ -259,47 +259,40 @@ export default function Cart() {
         console.error('Profile address sync exception:', syncError);
       }
       
-      // 1. Create Order in Supabase
+      // 1. Prepare Order Data
       const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       
-      const { data: order, error: orderError } = await client
-        .from('orders')
-        .insert([
-          {
-            order_number: orderNumber,
-            user_id: currentUser.id,
-            user_custom_id: profile?.user_custom_id || null,
-            total_price: selectedTotalPrice,
-            status: '결제대기',
-            shipping_name: shippingData.name,
-            shipping_phone: shippingData.phone,
-            zip_code: shippingData.zipCode,
-            address: shippingData.address,
-            address_detail: shippingData.addressDetail,
-            shipping_info: {
-              consents: {
-                ...consents,
-                agreed_at: new Date().toISOString()
-              }
-            },
-            ordered_items: selectedItems.map(item => ({
-              product_id: item.product_id,
-              title: item.product?.title || (item.product_id === 'workshop-single' ? '커스텀 포스터' : '제품'),
-              option: item.product_id === 'workshop-single' ? item.custom_config?.size : item.selected_option,
-              quantity: item.quantity,
-              price: item.product_id === 'workshop-single' ? (item.custom_config?.price || 0) : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0),
-              user_image_url: item.custom_image,
-              custom_config: item.custom_config
-            }))
+      const pendingOrderData = {
+        order_number: orderNumber,
+        user_id: currentUser.id,
+        user_custom_id: profile?.user_custom_id || null,
+        total_price: selectedTotalPrice,
+        status: 'PAID', // Will be created as PAID upon success
+        shipping_name: shippingData.name,
+        shipping_phone: shippingData.phone,
+        zip_code: shippingData.zipCode,
+        address: shippingData.address,
+        address_detail: shippingData.addressDetail,
+        shipping_info: {
+          consents: {
+            ...consents,
+            agreed_at: new Date().toISOString()
           }
-        ])
-        .select()
-        .single();
+        },
+        ordered_items: selectedItems.map(item => ({
+          product_id: item.product_id,
+          title: item.product?.title || (item.product_id === 'workshop-single' ? '커스텀 포스터' : '제품'),
+          option: item.product_id === 'workshop-single' ? item.custom_config?.size : item.selected_option,
+          quantity: item.quantity,
+          price: item.product_id === 'workshop-single' ? (item.custom_config?.price || 0) : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0),
+          user_image_url: item.custom_image,
+          front_image: item.product?.front_image || item.product?.image,
+          custom_config: item.custom_config
+        }))
+      };
 
-      if (orderError) throw orderError;
-
-      // 2. Create Order Items
-      const orderItems = selectedItems.map(item => {
+      // 2. Prepare Order Items Data
+      const pendingOrderItems = selectedItems.map(item => {
         // Calculate price based on item type
         let price = 0;
         let title = '';
@@ -317,7 +310,6 @@ export default function Cart() {
         }
         
         return {
-          order_id: order.id,
           product_id: item.product_id === 'workshop-single' ? null : item.product_id,
           product_title: title,
           option: optionName,
@@ -326,11 +318,10 @@ export default function Cart() {
         };
       });
 
-      const { error: itemsError } = await client
-        .from('order_items')
-        .insert(orderItems);
-
-      if (itemsError) throw itemsError;
+      sessionStorage.setItem('pendingOrder', JSON.stringify({
+        order: pendingOrderData,
+        items: pendingOrderItems
+      }));
 
       // 3. Initialize Toss Payments
       const tossPayments = await loadTossPayments(TOSS_CLIENT_KEY);
@@ -398,7 +389,7 @@ export default function Cart() {
           <ChevronRight className="text-zinc-700" size={16} />
           <span className={step === 2 ? 'text-white' : 'text-zinc-600'}>2. 주문서</span>
           <ChevronRight className="text-zinc-700" size={16} />
-          <span className="text-zinc-600">3. 결제완료</span>
+          <span className="text-zinc-600">3. 결제확인</span>
         </div>
 
         {/* Content */}

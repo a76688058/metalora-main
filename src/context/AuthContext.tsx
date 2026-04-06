@@ -349,6 +349,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const MAX_RETRIES = 3;
 
     const performHeartbeat = async () => {
+      if (!user) return;
+      
       try {
         const { data, error } = await supabase.auth.getSession();
         
@@ -358,15 +360,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.warn('Heartbeat: Lock was stolen by another request. Skipping this cycle.');
             return;
           }
-          if (errorMsg.includes('Invalid Refresh Token') || errorMsg.includes('Refresh Token Not Found')) {
-            console.warn('Heartbeat: Session invalid or expired. Redirecting to login.');
-            window.location.href = '/login';
+          if (errorMsg.includes('Invalid Refresh Token') || errorMsg.includes('Refresh Token Not Found') || errorMsg.includes('session_not_found')) {
+            console.warn('Heartbeat: Session invalid or expired. Cleaning up state.');
+            setSession(null);
+            setUser(null);
+            setProfile(null);
             return;
           }
           throw error;
         }
 
         if (!data.session) {
+          // If getSession returns no session, try a silent refresh if we think we should have one
           const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
           if (refreshError) {
             const refreshErrorMsg = refreshError.message || String(refreshError);
@@ -374,22 +379,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               console.warn('Heartbeat Refresh: Lock was stolen. Skipping.');
               return;
             }
-            if (refreshErrorMsg.includes('Invalid Refresh Token') || refreshErrorMsg.includes('Refresh Token Not Found')) {
-              console.warn('Heartbeat Refresh: Invalid token. Redirecting to login.');
-              window.location.href = '/login';
+            if (refreshErrorMsg.includes('Auth session missing') || refreshErrorMsg.includes('Invalid Refresh Token') || refreshErrorMsg.includes('Refresh Token Not Found')) {
+              console.warn('Heartbeat Refresh: No valid session found. Cleaning up.');
+              setSession(null);
+              setUser(null);
+              setProfile(null);
               return;
             } else {
-              throw refreshError; // Throw to trigger retry
+              throw refreshError; // Throw to trigger retry for other errors (network etc)
             }
           }
         }
         // Reset retry count on success
         retryCount = 0;
-      } catch (err) {
-        if (String(err).includes('Lock was stolen')) {
+      } catch (err: any) {
+        const errStr = String(err);
+        if (errStr.includes('Lock was stolen')) {
           console.warn('Heartbeat caught lock stolen error:', err);
           return;
         }
+        
+        // If it's a known "missing session" error, don't log as error and don't retry
+        if (errStr.includes('Auth session missing') || errStr.includes('session_not_found')) {
+          console.warn('Heartbeat: Auth session missing. Stopping heartbeat.');
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          return;
+        }
+
         console.error('Heartbeat error:', err);
         
         if (retryCount < MAX_RETRIES) {
@@ -397,9 +415,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log(`Retrying heartbeat in 5 seconds... (Attempt ${retryCount}/${MAX_RETRIES})`);
           setTimeout(performHeartbeat, 5000);
         } else {
-          console.error('Max retries reached for heartbeat. Assuming network is down, keeping session alive locally.');
-          // Do not redirect to login, let the user stay on the page.
-          // The next heartbeat or API call will try again.
+          console.warn('Max retries reached for heartbeat. Network might be unstable.');
         }
       }
     };

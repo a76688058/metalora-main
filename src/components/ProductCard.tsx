@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Product } from '../data/products';
+import { getFullImageUrl } from '../lib/utils';
 
 interface ProductCardProps {
   product: Product;
@@ -20,15 +21,21 @@ export default function ProductCard({ product }: ProductCardProps) {
   return (
     <Link to={`/product/${product.id}`} className="block h-full">
       <div className="relative w-full aspect-[4/5] rounded-none bg-transparent overflow-hidden cursor-pointer group border-none transform-gpu">
-        <img
-          src={optimizeImage(product.front_image || product.image)}
-          alt={product.title}
-          loading="lazy"
-          onLoad={() => setIsLoaded(true)}
-          className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${
-            isLoaded ? 'blur-0 opacity-100' : 'blur-xl opacity-50'
-          }`}
-        />
+        {getFullImageUrl(product.front_image || product.image) ? (
+          <img
+            src={optimizeImage(getFullImageUrl(product.front_image || product.image)!) || undefined}
+            alt={product.title}
+            loading="lazy"
+            onLoad={() => setIsLoaded(true)}
+            className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${
+              isLoaded ? 'blur-0 opacity-100' : 'blur-xl opacity-50'
+            }`}
+          />
+        ) : (
+          <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-800">
+            <span className="text-xs font-bold opacity-20 uppercase tracking-widest">No Image</span>
+          </div>
+        )}
         
         {/* Hover Info */}
         <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col items-center justify-end text-center z-30">

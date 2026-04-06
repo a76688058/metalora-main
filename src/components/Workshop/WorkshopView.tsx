@@ -200,6 +200,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
   const [materialType, setMaterialType] = useState<'aluminum'>('aluminum');
   const [size, setSize] = useState<SizeType>('A4');
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -423,11 +424,36 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
           return;
         }
 
+        let finalImageUrl = uploadedImage;
+
+        // 만약 임시 blob URL이라면, 장바구니에 담기 전(로그인된 상태)에 실제 스토리지에 업로드합니다.
+        if (uploadedImage?.startsWith('blob:') && uploadedFile) {
+          const fileExt = uploadedFile.name.split('.').pop();
+          const fileName = `${currentUser.id}_${Date.now()}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('workshop')
+            .upload(fileName, uploadedFile);
+
+          if (uploadError) {
+            console.error('Storage upload error during checkout:', uploadError);
+            showToast("이미지 업로드에 실패했습니다. 다시 시도해주세요.", "error");
+            setIsUploading(false);
+            return;
+          }
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('workshop')
+            .getPublicUrl(fileName);
+            
+          finalImageUrl = publicUrl;
+        }
+
         await addToCart(
           'workshop-single', 
           size, 
           1, 
-          uploadedImage || undefined,
+          finalImageUrl || undefined,
           {
             shaderType: '커스텀 제작',
             material: materialType,
@@ -440,6 +466,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
         setIsFlashing(true);
         await clearProgress();
         setUploadedImage(null);
+        setUploadedFile(null);
         setPendingProgress(null);
         localStorage.removeItem('temp_image_url');
         localStorage.removeItem('workshop_draft');
@@ -472,6 +499,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
     if (!file) return;
 
     setIsUploading(true);
+    setUploadedFile(file); // Save the file object for potential later upload
 
     if (!user) {
       const url = URL.createObjectURL(file);

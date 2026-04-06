@@ -11,8 +11,9 @@ import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
 import Poster3D from './Poster3D';
 import LoginModal from './LoginModal';
-import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, RotateCw, Frame, RefreshCw } from 'lucide-react';
+import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, RotateCw, Frame, RefreshCw, Package } from 'lucide-react';
 import Skeleton from './Skeleton';
+import { getFullImageUrl } from '../lib/utils';
 
 import LoadingScreen from './LoadingScreen';
 
@@ -226,7 +227,17 @@ export default function ProductDetail() {
               >
                 <CanvasErrorBoundary fallback={
                   <div className="w-full h-full flex items-center justify-center p-8">
-                    <img src={product.front_image || product.image} alt={product.title} className="w-full h-full object-contain drop-shadow-2xl" />
+                    {getFullImageUrl(product.front_image || product.image) ? (
+                      <img 
+                        src={getFullImageUrl(product.front_image || product.image) || undefined} 
+                        alt={product.title} 
+                        className="w-full h-full object-contain drop-shadow-2xl" 
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-zinc-800">
+                        <Package size={64} />
+                      </div>
+                    )}
                   </div>
                 }>
                   <Canvas 

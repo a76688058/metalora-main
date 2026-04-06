@@ -71,34 +71,38 @@ export default function PaymentSuccess() {
       setErrorMessage(null);
 
       try {
-        // 1. 주문 상태 확인 (중복 처리 방지) 및 Price Snapshot 호출
-        const { data: existingOrder, error: fetchError } = await supabase
-          .from('orders')
-          .select('id, status, address, address_detail, shipping_address, user_custom_id, shipping_name, shipping_phone, total_price')
-          .eq('order_number', orderId)
-          .single();
-
-        if (fetchError) throw fetchError;
-        if (existingOrder?.status === 'PAID') {
-          setIsConfirming(false);
-          return;
+        // 1. 세션 스토리지에서 대기 중인 주문 정보 가져오기
+        const pendingOrderStr = sessionStorage.getItem('pendingOrder');
+        if (!pendingOrderStr) {
+          // 세션 스토리지에 없으면 이미 처리된 주문인지 DB 확인
+          const { data: existingOrder } = await supabase
+            .from('orders')
+            .select('id, status')
+            .eq('order_number', orderId)
+            .single();
+            
+          if (existingOrder && existingOrder.status === 'PAID') {
+            setIsConfirming(false);
+            return;
+          }
+          throw new Error('결제 대기 중인 주문 정보를 찾을 수 없습니다.');
         }
+        
+        const pendingOrderData = JSON.parse(pendingOrderStr);
+        const { order: pendingOrder, items: pendingItems } = pendingOrderData;
 
         // 2. 무결성 검증 (Integrity Check)
-        // 클라이언트에서 전달된 결제 금액(amount)이 DB의 total_price와 일치하는지 확인
-        if (existingOrder.total_price !== Number(totalAmount)) {
-          // 보안 위반 발생 시 즉시 리포트 생성 및 결제 중단
+        if (pendingOrder.total_price !== Number(totalAmount)) {
           const mismatchError = new Error(`[SECURITY_ALERT] Amount mismatch detected. Order: ${orderId}`);
           console.error(mismatchError);
           
-          // 디스코드 알림 발송 (보안 위반)
           const alertPayload = {
-            content: `🚨 **[SECURITY_ALERT] 결제 금액 불일치 감지!**\n주문번호: ${orderId}\nDB 금액: ${existingOrder.total_price}원\n요청 금액: ${totalAmount}원`,
+            content: `🚨 **[SECURITY_ALERT] 결제 금액 불일치 감지!**\n주문번호: ${orderId}\n요청 금액: ${pendingOrder.total_price}원\n실제 결제 금액: ${totalAmount}원`,
             embeds: [{
               color: 0xff0000,
               fields: [
-                { name: "주문자", value: MaskingUtil.name(existingOrder.shipping_name || '알수없음'), inline: true },
-                { name: "연락처", value: MaskingUtil.phone(existingOrder.shipping_phone || '알수없음'), inline: true },
+                { name: "주문자", value: MaskingUtil.name(pendingOrder.shipping_name || '알수없음'), inline: true },
+                { name: "연락처", value: MaskingUtil.phone(pendingOrder.shipping_phone || '알수없음'), inline: true },
                 { name: "상태", value: "결제 중단 및 리포트 생성 완료" }
               ]
             }]
@@ -110,10 +114,11 @@ export default function PaymentSuccess() {
           return;
         }
 
-        // 3. DB 업데이트 (결제 성공 시 주문 상태 업데이트)
-        const shippingAddress = searchParams.get('shipping_address') || existingOrder?.shipping_address;
+        // 3. DB 업데이트 (결제 성공 시 주문 데이터 생성)
+        const shippingAddress = searchParams.get('shipping_address') || pendingOrder.shipping_address;
         
-        const updateData = { 
+        const newOrderData = { 
+          ...pendingOrder,
           status: 'PAID',
           paymentKey,
           method: method || '정보 확인 중',
@@ -121,52 +126,61 @@ export default function PaymentSuccess() {
           shipping_address: shippingAddress
         };
 
-        const { data, error } = await supabase
+        const { data: insertedOrder, error: insertError } = await supabase
           .from('orders')
-          .update(updateData)
-          .eq('order_number', orderId)
-          .select('user_custom_id, shipping_address, shipping_name, shipping_phone, user_id'); // user_id 추가
+          .insert([newOrderData])
+          .select()
+          .single();
             
-        if (error) throw error;
+        if (insertError) throw insertError;
+
+        // 주문 상품 데이터 생성
+        if (insertedOrder && pendingItems && pendingItems.length > 0) {
+          const orderItemsToInsert = pendingItems.map((item: any) => ({
+            ...item,
+            order_id: insertedOrder.id
+          }));
+
+          const { error: itemsError } = await supabase
+            .from('order_items')
+            .insert(orderItemsToInsert);
+
+          if (itemsError) {
+            console.error('Failed to insert order items:', itemsError);
+          }
+        }
         
         // 3.1. [추가] 회원 총 결제 금액(total_spent) 업데이트
-        const order = data ? data[0] : null;
-        if (order && order.user_id) {
+        if (insertedOrder && insertedOrder.user_id) {
           const { data: profile } = await supabase
             .from('profiles')
             .select('total_spent')
-            .eq('id', order.user_id)
+            .eq('id', insertedOrder.user_id)
             .single();
           
           if (profile) {
             await supabase
               .from('profiles')
               .update({ total_spent: (profile.total_spent || 0) + Number(totalAmount) })
-              .eq('id', order.user_id);
+              .eq('id', insertedOrder.user_id);
           }
         }
         
-        // 3.2. 디스코드 알림 발송 (즉시 실행)
+        // 3.2. 디스코드 알림 발송
         console.log("디스코드 알림 시도 중...");
         
-        // 주문 품목 상세 정보 가져오기
-        const { data: orderItems } = await supabase
-          .from('order_items')
-          .select('product_title, option, quantity')
-          .eq('order_id', existingOrder.id);
-
-        const firstItemTitle = orderItems?.[0]?.product_title || '상품';
-        const product_name_summary = orderItems && orderItems.length > 1 
-          ? `${firstItemTitle} 외 ${orderItems.length - 1}건` 
+        const firstItemTitle = pendingItems?.[0]?.product_title || '상품';
+        const product_name_summary = pendingItems && pendingItems.length > 1 
+          ? `${firstItemTitle} 외 ${pendingItems.length - 1}건` 
           : firstItemTitle;
 
-        const options_summary = orderItems?.map(item => `${item.option}(${item.quantity}개)`).join(', ') || '기본';
+        const options_summary = pendingItems?.map((item: any) => `${item.option}(${item.quantity}개)`).join(', ') || '기본';
 
         const finalMethod = method || '정보 확인 중';
-        const customer_name = order?.shipping_name || existingOrder?.shipping_name || '고객';
-        const customer_phone = order?.shipping_phone || existingOrder?.shipping_phone || '연락처 없음';
-        const shipping_address = existingOrder?.address || order?.shipping_address || existingOrder?.shipping_address || '주소 없음';
-        const detail_address = existingOrder?.address_detail || '';
+        const customer_name = pendingOrder.shipping_name || '고객';
+        const customer_phone = pendingOrder.shipping_phone || '연락처 없음';
+        const shipping_address_full = pendingOrder.address || '주소 없음';
+        const detail_address = pendingOrder.address_detail || '';
         
         const discordContent = `💰 어이 강사장! 돈 들어오는 소리 들린다! 노 저어라!! 🚣‍♂️
 
@@ -184,7 +198,7 @@ export default function PaymentSuccess() {
 👤 **주문자 정보**
 • **성함:** ${customer_name} 님
 • **연락처:** ${customer_phone}
-• **배송지:** ${shipping_address} ${detail_address}
+• **배송지:** ${shipping_address_full} ${detail_address}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━`;
 
@@ -195,49 +209,43 @@ export default function PaymentSuccess() {
         await sendDiscordNotification(discordPayload);
         
         // 4. 장바구니 비우기 (결제된 품목만)
-        if (existingOrder) {
-          const { data: orderItems } = await supabase
-            .from('order_items')
-            .select('product_id, product_title')
-            .eq('order_id', existingOrder.id);
-
-          if (orderItems && orderItems.length > 0) {
-            const { data: userAuth } = await supabase.auth.getUser();
-            const userId = userAuth.user?.id;
-            
-            if (userId) {
-              // product_id가 있는 일반 상품들 (workshop-single 제외)
-              const productIds = orderItems
-                .map(item => item.product_id)
-                .filter(id => id && id !== 'workshop-single');
-                
-              if (productIds.length > 0) {
-                await supabase
-                  .from('cart_items')
-                  .delete()
-                  .eq('user_id', userId)
-                  .in('product_id', productIds);
-              }
+        if (pendingItems && pendingItems.length > 0) {
+          const { data: userAuth } = await supabase.auth.getUser();
+          const userId = userAuth.user?.id;
+          
+          if (userId) {
+            // product_id가 있는 일반 상품들 (workshop-single 제외)
+            const productIds = pendingItems
+              .map((item: any) => item.product_id)
+              .filter((id: any) => id && id !== 'workshop-single');
               
-              // 커스텀 작품 (workshop-single) 삭제
-              const hasWorkshopItem = orderItems.some(
-                item => item.product_id === 'workshop-single' || item.product_title?.includes('커스텀') || item.product_id === null
-              );
-              
-              if (hasWorkshopItem) {
-                await supabase
-                  .from('cart_items')
-                  .delete()
-                  .eq('user_id', userId)
-                  .eq('product_id', 'workshop-single');
-              }
-              
-              // 5. 장바구니 상태 즉시 갱신
-              await refreshCart();
+            if (productIds.length > 0) {
+              await supabase
+                .from('cart_items')
+                .delete()
+                .eq('user_id', userId)
+                .in('product_id', productIds);
             }
+            
+            // 커스텀 작품 (workshop-single) 삭제
+            const hasWorkshopItem = pendingItems.some(
+              (item: any) => item.product_id === 'workshop-single' || item.product_title?.includes('커스텀') || item.product_id === null
+            );
+            
+            if (hasWorkshopItem) {
+              await supabase
+                .from('cart_items')
+                .delete()
+                .eq('user_id', userId)
+                .eq('product_id', 'workshop-single');
+            }
+            
+            // 5. 장바구니 상태 즉시 갱신
+            await refreshCart();
           }
         }
         
+        sessionStorage.removeItem('pendingOrder');
         setIsConfirming(false);
       } catch (error: any) {
         console.error('Payment confirmation error:', error);
@@ -292,7 +300,7 @@ export default function PaymentSuccess() {
         <div className="w-4 h-[1px] bg-white/10" />
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-full bg-[#3182F6] text-white flex items-center justify-center text-xs font-bold">3</div>
-          <span className="text-sm font-medium text-white">결제완료</span>
+          <span className="text-sm font-medium text-white">결제확인</span>
         </div>
       </div>
 

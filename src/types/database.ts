@@ -50,5 +50,6 @@ export interface Order {
   zip_code?: string;
   courier?: string;
   tracking_number?: string;
+  ordered_items?: any[]; // JSONB 컬럼
   order_items?: OrderItem[];
 }
