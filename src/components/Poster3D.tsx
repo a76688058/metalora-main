@@ -83,8 +83,13 @@ export default function Poster3D({
     }
 
     if (meshRef.current) {
-      if (autoRotate || !interactive) {
-        // Always auto-rotate if requested or not interactive
+      if (interactive) {
+        // When interactive (modal), we let OrbitControls handle the view.
+        // We reset the mesh rotation to 0 so it doesn't conflict with camera movement.
+        meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0, delta * 5);
+        meshRef.current.rotation.y = THREE.MathUtils.lerp(meshRef.current.rotation.y, 0, delta * 5);
+      } else if (autoRotate || !interactive) {
+        // Always auto-rotate if requested or not interactive (main view)
         meshRef.current.rotation.y += delta * 0.5;
         meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0, delta * 5);
       } else if (!active && !hovered) {

@@ -202,7 +202,7 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] bg-[#121212] w-screen min-h-screen flex flex-col overflow-y-auto custom-scrollbar pt-2 px-6 pb-40 md:px-10">
+      <div className="fixed inset-0 w-screen h-screen h-[100dvh] z-[9999] bg-[#121212] flex flex-col overflow-y-auto custom-scrollbar pt-2 px-6 pb-40 md:px-10">
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}

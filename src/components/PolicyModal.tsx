@@ -29,7 +29,7 @@ export default function PolicyModal({ isOpen, onClose, title, content }: PolicyM
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: '100%' }}
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          className="fixed inset-0 z-[70000] bg-black flex flex-col"
+          className="fixed inset-0 w-screen h-screen h-[100dvh] z-[70000] bg-black flex flex-col"
         >
           {/* Header with Fade-out effect */}
           <div className="relative z-20 flex-shrink-0 pt-12 pb-6 px-6 bg-black">

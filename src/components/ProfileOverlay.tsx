@@ -18,26 +18,12 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
 
   useEffect(() => {
     if (isOpen) {
-      const scrollY = window.scrollY;
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
-      document.body.style.overflowY = 'scroll';
+      document.body.style.overflow = 'hidden';
     } else {
-      const scrollY = document.body.style.top;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflowY = '';
-      if (scrollY) {
-        window.scrollTo(0, parseInt(scrollY || '0') * -1);
-      }
+      document.body.style.overflow = '';
     }
     return () => {
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflowY = '';
+      document.body.style.overflow = '';
     };
   }, [isOpen]);
 
@@ -121,7 +107,7 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[11000] flex justify-end pointer-events-auto"
+      className="fixed inset-0 w-screen h-screen h-[100dvh] z-[20000] flex justify-end pointer-events-auto"
     >
       {/* Backdrop */}
       <div 

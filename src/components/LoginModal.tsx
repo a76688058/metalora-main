@@ -416,7 +416,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 w-screen h-screen z-[50000] bg-[#0c0c0c] flex items-center justify-center"
+            className="fixed inset-0 w-screen h-screen h-[100dvh] z-[50000] bg-[#0c0c0c] flex items-center justify-center"
           >
             {/* Close Button - Moved outside scrolling container for visibility */}
             <button 
@@ -433,6 +433,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
               className="relative w-full max-w-lg h-full overflow-y-auto px-6 pt-24 pb-6 md:pb-10 will-change-transform scrollbar-hide flex flex-col items-center justify-center border border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,1)]"
             >
+            <div className="w-full flex flex-col items-center -mt-16 md:-mt-24">
             <div className="flex flex-col items-center mb-10">
               <img 
                 src="https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840" 
@@ -536,6 +537,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
             <p className="text-center text-zinc-600 text-[11px] mt-12 font-medium tracking-tight">
               가입 시 METALORA의 이용약관 및 개인정보처리방침에 동의하게 됩니다.
             </p>
+            </div>
           </motion.div>
         </motion.div>
       )}
@@ -548,14 +550,14 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-[#0c0c0c] z-[60000] flex items-end sm:items-center justify-center"
+          className="fixed inset-0 w-screen h-screen h-[100dvh] bg-[#0c0c0c] z-[60000] flex items-end sm:items-center justify-center"
         >
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="w-full max-w-md bg-zinc-900 rounded-t-[32px] sm:rounded-[28px] p-8 text-white relative border border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,1)]"
+            className="w-full max-w-md bg-zinc-900 rounded-t-[32px] sm:rounded-[28px] p-8 text-white relative border border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,1)] sm:-translate-y-12"
           >
             <button 
               onClick={() => setIsConsentOpen(false)}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Html } from '@react-three/drei';
+import { OrbitControls, Html, ContactShadows, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 import { useProducts } from '../context/ProductContext';
 import { useAuth } from '../context/AuthContext';
@@ -11,7 +11,7 @@ import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
 import Poster3D from './Poster3D';
 import LoginModal from './LoginModal';
-import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, RotateCw, Frame, RefreshCw, Package } from 'lucide-react';
+import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, RotateCw, Frame, RefreshCw, Package, Maximize, X } from 'lucide-react';
 import Skeleton from './Skeleton';
 import { getFullImageUrl } from '../lib/utils';
 import BrandStorySection from './BrandStorySection';
@@ -74,7 +74,7 @@ export default function ProductDetail() {
   const { products, fetchProducts, isLoading, isError } = useProducts();
   const { user, adminUser, profile } = useAuth();
   const { showToast } = useToast();
-  const { addToCart } = useCart();
+  const { addToCart, openCart } = useCart();
   
   const currentUser = user || adminUser;
   let product = products.find((p) => p.id === id);
@@ -106,6 +106,7 @@ export default function ProductDetail() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [hasInteracted, setHasInteracted] = useState(false);
@@ -195,9 +196,9 @@ export default function ProductDetail() {
 
       setIsAdded(true);
       
-      // 1단계 목록 화면으로 이동
+      // 장바구니 열기
       setTimeout(() => {
-        navigate('/my-collection');
+        openCart();
       }, 800);
     } catch (error: any) {
       console.error('Add to Cart Failed:', error.message || error);
@@ -207,13 +208,71 @@ export default function ProductDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-[#000000] pt-4 flex flex-col relative z-10">
+    <div className="min-h-screen bg-[#000000] flex flex-col relative">
       {/* Login Modal */}
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
         onSuccess={() => setIsLoginModalOpen(false)}
       />
+
+      {/* 3D Interactive Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 w-screen h-screen h-[100dvh] z-[50000] bg-black/95 backdrop-blur-xl flex flex-col pointer-events-auto"
+          >
+            <div className="absolute top-0 left-0 w-full h-20 flex items-center justify-between px-6 z-20">
+              <div className="flex flex-col">
+                <span className="text-[10px] text-cyan-400 font-bold tracking-[0.3em] uppercase mb-1">Interactive</span>
+                <h3 className="text-white font-bold tracking-tight">3D 프리뷰</h3>
+              </div>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex-1 relative">
+              <CanvasErrorBoundary fallback={
+                <div className="w-full h-full flex items-center justify-center p-8">
+                  <img src={getFullImageUrl(product?.front_image || product?.image) || undefined} alt="Preview" className="max-w-full max-h-full object-contain" />
+                </div>
+              }>
+                <Canvas shadows camera={{ position: [0, 0, 3], fov: 45 }}>
+                  <Suspense fallback={null}>
+                    <Poster3D 
+                      product={product}
+                      interactive={true}
+                      scale={1.5}
+                    />
+                    <OrbitControls 
+                      enablePan={false}
+                      enableZoom={true}
+                      minDistance={1.5}
+                      maxDistance={6}
+                    />
+                    <Environment preset="studio" environmentIntensity={0.3} />
+                  </Suspense>
+                  <ContactShadows position={[0, -1.2, 0]} opacity={0.4} scale={6} blur={2.5} far={2} color="#000000" />
+                </Canvas>
+              </CanvasErrorBoundary>
+
+              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-none flex flex-col items-center gap-3">
+                <div className="px-4 py-2 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                  <span className="text-[11px] text-white/70 font-medium tracking-wider">손가락으로 자유롭게 돌려보세요</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 w-full pb-24">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
@@ -229,8 +288,22 @@ export default function ProductDetail() {
             <div className="py-0 -mx-4 sm:mx-0"> {/* Safe Scroll Area */}
               <div 
                 ref={canvasContainerRef}
-                className="relative aspect-square w-full md:w-[150%] md:-ml-[25%] lg:w-[150%] lg:-ml-[25%] overflow-visible bg-transparent cursor-grab active:cursor-grabbing"
+                className="relative aspect-square w-full md:w-[150%] md:-ml-[25%] lg:w-[150%] lg:-ml-[25%] overflow-visible bg-transparent"
               >
+                <div className="absolute top-4 left-4 z-10 px-3 py-1 bg-black/50 backdrop-blur-md rounded-full border border-white/10 text-[10px] tracking-widest text-white font-bold uppercase flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                  Live 3D Preview
+                </div>
+                
+                <motion.button 
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                  onClick={() => setIsModalOpen(true)}
+                  className="absolute top-4 right-4 p-3 bg-white/5 backdrop-blur-md rounded-full border border-white/10 z-10 hover:bg-white/10 transition-colors"
+                >
+                  <Maximize size={18} className="text-white" />
+                </motion.button>
+
                 <CanvasErrorBoundary fallback={
                   <div className="w-full h-full flex items-center justify-center p-8">
                     {getFullImageUrl(product.front_image || product.image) ? (
@@ -259,44 +332,21 @@ export default function ProductDetail() {
                       gl.setClearColor(0x000000, 0); // Transparent background
                       window.dispatchEvent(new CustomEvent('3d-poster-loaded'));
                     }}
-                    style={{ background: 'transparent' }}
+                    style={{ background: 'transparent', pointerEvents: 'none' }}
                   >
                     <Suspense fallback={<Html center><CanvasLoader /></Html>}>
                       <Poster3D 
                         product={product}
                         scale={1.8}
-                      />
-                      <OrbitControls 
-                        onStart={() => setHasInteracted(true)}
-                        enablePan={false} 
-                        enableZoom={true} 
-                        minDistance={1.8}
-                        maxDistance={10}
+                        interactive={false}
                         autoRotate={true}
-                        autoRotateSpeed={0.5}
-                        minPolarAngle={Math.PI / 4} 
-                        maxPolarAngle={Math.PI / 1.5} 
                       />
                     </Suspense>
                   </Canvas>
                 </CanvasErrorBoundary>
                 
                 <AnimatePresence>
-                  {!hasInteracted && (
-                    <motion.div 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="absolute inset-0 flex items-center justify-center pointer-events-none bg-transparent"
-                    >
-                      <div className="flex flex-col items-center gap-3">
-                        <span className="text-white/60 text-xs font-light tracking-widest animate-pulse">
-                          손가락으로 자유롭게 돌려보세요
-                        </span>
-                        <RotateCw className="text-white/40 animate-spin-slow" size={16} />
-                      </div>
-                    </motion.div>
-                  )}
+                  {/* Interaction guide removed from main view as it's now view-only */}
                 </AnimatePresence>
 
                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 pointer-events-none">
@@ -433,7 +483,7 @@ export default function ProductDetail() {
                   <div className="flex gap-3">
                     {id === 'workshop-single' && cartItemFromState ? (
                       <button
-                        onClick={() => navigate('/my-collection')}
+                        onClick={() => openCart()}
                         className="flex-1 font-bold text-xl tracking-tight h-[64px] rounded-2xl transition-all active:scale-95 duration-150 shadow-2xl flex items-center justify-center gap-3 border-[0.5px] bg-white text-black hover:bg-zinc-100 shadow-white/10 border-white/20"
                       >
                         <ArrowLeft size={24} />

@@ -580,7 +580,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10001] flex items-center justify-center px-6"
+            className="fixed inset-0 w-screen h-screen h-[100dvh] bg-black/60 backdrop-blur-sm z-[10001] flex items-center justify-center px-6"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -857,7 +857,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[10002] bg-white pointer-events-none"
+            className="fixed inset-0 w-screen h-screen h-[100dvh] z-[10002] bg-white pointer-events-none"
           />
         )}
       </AnimatePresence>
@@ -869,7 +869,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[10005] bg-black/95 backdrop-blur-xl flex flex-col pointer-events-auto"
+            className="fixed inset-0 w-screen h-screen h-[100dvh] z-[10005] bg-black/95 backdrop-blur-xl flex flex-col pointer-events-auto"
           >
             <div className="absolute top-0 left-0 w-full h-20 flex items-center justify-between px-6 z-20">
               <div className="flex flex-col">

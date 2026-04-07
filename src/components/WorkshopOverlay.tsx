@@ -88,7 +88,7 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[11000] flex justify-end pointer-events-auto"
+      className="fixed inset-0 w-screen h-screen h-[100dvh] z-[40000] flex justify-end pointer-events-auto"
     >
       {/* Backdrop */}
       <div 

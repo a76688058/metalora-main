@@ -162,7 +162,7 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[12000] flex justify-end pointer-events-auto"
+          className="fixed inset-0 w-screen h-screen h-[100dvh] z-[25000] flex justify-end pointer-events-auto"
         >
           {/* Backdrop */}
           <div 

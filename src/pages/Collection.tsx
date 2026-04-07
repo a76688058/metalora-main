@@ -72,7 +72,7 @@ export default function Collection() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
-      className="min-h-screen bg-black text-white pt-10 pb-24 px-4 md:px-8 lg:px-12"
+      className="min-h-screen bg-black text-white pb-24 px-4 md:px-8 lg:px-12"
     >
       <div className="max-w-7xl mx-auto">
         <header className="mb-12 flex flex-col md:flex-row justify-between items-center md:items-end gap-6">

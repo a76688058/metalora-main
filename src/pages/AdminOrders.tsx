@@ -192,7 +192,7 @@ export default function AdminOrders() {
 
       <AnimatePresence>
         {selectedOrder && (
-          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="fixed inset-0 w-screen h-screen h-[100dvh] z-50 flex items-end md:items-center justify-center p-0 md:p-4">
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/90 backdrop-blur-sm"
@@ -339,7 +339,7 @@ export default function AdminOrders() {
 
       <AnimatePresence>
         {isTrackingModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 w-screen h-screen h-[100dvh] z-[100] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/80 backdrop-blur-md"

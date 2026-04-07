@@ -40,7 +40,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       {/* Logout Confirmation Modal */}
       <AnimatePresence>
         {showLogoutModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+          <div className="fixed inset-0 w-screen h-screen h-[100dvh] z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -166,7 +166,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-30 lg:hidden"
+            className="fixed inset-0 w-screen h-screen h-[100dvh] bg-black/80 backdrop-blur-sm z-30 lg:hidden"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}

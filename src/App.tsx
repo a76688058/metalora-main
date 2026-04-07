@@ -147,7 +147,7 @@ function Layout() {
       <AdminBanner />
       {!isAdminPage && !isAuthPage && <Header isHome={location.pathname === '/'} />}
       <div className="flex-1 flex flex-col">
-        <main className={`flex-1 ${!isAdminPage && !isAuthPage ? 'pt-16' : ''}`}>
+        <main className={`flex-1 ${!isAdminPage && !isAuthPage ? 'pt-28' : ''}`}>
           <AnimatedRoutes />
         </main>
         {!isAdminPage && !isAuthPage && <Footer />}

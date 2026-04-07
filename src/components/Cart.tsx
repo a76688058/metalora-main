@@ -23,26 +23,12 @@ export default function Cart() {
 
   useEffect(() => {
     if (isOpen) {
-      const scrollY = window.scrollY;
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
-      document.body.style.overflowY = 'scroll';
+      document.body.style.overflow = 'hidden';
     } else {
-      const scrollY = document.body.style.top;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflowY = '';
-      if (scrollY) {
-        window.scrollTo(0, parseInt(scrollY || '0') * -1);
-      }
+      document.body.style.overflow = '';
     }
     return () => {
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflowY = '';
+      document.body.style.overflow = '';
     };
   }, [isOpen]);
 
@@ -354,7 +340,7 @@ export default function Cart() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[11000] flex justify-end pointer-events-auto"
+      className="fixed inset-0 w-screen h-screen h-[100dvh] z-[30000] flex justify-end pointer-events-auto"
     >
       {/* Backdrop */}
       <div 
@@ -696,7 +682,7 @@ export default function Cart() {
       {/* Consent Detail Modal */}
       <AnimatePresence>
         {consentModal.isOpen && consentModal.type && (
-          <div className="fixed inset-0 z-[100003] flex items-center justify-center p-6">
+          <div className="fixed inset-0 w-screen h-screen h-[100dvh] z-[100003] flex items-center justify-center p-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -752,7 +738,7 @@ export default function Cart() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsBottomSheetOpen(false)}
-              className="fixed inset-0 z-[10001] bg-black/60 backdrop-blur-sm"
+              className="fixed inset-0 w-screen h-screen h-[100dvh] z-[10001] bg-black/60 backdrop-blur-sm"
             />
             <motion.div
               initial={{ y: '100%' }}

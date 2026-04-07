@@ -83,7 +83,7 @@ export default function Home() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
-      className="min-h-screen bg-black text-white pt-16 pb-24"
+      className="min-h-screen bg-black text-white pb-24"
     >
       {/* Marquee Section */}
       <div className="mb-12 md:mb-16">

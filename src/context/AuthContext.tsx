@@ -284,6 +284,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handleResurrection = async () => {
       if (document.visibilityState === 'visible' || document.hasFocus()) {
+        // Network Wake-up Ping: 
+        // Force a lightweight request to wake up stale TCP connections 
+        // that might have been silently dropped while the tab was in the background.
+        try {
+          fetch('https://qifloweuwyhvukabgnoa.supabase.co/auth/v1/health', { 
+            method: 'GET',
+            cache: 'no-store',
+            signal: AbortSignal.timeout(3000) // Fast timeout for the ping
+          }).catch(() => {});
+        } catch (e) {}
+
         // Refresh both if needed
         if (!session && !adminSession) {
           try {

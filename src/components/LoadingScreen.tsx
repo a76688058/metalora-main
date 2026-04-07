@@ -5,7 +5,7 @@ export default function LoadingScreen() {
   const LOGO_URL = "https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840";
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center">
+    <div className="fixed inset-0 bg-black z-[9999] flex items-center justify-center">
       <motion.div
         initial={{ scale: 1 }}
         exit={{ scale: 0.8, opacity: 0 }}

@@ -55,7 +55,7 @@ export default function GlobalSplash() {
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed inset-0 w-screen h-screen bg-black z-[10001] flex items-center justify-center"
+          className="fixed inset-0 bg-black z-[99999] flex items-center justify-center"
         >
           <motion.div
             initial={{ scale: 1 }}

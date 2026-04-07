@@ -124,7 +124,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
               >
                 <img 
                   src={LOGO_URL} 
-                  alt="METALORA" 
+                  alt="메탈 액자의 기준, 메타로라 | METALORA" 
                   className="h-9 md:h-11 object-contain filter invert" 
                   referrerPolicy="no-referrer"
                 />

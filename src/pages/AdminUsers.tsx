@@ -260,7 +260,7 @@ export default function AdminUsers() {
       {/* 회원 상세 정보 모달 */}
       <AnimatePresence>
         {isModalOpen && selectedUser && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 w-screen h-screen h-[100dvh] z-[100] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

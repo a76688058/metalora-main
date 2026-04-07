@@ -200,7 +200,7 @@ const DailyBottomSheet = React.memo(({
   if (!report && !loading) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center">
+    <div className="fixed inset-0 w-screen h-screen h-[100dvh] z-[100] flex items-end justify-center">
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

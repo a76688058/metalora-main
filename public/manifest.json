@@ -1,6 +1,6 @@
 {
-  "name": "METALORA",
-  "short_name": "METALORA",
+  "name": "메탈 액자의 기준, 메타로라 | METALORA",
+  "short_name": "메타로라",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0F0F11",
