@@ -611,7 +611,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
 
       <div 
         ref={scrollContainerRef}
-        className="relative z-10 flex-1 flex flex-col pt-8 pb-12 overflow-y-auto custom-scrollbar overscroll-contain touch-pan-y"
+        className="relative z-10 flex-1 flex flex-col pt-8 pb-32 overflow-y-auto custom-scrollbar overscroll-contain touch-pan-y"
       >
         {/* Step Progress Bar (Minimal) */}
         <div className="max-w-xl mx-auto w-full px-6 mb-8">
@@ -824,9 +824,11 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
             </motion.div>
           </AnimatePresence>
         </div>
+      </div>
 
-        {/* Fixed Bottom Action Button */}
-        <div className="max-w-xl mx-auto w-full px-6 mt-10">
+      {/* Fixed Bottom Action Button */}
+      <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black via-black/90 to-transparent pt-12 pb-8 px-6 z-20 pointer-events-none">
+        <div className="max-w-xl mx-auto w-full pointer-events-auto">
           <button
             onClick={handleActionClick}
             disabled={isButtonDisabled}
@@ -835,7 +837,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                 ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
                 : currentStep === totalSteps
                   ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 shadow-[0_0_30px_rgba(217,70,239,0.3)]'
-                  : 'bg-white text-black hover:bg-zinc-200'
+                  : 'bg-white text-black hover:bg-zinc-200 shadow-[0_0_30px_rgba(255,255,255,0.1)]'
             }`}
           >
             {isUploading ? (

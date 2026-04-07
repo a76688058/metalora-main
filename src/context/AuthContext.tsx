@@ -280,48 +280,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Smart Fetching & Inactivity Logic (Admin Only)
+  // Inactivity Logic (Admin Only)
   useEffect(() => {
-    const handleResurrection = async () => {
-      if (document.visibilityState === 'visible' || document.hasFocus()) {
-        // Network Wake-up Ping: 
-        // Force a lightweight request to wake up stale TCP connections 
-        // that might have been silently dropped while the tab was in the background.
-        try {
-          fetch('https://qifloweuwyhvukabgnoa.supabase.co/auth/v1/health', { 
-            method: 'GET',
-            cache: 'no-store',
-            signal: AbortSignal.timeout(3000) // Fast timeout for the ping
-          }).catch(() => {});
-        } catch (e) {}
-
-        // Refresh both if needed
-        if (!session && !adminSession) {
-          try {
-            const { data: { session: uSess }, error: uErr } = await supabase.auth.getSession();
-            if (uErr && (uErr.message?.includes('Lock was stolen') || String(uErr).includes('Lock was stolen'))) {
-              console.warn('Resurrection uSess: Lock was stolen.');
-            } else if (uSess) { 
-              setSession(uSess); 
-              setUser(uSess.user); 
-              await fetchProfile(uSess.user.id, false); 
-            }
-
-            const { data: { session: aSess }, error: aErr } = await supabaseAdmin.auth.getSession();
-            if (aErr && (aErr.message?.includes('Lock was stolen') || String(aErr).includes('Lock was stolen'))) {
-              console.warn('Resurrection aSess: Lock was stolen.');
-            } else if (aSess) { 
-              setAdminSession(aSess); 
-              setAdminUser(aSess.user); 
-              await fetchProfile(aSess.user.id, true); 
-            }
-          } catch (err) {
-            console.error('Resurrection error:', err);
-          }
-        }
-      }
-    };
-
     let inactivityTimeout: NodeJS.Timeout;
     const INACTIVITY_LIMIT = 30 * 60 * 1000;
 
@@ -341,100 +301,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       resetInactivityTimer();
     }
 
-    window.addEventListener('focus', handleResurrection);
-    document.addEventListener('visibilitychange', handleResurrection);
-
     return () => {
-      window.removeEventListener('focus', handleResurrection);
-      document.removeEventListener('visibilitychange', handleResurrection);
       if (inactivityTimeout) clearTimeout(inactivityTimeout);
       activityEvents.forEach(event => window.removeEventListener(event, resetInactivityTimer));
     };
-  }, [user, profile, session, adminUser, adminProfile, adminSession]);
-
-  // Session Heartbeat (5 minutes)
-  useEffect(() => {
-    if (!user) return;
-    
-    let retryCount = 0;
-    const MAX_RETRIES = 3;
-
-    const performHeartbeat = async () => {
-      if (!user) return;
-      
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          const errorMsg = error.message || String(error);
-          if (errorMsg.includes('Lock was stolen')) {
-            console.warn('Heartbeat: Lock was stolen by another request. Skipping this cycle.');
-            return;
-          }
-          if (errorMsg.includes('Invalid Refresh Token') || errorMsg.includes('Refresh Token Not Found') || errorMsg.includes('session_not_found')) {
-            console.warn('Heartbeat: Session invalid or expired. Cleaning up state.');
-            setSession(null);
-            setUser(null);
-            setProfile(null);
-            return;
-          }
-          throw error;
-        }
-
-        if (!data.session) {
-          // If getSession returns no session, try a silent refresh if we think we should have one
-          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-          if (refreshError) {
-            const refreshErrorMsg = refreshError.message || String(refreshError);
-            if (refreshErrorMsg.includes('Lock was stolen')) {
-              console.warn('Heartbeat Refresh: Lock was stolen. Skipping.');
-              return;
-            }
-            if (refreshErrorMsg.includes('Auth session missing') || refreshErrorMsg.includes('Invalid Refresh Token') || refreshErrorMsg.includes('Refresh Token Not Found')) {
-              console.warn('Heartbeat Refresh: No valid session found. Cleaning up.');
-              setSession(null);
-              setUser(null);
-              setProfile(null);
-              return;
-            } else {
-              throw refreshError; // Throw to trigger retry for other errors (network etc)
-            }
-          }
-        }
-        // Reset retry count on success
-        retryCount = 0;
-      } catch (err: any) {
-        const errStr = String(err);
-        if (errStr.includes('Lock was stolen')) {
-          console.warn('Heartbeat caught lock stolen error:', err);
-          return;
-        }
-        
-        // If it's a known "missing session" error, don't log as error and don't retry
-        if (errStr.includes('Auth session missing') || errStr.includes('session_not_found')) {
-          console.warn('Heartbeat: Auth session missing. Stopping heartbeat.');
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          return;
-        }
-
-        console.error('Heartbeat error:', err);
-        
-        if (retryCount < MAX_RETRIES) {
-          retryCount++;
-          console.log(`Retrying heartbeat in 5 seconds... (Attempt ${retryCount}/${MAX_RETRIES})`);
-          setTimeout(performHeartbeat, 5000);
-        } else {
-          console.warn('Max retries reached for heartbeat. Network might be unstable.');
-        }
-      }
-    };
-
-    const heartbeat = setInterval(performHeartbeat, 5 * 60 * 1000); // 5 minutes
-
-    return () => clearInterval(heartbeat);
-  }, [user]);
+  }, [adminUser, adminProfile]);
 
   const signOut = async (options?: { adminOnly?: boolean }) => {
     setIsLoggingOut(true);
