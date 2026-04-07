@@ -12,6 +12,7 @@ import AdminOrders from './pages/AdminOrders';
 import AdminCS from './pages/AdminCS';
 import AdminUsers from './pages/AdminUsers';
 import AdminBestSellers from './pages/AdminBestSellers';
+import AdminBanners from './pages/AdminBanners';
 import Login from './pages/Login';
 import ProfileComplete from './pages/ProfileComplete';
 import AuthCallback from './pages/AuthCallback';
@@ -119,6 +120,7 @@ function AnimatedRoutes() {
         <Route path="/admin/cs" element={<ProtectedRoute requireAdmin={true}><AdminCS /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute requireAdmin={true}><AdminUsers /></ProtectedRoute>} />
         <Route path="/admin/best-sellers" element={<ProtectedRoute requireAdmin={true}><AdminBestSellers /></ProtectedRoute>} />
+        <Route path="/admin/banners" element={<ProtectedRoute requireAdmin={true}><AdminBanners /></ProtectedRoute>} />
       </Routes>
     </AnimatePresence>
   );

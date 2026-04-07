@@ -206,13 +206,6 @@ export default function ProfileComplete() {
         {isPostcodeOpen && (
           <div className="fixed inset-0 z-[100] flex justify-center items-end bg-black/80 w-screen h-screen overflow-hidden">
             <motion.div
-              drag="y"
-              dragConstraints={{ top: 0, bottom: 0 }}
-              onDragEnd={(e, info) => {
-                if (info.offset.y > 100 || info.velocity.y > 500) {
-                  setIsPostcodeOpen(false);
-                }
-              }}
               initial={{ opacity: 0, y: "100%" }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: "100%" }}

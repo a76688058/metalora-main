@@ -30,6 +30,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { name: '회원 관리', path: '/admin/users', icon: Users },
     { name: '상품 관리', path: '/admin/products', icon: Package },
     { name: '인기 판매 제품', path: '/admin/best-sellers', icon: Flame },
+    { name: '배너 관리', path: '/admin/banners', icon: Globe },
     { name: '주문 관리', path: '/admin/orders', icon: ShoppingCart },
     { name: 'CS 관리', path: '/admin/cs', icon: MessageSquare },
   ];

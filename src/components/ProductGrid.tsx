@@ -131,7 +131,7 @@ export default function ProductGrid() {
         {marqueeItems.map((product, index) => (
           <motion.div 
             key={`${product.id}-${index}`} 
-            className="w-[95px] md:w-[136px] flex-shrink-0 mx-2 md:mx-4 transform-gpu will-change-transform"
+            className="w-[85px] md:w-[109px] flex-shrink-0 mx-2 md:mx-4 transform-gpu will-change-transform"
             animate={{ scale: isDragging ? 0.97 : 1 }}
             transition={{ duration: 0.2 }}
             whileHover={!isDragging ? { scale: 1.03 } : {}}

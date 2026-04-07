@@ -145,7 +145,26 @@ TO authenticated
 USING (auth.uid() = user_id)
 WITH CHECK (auth.uid() = user_id);
 
--- 9. Storage Policies (Run this in the Storage settings or SQL)
+-- 9. Banners Table Policies
+ALTER TABLE banners ENABLE ROW LEVEL SECURITY;
+
+-- Everyone can view active banners
+CREATE POLICY "Allow public read access to active banners"
+ON banners FOR SELECT
+USING (true);
+
+-- Only admins can manage banners
+CREATE POLICY "Allow admin full access to banners"
+ON banners FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid() AND profiles.is_admin = true
+  )
+);
+
+-- 10. Storage Policies (Run this in the Storage settings or SQL)
 -- Note: Replace 'products' with your actual bucket name
 -- Allow public read access to product images
 -- CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING ( bucket_id = 'products' );

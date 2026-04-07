@@ -15,8 +15,12 @@ const customFetch = async (url: RequestInfo | URL, options?: RequestInit) => {
     });
     clearTimeout(timeoutId);
     return response;
-  } catch (error) {
+  } catch (error: any) {
     clearTimeout(timeoutId);
+    console.error(`Fetch error for ${url}:`, error);
+    if (error.name === 'AbortError') {
+      console.error('Fetch request timed out after 30s');
+    }
     throw error;
   }
 };

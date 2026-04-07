@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import LoginModal from './LoginModal';
+import AnnouncementBar from './AnnouncementBar';
 
 const LOGO_URL = "https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840";
 
@@ -89,10 +90,11 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
         ref={searchRef}
       >
         <motion.div layout className="flex flex-col w-full">
+          <AnnouncementBar />
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between relative w-full">
             {/* Left: Search Icon (Conditional Visibility) */}
             <div className="flex-1 flex justify-start">
-              {location.pathname === '/collection' && (
+              {(location.pathname === '/' || location.pathname === '/collection') && (
                 <button 
                   onClick={() => setIsSearchOpen(!isSearchOpen)}
                   className="text-white opacity-60 hover:opacity-100 transition-all duration-300"

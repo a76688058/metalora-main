@@ -14,6 +14,7 @@ import LoginModal from './LoginModal';
 import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, RotateCw, Frame, RefreshCw, Package } from 'lucide-react';
 import Skeleton from './Skeleton';
 import { getFullImageUrl } from '../lib/utils';
+import BrandStorySection from './BrandStorySection';
 
 import LoadingScreen from './LoadingScreen';
 
@@ -119,6 +120,11 @@ export default function ProductDetail() {
     }
   }, [product]);
 
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    e.currentTarget.src = 'https://picsum.photos/seed/metalora_fallback/210/297';
+    e.currentTarget.onerror = null;
+  };
+
   if (isLoading && products.length === 0) {
     return <LoadingScreen />;
   }
@@ -213,11 +219,11 @@ export default function ProductDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
           {/* Left Column: Image & Visuals */}
           <div className="space-y-6">
-            <button onClick={() => navigate('/collection')} className="group inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors mb-4 py-2 pr-4">
+            <button onClick={() => navigate('/')} className="group inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors mb-4 py-2 pr-4">
               <motion.div className="group-hover:-translate-x-1 transition-transform duration-300 ease-out">
                 <ArrowLeft size={16} strokeWidth={1.5} />
               </motion.div>
-              <span className="text-[10px] font-light uppercase tracking-[0.2em]">COLLECTION</span>
+              <span className="text-[10px] font-light uppercase tracking-[0.2em]">SHOP</span>
             </button>
 
             <div className="py-0 -mx-4 sm:mx-0"> {/* Safe Scroll Area */}
@@ -231,6 +237,7 @@ export default function ProductDetail() {
                       <img 
                         src={getFullImageUrl(product.front_image || product.image) || undefined} 
                         alt={product.title} 
+                        onError={handleImageError}
                         className="w-full h-full object-contain drop-shadow-2xl" 
                       />
                     ) : (
@@ -525,6 +532,34 @@ export default function ProductDetail() {
           </div>
         </div>
       </div>
+
+      {/* Brand Story Section Bridge */}
+      <div className="relative bg-black py-32 border-t border-white/5 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(168,85,247,0.05)_0%,transparent_70%)]" />
+        <div className="max-w-7xl mx-auto px-6 text-center relative z-10">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
+            className="space-y-12"
+          >
+            <div className="flex flex-col items-center gap-6">
+              <div className="w-[1px] h-24 bg-gradient-to-b from-transparent via-purple-500/50 to-transparent" />
+              <h2 className="text-5xl md:text-8xl font-thin tracking-[0.4em] text-white/90 uppercase leading-tight">
+                Beyond <br className="md:hidden" /> the Product
+              </h2>
+              <div className="w-12 h-[1px] bg-white/20" />
+            </div>
+            <p className="text-zinc-500 text-xs md:text-sm font-light tracking-[0.6em] uppercase max-w-lg mx-auto leading-relaxed">
+              Our Story & Philosophy <br />
+              <span className="text-[10px] mt-4 block opacity-50">Crafted for Eternity</span>
+            </p>
+          </motion.div>
+        </div>
+      </div>
+
+      <BrandStorySection />
 
       {/* Cart Particle Animation */}
       {cartParticles.map(p => (
