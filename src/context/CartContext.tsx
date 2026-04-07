@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { supabase, supabaseAdmin } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { Product } from '../data/products';
@@ -45,10 +45,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   // Helper to get the correct supabase client based on active session
   const getClient = useCallback(() => {
-    if (user) return supabase;
-    if (adminUser) return supabaseAdmin;
     return supabase;
-  }, [user, adminUser]);
+  }, []);
 
   const refreshCart = useCallback(async () => {
     const currentUserId = user?.id || adminUser?.id;
@@ -149,12 +147,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         // Check regular user session
         const { data: { session: sess } } = await supabase.auth.getSession();
         currentUserId = sess?.user?.id;
-        
-        // If still no user, check admin session
-        if (!currentUserId) {
-          const { data: { session: adminSess } } = await supabaseAdmin.auth.getSession();
-          currentUserId = adminSess?.user?.id;
-        }
       }
       
       if (!currentUserId) {

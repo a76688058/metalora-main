@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { Product } from '../data/products';
 import { supabase, supabasePublic } from '../lib/supabase';
 
@@ -29,6 +29,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const hasLoadedRef = useRef(false);
 
   const fetchProducts = useCallback(async () => {
     if (!supabasePublic) return;
@@ -36,7 +37,10 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
     // Check global flag to prevent fetching during signout
     if ((window as any).isLoggingOutFlag) return;
 
-    setIsLoading(true);
+    // Only show loading spinner on initial load
+    if (!hasLoadedRef.current) {
+      setIsLoading(true);
+    }
     setIsError(false);
     
     let attempt = 0;
@@ -52,9 +56,9 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
           .order('display_order', { ascending: true })
           .limit(20);
           
-        // Timeout Extension: 25 seconds to allow for Cold Start
+        // Timeout Extension: 10 seconds (reduced from 25s to prevent long hangs)
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 25000)
+          setTimeout(() => reject(new Error('Timeout')), 10000)
         );
         
         const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
@@ -70,13 +74,16 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
             limited: item.is_limited || false,
           }));
           setProducts(mappedData as Product[]);
+          hasLoadedRef.current = true;
           success = true;
         }
       } catch (error: any) {
         attempt++;
         if (attempt >= maxRetries) {
           console.error("Failed to fetch products after 3 attempts:", error);
-          setIsError(true);
+          if (!hasLoadedRef.current) {
+            setIsError(true);
+          }
         } else {
           console.warn(`Product fetch attempt ${attempt} failed. Retrying in ${attempt}s...`);
           // Exponential Backoff: 1s, then 2s

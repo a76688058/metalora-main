@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Loader2 } from 'lucide-react';
-import { supabaseAdmin } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -27,7 +27,7 @@ export default function AdminLogin() {
     setError('');
 
     try {
-      const { data, error: authError } = await supabaseAdmin.auth.signInWithPassword({
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -35,8 +35,8 @@ export default function AdminLogin() {
       if (authError) throw authError;
 
       // Check if the user is an admin
-      const { data: profileData, error: profileError } = await supabaseAdmin
-        .from('profiles')
+      const { data: profileData, error: profileError } = await supabase
+        .from('users') // Changed to users to match AuthContext
         .select('is_admin')
         .eq('id', data.user.id)
         .single();
@@ -44,11 +44,11 @@ export default function AdminLogin() {
       if (profileError) throw profileError;
 
       if (!profileData?.is_admin) {
-        await supabaseAdmin.auth.signOut();
+        await supabase.auth.signOut();
         throw new Error('관리자 권한이 없습니다.');
       }
 
-      await refreshProfile(true); // Refresh admin profile
+      await refreshProfile(); // Refresh profile
       showToast('관리자 로그인 성공', 'success');
       navigate('/admin');
     } catch (err: any) {

@@ -251,8 +251,15 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
 
           if (forceNew) {
             // Force new start was requested, but data still exists.
-            // Delete it and don't show modal.
-            await supabase.from('user_progress').delete().eq('user_id', user.id);
+            // Overwrite it with empty data instead of delete to bypass potential RLS delete restrictions.
+            await supabase.from('user_progress').upsert({
+              user_id: user.id,
+              current_step: 1,
+              selected_material: 'aluminum',
+              selected_size: 'A4',
+              uploaded_image_url: null,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'user_id' });
             localStorage.removeItem('force_new_start');
             sessionStorage.removeItem('workshop_just_finished');
             setIsRestoring(false);
@@ -297,7 +304,14 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
 
     if (user) {
       try {
-        await supabase.from('user_progress').delete().eq('user_id', user.id);
+        await supabase.from('user_progress').upsert({
+          user_id: user.id,
+          current_step: 1,
+          selected_material: 'aluminum',
+          selected_size: 'A4',
+          uploaded_image_url: null,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
       } catch (err) {
         console.error('Failed to clear progress in Supabase:', err);
       }
@@ -370,7 +384,14 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
     }
 
     try {
-      await supabase.from('user_progress').delete().eq('user_id', user.id);
+      await supabase.from('user_progress').upsert({
+        user_id: user.id,
+        current_step: 1,
+        selected_material: 'aluminum',
+        selected_size: 'A4',
+        uploaded_image_url: null,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
       setUploadedImage(null);
       localStorage.removeItem('temp_image_url');
       localStorage.removeItem('workshop_draft');

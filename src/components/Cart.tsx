@@ -5,7 +5,7 @@ import { X, ShoppingBag, ChevronRight, MapPin, CreditCard, CheckCircle2, Loader2
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { supabase, supabaseAdmin } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { loadTossPayments } from '@tosspayments/payment-sdk';
 
 interface CartProps {
@@ -118,8 +118,6 @@ export default function Cart() {
 
   // Helper to get the correct supabase client based on active session
   const getClient = () => {
-    if (user) return supabase;
-    if (adminUser) return supabaseAdmin;
     return supabase;
   };
 
