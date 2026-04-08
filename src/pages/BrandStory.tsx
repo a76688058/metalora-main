@@ -114,7 +114,7 @@ export default function BrandStory() {
     <div className="bg-[#000000] text-[#FFFFFF] min-h-screen relative font-sans selection:bg-[#8E8E93] selection:text-[#000000]">
       
       {/* Global Fixed Background Particles - Extremely Minimal (10% density) */}
-      <div className="fixed inset-0 w-screen h-screen h-[100dvh] z-0 pointer-events-none opacity-30">
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-30">
       </div>
 
       <div className="relative z-10">

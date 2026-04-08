@@ -196,7 +196,7 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 w-screen h-screen h-[100dvh] z-[9999] bg-[#121212] flex flex-col overflow-y-auto custom-scrollbar p-6 md:p-10">
+        <div className="fixed inset-0 z-[9999] bg-[#121212] flex flex-col overflow-y-auto custom-scrollbar p-6 md:p-10">
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}

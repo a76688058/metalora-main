@@ -12,6 +12,7 @@ const LOGO_URL = "https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQ
 export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const { 
     user, 
     adminUser, 
@@ -41,6 +42,15 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   useEffect(() => {
     setLocalSearch(searchQuery);
   }, [searchQuery]);
+
+  // Scroll listener for transparency
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 50);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Click outside to close
   useEffect(() => {
@@ -83,10 +93,16 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     }
   };
 
+  const isTransparent = isHome && !isScrolled && !isSearchOpen;
+
   return (
     <>
       <header
-        className="fixed top-0 left-0 w-full z-[10000] bg-black/80 backdrop-blur-md transition-all duration-300 border-b border-white/5"
+        className={`fixed top-0 left-0 w-full z-[10000] transition-all duration-500 border-b ${
+          isTransparent 
+            ? 'bg-transparent border-transparent' 
+            : 'bg-black/80 backdrop-blur-md border-white/5'
+        }`}
         ref={searchRef}
       >
         <motion.div layout className="flex flex-col w-full">

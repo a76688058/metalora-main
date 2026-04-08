@@ -416,7 +416,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 w-screen h-screen h-[100dvh] z-[50000] bg-[#0c0c0c] flex items-center justify-center"
+            className="fixed inset-0 z-[50000] bg-[#0c0c0c] flex items-center justify-center"
           >
             {/* Close Button - Moved outside scrolling container for visibility */}
             <button 
@@ -550,7 +550,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 w-screen h-screen h-[100dvh] bg-[#0c0c0c] z-[60000] flex items-end sm:items-center justify-center"
+          className="fixed inset-0 bg-[#0c0c0c] z-[60000] flex items-end sm:items-center justify-center"
         >
           <motion.div
             initial={{ y: '100%' }}

@@ -6,6 +6,7 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
   --animate-spin-slow: spin 3s linear infinite;
+  --animate-shimmer: shimmer 4s infinite cubic-bezier(0.4, 0, 0.2, 1);
   
   @keyframes shimmer {
     from {
@@ -22,6 +23,14 @@
   }
   
   --animate-scanline: scanline 2s linear forwards;
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
 }
 
 body {

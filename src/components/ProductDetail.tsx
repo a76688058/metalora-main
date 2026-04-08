@@ -15,6 +15,7 @@ import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, Rotate
 import Skeleton from './Skeleton';
 import { getFullImageUrl } from '../lib/utils';
 import BrandStorySection from './BrandStorySection';
+import ProductExperience from './ProductExperience';
 
 import LoadingScreen from './LoadingScreen';
 
@@ -223,7 +224,7 @@ export default function ProductDetail() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 w-screen h-screen h-[100dvh] z-[50000] bg-black/95 backdrop-blur-xl flex flex-col pointer-events-auto"
+            className="fixed inset-0 z-[50000] bg-black/95 backdrop-blur-xl flex flex-col pointer-events-auto"
           >
             <div className="absolute top-0 left-0 w-full h-20 flex items-center justify-between px-6 z-20">
               <div className="flex flex-col">
@@ -249,7 +250,7 @@ export default function ProductDetail() {
                     <Poster3D 
                       product={product}
                       interactive={true}
-                      scale={1.5}
+                      scale={1.2}
                     />
                     <OrbitControls 
                       enablePan={false}
@@ -263,10 +264,10 @@ export default function ProductDetail() {
                 </Canvas>
               </CanvasErrorBoundary>
 
-              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-none flex flex-col items-center gap-3">
-                <div className="px-4 py-2 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-3">
+              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-none flex flex-col items-center gap-3 w-full px-6">
+                <div className="px-6 py-3 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-3 whitespace-nowrap">
                   <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                  <span className="text-[11px] text-white/70 font-medium tracking-wider">손가락으로 자유롭게 돌려보세요</span>
+                  <span className="text-[13px] text-white font-bold tracking-wider">이리저리 자유롭게 돌려보세요</span>
                 </div>
               </div>
             </div>
@@ -288,7 +289,7 @@ export default function ProductDetail() {
             <div className="py-0 -mx-4 sm:mx-0"> {/* Safe Scroll Area */}
               <div 
                 ref={canvasContainerRef}
-                className="relative aspect-square w-full md:w-[150%] md:-ml-[25%] lg:w-[150%] lg:-ml-[25%] overflow-visible bg-transparent"
+                className="relative aspect-square w-full lg:w-[110%] lg:-ml-[5%] overflow-visible bg-transparent"
               >
                 <div className="absolute top-4 left-4 z-10 px-3 py-1 bg-black/50 backdrop-blur-md rounded-full border border-white/10 text-[10px] tracking-widest text-white font-bold uppercase flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
@@ -348,13 +349,6 @@ export default function ProductDetail() {
                 <AnimatePresence>
                   {/* Interaction guide removed from main view as it's now view-only */}
                 </AnimatePresence>
-
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 pointer-events-none">
-                  <div className="flex items-center gap-2 text-white/40 text-[10px] font-bold uppercase tracking-widest">
-                    <Box size={14} />
-                    <span>Interactive 3D Experience</span>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -535,81 +529,8 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      {/* SPECIFICATION Section */}
-      <div className="w-full bg-[#000000] border-t border-white/5 pt-32 pb-48 relative z-10">
-        <div className="max-w-4xl mx-auto px-6">
-          <h2 className="text-center text-[10px] font-light tracking-[0.5em] text-zinc-500 mb-32 uppercase">SPECIFICATION</h2>
-          
-          <div className="space-y-40">
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-              className="text-center space-y-8"
-            >
-              <h3 className="text-4xl md:text-5xl font-extrabold text-white tracking-[-0.05em]">1.15mm의 두께</h3>
-              <p className="text-zinc-400 text-lg md:text-xl font-light max-w-2xl mx-auto leading-relaxed break-keep">
-                프리미엄 알루미늄이 선사하는 얇지만 강인한 물성. 공간을 차지하지 않으면서도 압도적인 존재감을 발산합니다.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-              className="text-center space-y-8"
-            >
-              <h3 className="text-4xl md:text-5xl font-extrabold text-white tracking-[-0.05em]">200℃ 고온 승화전사</h3>
-              <p className="text-zinc-400 text-lg md:text-xl font-light max-w-2xl mx-auto leading-relaxed break-keep">
-                변색 없이 영원히 지속되는 8K 해상도의 선명함. 분자 속에 스며든 안료가 빛을 머금고 영원히 빛납니다.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-              className="text-center space-y-8"
-            >
-              <h3 className="text-4xl md:text-5xl font-extrabold text-white tracking-[-0.05em]">마그네틱 마운트</h3>
-              <p className="text-zinc-400 text-lg md:text-xl font-light max-w-2xl mx-auto leading-relaxed break-keep">
-                못 없이 벽면에 밀착되는 혁신적인 설치 방식. 공간의 손상 없이 완벽한 갤러리를 완성합니다.
-              </p>
-            </motion.div>
-          </div>
-        </div>
-      </div>
-
-      {/* Brand Story Section Bridge */}
-      <div className="relative bg-black py-32 border-t border-white/5 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(168,85,247,0.05)_0%,transparent_70%)]" />
-        <div className="max-w-7xl mx-auto px-6 text-center relative z-10">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
-            className="space-y-12"
-          >
-            <div className="flex flex-col items-center gap-6">
-              <div className="w-[1px] h-24 bg-gradient-to-b from-transparent via-purple-500/50 to-transparent" />
-              <h2 className="text-5xl md:text-8xl font-thin tracking-[0.4em] text-white/90 uppercase leading-tight">
-                Beyond <br className="md:hidden" /> the Product
-              </h2>
-              <div className="w-12 h-[1px] bg-white/20" />
-            </div>
-            <p className="text-zinc-500 text-xs md:text-sm font-light tracking-[0.6em] uppercase max-w-lg mx-auto leading-relaxed">
-              Our Story & Philosophy <br />
-              <span className="text-[10px] mt-4 block opacity-50">Crafted for Eternity</span>
-            </p>
-          </motion.div>
-        </div>
-      </div>
-
-      <BrandStorySection />
+      {/* New Interactive Product Experience */}
+      <ProductExperience />
 
       {/* Cart Particle Animation */}
       {cartParticles.map(p => (

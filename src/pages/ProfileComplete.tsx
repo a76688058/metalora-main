@@ -204,7 +204,7 @@ export default function ProfileComplete() {
       {/* Daum Postcode Modal */}
       <AnimatePresence>
         {isPostcodeOpen && (
-          <div className="fixed inset-0 w-screen h-screen h-[100dvh] z-[100] flex justify-center items-end bg-black/80 overflow-hidden">
+          <div className="fixed inset-0 z-[100] flex justify-center items-end bg-black/80 overflow-hidden">
             <motion.div
               initial={{ opacity: 0, y: "100%" }}
               animate={{ opacity: 1, y: 0 }}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Check, Loader2, Copy } from 'lucide-react';
+import { Check, Loader2, Copy, Factory, Printer, Package, Truck, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import LoadingScreen from '../components/LoadingScreen';
@@ -39,6 +39,31 @@ export default function PaymentSuccess() {
   const [isConfirming, setIsConfirming] = useState(true);
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [simulationStep, setSimulationStep] = useState(0);
+
+  const SIMULATION_STEPS = [
+    { icon: <Factory size={20} />, text: "메타로라 팩토리 제작 준비 중", duration: 3000 },
+    { icon: <ShieldCheck size={20} />, text: "1.15mm 프리미엄 알루미늄 패널 검수", duration: 4000 },
+    { icon: <Printer size={20} />, text: "180℃ 이상 고온 승화전사 4K 프린팅", duration: 5000 },
+    { icon: <Package size={20} />, text: "무타공 패키지 및 패널 안전 패키징", duration: 3000 },
+    { icon: <Truck size={20} />, text: "배송 파트너사 전달 대기", duration: 2000 },
+  ];
+
+  useEffect(() => {
+    if (!isConfirming && !errorMessage) {
+      let current = 0;
+      const runSimulation = () => {
+        if (current < SIMULATION_STEPS.length - 1) {
+          setTimeout(() => {
+            current++;
+            setSimulationStep(current);
+            runSimulation();
+          }, SIMULATION_STEPS[current].duration);
+        }
+      };
+      runSimulation();
+    }
+  }, [isConfirming, errorMessage]);
   
   const paymentKey = searchParams.get('paymentKey');
   const orderId = searchParams.get('orderId');
@@ -377,6 +402,50 @@ export default function PaymentSuccess() {
           <div className="flex justify-between items-center">
             <span className="text-zinc-400 text-sm font-medium">결제금액</span>
             <span className="text-[#3182F6] font-bold text-lg md:text-xl">{Number(totalAmount).toLocaleString()}원</span>
+          </div>
+        </motion.div>
+
+        {/* Real-time Delivery Simulation */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.5 }}
+          className="mb-8 text-left"
+        >
+          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-[0.2em] mb-4 ml-1">Production Status</h3>
+          <div className="bg-[#0F0F11] rounded-2xl p-6 border border-white/5 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-zinc-800">
+              <motion.div 
+                className="h-full bg-[#3182F6] shadow-[0_0_10px_rgba(49,130,246,0.5)]"
+                initial={{ width: "0%" }}
+                animate={{ width: `${((simulationStep + 1) / SIMULATION_STEPS.length) * 100}%` }}
+                transition={{ duration: 1 }}
+              />
+            </div>
+            
+            <div className="space-y-6">
+              {SIMULATION_STEPS.map((step, idx) => (
+                <div key={idx} className={`flex items-center gap-4 transition-all duration-500 ${idx === simulationStep ? 'opacity-100 scale-100' : idx < simulationStep ? 'opacity-40 grayscale' : 'opacity-20 blur-[1px]'}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${idx === simulationStep ? 'bg-[#3182F6] text-white shadow-[0_0_20px_rgba(49,130,246,0.3)]' : 'bg-zinc-800 text-zinc-500'}`}>
+                    {idx < simulationStep ? <Check size={18} /> : step.icon}
+                  </div>
+                  <div className="flex-1">
+                    <p className={`text-sm font-bold tracking-tight ${idx === simulationStep ? 'text-white' : 'text-zinc-500'}`}>
+                      {step.text}
+                    </p>
+                    {idx === simulationStep && (
+                      <motion.p 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-[10px] text-[#3182F6] font-medium mt-1 uppercase tracking-widest"
+                      >
+                        In Progress...
+                      </motion.p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </motion.div>
         

@@ -107,7 +107,7 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 w-screen h-screen h-[100dvh] z-[20000] flex justify-end pointer-events-auto"
+      className="fixed inset-0 z-[20000] flex justify-end pointer-events-auto"
     >
       {/* Backdrop */}
       <div 
@@ -135,18 +135,21 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-          {/* User Info Summary */}
-          <div className="mb-8 p-6 bg-zinc-900/40 rounded-3xl border border-white/5">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center text-zinc-400">
-                <User size={32} />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-white">{profile?.full_name || '사용자'}</h3>
-                <p className="text-sm text-zinc-500">{user?.email}</p>
-              </div>
-            </div>
+        <div className="flex-1 overflow-y-auto p-6 pb-[max(2rem,env(safe-area-inset-bottom))] custom-scrollbar">
+          {/* User Greeting */}
+          <div className="mb-10 px-2 pt-4">
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1, duration: 0.5, ease: "easeOut" }}
+            >
+              <h2 className="text-[32px] font-light text-white tracking-tight leading-tight">
+                <span className="font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-fuchsia-400 to-indigo-400 drop-shadow-sm">
+                  {profile?.full_name || '사용자'}
+                </span>님,<br />
+                반갑습니다.
+              </h2>
+            </motion.div>
           </div>
 
           {/* Menu Items */}

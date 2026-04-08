@@ -24,57 +24,57 @@ export default function MountingAnimation() {
     offset: ["start start", "end end"]
   });
 
-  // Smooth scroll progress for fluid animation - Unified "Premium Heavy" feel
+  // Smooth scroll progress for fluid animation - Optimized for faster response
   const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 25,
-    damping: 30,
-    mass: 1.5,
+    stiffness: 40,
+    damping: 35,
+    mass: 1.0,
     restDelta: 0.0001
   });
 
   if (!tunnelRef) return null;
 
-  // Layer 1: Wall (0.0 -> 0.1)
-  const wallOpacity = useTransform(smoothProgress, [0, 0.05], [0, 1]);
-  const wallScale = useTransform(smoothProgress, [0, 0.1], [0.8, 1]);
+  // Layer 1: Wall (0.0 -> 0.05)
+  const wallOpacity = useTransform(smoothProgress, [0, 0.03], [0, 1]);
+  const wallScale = useTransform(smoothProgress, [0, 0.05], [0.8, 1]);
 
-  // Layer 2: Adhesive Sticker (0.1 -> 0.3) - Staggered
-  const stickerOpacity = useTransform(smoothProgress, [0.1, 0.15], [0, 1]);
-  const stickerX = useTransform(smoothProgress, [0.1, 0.3], [1000, 0]);
+  // Layer 2: Adhesive Sticker (0.05 -> 0.25) - Staggered
+  const stickerOpacity = useTransform(smoothProgress, [0.05, 0.1], [0, 1]);
+  const stickerX = useTransform(smoothProgress, [0.05, 0.25], [1000, 0]);
   const stickerY = 0;
-  const stickerZ = useTransform(smoothProgress, [0.1, 0.3], [600, 0]);
-  const stickerScale = useTransform(smoothProgress, [0.1, 0.3], [1.3, 1]);
-  const stickerShadow = useTransform(smoothProgress, [0.1, 0.3], ["-150px 0px 150px rgba(0,0,0,0.4)", "0 0px 0px rgba(0,0,0,0)"]);
+  const stickerZ = useTransform(smoothProgress, [0.05, 0.25], [600, 0]);
+  const stickerScale = useTransform(smoothProgress, [0.05, 0.25], [1.3, 1]);
+  const stickerShadow = useTransform(smoothProgress, [0.05, 0.25], ["-150px 0px 150px rgba(0,0,0,0.4)", "0 0px 0px rgba(0,0,0,0)"]);
 
-  // Layer 3: Magnetic Bar (0.3 -> 0.5) - Staggered
-  const magnetOpacity = useTransform(smoothProgress, [0.3, 0.35], [0, 1]);
-  const magnetX = useTransform(smoothProgress, [0.3, 0.5], [800, 0]);
+  // Layer 3: Magnetic Bar (0.25 -> 0.45) - Staggered
+  const magnetOpacity = useTransform(smoothProgress, [0.25, 0.3], [0, 1]);
+  const magnetX = useTransform(smoothProgress, [0.25, 0.45], [800, 0]);
   const magnetY = 0;
-  const magnetZ = useTransform(smoothProgress, [0.3, 0.5], [400, 0]);
-  const magnetScale = useTransform(smoothProgress, [0.3, 0.5], [1.2, 1]);
-  const magnetShadow = useTransform(smoothProgress, [0.3, 0.5], ["-100px 0px 100px rgba(0,0,0,0.6)", "0 0px 0px rgba(0,0,0,0)"]);
+  const magnetZ = useTransform(smoothProgress, [0.25, 0.45], [400, 0]);
+  const magnetScale = useTransform(smoothProgress, [0.25, 0.45], [1.2, 1]);
+  const magnetShadow = useTransform(smoothProgress, [0.25, 0.45], ["-100px 0px 100px rgba(0,0,0,0.6)", "0 0px 0px rgba(0,0,0,0)"]);
 
-  // Layer 4: Metal Poster (0.5 -> 0.7) - Staggered
-  const posterOpacity = useTransform(smoothProgress, [0.5, 0.55], [0, 1]);
-  const posterX = useTransform(smoothProgress, [0.5, 0.7], [600, 0]);
-  const posterY = useTransform(smoothProgress, [0.5, 0.7], [-50, 0]);
-  const posterZ = useTransform(smoothProgress, [0.5, 0.7], [200, 0]);
-  const posterRotateZ = useTransform(smoothProgress, [0.5, 0.7], [-5, 0]);
-  const posterScale = useTransform(smoothProgress, [0.5, 0.7], [1.1, 1]);
-  const posterShadow = useTransform(smoothProgress, [0.5, 0.7], [
+  // Layer 4: Metal Poster (0.45 -> 0.65) - Staggered
+  const posterOpacity = useTransform(smoothProgress, [0.45, 0.5], [0, 1]);
+  const posterX = useTransform(smoothProgress, [0.45, 0.65], [600, 0]);
+  const posterY = useTransform(smoothProgress, [0.45, 0.65], [-50, 0]);
+  const posterZ = useTransform(smoothProgress, [0.45, 0.65], [200, 0]);
+  const posterRotateZ = useTransform(smoothProgress, [0.45, 0.65], [-5, 0]);
+  const posterScale = useTransform(smoothProgress, [0.45, 0.65], [1.1, 1]);
+  const posterShadow = useTransform(smoothProgress, [0.45, 0.65], [
     "-150px 50px 150px rgba(0,0,0,0.9)", 
     "-10px 20px 50px rgba(0,0,0,0.7)"
   ]);
   
   // Dynamic Gloss Shimmer
-  const glossX = useTransform(smoothProgress, [0.5, 0.7], ["-150%", "150%"]);
-  const glossOpacity = useTransform(smoothProgress, [0.5, 0.6, 0.7], [0, 0.6, 0.2]);
+  const glossX = useTransform(smoothProgress, [0.45, 0.65], ["-150%", "150%"]);
+  const glossOpacity = useTransform(smoothProgress, [0.45, 0.55, 0.65], [0, 0.6, 0.2]);
 
-  // Exit Animation (Sticky container moves up at the end) - Starts after a "Stay Fixed" period (0.7 -> 0.9)
-  const stickyExitY = useTransform(smoothProgress, [0.9, 1], [0, -1500]);
+  // Exit Animation (Sticky container moves up at the end) - Starts after a "Stay Fixed" period (0.65 -> 0.85)
+  const stickyExitY = useTransform(smoothProgress, [0.85, 1], [0, -1500]);
 
   // Scroll Indicator (Visible throughout the assembly until exit)
-  const indicatorOpacity = useTransform(smoothProgress, [0, 0.05, 0.9, 0.95], [0, 1, 1, 0]);
+  const indicatorOpacity = useTransform(smoothProgress, [0, 0.05, 0.85, 0.9], [0, 1, 1, 0]);
   const indicatorY = useTransform(smoothProgress, [0, 0.2], [20, 0]);
 
   return (

@@ -7,6 +7,7 @@ import LoadingScreen from '../components/LoadingScreen';
 import { Clock, Shuffle } from 'lucide-react';
 import { getOptimizedImageUrl } from '../lib/utils';
 import ProductGrid from '../components/ProductGrid';
+import HeroCinematic from '../components/HeroCinematic';
 
 export default function Home() {
   const { products, isLoading, isError, fetchProducts } = useProducts();
@@ -85,7 +86,12 @@ export default function Home() {
       transition={{ duration: 0.5 }}
       className="min-h-screen bg-black text-white pb-24"
     >
-      {/* Marquee Section */}
+      <HeroCinematic />
+
+      {/* Spacer between Hero and Marquee (Increased to match Marquee visual weight) */}
+      <div className="h-40 md:h-56 lg:h-72" />
+
+      {/* Marquee Section (Re-inserted) */}
       <div className="mb-12 md:mb-16">
         <ProductGrid />
       </div>

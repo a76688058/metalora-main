@@ -35,6 +35,7 @@ export default function Cart() {
   const { user, adminUser, profile, adminProfile } = useAuth();
   const { showToast } = useToast();
   const [step, setStep] = useState(1); // 1: List, 2: Order Form
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [displayPrice, setDisplayPrice] = useState(0);
@@ -333,18 +334,56 @@ export default function Cart() {
     }
   };
 
+  const handleNextStep = () => {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setStep(2);
+      setIsTransitioning(false);
+    }, 600);
+  };
+
+  const handlePrevStep = () => {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setStep(1);
+      setIsTransitioning(false);
+    }, 600);
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 w-screen h-screen h-[100dvh] z-[30000] flex justify-end pointer-events-auto"
+      className="fixed inset-0 z-[30000] flex justify-end pointer-events-auto"
     >
       {/* Backdrop */}
       <div 
         onClick={onClose}
         className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto touch-none"
       />
+
+      {/* Cinematic Transition Overlay */}
+      <AnimatePresence>
+        {isTransitioning && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[40000] bg-black/40 backdrop-blur-xl flex items-center justify-center pointer-events-none"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 1.2, opacity: 0 }}
+              className="flex flex-col items-center gap-4"
+            >
+              <div className="w-16 h-16 border-2 border-white/10 border-t-white rounded-full animate-spin" />
+              <span className="text-white font-bold tracking-[0.3em] uppercase text-[10px]">Processing...</span>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Cart Panel */}
       <motion.div
@@ -382,9 +421,10 @@ export default function Cart() {
             {step === 1 ? (
               <motion.div
                 key="step1"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
+                initial={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, scale: 1.05, filter: 'blur(10px)' }}
+                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                 className="py-4 space-y-4"
               >
                 {cartItems.length === 0 ? (
@@ -511,9 +551,10 @@ export default function Cart() {
             ) : (
               <motion.div
                 key="step2"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
+                initial={{ opacity: 0, scale: 1.05, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
+                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                 className="py-4 space-y-8 pb-8"
               >
                 <section>
@@ -652,14 +693,14 @@ export default function Cart() {
           <div className="flex gap-3">
             {step === 2 && (
               <button 
-                onClick={() => setStep(1)}
+                onClick={handlePrevStep}
                 className="w-1/3 h-14 bg-zinc-800 text-white font-semibold rounded-2xl hover:bg-zinc-700 transition-all"
               >
                 이전
               </button>
             )}
             <button 
-              onClick={step === 1 ? () => setStep(2) : () => setIsBottomSheetOpen(true)}
+              onClick={step === 1 ? handleNextStep : () => setIsBottomSheetOpen(true)}
               disabled={selectedItems.length === 0 || isProcessing}
               className={`flex-1 h-14 text-white font-bold text-lg rounded-2xl flex items-center justify-center gap-2 transition-all ${
                 selectedItems.length === 0 || isProcessing
@@ -680,7 +721,7 @@ export default function Cart() {
       {/* Consent Detail Modal */}
       <AnimatePresence>
         {consentModal.isOpen && consentModal.type && (
-          <div className="fixed inset-0 w-screen h-screen h-[100dvh] z-[100003] flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-[100003] flex items-center justify-center p-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -736,7 +777,7 @@ export default function Cart() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsBottomSheetOpen(false)}
-              className="fixed inset-0 w-screen h-screen h-[100dvh] z-[10001] bg-black/60 backdrop-blur-sm"
+              className="fixed inset-0 z-[10001] bg-black/60 backdrop-blur-sm"
             />
             <motion.div
               initial={{ y: '100%' }}
