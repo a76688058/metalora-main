@@ -279,17 +279,17 @@ export default function ProductDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
           {/* Left Column: Image & Visuals */}
           <div className="space-y-6">
-            <button onClick={() => navigate('/')} className="group inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors mb-4 py-2 pr-4">
-              <motion.div className="group-hover:-translate-x-1 transition-transform duration-300 ease-out">
+            <button onClick={() => navigate('/')} className="group inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors mb-4 py-2 pr-4 transform-gpu">
+              <motion.div className="group-hover:-translate-x-1 transition-transform duration-300 ease-out transform-gpu">
                 <ArrowLeft size={16} strokeWidth={1.5} />
               </motion.div>
               <span className="text-[10px] font-light uppercase tracking-[0.2em]">SHOP</span>
             </button>
 
-            <div className="py-0 -mx-4 sm:mx-0"> {/* Safe Scroll Area */}
+            <div className="py-0 -mx-4 sm:mx-0 transform-gpu"> {/* Safe Scroll Area */}
               <div 
                 ref={canvasContainerRef}
-                className="relative aspect-square w-full lg:w-[110%] lg:-ml-[5%] overflow-visible bg-transparent"
+                className="relative aspect-square w-full lg:w-[110%] lg:-ml-[5%] overflow-visible bg-transparent transform-gpu"
               >
                 <div className="absolute top-4 left-4 z-10 px-3 py-1 bg-black/50 backdrop-blur-md rounded-full border border-white/10 text-[10px] tracking-widest text-white font-bold uppercase flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
@@ -375,13 +375,13 @@ export default function ProductDetail() {
           </div>
 
           {/* Right Column: Product Info */}
-          <div className="lg:pt-4">
+          <div className="lg:pt-4 transform-gpu">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.2 }}
-              className="relative z-10"
+              className="relative z-10 transform-gpu will-change-transform"
             >
               <div className="flex items-center gap-2 mb-2">
                 {product.limited && (
@@ -547,7 +547,7 @@ export default function ProductDetail() {
             duration: 0.8,
             ease: [0.16, 1, 0.3, 1]
           }}
-          className="fixed z-[100] pointer-events-none w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-[0_0_20px_rgba(255,255,255,0.8)]"
+          className="fixed z-[100] pointer-events-none w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-[0_0_20px_rgba(255,255,255,0.8)] transform-gpu will-change-transform"
         >
           <Frame size={20} className="text-black" />
         </motion.div>

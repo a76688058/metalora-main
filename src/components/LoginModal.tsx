@@ -431,7 +431,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="relative w-full max-w-lg h-full overflow-y-auto px-6 pt-24 pb-6 md:pb-10 will-change-transform scrollbar-hide flex flex-col items-center justify-center border border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,1)]"
+              className="relative w-full max-w-lg h-full overflow-y-auto px-6 pt-24 pb-6 md:pb-10 will-change-transform transform-gpu scrollbar-hide flex flex-col items-center justify-center border border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,1)]"
             >
             <div className="w-full flex flex-col items-center -mt-16 md:-mt-24">
             <div className="flex flex-col items-center mb-10">
@@ -557,7 +557,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="w-full max-w-md bg-zinc-900 rounded-t-[32px] sm:rounded-[28px] p-8 text-white relative border border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,1)] sm:-translate-y-12"
+            className="w-full max-w-md bg-zinc-900 rounded-t-[32px] sm:rounded-[28px] p-8 text-white relative border border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,1)] sm:-translate-y-12 transform-gpu will-change-transform"
           >
             <button 
               onClick={() => setIsConsentOpen(false)}

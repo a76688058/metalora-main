@@ -115,7 +115,7 @@ export default function ProfileComplete() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-lg bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl"
+        className="w-full max-w-lg bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl transform-gpu will-change-transform"
       >
         <div className="mb-10">
           <h1 className="text-2xl font-bold text-white tracking-tight mb-2">배송 정보 입력</h1>
@@ -209,7 +209,7 @@ export default function ProfileComplete() {
               initial={{ opacity: 0, y: "100%" }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: "100%" }}
-              className="relative w-full max-w-lg bg-[#1A1A1A] rounded-t-[24px] rounded-b-none max-h-[85vh] overflow-y-auto p-6 shadow-2xl pb-safe mt-auto"
+              className="relative w-full max-w-lg bg-[#1A1A1A] rounded-t-[24px] rounded-b-none max-h-[85vh] overflow-y-auto p-6 shadow-2xl pb-safe mt-auto transform-gpu will-change-transform"
             >
               {/* Mobile Handle Bar */}
               <div className="w-12 h-1.5 bg-gray-600 rounded-full mx-auto my-3" />

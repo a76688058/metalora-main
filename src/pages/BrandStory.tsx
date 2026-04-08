@@ -38,7 +38,7 @@ const StorySection: React.FC<StorySectionProps> = ({ title, subtitle, bgImage, c
         {bgImage && (
           <motion.div 
             style={{ scale }}
-            className="absolute inset-0 z-0"
+            className="absolute inset-0 z-0 transform-gpu will-change-transform"
           >
             <div className="absolute inset-0 bg-[#000000]/60 z-10" />
             <img 
@@ -51,7 +51,7 @@ const StorySection: React.FC<StorySectionProps> = ({ title, subtitle, bgImage, c
         
         <motion.div 
           style={{ y, opacity }}
-          className="relative z-20 text-center px-6 w-full max-w-7xl mx-auto flex flex-col items-center justify-center"
+          className="relative z-20 text-center px-6 w-full max-w-7xl mx-auto flex flex-col items-center justify-center transform-gpu will-change-transform"
         >
           <h2 className="text-7xl md:text-8xl lg:text-[120px] font-extrabold tracking-[-0.05em] text-[#FFFFFF] leading-none whitespace-pre-line break-keep">
             {title}

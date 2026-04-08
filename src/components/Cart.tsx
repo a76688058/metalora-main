@@ -355,7 +355,7 @@ export default function Cart() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[30000] flex justify-end pointer-events-auto"
+      className="fixed inset-0 z-[30000] flex justify-end pointer-events-auto transform-gpu"
     >
       {/* Backdrop */}
       <div 
@@ -391,7 +391,7 @@ export default function Cart() {
         animate={{ x: 0 }}
         exit={{ x: '100%' }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className="relative w-full max-w-lg bg-[#0F0F11] h-full flex flex-col shadow-2xl pointer-events-auto"
+        className="relative w-full max-w-lg bg-[#0F0F11] h-full flex flex-col shadow-2xl pointer-events-auto transform-gpu will-change-transform"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5">

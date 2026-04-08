@@ -40,13 +40,15 @@ export default function PaymentSuccess() {
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [simulationStep, setSimulationStep] = useState(0);
+  const [selectedStep, setSelectedStep] = useState<number | null>(null);
+  const [isSimulationComplete, setIsSimulationComplete] = useState(false);
 
   const SIMULATION_STEPS = [
-    { icon: <Factory size={20} />, text: "메타로라 팩토리 제작 준비 중", duration: 3000 },
-    { icon: <ShieldCheck size={20} />, text: "1.15mm 프리미엄 알루미늄 패널 검수", duration: 4000 },
-    { icon: <Printer size={20} />, text: "180℃ 이상 고온 승화전사 4K 프린팅", duration: 5000 },
-    { icon: <Package size={20} />, text: "무타공 패키지 및 패널 안전 패키징", duration: 3000 },
-    { icon: <Truck size={20} />, text: "배송 파트너사 전달 대기", duration: 2000 },
+    { icon: <Factory size={18} />, text: "메타로라 팩토리 제작 준비 중", duration: 2500 },
+    { icon: <ShieldCheck size={18} />, text: "1.15mm 프리미엄 알루미늄 패널 검수", duration: 3500 },
+    { icon: <Printer size={18} />, text: "180℃ 이상 고온 승화전사 4K 프린팅", duration: 4500 },
+    { icon: <Package size={18} />, text: "무타공 패키지 및 패널 안전 패키징", duration: 2500 },
+    { icon: <Truck size={18} />, text: "배송 파트너사 전달 대기", duration: 2000 },
   ];
 
   useEffect(() => {
@@ -59,11 +61,15 @@ export default function PaymentSuccess() {
             setSimulationStep(current);
             runSimulation();
           }, SIMULATION_STEPS[current].duration);
+        } else {
+          setIsSimulationComplete(true);
         }
       };
       runSimulation();
     }
   }, [isConfirming, errorMessage]);
+
+  const activeStep = selectedStep !== null ? selectedStep : simulationStep;
   
   const paymentKey = searchParams.get('paymentKey');
   const orderId = searchParams.get('orderId');
@@ -330,10 +336,10 @@ export default function PaymentSuccess() {
       </div>
 
       <div className="flex-1 flex items-start justify-center p-6 pt-4 md:pt-8">
-        <div className="max-w-md w-full bg-[#1C1C1E] rounded-3xl p-6 md:p-8 text-center shadow-2xl">
-          <div className="relative flex items-center justify-center w-20 h-20 mx-auto mb-6">
+        <div className="max-w-md w-full bg-[#1C1C1E] rounded-3xl p-6 md:p-8 text-center shadow-2xl transform-gpu will-change-transform">
+          <div className="relative flex items-center justify-center w-20 h-20 mx-auto mb-6 transform-gpu">
           <motion.svg 
-            className="absolute inset-0 w-full h-full"
+            className="absolute inset-0 w-full h-full transform-gpu"
             viewBox="0 0 100 100"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -350,7 +356,7 @@ export default function PaymentSuccess() {
             />
           </motion.svg>
           <motion.div
-            className="absolute inset-0 flex items-center justify-center origin-center"
+            className="absolute inset-0 flex items-center justify-center origin-center transform-gpu"
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 1, type: "spring", stiffness: 200, damping: 10 }}
@@ -361,7 +367,7 @@ export default function PaymentSuccess() {
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-8 tracking-tight">결제가 완료되었습니다</h1>
         
         <motion.div 
-          className="bg-[#0F0F11] rounded-2xl p-5 md:p-6 mb-8"
+          className="bg-[#0F0F11] rounded-2xl p-5 md:p-6 mb-8 transform-gpu will-change-transform"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.2, duration: 0.5 }}
@@ -405,47 +411,98 @@ export default function PaymentSuccess() {
           </div>
         </motion.div>
 
-        {/* Real-time Delivery Simulation */}
+        {/* Real-time Delivery Simulation (Toss UI Redesign) */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.5 }}
-          className="mb-8 text-left"
+          className="mb-10 text-left transform-gpu will-change-transform"
         >
-          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-[0.2em] mb-4 ml-1">Production Status</h3>
-          <div className="bg-[#0F0F11] rounded-2xl p-6 border border-white/5 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-zinc-800">
+          <div className="flex items-center justify-between mb-4 px-1">
+            <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.15em]">Production Status</h3>
+            <span className="text-[10px] font-medium text-[#3182F6] bg-[#3182F6]/10 px-2 py-0.5 rounded-full">Live</span>
+          </div>
+
+          <div className="bg-[#0F0F11] rounded-[28px] p-6 border border-white/5 relative overflow-hidden shadow-inner">
+            {/* Current Step Highlight */}
+            <div className="flex items-center gap-5 mb-8">
               <motion.div 
-                className="h-full bg-[#3182F6] shadow-[0_0_10px_rgba(49,130,246,0.5)]"
+                key={activeStep}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="w-14 h-14 rounded-2xl bg-[#3182F6] flex items-center justify-center text-white shadow-[0_8px_24px_rgba(49,130,246,0.25)]"
+              >
+                {SIMULATION_STEPS[activeStep].icon}
+              </motion.div>
+              <div>
+                <motion.p 
+                  key={`text-${activeStep}`}
+                  initial={{ y: 10, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  className="text-lg font-bold text-white tracking-tight leading-tight"
+                >
+                  {SIMULATION_STEPS[activeStep].text}
+                </motion.p>
+                <p className="text-xs text-zinc-500 mt-1 font-medium">
+                  {isSimulationComplete && selectedStep !== null ? '상세 공정 확인 중' : '메타로라 프리미엄 공정 진행 중'}
+                </p>
+              </div>
+            </div>
+
+            {/* Horizontal Step Map */}
+            <div className="relative pt-2 pb-1">
+              {/* Background Line */}
+              <div className="absolute top-[18px] left-0 w-full h-[3px] bg-zinc-800 rounded-full" />
+              
+              {/* Progress Line */}
+              <motion.div 
+                className="absolute top-[18px] left-0 h-[3px] bg-[#3182F6] rounded-full shadow-[0_0_12px_rgba(49,130,246,0.6)]"
                 initial={{ width: "0%" }}
-                animate={{ width: `${((simulationStep + 1) / SIMULATION_STEPS.length) * 100}%` }}
-                transition={{ duration: 1 }}
+                animate={{ width: `${(simulationStep / (SIMULATION_STEPS.length - 1)) * 100}%` }}
+                transition={{ duration: 0.8, ease: "circOut" }}
               />
+
+              <div className="relative flex justify-between items-center">
+                {SIMULATION_STEPS.map((step, idx) => (
+                  <button 
+                    key={idx} 
+                    onClick={() => isSimulationComplete && setSelectedStep(idx)}
+                    disabled={!isSimulationComplete}
+                    className={`flex flex-col items-center group relative outline-none transition-all ${isSimulationComplete ? 'cursor-pointer' : 'cursor-default'}`}
+                  >
+                    <div 
+                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-500 z-10 border-4 border-[#0F0F11] ${
+                        idx <= simulationStep 
+                          ? (activeStep === idx ? 'bg-white text-[#3182F6] scale-110 shadow-[0_0_15px_rgba(255,255,255,0.3)]' : 'bg-[#3182F6] text-white') 
+                          : 'bg-zinc-800 text-zinc-600'
+                      }`}
+                    >
+                      {idx < simulationStep && activeStep !== idx ? (
+                        <Check size={14} strokeWidth={3} />
+                      ) : (
+                        <div className={`w-1.5 h-1.5 rounded-full ${idx === simulationStep && !isSimulationComplete ? 'bg-white animate-pulse' : (activeStep === idx ? 'bg-[#3182F6]' : 'bg-current')}`} />
+                      )}
+                    </div>
+                    {/* Tooltip-like text for desktop, hidden on mobile if too crowded */}
+                    <span className={`absolute -bottom-6 text-[8px] font-bold whitespace-nowrap transition-all duration-300 ${
+                      activeStep === idx ? 'text-white opacity-100' : 'text-zinc-600 opacity-0 group-hover:opacity-100'
+                    }`}>
+                      STEP {idx + 1}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
             
-            <div className="space-y-6">
-              {SIMULATION_STEPS.map((step, idx) => (
-                <div key={idx} className={`flex items-center gap-4 transition-all duration-500 ${idx === simulationStep ? 'opacity-100 scale-100' : idx < simulationStep ? 'opacity-40 grayscale' : 'opacity-20 blur-[1px]'}`}>
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${idx === simulationStep ? 'bg-[#3182F6] text-white shadow-[0_0_20px_rgba(49,130,246,0.3)]' : 'bg-zinc-800 text-zinc-500'}`}>
-                    {idx < simulationStep ? <Check size={18} /> : step.icon}
-                  </div>
-                  <div className="flex-1">
-                    <p className={`text-sm font-bold tracking-tight ${idx === simulationStep ? 'text-white' : 'text-zinc-500'}`}>
-                      {step.text}
-                    </p>
-                    {idx === simulationStep && (
-                      <motion.p 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="text-[10px] text-[#3182F6] font-medium mt-1 uppercase tracking-widest"
-                      >
-                        In Progress...
-                      </motion.p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            {isSimulationComplete && selectedStep === null && (
+              <motion.p 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center text-[10px] text-zinc-500 mt-10 font-medium"
+              >
+                공정 단계를 클릭하면 상세 내용을 다시 볼 수 있습니다.
+              </motion.p>
+            )}
           </div>
         </motion.div>
         

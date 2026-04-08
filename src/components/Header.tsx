@@ -105,7 +105,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
         }`}
         ref={searchRef}
       >
-        <motion.div layout className="flex flex-col w-full">
+        <motion.div layout className="flex flex-col w-full transform-gpu">
           <AnnouncementBar />
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between relative w-full">
             {/* Left: Search Icon (Conditional Visibility) */}
@@ -215,7 +215,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0, transition: { duration: 0.3 } }}
                 transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="overflow-hidden w-full"
+                className="overflow-hidden w-full transform-gpu will-change-transform"
               >
                 <div className="max-w-3xl mx-auto px-6 pb-6 pt-2">
                   <div className="relative group">
