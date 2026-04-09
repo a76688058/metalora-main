@@ -1,10 +1,24 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import AdminLayout from '../components/admin/AdminLayout';
 import { useProducts } from '../context/ProductContext';
-import { Package, DollarSign, ShoppingBag, Users, Globe, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Calendar as CalendarIcon, Info } from 'lucide-react';
+import { Package, DollarSign, ShoppingBag, Users, Globe, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Calendar as CalendarIcon, Info, BarChart3, PieChart as PieChartIcon, Activity } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { motion, useMotionValue, useTransform, animate, AnimatePresence } from 'framer-motion';
 import LoadingScreen from '../components/LoadingScreen';
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell,
+  PieChart,
+  Pie
+} from 'recharts';
 
 type RangeType = 'daily' | 'monthly' | 'yearly';
 
@@ -51,6 +65,73 @@ interface DailyReport {
     isWorkshop: boolean;
   } | null;
 }
+
+interface TrendData {
+  date: string;
+  revenue: number;
+  orders: number;
+}
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-[#0F0F0F] border border-white/10 p-4 rounded-2xl shadow-2xl backdrop-blur-xl">
+        <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mb-2">{label}</p>
+        <p className="text-white font-black text-lg tracking-tighter">
+          ₩{payload[0].value.toLocaleString()}
+        </p>
+        <p className="text-purple-400 text-xs font-bold mt-1">
+          {payload[1]?.value || 0}건의 주문
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const SalesTrendChart = React.memo(({ data }: { data: TrendData[] }) => {
+  return (
+    <div className="h-[350px] w-full mt-8">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#A855F7" stopOpacity={0.3}/>
+              <stop offset="95%" stopColor="#A855F7" stopOpacity={0}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1F1F1F" />
+          <XAxis 
+            dataKey="date" 
+            axisLine={false} 
+            tickLine={false} 
+            tick={{ fill: '#525252', fontSize: 10, fontWeight: 900 }}
+            dy={10}
+          />
+          <YAxis 
+            hide 
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Area 
+            type="monotone" 
+            dataKey="revenue" 
+            stroke="#A855F7" 
+            strokeWidth={4}
+            fillOpacity={1} 
+            fill="url(#colorRevenue)" 
+            animationDuration={2000}
+          />
+          <Area 
+            type="monotone" 
+            dataKey="orders" 
+            stroke="transparent" 
+            fill="transparent" 
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+});
 
 const RevenueCalendar = React.memo(({ 
   data, 
@@ -337,6 +418,53 @@ export default function AdminDashboard() {
   const [selectedReport, setSelectedReport] = useState<DailyReport | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
 
+  // Trend Data State
+  const [trendData, setTrendData] = useState<TrendData[]>([]);
+
+  const fetchTrendData = useCallback(async () => {
+    if (!supabase) return;
+    try {
+      const now = new Date();
+      const last14Days = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+      
+      const { data, error } = await supabase
+        .from('orders')
+        .select('total_price, created_at')
+        .gte('created_at', last14Days.toISOString())
+        .in('status', ['PAID', 'PRODUCTION', 'SHIPPING', 'COMPLETED', '결제확인', '제작중', '배송중', '배송완료', '구매확정', 'paid', 'production', 'shipping', 'completed']);
+
+      if (error) throw error;
+
+      const aggregated: Record<string, { revenue: number, orders: number }> = {};
+      
+      // Initialize last 14 days with 0
+      for (let i = 0; i < 14; i++) {
+        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const kstD = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+        const key = `${kstD.getUTCMonth() + 1}/${kstD.getUTCDate()}`;
+        aggregated[key] = { revenue: 0, orders: 0 };
+      }
+
+      data?.forEach(order => {
+        const dateUTC = new Date(order.created_at);
+        const dateKST = new Date(dateUTC.getTime() + 9 * 60 * 60 * 1000);
+        const key = `${dateKST.getUTCMonth() + 1}/${dateKST.getUTCDate()}`;
+        if (aggregated[key]) {
+          aggregated[key].revenue += (order.total_price || 0);
+          aggregated[key].orders += 1;
+        }
+      });
+
+      const formatted = Object.entries(aggregated)
+        .map(([date, stats]) => ({ date, ...stats }))
+        .reverse();
+
+      setTrendData(formatted);
+    } catch (error) {
+      console.error('Trend data fetch error:', error);
+    }
+  }, []);
+
   const fetchDailyReport = useCallback(async (dateKey: string) => {
     if (!supabase) return;
     try {
@@ -582,10 +710,11 @@ export default function AdminDashboard() {
     let isMounted = true;
     const runFetch = async () => {
       await fetchCalendarData();
+      await fetchTrendData();
     };
     runFetch();
     return () => { isMounted = false; };
-  }, [calendarMonth, fetchCalendarData]);
+  }, [calendarMonth, fetchCalendarData, fetchTrendData]);
 
   useEffect(() => {
     // Real-time Presence Subscription
@@ -661,12 +790,12 @@ export default function AdminDashboard() {
 
         {/* Main Stats Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Revenue Card */}
+          {/* Revenue Card & Trend Chart */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="lg:col-span-2 bg-[#0A0A0A] p-12 rounded-[48px] border border-white/5 shadow-2xl relative overflow-hidden group"
+            className="lg:col-span-2 bg-[#0A0A0A] p-10 md:p-12 rounded-[48px] border border-white/5 shadow-2xl relative overflow-hidden group"
           >
             {/* Background Glow */}
             <div className="absolute -top-24 -right-24 w-96 h-96 bg-purple-600/10 blur-[120px] rounded-full group-hover:bg-purple-600/20 transition-all duration-1000" />
@@ -675,13 +804,13 @@ export default function AdminDashboard() {
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12">
                 <div className="flex items-center gap-5">
                   <div className="w-16 h-16 rounded-3xl bg-purple-500/10 flex items-center justify-center text-purple-500 border border-purple-500/20 shadow-inner">
-                    <DollarSign size={32} />
+                    <BarChart3 size={32} />
                   </div>
                   <div>
                     <span className="text-zinc-400 font-black text-2xl block tracking-tight">
                       {range === 'daily' ? '오늘의 매출' : range === 'monthly' ? '이번 달 매출' : '올해 매출'}
                     </span>
-                    <span className="text-[10px] text-zinc-600 font-black tracking-[0.3em] uppercase">Revenue Performance</span>
+                    <span className="text-[10px] text-zinc-600 font-black tracking-[0.3em] uppercase">Revenue & Trend Analysis</span>
                   </div>
                 </div>
 
@@ -703,67 +832,115 @@ export default function AdminDashboard() {
                 </div>
               </div>
               
-              <div className="flex flex-col gap-4">
-                <div className="text-7xl md:text-8xl font-black text-white tracking-tighter leading-none">
-                  <CountUp value={stats.revenue} prefix="₩" className="drop-shadow-[0_0_40px_rgba(255,255,255,0.15)]" />
-                </div>
-                
-                {/* Comparison Metric */}
-                <div className={`flex items-center gap-3 text-lg font-black mt-4 ${stats.comparison.isIncrease ? 'text-purple-400' : 'text-blue-400'}`}>
-                  <div className={`p-1.5 rounded-lg ${stats.comparison.isIncrease ? 'bg-purple-500/10' : 'bg-blue-500/10'}`}>
-                    {stats.comparison.isIncrease ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-end">
+                <div className="flex flex-col gap-4">
+                  <div className="text-6xl md:text-7xl font-black text-white tracking-tighter leading-none">
+                    <CountUp value={stats.revenue} prefix="₩" className="drop-shadow-[0_0_40px_rgba(255,255,255,0.15)]" />
                   </div>
-                  <span className="tracking-tight">
-                    {range === 'daily' ? '어제' : range === 'monthly' ? '지난달' : '작년'} 대비 {stats.comparison.value}% {stats.comparison.isIncrease ? '상승' : '하락'}
-                  </span>
+                  
+                  {/* Comparison Metric */}
+                  <div className={`flex items-center gap-3 text-lg font-black mt-4 ${stats.comparison.isIncrease ? 'text-purple-400' : 'text-blue-400'}`}>
+                    <div className={`p-1.5 rounded-lg ${stats.comparison.isIncrease ? 'bg-purple-500/10' : 'bg-blue-500/10'}`}>
+                      {stats.comparison.isIncrease ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+                    </div>
+                    <span className="tracking-tight">
+                      {range === 'daily' ? '어제' : range === 'monthly' ? '지난달' : '작년'} 대비 {stats.comparison.value}% {stats.comparison.isIncrease ? '상승' : '하락'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="hidden md:block">
+                  <div className="flex items-center justify-end gap-4 text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-purple-500" />
+                      <span>최근 14일 매출 추이</span>
+                    </div>
+                  </div>
                 </div>
               </div>
+
+              {/* Sales Trend Chart */}
+              <SalesTrendChart data={trendData} />
               
-              <div className="mt-16 flex items-center gap-3 text-zinc-600 font-bold text-sm">
-                <Globe size={18} className="text-zinc-700" />
-                <span>글로벌 결제 서버와 실시간 동기화 중입니다.</span>
+              <div className="mt-8 flex items-center gap-3 text-zinc-600 font-bold text-sm">
+                <Activity size={18} className="text-zinc-700" />
+                <span>데이터는 1시간마다 자동으로 갱신됩니다.</span>
               </div>
             </div>
           </motion.div>
 
-          {/* Side Stats */}
+          {/* Side Stats & Infographics */}
           <div className="flex flex-col gap-6">
-            {/* Orders Count */}
+            {/* Orders Count Card */}
             <motion.div 
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="flex-1 bg-[#0A0A0A] p-10 rounded-[40px] border border-white/5 shadow-xl flex flex-col justify-between group overflow-hidden relative"
+              className="bg-[#0A0A0A] p-10 rounded-[40px] border border-white/5 shadow-xl flex flex-col justify-between group overflow-hidden relative"
             >
               <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full group-hover:bg-blue-500/10 transition-all duration-700" />
-              <div className="flex items-center gap-5 relative z-10">
-                <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20">
-                  <ShoppingBag size={28} />
+              <div className="flex items-center justify-between relative z-10">
+                <div className="flex items-center gap-5">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20">
+                    <ShoppingBag size={28} />
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 font-black text-xl tracking-tight block">
+                      {range === 'daily' ? '오늘의 주문' : range === 'monthly' ? '이번 달 주문' : '올해 주문'}
+                    </span>
+                    <span className="text-[9px] text-zinc-600 font-black tracking-widest uppercase">Order Volume</span>
+                  </div>
                 </div>
-                <span className="text-zinc-400 font-black text-xl tracking-tight">
-                  {range === 'daily' ? '오늘의 주문' : range === 'monthly' ? '이번 달 주문' : '올해 주문'}
-                </span>
               </div>
               <div className="text-5xl font-black text-white tracking-tighter mt-8 relative z-10">
                 <CountUp value={stats.ordersCount} suffix="건" />
               </div>
             </motion.div>
 
-            {/* Total Products */}
+            {/* Infographic: Average Order Value (AOV) */}
             <motion.div 
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="flex-1 bg-[#0A0A0A] p-10 rounded-[40px] border border-white/5 shadow-xl flex flex-col justify-between group overflow-hidden relative"
+              className="bg-[#0A0A0A] p-10 rounded-[40px] border border-white/5 shadow-xl flex flex-col justify-between group overflow-hidden relative"
+            >
+              <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full group-hover:bg-emerald-500/10 transition-all duration-700" />
+              <div className="flex items-center gap-5 relative z-10">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20">
+                  <PieChartIcon size={28} />
+                </div>
+                <div>
+                  <span className="text-zinc-400 font-black text-xl tracking-tight block">평균 주문 금액</span>
+                  <span className="text-[9px] text-zinc-600 font-black tracking-widest uppercase">Avg. Order Value</span>
+                </div>
+              </div>
+              <div className="text-4xl font-black text-white tracking-tighter mt-8 relative z-10">
+                <CountUp value={stats.ordersCount > 0 ? Math.round(stats.revenue / stats.ordersCount) : 0} prefix="₩" />
+              </div>
+              <div className="mt-4 flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest relative z-10">
+                <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                <span>프리미엄 세그먼트 유지 중</span>
+              </div>
+            </motion.div>
+
+            {/* Total Products Card */}
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              className="bg-[#0A0A0A] p-10 rounded-[40px] border border-white/5 shadow-xl flex flex-col justify-between group overflow-hidden relative"
             >
               <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-zinc-500/5 blur-3xl rounded-full group-hover:bg-zinc-500/10 transition-all duration-700" />
               <div className="flex items-center gap-5 relative z-10">
                 <div className="w-14 h-14 rounded-2xl bg-zinc-900 flex items-center justify-center text-zinc-500 border border-white/5">
                   <Package size={28} />
                 </div>
-                <span className="text-zinc-400 font-black text-xl tracking-tight">전체 상품</span>
+                <div>
+                  <span className="text-zinc-400 font-black text-xl tracking-tight block">전체 상품</span>
+                  <span className="text-[9px] text-zinc-600 font-black tracking-widest uppercase">Inventory Count</span>
+                </div>
               </div>
-              <div className="text-5xl font-black text-white tracking-tighter mt-8 relative z-10">
+              <div className="text-4xl font-black text-white tracking-tighter mt-8 relative z-10">
                 <CountUp value={totalProducts} suffix="개" />
               </div>
             </motion.div>

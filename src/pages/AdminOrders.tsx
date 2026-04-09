@@ -200,10 +200,11 @@ export default function AdminOrders() {
             />
             <motion.div 
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-              className="relative bg-[#141416] w-full max-w-xl rounded-t-[32px] md:rounded-[32px] p-6 max-h-[92vh] overflow-y-auto border border-white/5 shadow-2xl"
+              className="relative bg-[#141416] w-full max-w-xl rounded-t-[32px] md:rounded-[32px] p-6 max-h-[92vh] overflow-y-auto border border-white/5 shadow-2xl custom-scrollbar"
               onClick={e => e.stopPropagation()}
             >
-              <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto mb-6 md:hidden" />
+              <div className="pb-12">
+                <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto mb-6 md:hidden" />
               
               <div className="flex justify-between items-start mb-8">
                 <div>
@@ -332,7 +333,8 @@ export default function AdminOrders() {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
+          </motion.div>
           </div>
         )}
       </AnimatePresence>

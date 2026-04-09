@@ -284,8 +284,9 @@ export default function AdminUsers() {
                 </button>
               </div>
 
-              <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-2 gap-4">
+              <div className="p-6 space-y-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
+                <div className="pb-10">
+                  <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">이름</label>
                     <input
@@ -351,6 +352,7 @@ export default function AdminUsers() {
                   </div>
                 </div>
               </div>
+            </div>
 
               <div className="p-6 bg-zinc-800/30 border-t border-zinc-800 flex gap-3">
                 <button

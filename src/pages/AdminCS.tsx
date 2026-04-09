@@ -225,8 +225,9 @@ export default function AdminCS() {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {/* 질문 영역 */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                <div className="pb-12">
+                  {/* 질문 영역 */}
                 <div className="bg-zinc-800/50 p-5 rounded-2xl border border-zinc-700/50">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs font-bold">Q</span>
@@ -281,6 +282,7 @@ export default function AdminCS() {
                     </button>
                   </div>
                 </form>
+                </div>
               </div>
             </motion.div>
           </>
