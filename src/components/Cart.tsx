@@ -708,7 +708,7 @@ export default function Cart() {
         </div>
 
         {/* Footer */}
-        <div className={`p-6 border-t pb-safe transition-colors duration-500 ${theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'}`}>
+        <div className={`px-6 pt-6 pb-12 border-t transition-colors duration-500 ${theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'}`}>
           <div className="flex justify-between items-end mb-6 px-2">
             <span className="text-zinc-400 font-medium">총 결제 금액</span>
             <span className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{displayPrice.toLocaleString()}</span>
@@ -759,32 +759,36 @@ export default function Cart() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md bg-[#1C1C1E] rounded-[32px] overflow-hidden border border-white/10 shadow-2xl"
+              className={`relative w-full max-w-md rounded-[32px] overflow-hidden border shadow-2xl transition-colors duration-500 ${
+                theme === 'dark' ? 'bg-[#1C1C1E] border-white/10' : 'bg-white border-black/5'
+              }`}
             >
-              <div className="p-6 border-b border-white/5 flex justify-between items-center">
-                <h4 className="text-lg font-bold text-white">{CONSENT_TEXTS[consentModal.type].title}</h4>
+              <div className={`p-6 border-b flex justify-between items-center ${theme === 'dark' ? 'border-white/5' : 'border-black/5'}`}>
+                <h4 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{CONSENT_TEXTS[consentModal.type].title}</h4>
                 <button 
                   onClick={() => setConsentModal({ isOpen: false, type: null })}
-                  className="p-2 text-zinc-500 hover:text-white transition-colors"
+                  className={`p-2 transition-colors ${theme === 'dark' ? 'text-zinc-500 hover:text-white' : 'text-zinc-400 hover:text-black'}`}
                 >
                   <X size={20} />
                 </button>
               </div>
-              <div className="p-8 max-h-[60vh] overflow-y-auto space-y-6 bg-black">
+              <div className={`p-8 max-h-[60vh] overflow-y-auto space-y-6 ${theme === 'dark' ? 'bg-black' : 'bg-zinc-50'}`}>
                 {CONSENT_TEXTS[consentModal.type].items.map((item, idx) => (
                   <div key={idx} className="flex gap-4 items-start">
                     <div className="mt-2 w-1.5 h-1.5 rounded-full bg-fuchsia-500 shrink-0 shadow-[0_0_8px_rgba(217,70,239,0.5)]" />
                     <p 
-                      className="text-zinc-300 text-base leading-relaxed tracking-tight"
+                      className={`text-base leading-relaxed tracking-tight ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-600'}`}
                       dangerouslySetInnerHTML={{ __html: item }}
                     />
                   </div>
                 ))}
               </div>
-              <div className="p-6 bg-zinc-900/50">
+              <div className={`p-6 ${theme === 'dark' ? 'bg-zinc-900/50' : 'bg-zinc-100'}`}>
                 <button 
                   onClick={() => setConsentModal({ isOpen: false, type: null })}
-                  className="w-full h-12 bg-white text-black font-bold rounded-xl hover:bg-zinc-200 transition-colors"
+                  className={`w-full h-12 font-bold rounded-xl transition-colors ${
+                    theme === 'dark' ? 'bg-white text-black hover:bg-zinc-200' : 'bg-black text-white hover:bg-zinc-800'
+                  }`}
                 >
                   확인
                 </button>
@@ -810,19 +814,21 @@ export default function Cart() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed bottom-0 left-0 right-0 z-[10002] bg-[#1C1C1E] rounded-t-[32px] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] overflow-hidden"
+              className={`fixed bottom-0 left-0 right-0 z-[10002] rounded-t-[32px] border-t shadow-[0_-10px_40px_rgba(0,0,0,0.2)] overflow-hidden transition-colors duration-500 ${
+                theme === 'dark' ? 'bg-[#1C1C1E] border-white/10' : 'bg-white border-black/5'
+              }`}
             >
               {/* Handle Bar */}
               <div className="w-full flex justify-center pt-3 pb-2">
-                <div className="w-12 h-1.5 bg-white/10 rounded-full" />
+                <div className={`w-12 h-1.5 rounded-full ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
               </div>
               
-              <div className="px-6 pb-12 pt-4">
+              <div className="px-6 pb-16 pt-4">
                 <div className="flex justify-between items-center mb-8">
-                  <h3 className="text-xl font-bold text-white">최종 동의</h3>
+                  <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>최종 동의</h3>
                   <button 
                     onClick={() => setIsBottomSheetOpen(false)}
-                    className="p-2 text-zinc-500 hover:text-white transition-colors"
+                    className={`p-2 transition-colors ${theme === 'dark' ? 'text-zinc-500 hover:text-white' : 'text-zinc-400 hover:text-black'}`}
                   >
                     <X size={24} />
                   </button>
@@ -835,19 +841,21 @@ export default function Cart() {
                         <div 
                           onClick={() => setConsents(prev => ({ ...prev, content: !prev.content }))}
                           className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all ${
-                            consents.content ? 'bg-fuchsia-500 border-fuchsia-500' : 'border-zinc-700 hover:border-zinc-500'
+                            consents.content ? 'bg-fuchsia-500 border-fuchsia-500' : (theme === 'dark' ? 'border-zinc-700 hover:border-zinc-500' : 'border-zinc-300 hover:border-zinc-400')
                           }`}
                         >
                           {consents.content && <Check size={16} className="text-white" />}
                         </div>
-                        <span className="text-base text-zinc-300 font-medium">
+                        <span className={`text-base font-medium ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
                           <span className="text-fuchsia-500 mr-1">(필수)</span>
                           콘텐츠 권리 책임 동의
                         </span>
                       </label>
                       <button 
                         onClick={() => setConsentModal({ isOpen: true, type: 'content' })}
-                        className="text-sm text-zinc-500 hover:text-zinc-300 underline underline-offset-4 px-3 py-2"
+                        className={`text-sm underline underline-offset-4 px-3 py-2 transition-colors ${
+                          theme === 'dark' ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600'
+                        }`}
                       >
                         보기
                       </button>
@@ -859,19 +867,21 @@ export default function Cart() {
                       <div 
                         onClick={() => setConsents(prev => ({ ...prev, refund: !prev.refund }))}
                         className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all ${
-                          consents.refund ? 'bg-fuchsia-500 border-fuchsia-500' : 'border-zinc-700 hover:border-zinc-500'
+                          consents.refund ? 'bg-fuchsia-500 border-fuchsia-500' : (theme === 'dark' ? 'border-zinc-700 hover:border-zinc-500' : 'border-zinc-300 hover:border-zinc-400')
                         }`}
                       >
                         {consents.refund && <Check size={16} className="text-white" />}
                       </div>
-                      <span className="text-base text-zinc-300 font-medium">
+                      <span className={`text-base font-medium ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
                         <span className="text-fuchsia-500 mr-1">(필수)</span>
                         환불 정책 동의
                       </span>
                     </label>
                     <button 
                       onClick={() => setConsentModal({ isOpen: true, type: 'refund' })}
-                      className="text-sm text-zinc-500 hover:text-zinc-300 underline underline-offset-4 px-3 py-2"
+                      className={`text-sm underline underline-offset-4 px-3 py-2 transition-colors ${
+                        theme === 'dark' ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600'
+                      }`}
                     >
                       보기
                     </button>
@@ -882,19 +892,21 @@ export default function Cart() {
                       <div 
                         onClick={() => setConsents(prev => ({ ...prev, terms: !prev.terms }))}
                         className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all ${
-                          consents.terms ? 'bg-fuchsia-500 border-fuchsia-500' : 'border-zinc-700 hover:border-zinc-500'
+                          consents.terms ? 'bg-fuchsia-500 border-fuchsia-500' : (theme === 'dark' ? 'border-zinc-700 hover:border-zinc-500' : 'border-zinc-300 hover:border-zinc-400')
                         }`}
                       >
                         {consents.terms && <Check size={16} className="text-white" />}
                       </div>
-                      <span className="text-base text-zinc-300 font-medium">
+                      <span className={`text-base font-medium ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
                         <span className="text-fuchsia-500 mr-1">(필수)</span>
                         전체 약관 동의
                       </span>
                     </label>
                     <button 
                       onClick={() => setConsentModal({ isOpen: true, type: 'terms' })}
-                      className="text-sm text-zinc-500 hover:text-zinc-300 underline underline-offset-4 px-3 py-2"
+                      className={`text-sm underline underline-offset-4 px-3 py-2 transition-colors ${
+                        theme === 'dark' ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600'
+                      }`}
                     >
                       보기
                     </button>
@@ -906,7 +918,7 @@ export default function Cart() {
                   disabled={!isAllConsented || isProcessing}
                   className={`w-full h-16 text-white font-bold text-lg rounded-2xl flex items-center justify-center gap-2 transition-all ${
                     !isAllConsented || isProcessing
-                      ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                      ? (theme === 'dark' ? 'bg-zinc-800 text-zinc-500' : 'bg-zinc-200 text-zinc-400') + ' cursor-not-allowed'
                       : 'bg-gradient-to-r from-fuchsia-600 to-purple-600 shadow-[0_0_20px_rgba(217,70,239,0.3)] active:scale-[0.98]'
                   }`}
                 >
