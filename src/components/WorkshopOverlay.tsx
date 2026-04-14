@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import CopyrightPage from './Workshop/CopyrightPage';
 import WorkshopView from './Workshop/WorkshopView';
 import { supabase } from '../lib/supabase';
@@ -13,6 +14,7 @@ interface WorkshopOverlayProps {
 
 export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProps) {
   const { user, openProfile } = useAuth();
+  const { theme } = useTheme();
   const [view, setView] = useState<'copyright' | 'workshop'>('copyright');
   const [isCheckingAgreement, setIsCheckingAgreement] = useState(true);
 
@@ -102,7 +104,9 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
         animate={{ x: 0 }}
         exit={{ x: '100%' }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className="relative w-full max-w-lg bg-black h-full flex flex-col shadow-2xl overflow-hidden pointer-events-auto"
+        className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden pointer-events-auto transition-colors duration-500 ${
+          theme === 'dark' ? 'bg-[#0F0F11]' : 'bg-white'
+        }`}
       >
         <AnimatePresence mode="wait">
           {isCheckingAgreement ? (
@@ -126,7 +130,11 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
               <div className="absolute top-6 left-6 z-[101]">
                 <button 
                   onClick={handleBackToProfile}
-                  className="p-2 bg-zinc-800/50 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-all"
+                  className={`p-2 rounded-full transition-all ${
+                    theme === 'dark' 
+                      ? 'bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white' 
+                      : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-black'
+                  }`}
                 >
                   <ChevronLeft size={20} />
                 </button>

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, Check, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import Header from '../Header';
 import { useNavigate } from 'react-router-dom';
 
@@ -13,6 +14,7 @@ interface CopyrightPageProps {
 
 export default function CopyrightPage({ onAgree, hideHeader = false }: CopyrightPageProps) {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const navigate = useNavigate();
   const [agreements, setAgreements] = useState({
     article1: false,
@@ -101,7 +103,7 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
 
   if (isChecking) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
         <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
       </div>
     );
@@ -131,16 +133,16 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
   ];
 
   return (
-    <div className={`bg-black flex flex-col h-full overflow-hidden ${hideHeader ? '' : 'min-h-screen'}`}>
+    <div className={`flex flex-col h-full overflow-hidden ${hideHeader ? '' : 'min-h-screen'} ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
       {!hideHeader && <Header />}
       
       {/* Header Area */}
-      <div className={`flex-none bg-black px-6 ${hideHeader ? 'pt-16 pb-6' : 'pt-24 pb-6'}`}>
+      <div className={`flex-none px-6 ${hideHeader ? 'pt-16 pb-6' : 'pt-24 pb-6'} ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
         <div className="max-w-xl mx-auto">
           <motion.h1 
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-2xl font-bold leading-tight text-white whitespace-pre-line"
+            className={`text-2xl font-bold leading-tight whitespace-pre-line ${theme === 'dark' ? 'text-white' : 'text-black'}`}
           >
             약관을 끝까지 읽고{"\n"}동의를 완료해 주세요
           </motion.h1>
@@ -148,7 +150,7 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
-            className="text-xs text-zinc-600 mt-2"
+            className={`text-xs mt-2 ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`}
           >
             약관 번호: ML_Legal_v260325
           </motion.p>
@@ -168,21 +170,31 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
               className={`flex gap-4 p-6 rounded-2xl cursor-pointer border transition-all duration-300 ${
                 agreements[article.id] 
                   ? 'bg-purple-600/10 border-purple-600/30' 
-                  : 'bg-zinc-900/30 border-white/5 hover:border-white/10'
+                  : theme === 'dark' 
+                    ? 'bg-zinc-900/30 border-white/5 hover:border-white/10'
+                    : 'bg-zinc-50 border-black/5 hover:border-black/10'
               }`}
             >
               <div className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 mt-0.5 ${
-                agreements[article.id] ? 'bg-purple-600' : 'bg-zinc-800 border border-white/10'
+                agreements[article.id] 
+                  ? 'bg-purple-600' 
+                  : theme === 'dark'
+                    ? 'bg-zinc-800 border border-white/10'
+                    : 'bg-zinc-200 border border-black/5'
               }`}>
                 {agreements[article.id] && <Check size={14} className="text-white" />}
               </div>
               <div className="space-y-2">
                 <span className={`text-sm font-bold block transition-colors ${
-                  agreements[article.id] ? 'text-white' : 'text-[#E2E2E2]'
+                  agreements[article.id] 
+                    ? theme === 'dark' ? 'text-white' : 'text-purple-700'
+                    : theme === 'dark' ? 'text-[#E2E2E2]' : 'text-zinc-800'
                 }`}>
                   {article.title}
                 </span>
-                <p className="text-xs text-[#E2E2E2]/70 leading-relaxed">
+                <p className={`text-xs leading-relaxed ${
+                  theme === 'dark' ? 'text-[#E2E2E2]/70' : 'text-zinc-500'
+                }`}>
                   {article.content}
                 </p>
               </div>
@@ -192,9 +204,11 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
           {/* Progress Indicator & Activation Button */}
           <div className="pt-10 pb-20">
             <div className="flex justify-center mb-6">
-              <div className="px-4 py-1.5 bg-zinc-900/50 rounded-full border border-white/5">
-                <span className="text-[10px] font-bold tracking-widest text-zinc-500">
-                  PROGRESS: <span className={agreedCount === 4 ? 'text-purple-500' : 'text-white'}>{agreedCount}</span> / 4 COMPLETED
+              <div className={`px-4 py-1.5 rounded-full border ${
+                theme === 'dark' ? 'bg-zinc-900/50 border-white/5' : 'bg-zinc-100 border-black/5'
+              }`}>
+                <span className={`text-[10px] font-bold tracking-widest ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                  PROGRESS: <span className={agreedCount === 4 ? 'text-purple-500' : theme === 'dark' ? 'text-white' : 'text-black'}>{agreedCount}</span> / 4 COMPLETED
                 </span>
               </div>
             </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTheme } from '../context/ThemeContext';
 import { 
   ChevronLeft, Plus, MessageSquare, Loader2, Send, X 
 } from 'lucide-react';
@@ -15,6 +16,7 @@ interface InquiryModalProps {
 
 export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
   const { user, openProfile } = useAuth();
+  const { theme } = useTheme();
   const { showToast } = useToast();
   const navigate = useNavigate();
   
@@ -156,18 +158,24 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="relative w-full max-w-lg bg-[#0F0F11] h-full flex flex-col shadow-2xl overflow-hidden border-l border-white/5 pointer-events-auto"
+            className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden border-l pointer-events-auto transition-colors duration-500 ${
+              theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'
+            }`}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 sticky top-0 bg-[#0F0F11]/80 backdrop-blur-xl z-20">
+            <div className={`flex items-center justify-between px-6 py-5 border-b sticky top-0 backdrop-blur-xl z-20 transition-colors duration-500 ${
+              theme === 'dark' ? 'border-white/5 bg-[#0F0F11]/80' : 'border-black/5 bg-white/80'
+            }`}>
               <div className="flex items-center gap-3">
                 <button 
                   onClick={handleBack}
-                  className="p-2 bg-zinc-800/50 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-all"
+                  className={`p-2 rounded-full transition-all ${
+                    theme === 'dark' ? 'bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-black'
+                  }`}
                 >
                   <ChevronLeft size={20} />
                 </button>
-                <h2 className="text-xl font-bold text-white tracking-tight">1:1 문의</h2>
+                <h2 className={`text-xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>1:1 문의</h2>
               </div>
             </div>
 
@@ -185,12 +193,12 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                     >
                       <div className="flex items-center justify-between">
                         <div className="space-y-2">
-                          <h2 className="text-3xl font-bold text-white tracking-tight">문의 남기기</h2>
-                          <p className="text-zinc-500 tracking-tight font-medium">궁금하신 점을 남겨주시면 빠르게 답변해 드리겠습니다.</p>
+                          <h2 className={`text-3xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>문의 남기기</h2>
+                          <p className={`tracking-tight font-medium ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>궁금하신 점을 남겨주시면 빠르게 답변해 드리겠습니다.</p>
                         </div>
                         <button 
                           onClick={() => setShowForm(false)}
-                          className="p-2 hover:bg-white/5 rounded-full text-zinc-500 transition-all"
+                          className={`p-2 rounded-full transition-all ${theme === 'dark' ? 'hover:bg-white/5 text-zinc-500' : 'hover:bg-black/5 text-zinc-400'}`}
                         >
                           <X size={24} />
                         </button>
@@ -201,27 +209,35 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                           <div className="space-y-3">
                             <div className="flex items-center gap-2 mb-1">
                               <div className="w-1 h-4 bg-amber-500 rounded-full" />
-                              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">제목</label>
+                              <label className={`text-xs font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>제목</label>
                             </div>
                             <input
                               type="text"
                               value={title}
                               onChange={(e) => setTitle(e.target.value)}
                               placeholder="문의 제목을 입력하세요"
-                              className="w-full h-18 bg-zinc-900/50 border border-white/10 rounded-2xl px-6 text-white text-lg placeholder:text-zinc-700 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all tracking-tight font-medium"
+                              className={`w-full h-18 border rounded-2xl px-6 text-lg transition-all tracking-tight font-medium focus:outline-none focus:ring-1 ${
+                                theme === 'dark' 
+                                  ? 'bg-zinc-900/50 border-white/10 text-white placeholder:text-zinc-700 focus:border-amber-500/50 focus:ring-amber-500/20' 
+                                  : 'bg-zinc-50 border-black/10 text-black placeholder:text-zinc-300 focus:border-amber-500/50 focus:ring-amber-500/20'
+                              }`}
                             />
                           </div>
 
                           <div className="space-y-3">
                             <div className="flex items-center gap-2 mb-1">
                               <div className="w-1 h-4 bg-amber-500 rounded-full" />
-                              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">내용</label>
+                              <label className={`text-xs font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>내용</label>
                             </div>
                             <textarea
                               value={content}
                               onChange={(e) => setContent(e.target.value)}
                               placeholder="문의하실 내용을 상세히 적어주세요"
-                              className="w-full h-[350px] bg-zinc-900/50 border border-white/10 rounded-2xl p-6 text-white text-lg placeholder:text-zinc-700 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all resize-none tracking-tight font-medium leading-relaxed"
+                              className={`w-full h-[350px] border rounded-2xl p-6 text-lg transition-all resize-none tracking-tight font-medium leading-relaxed focus:outline-none focus:ring-1 ${
+                                theme === 'dark' 
+                                  ? 'bg-zinc-900/50 border-white/10 text-white placeholder:text-zinc-700 focus:border-amber-500/50 focus:ring-amber-500/20' 
+                                  : 'bg-zinc-50 border-black/10 text-black placeholder:text-zinc-300 focus:border-amber-500/50 focus:ring-amber-500/20'
+                              }`}
                             />
                           </div>
                         </div>
@@ -229,7 +245,11 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                         <button
                           type="submit"
                           disabled={isSubmitting}
-                          className="w-full h-20 bg-white text-black font-bold tracking-tight rounded-2xl hover:bg-zinc-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50 text-xl shadow-[0_10px_30px_rgba(255,255,255,0.1)] active:scale-[0.98]"
+                          className={`w-full h-20 font-bold tracking-tight rounded-2xl transition-all flex items-center justify-center gap-3 disabled:opacity-50 text-xl active:scale-[0.98] ${
+                            theme === 'dark' 
+                              ? 'bg-white text-black hover:bg-zinc-200 shadow-[0_10px_30px_rgba(255,255,255,0.1)]' 
+                              : 'bg-black text-white hover:bg-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.1)]'
+                          }`}
                         >
                           {isSubmitting ? (
                             <Loader2 className="animate-spin" size={28} />
@@ -252,7 +272,7 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                     >
                       <button 
                         onClick={() => setSelectedInquiry(null)}
-                        className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors mb-4"
+                        className={`flex items-center gap-2 transition-colors mb-4 ${theme === 'dark' ? 'text-zinc-500 hover:text-white' : 'text-zinc-400 hover:text-black'}`}
                       >
                         <ChevronLeft size={20} />
                         <span className="text-sm font-bold">목록으로</span>
@@ -263,25 +283,27 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                           <span className={`text-[11px] font-bold px-3 py-1.5 rounded-xl uppercase tracking-widest ${
                             selectedInquiry.status === '답변완료' 
                               ? 'bg-emerald-500/10 text-emerald-400' 
-                              : 'bg-zinc-800 text-zinc-500'
+                              : theme === 'dark' ? 'bg-zinc-800 text-zinc-500' : 'bg-zinc-100 text-zinc-400'
                           }`}>
                             {selectedInquiry.status}
                           </span>
-                          <span className="text-[11px] text-zinc-600 font-bold tracking-widest">
+                          <span className={`text-[11px] font-bold tracking-widest ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`}>
                             {new Date(selectedInquiry.created_at).toLocaleDateString()}
                           </span>
                         </div>
-                        <h2 className="text-2xl font-bold text-white tracking-tight leading-tight">{selectedInquiry.title}</h2>
+                        <h2 className={`text-2xl font-bold tracking-tight leading-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{selectedInquiry.title}</h2>
                       </div>
 
                       <div className="space-y-12">
                         <div className="space-y-5">
                           <div className="flex items-center gap-2">
-                            <div className="w-1 h-3 bg-zinc-700 rounded-full" />
-                            <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest">문의 내용</label>
+                            <div className={`w-1 h-3 rounded-full ${theme === 'dark' ? 'bg-zinc-700' : 'bg-zinc-300'}`} />
+                            <label className={`text-[11px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>문의 내용</label>
                           </div>
-                          <div className="bg-zinc-900/40 border border-white/5 rounded-[2rem] p-8">
-                            <p className="text-zinc-300 text-lg leading-relaxed whitespace-pre-wrap tracking-tight font-medium">
+                          <div className={`border rounded-[2rem] p-8 transition-colors duration-500 ${
+                            theme === 'dark' ? 'bg-zinc-900/40 border-white/5' : 'bg-zinc-50 border-black/5'
+                          }`}>
+                            <p className={`text-lg leading-relaxed whitespace-pre-wrap tracking-tight font-medium ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
                               {selectedInquiry.content}
                             </p>
                           </div>
@@ -292,17 +314,17 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                             <div className="w-1 h-3 bg-amber-500 rounded-full" />
                             <label className="text-[11px] font-bold text-amber-500/80 uppercase tracking-widest">관리자 답변</label>
                           </div>
-                          <div className={`rounded-[2rem] p-8 border ${
+                          <div className={`rounded-[2rem] p-8 border transition-colors duration-500 ${
                             selectedInquiry.answer 
                               ? 'bg-amber-500/5 border-amber-500/10' 
-                              : 'bg-zinc-900/20 border-white/5'
+                              : theme === 'dark' ? 'bg-zinc-900/20 border-white/5' : 'bg-zinc-50 border-black/5'
                           }`}>
                             {selectedInquiry.answer ? (
-                              <p className="text-white text-lg leading-relaxed whitespace-pre-wrap tracking-tight font-medium">
+                              <p className={`text-lg leading-relaxed whitespace-pre-wrap tracking-tight font-medium ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
                                 {selectedInquiry.answer}
                               </p>
                             ) : (
-                              <p className="text-zinc-600 text-lg font-medium italic tracking-tight">
+                              <p className={`text-lg font-medium italic tracking-tight ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-300'}`}>
                                 답변을 준비 중입니다. 잠시만 기다려주세요.
                               </p>
                             )}
@@ -320,12 +342,14 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                     >
                       <div className="flex justify-between items-end mb-4">
                         <div className="space-y-1">
-                          <h2 className="text-3xl font-bold text-white tracking-tight">문의 내역</h2>
-                          <p className="text-zinc-500 text-sm font-medium tracking-tight">고객님의 소중한 의견을 기다립니다.</p>
+                          <h2 className={`text-3xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>문의 내역</h2>
+                          <p className={`text-sm font-medium tracking-tight ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>고객님의 소중한 의견을 기다립니다.</p>
                         </div>
                         <button
                           onClick={() => setShowForm(true)}
-                          className="h-12 px-6 bg-white text-black font-bold rounded-2xl flex items-center gap-2 active:scale-95 transition-all shadow-lg"
+                          className={`h-12 px-6 font-bold rounded-2xl flex items-center gap-2 active:scale-95 transition-all shadow-lg ${
+                            theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'
+                          }`}
                         >
                           <Plus size={18} strokeWidth={3} />
                           <span>새 문의</span>
@@ -335,33 +359,37 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                       <div className="space-y-4">
                         {isLoading && inquiries.length === 0 ? (
                           <div className="flex justify-center py-24">
-                            <Loader2 className="animate-spin text-zinc-700" size={32} />
+                            <Loader2 className={`animate-spin ${theme === 'dark' ? 'text-zinc-700' : 'text-zinc-300'}`} size={32} />
                           </div>
                         ) : inquiries.length === 0 ? (
-                          <div className="text-center py-32 bg-zinc-900/20 border border-dashed border-white/5 rounded-[2.5rem]">
-                            <MessageSquare size={48} strokeWidth={1} className="mx-auto text-zinc-800 mb-4" />
-                            <p className="text-zinc-600 font-medium">문의 내역이 없습니다.</p>
+                          <div className={`text-center py-32 border border-dashed rounded-[2.5rem] transition-colors duration-500 ${
+                            theme === 'dark' ? 'bg-zinc-900/20 border-white/5' : 'bg-zinc-50 border-black/5'
+                          }`}>
+                            <MessageSquare size={48} strokeWidth={1} className={`mx-auto mb-4 ${theme === 'dark' ? 'text-zinc-800' : 'text-zinc-200'}`} />
+                            <p className={`font-medium ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`}>문의 내역이 없습니다.</p>
                           </div>
                         ) : (
                           inquiries.map((inquiry) => (
                             <button
                               key={inquiry.id}
                               onClick={() => setSelectedInquiry(inquiry)}
-                              className="w-full bg-zinc-900/40 border border-white/5 rounded-[2rem] p-7 text-left group hover:bg-zinc-900/60 transition-all active:scale-[0.99] space-y-4"
+                              className={`w-full border rounded-[2rem] p-7 text-left group transition-all active:scale-[0.99] space-y-4 ${
+                                theme === 'dark' ? 'bg-zinc-900/40 border-white/5 hover:bg-zinc-900/60' : 'bg-zinc-50 border-black/5 hover:bg-zinc-100'
+                              }`}
                             >
                               <div className="flex justify-between items-center">
                                 <span className={`text-[10px] font-bold px-3 py-1.5 rounded-xl uppercase tracking-widest ${
                                   inquiry.status === '답변완료' 
                                     ? 'bg-emerald-500/10 text-emerald-400' 
-                                    : 'bg-zinc-800 text-zinc-500'
+                                    : theme === 'dark' ? 'bg-zinc-800 text-zinc-500' : 'bg-zinc-100 text-zinc-400'
                                 }`}>
                                   {inquiry.status}
                                 </span>
-                                <span className="text-[10px] text-zinc-600 font-bold tracking-widest">
+                                <span className={`text-[10px] font-bold tracking-widest ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`}>
                                   {new Date(inquiry.created_at).toLocaleDateString()}
                                 </span>
                               </div>
-                              <h4 className="text-white text-lg font-bold tracking-tight truncate group-hover:text-amber-400 transition-colors">{inquiry.title}</h4>
+                              <h4 className={`text-lg font-bold tracking-tight truncate group-hover:text-amber-400 transition-colors ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{inquiry.title}</h4>
                             </button>
                           ))
                         )}

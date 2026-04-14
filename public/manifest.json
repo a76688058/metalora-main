@@ -1,14 +1,19 @@
 {
-  "name": "메탈 액자의 기준, 메타로라 | METALORA",
-  "short_name": "메타로라",
-  "start_url": "./index.html",
+  "name": "메탈 액자의 기준, 메탈로라 | METALORA",
+  "short_name": "메탈로라",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#0F0F11",
   "theme_color": "#0F0F11",
   "icons": [
     {
-      "src": "https://picsum.photos/seed/metalora/192/192",
+      "src": "https://postfiles.pstatic.net/MjAyNjA0MTBfMjQ2/MDAxNzc1ODA3NDc3Mzk5.Y5zLtBg2H25kHAELQCpz6uLYFidsoPiVGMzxPwuiQF4g.qG7FTctfIgWLAP0elEOYBZqF-Pea2OuCiR7WQF0Qn2Eg.PNG/Gemini_Generated_Image_mcnx7jmcnx7jmcnx_(1).png?type=w3840",
       "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://postfiles.pstatic.net/MjAyNjA0MTBfMjQ2/MDAxNzc1ODA3NDc3Mzk5.Y5zLtBg2H25kHAELQCpz6uLYFidsoPiVGMzxPwuiQF4g.qG7FTctfIgWLAP0elEOYBZqF-Pea2OuCiR7WQF0Qn2Eg.PNG/Gemini_Generated_Image_mcnx7jmcnx7jmcnx_(1).png?type=w3840",
+      "sizes": "512x512",
       "type": "image/png"
     }
   ]

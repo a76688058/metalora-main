@@ -11,6 +11,7 @@ import { supabase } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
+import { useTheme } from '../../context/ThemeContext';
 
 // --- Animated Price Component (Toss Style Count Up) ---
 function AnimatedPrice({ value }: { value: number }) {
@@ -190,6 +191,7 @@ interface WorkshopViewProps {
 
 export default function WorkshopView({ onBack, onClose, hideHeader = false }: WorkshopViewProps) {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const { showToast } = useToast();
   const { addToCart, openCart } = useCart();
   const [currentStep, setCurrentStep] = useState(1);
@@ -563,23 +565,27 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
   }
 
   return (
-    <div className={`w-full bg-black text-white flex flex-col font-sans overflow-x-hidden pointer-events-auto ${hideHeader ? 'h-full' : 'min-h-screen'}`}>
+    <div className={`w-full flex flex-col font-sans overflow-x-hidden pointer-events-auto transition-colors duration-500 ${
+      hideHeader ? 'h-full' : 'min-h-screen'
+    } ${theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'}`}>
       {/* Custom Workshop Header */}
-      <header className={`${hideHeader ? 'relative' : 'fixed top-0 left-0'} w-full z-[100] bg-black/80 backdrop-blur-md border-b border-white/5 h-16 flex items-center px-6`}>
+      <header className={`${hideHeader ? 'relative' : 'fixed top-0 left-0'} w-full z-[100] backdrop-blur-md border-b h-16 flex items-center px-6 transition-colors duration-500 ${
+        theme === 'dark' ? 'bg-black/80 border-white/5' : 'bg-white/80 border-black/5'
+      }`}>
         <div className="flex-1 flex justify-start">
           <button 
             onClick={handleBack}
-            className="text-zinc-400 hover:text-white transition-colors"
+            className={`transition-colors ${theme === 'dark' ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-black'}`}
           >
             <ChevronLeft size={24} />
           </button>
         </div>
         
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-          <div className="text-[10px] text-cyan-400 font-bold tracking-widest uppercase mb-0.5">
+          <div className={`text-[10px] font-bold tracking-widest uppercase mb-0.5 ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>
             Step {currentStep} / {totalSteps}
           </div>
-          <h1 className="text-sm font-bold text-white tracking-tight">
+          <h1 className={`text-sm font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
             {STEPS[currentStep - 1].title}
           </h1>
         </div>
@@ -587,7 +593,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
         <div className="flex-1 flex justify-end items-center gap-4">
           <button 
             onClick={() => onClose && onClose()}
-            className="text-zinc-400 hover:text-white transition-colors"
+            className={`transition-colors ${theme === 'dark' ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-black'}`}
           >
             <X size={22} />
           </button>
@@ -607,14 +613,18 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="w-full max-w-sm bg-zinc-900 rounded-[24px] p-8 text-center shadow-2xl"
+              className={`w-full max-w-sm rounded-[24px] p-8 text-center shadow-2xl ${
+                theme === 'dark' ? 'bg-zinc-900' : 'bg-white border border-black/5'
+              }`}
             >
-              <h3 className="text-xl font-bold text-white mb-2">이전에 작업한 이미지가 있습니다.</h3>
-              <p className="text-zinc-400 text-sm mb-8">불러오시겠습니까?</p>
+              <h3 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>이전에 작업한 이미지가 있습니다.</h3>
+              <p className={`text-sm mb-8 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>불러오시겠습니까?</p>
               <div className="flex gap-3">
                 <button
                   onClick={handleStartNew}
-                  className="bg-zinc-800 text-zinc-400 py-4 rounded-[18px] font-semibold flex-1 active:scale-95 transition-transform"
+                  className={`py-4 rounded-[18px] font-semibold flex-1 active:scale-95 transition-transform ${
+                    theme === 'dark' ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500'
+                  }`}
                 >
                   새로 시작
                 </button>
@@ -636,12 +646,12 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
       >
         {/* Step Progress Bar (Minimal) */}
         <div className="max-w-xl mx-auto w-full px-6 mb-8">
-            <div className="h-[2px] w-full bg-white/10 rounded-full overflow-hidden">
+            <div className={`h-[2px] w-full rounded-full overflow-hidden ${theme === 'dark' ? 'bg-white/10' : 'bg-black/5'}`}>
               <motion.div 
                 initial={{ width: 0 }}
                 animate={{ width: `${(currentStep / totalSteps) * 100}%` }}
                 transition={{ duration: 0.5, ease: "circOut" }}
-                className="h-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]"
+                className={`h-full ${theme === 'dark' ? 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]' : 'bg-cyan-500'}`}
               />
             </div>
           </div>
@@ -662,14 +672,20 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
               {currentStep === 1 && (
                 <div className="flex flex-col gap-8">
                   <div>
-                    <h3 className="text-lg font-bold text-white mb-4">재질 확인</h3>
+                    <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>재질 확인</h3>
                     <div className="flex flex-col gap-4">
                       <div 
-                        className="p-6 rounded-3xl border text-left transition-all bg-cyan-500/10 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.2)] cursor-default relative overflow-hidden"
+                        className={`p-6 rounded-3xl border text-left transition-all cursor-default relative overflow-hidden ${
+                          theme === 'dark' 
+                            ? 'bg-cyan-500/10 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.2)]' 
+                            : 'bg-cyan-50 border-cyan-500/30 shadow-[0_10px_30px_rgba(6,182,212,0.1)]'
+                        }`}
                       >
-                        <h3 className="text-xl font-bold text-white mb-2">메탈릭 알루미늄</h3>
-                        <p className="text-zinc-400 text-sm">METALORA Signature: 얇고 매끄러운 표면. 빛이 금속 특유의 광택으로 반사되어 미래지향적인 색감을 구현합니다.</p>
-                        <div className="mt-4 pt-4 border-t border-cyan-500/20 text-xs font-medium text-cyan-400 flex items-center gap-1.5">
+                        <h3 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-cyan-900'}`}>메탈릭 알루미늄</h3>
+                        <p className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>METALORA Signature: 얇고 매끄러운 표면. 빛이 금속 특유의 광택으로 반사되어 미래지향적인 색감을 구현합니다.</p>
+                        <div className={`mt-4 pt-4 border-t text-xs font-medium flex items-center gap-1.5 ${
+                          theme === 'dark' ? 'border-cyan-500/20 text-cyan-400' : 'border-cyan-500/10 text-cyan-600'
+                        }`}>
                           <Check size={14} />
                           METALORA 시그니처 재질로 확정되었습니다
                         </div>
@@ -678,20 +694,29 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                   </div>
 
                   <div>
-                    <h3 className="text-lg font-bold text-white mb-4">사이즈 선택</h3>
+                    <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>사이즈 선택</h3>
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         onClick={() => setSize('A4')}
-                        className={`py-4 rounded-2xl border text-center transition-all ${size === 'A4' ? 'bg-purple-500/10 border-purple-400 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]' : 'bg-zinc-900/40 border-white/5 text-zinc-400 hover:border-white/20'}`}
+                        className={`py-4 rounded-2xl border text-center transition-all ${
+                          size === 'A4' 
+                            ? theme === 'dark' 
+                              ? 'bg-purple-500/10 border-purple-400 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]' 
+                              : 'bg-purple-50 border-purple-500 text-purple-600 shadow-[0_10px_20px_rgba(168,85,247,0.1)]'
+                            : theme === 'dark'
+                              ? 'bg-zinc-900/40 border-white/5 text-zinc-400 hover:border-white/20'
+                              : 'bg-zinc-50 border-black/5 text-zinc-500 hover:border-black/10'
+                        }`}
                       >
                         <div className="font-bold">A4 (210x297mm)</div>
                       </button>
                       <button
                         disabled
-                        className="py-4 rounded-2xl border text-center transition-all bg-zinc-900/20 border-white/5 text-zinc-600 cursor-not-allowed relative overflow-hidden"
+                        className={`py-4 rounded-2xl border text-center transition-all cursor-not-allowed relative overflow-hidden ${
+                          theme === 'dark' ? 'bg-zinc-900/20 border-white/5 text-zinc-600' : 'bg-zinc-100 border-black/5 text-zinc-400'
+                        }`}
                       >
-                        <div className="font-bold">맞춤 사이즈 제작</div>
-                        <div className="absolute top-0 right-0 bg-zinc-800 text-zinc-400 text-[10px] px-2 py-1 rounded-bl-lg border-b border-l border-zinc-700">준비 중</div>
+                        <div className="font-bold">Custom (준비중)</div>
                       </button>
                     </div>
                   </div>
@@ -701,8 +726,12 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
               {/* --- STEP 2: Image Upload & 3D Preview --- */}
               {currentStep === 2 && (
                 <div className="flex flex-col gap-6">
-                  <div className="w-full aspect-[3/4] max-w-sm mx-auto rounded-3xl overflow-hidden bg-[#000000] border border-white/10 relative shadow-2xl">
-                    <div className="absolute top-4 left-4 z-10 px-3 py-1 bg-black/50 backdrop-blur-md rounded-full border border-white/10 text-[10px] tracking-widest text-white font-bold uppercase flex items-center gap-2">
+                  <div className={`w-full aspect-[3/4] max-w-sm mx-auto rounded-3xl overflow-hidden border relative shadow-2xl transition-colors duration-500 ${
+                    theme === 'dark' ? 'bg-black border-white/10' : 'bg-zinc-50 border-black/5'
+                  }`}>
+                    <div className={`absolute top-4 left-4 z-10 px-3 py-1 backdrop-blur-md rounded-full border text-[10px] tracking-widest font-bold uppercase flex items-center gap-2 ${
+                      theme === 'dark' ? 'bg-black/50 border-white/10 text-white' : 'bg-white/50 border-black/5 text-black'
+                    }`}>
                       <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                       Live 3D Preview
                     </div>
@@ -711,16 +740,20 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                       animate={{ scale: [1, 1.1, 1] }}
                       transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
                       onClick={() => setIsModalOpen(true)}
-                      className="absolute top-4 right-4 p-3 bg-white/5 backdrop-blur-md rounded-full border border-white/10 z-10 hover:bg-white/10 transition-colors"
+                      className={`absolute top-4 right-4 p-3 backdrop-blur-md rounded-full border z-10 transition-colors ${
+                        theme === 'dark' ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-black/5 border-black/10 hover:bg-black/10'
+                      }`}
                     >
-                      <Maximize size={18} className="text-white" />
+                      <Maximize size={18} className={theme === 'dark' ? 'text-white' : 'text-black'} />
                     </motion.button>
                     
                     {isResumingImage && uploadedImage && (
-                      <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                      <div className={`absolute inset-0 z-20 flex items-center justify-center backdrop-blur-sm ${theme === 'dark' ? 'bg-black/80' : 'bg-white/80'}`}>
                         <div className="flex flex-col items-center gap-3">
-                          <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(34,211,238,0.5)]" />
-                          <span className="text-cyan-400 font-bold text-sm tracking-widest animate-pulse">이미지를 불러오는 중...</span>
+                          <div className={`w-8 h-8 border-2 border-t-transparent rounded-full animate-spin ${
+                            theme === 'dark' ? 'border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)]' : 'border-cyan-600'
+                          }`} />
+                          <span className={`font-bold text-sm tracking-widest animate-pulse ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>이미지를 불러오는 중...</span>
                         </div>
                       </div>
                     )}
@@ -739,32 +772,40 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                             size={size}
                           />
                         </Suspense>
-                        <ContactShadows position={[0, -1, 0]} opacity={0.5} scale={5} blur={2} far={2} color="#000000" />
+                        <ContactShadows position={[0, -1, 0]} opacity={theme === 'dark' ? 0.5 : 0.2} scale={5} blur={2} far={2} color={theme === 'dark' ? "#000000" : "#666666"} />
                       </Canvas>
                     </ErrorBoundary>
                   </div>
 
-                  <div className="bg-zinc-900/40 backdrop-blur-md border border-white/5 rounded-3xl p-6 text-center">
-                    <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4 text-white">
+                  <div className={`backdrop-blur-md border rounded-3xl p-6 text-center transition-colors duration-500 ${
+                    theme === 'dark' ? 'bg-zinc-900/40 border-white/5' : 'bg-zinc-50 border-black/5'
+                  }`}>
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
+                      theme === 'dark' ? 'bg-white/5 text-white' : 'bg-black/5 text-black'
+                    }`}>
                       <Upload size={28} />
                     </div>
-                    <h3 className="text-lg font-bold text-white mb-2">고객님의 이미지를 업로드하세요.</h3>
-                    <p className="text-zinc-400 text-sm leading-relaxed mb-6">
+                    <h3 className={`text-lg font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>고객님의 이미지를 업로드하세요.</h3>
+                    <p className={`text-sm leading-relaxed mb-6 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
                       고해상도 이미지일수록 알루미늄의 광택이<br/>더 선명하게 살아납니다.
                     </p>
                     <button 
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isUploading}
-                      className="w-full py-4 bg-zinc-800/80 text-zinc-300 border border-zinc-700/50 font-bold rounded-2xl hover:bg-zinc-700/80 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      className={`w-full py-4 font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 ${
+                        theme === 'dark' 
+                          ? 'bg-zinc-800/80 text-zinc-300 border border-zinc-700/50 hover:bg-zinc-700/80' 
+                          : 'bg-zinc-100 text-zinc-700 border border-zinc-200 hover:bg-zinc-200'
+                      }`}
                     >
                       {isUploading ? (
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <div className={`w-5 h-5 border-2 border-t-transparent rounded-full animate-spin ${theme === 'dark' ? 'border-white' : 'border-black'}`} />
                       ) : (
                         <ImageIcon size={20} />
                       )}
                       {isUploading ? '업로드 중...' : uploadedImage ? '사진 변경하기' : '사진 등록하기'}
                     </button>
-                    <p className="text-[10px] text-zinc-600 mt-4 text-center leading-tight break-keep">
+                    <p className={`text-[10px] mt-4 text-center leading-tight break-keep ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`}>
                       ※ 타인의 저작권, 초상권, 개인정보를 침해할 경우 모든 책임은 이용자에게 있습니다.
                     </p>
                     <input 
@@ -777,14 +818,15 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                   </div>
                 </div>
               )}
-
               {/* --- STEP 3: Finalize --- */}
               {currentStep === 3 && (
                 <div className="flex flex-col items-center pt-4">
                   <motion.div 
                     initial={{ scale: 0.9, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="w-full aspect-[3/4] max-w-[280px] rounded-2xl overflow-hidden bg-black border border-white/10 shadow-2xl mb-10"
+                    className={`w-full aspect-[3/4] max-w-[280px] rounded-2xl overflow-hidden border shadow-2xl mb-10 transition-colors duration-500 ${
+                      theme === 'dark' ? 'bg-black border-white/10' : 'bg-zinc-50 border-black/5'
+                    }`}
                   >
                     <ErrorBoundary fallback={
                       <div className="w-full h-full flex items-center justify-center p-8">
@@ -801,31 +843,33 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                             autoRotate={true}
                           />
                         </Suspense>
-                        <ContactShadows position={[0, -1, 0]} opacity={0.5} scale={5} blur={2} far={2} color="#000000" />
+                        <ContactShadows position={[0, -1, 0]} opacity={theme === 'dark' ? 0.5 : 0.2} scale={5} blur={2} far={2} color={theme === 'dark' ? "#000000" : "#666666"} />
                       </Canvas>
                     </ErrorBoundary>
                   </motion.div>
 
                   <div className="w-full space-y-6">
-                    <div className="bg-zinc-900/40 rounded-3xl p-8 border border-white/5">
-                      <h3 className="text-zinc-500 text-xs font-bold tracking-widest uppercase mb-6">Order Summary</h3>
+                    <div className={`rounded-3xl p-8 border transition-colors duration-500 ${
+                      theme === 'dark' ? 'bg-zinc-900/40 border-white/5' : 'bg-zinc-50 border-black/5'
+                    }`}>
+                      <h3 className={`text-xs font-bold tracking-widest uppercase mb-6 ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>Order Summary</h3>
                       <div className="space-y-5">
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400 text-sm">제작 방식</span>
-                          <span className="text-white font-bold">커스텀 제작</span>
+                          <span className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>제작 방식</span>
+                          <span className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>커스텀 제작</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400 text-sm">재질</span>
-                          <span className="text-cyan-400 font-bold">메탈릭 알루미늄</span>
+                          <span className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>재질</span>
+                          <span className={`font-bold ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>메탈릭 알루미늄</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400 text-sm">사이즈</span>
-                          <span className="text-white font-bold">{size} (210x297mm)</span>
+                          <span className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>사이즈</span>
+                          <span className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{size} (210x297mm)</span>
                         </div>
-                        <div className="h-[1px] bg-white/5 my-2" />
+                        <div className={`h-[1px] my-2 ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'}`} />
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400 text-sm">결제 예정 금액</span>
-                          <div className="text-xl font-black text-white">
+                          <span className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>결제 예정 금액</span>
+                          <div className={`text-xl font-black ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
                             <AnimatedPrice value={49000} />
                             <span className="text-sm ml-1 font-bold">원</span>
                           </div>
@@ -833,8 +877,10 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                       </div>
                     </div>
 
-                    <div className="p-6 bg-purple-500/5 border border-purple-500/20 rounded-2xl">
-                      <p className="text-[11px] text-purple-300/80 leading-relaxed text-center">
+                    <div className={`p-6 border rounded-2xl transition-colors duration-500 ${
+                      theme === 'dark' ? 'bg-purple-500/5 border-purple-500/20' : 'bg-purple-50 border-purple-200'
+                    }`}>
+                      <p className={`text-[11px] leading-relaxed text-center ${theme === 'dark' ? 'text-purple-300/80' : 'text-purple-600'}`}>
                         ※ 커스텀 상품은 제작이 시작된 이후 취소 및 환불이 불가합니다.<br/>
                         최종 시안을 다시 한번 확인해 주세요.
                       </p>
@@ -848,17 +894,21 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
       </div>
 
       {/* Fixed Bottom Action Button */}
-      <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black via-black/90 to-transparent pt-12 pb-[max(2rem,env(safe-area-inset-bottom))] px-6 z-20 pointer-events-none">
+      <div className={`absolute bottom-0 left-0 w-full pt-12 pb-[max(2rem,env(safe-area-inset-bottom))] px-6 z-20 pointer-events-none transition-colors duration-500 ${
+        theme === 'dark' ? 'bg-gradient-to-t from-black via-black/90 to-transparent' : 'bg-gradient-to-t from-white via-white/90 to-transparent'
+      }`}>
         <div className="max-w-xl mx-auto w-full pointer-events-auto">
           <button
             onClick={handleActionClick}
             disabled={isButtonDisabled}
             className={`w-full py-5 rounded-2xl font-bold text-lg transition-all active:scale-[0.98] flex items-center justify-center gap-3 ${
               isButtonDisabled 
-                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
+                ? theme === 'dark' ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-zinc-100 text-zinc-400 cursor-not-allowed'
                 : currentStep === totalSteps
-                  ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 shadow-[0_0_30px_rgba(217,70,239,0.3)]'
-                  : 'bg-white text-black hover:bg-zinc-200 shadow-[0_0_30px_rgba(255,255,255,0.1)]'
+                  ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 shadow-[0_0_30px_rgba(217,70,239,0.3)] text-white'
+                  : theme === 'dark' 
+                    ? 'bg-white text-black hover:bg-zinc-200 shadow-[0_0_30px_rgba(255,255,255,0.1)]' 
+                    : 'bg-black text-white hover:bg-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.1)]'
             }`}
           >
             {isUploading ? (
@@ -892,16 +942,20 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[10005] bg-black/95 backdrop-blur-xl flex flex-col pointer-events-auto"
+            className={`fixed inset-0 z-[10005] backdrop-blur-xl flex flex-col pointer-events-auto transition-colors duration-500 ${
+              theme === 'dark' ? 'bg-black/95' : 'bg-white/95'
+            }`}
           >
             <div className="absolute top-0 left-0 w-full h-20 flex items-center justify-between px-6 z-20">
               <div className="flex flex-col">
-                <span className="text-[10px] text-cyan-400 font-bold tracking-[0.3em] uppercase mb-1">Interactive</span>
-                <h3 className="text-white font-bold tracking-tight">3D 프리뷰</h3>
+                <span className={`text-[10px] font-bold tracking-[0.3em] uppercase mb-1 ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>Interactive</span>
+                <h3 className={`font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>3D 프리뷰</h3>
               </div>
               <button 
                 onClick={() => setIsModalOpen(false)}
-                className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
+                className={`w-12 h-12 rounded-full border flex items-center justify-center transition-colors ${
+                  theme === 'dark' ? 'bg-white/5 border-white/10 text-white hover:bg-white/10' : 'bg-black/5 border-black/10 text-black hover:bg-black/10'
+                }`}
               >
                 <X size={24} />
               </button>
@@ -923,13 +977,15 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                     maxDistance={6}
                   />
                 </Suspense>
-                <ContactShadows position={[0, -1.2, 0]} opacity={0.4} scale={6} blur={2.5} far={2} color="#000000" />
+                <ContactShadows position={[0, -1.2, 0]} opacity={theme === 'dark' ? 0.4 : 0.15} scale={6} blur={2.5} far={2} color={theme === 'dark' ? "#000000" : "#444444"} />
               </Canvas>
 
               <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-none flex flex-col items-center gap-3">
-                <div className="px-4 py-2 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-3">
+                <div className={`px-4 py-2 backdrop-blur-md rounded-full border flex items-center gap-3 ${
+                  theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'
+                }`}>
                   <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                  <span className="text-[11px] text-white/70 font-medium tracking-wider">손가락으로 자유롭게 돌려보세요</span>
+                  <span className={`text-[11px] font-medium tracking-wider ${theme === 'dark' ? 'text-white/70' : 'text-black/70'}`}>손가락으로 자유롭게 돌려보세요</span>
                 </div>
               </div>
             </div>

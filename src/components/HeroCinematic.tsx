@@ -3,6 +3,7 @@ import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Environment, Float, PerspectiveCamera, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
+import { useTheme } from '../context/ThemeContext';
 
 /**
  * HeroCinematic.tsx
@@ -15,9 +16,9 @@ import * as THREE from 'three';
  * - Standard lighting & materials from Poster3D.tsx
  */
 
-const AURORA_IMAGE_URL = "https://images.unsplash.com/photo-1579033461380-adb47c3eb938?auto=format&fit=crop&q=80&w=2564";
+const AURORA_IMAGE_URL = "https://images.unsplash.com/photo-1593378026483-2a1fd46a35bd?q=80&w=1287&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
 
-function CinematicPoster({ progress }: { progress: any }) {
+function CinematicPoster({ progress, theme }: { progress: any, theme: string }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const edgeLightRef = useRef<THREE.PointLight>(null);
   
@@ -43,19 +44,17 @@ function CinematicPoster({ progress }: { progress: any }) {
 
   const materials = useMemo(() => {
     const standardProps = {
-      color: '#1a1a1a',
-      roughness: 0.3,
-      metalness: 0.7,
+      color: theme === 'dark' ? '#1a1a1a' : '#f0f0f0',
+      roughness: theme === 'dark' ? 0.3 : 0.1,
+      metalness: theme === 'dark' ? 0.7 : 0.4,
     };
     
     const frontMaterial = new THREE.MeshStandardMaterial({
       ...standardProps,
       map: posterTexture,
-      emissiveMap: posterTexture,
-      emissive: new THREE.Color('#ffffff'),
-      emissiveIntensity: 1.0, 
       color: '#ffffff',
-      toneMapped: false
+      roughness: 1.0, // Matte surface (no reflections)
+      metalness: 0.0, // Pure colors
     });
 
     const sideMaterial = new THREE.MeshStandardMaterial({
@@ -113,6 +112,7 @@ function CinematicPoster({ progress }: { progress: any }) {
 
 export default function HeroCinematic() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { theme } = useTheme();
   
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -129,49 +129,46 @@ export default function HeroCinematic() {
   const glowScale = useTransform(smoothProgress, [0, 0.5], [0.6, 2.0]);
 
   return (
-    <div ref={containerRef} className="relative h-[180vh] bg-black">
+    <div ref={containerRef} className={`relative h-[180vh] transition-colors duration-500 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
       <div className="sticky top-0 h-screen w-full overflow-hidden flex items-center justify-center">
-        {/* Perfectly Centered Background Glow */}
-        <motion.div 
-          style={{ opacity: glowOpacity, scale: glowScale }}
-          className="absolute inset-0 z-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(0,255,255,0.15)_0%,transparent_70%)]"
-        />
-
         {/* 3D Scene - Perfectly Centered */}
         <div className="absolute inset-0 z-10">
           <Canvas dpr={[1, 2]}>
             <PerspectiveCamera makeDefault position={[0, 0, 3.5]} fov={30} />
             
             {/* Standard Lighting Sync with Poster3D.tsx */}
-            <ambientLight intensity={0.25} />
+            <ambientLight intensity={theme === 'dark' ? 0.25 : 0.4} />
             <directionalLight position={[5, 5, 5]} intensity={0.4} castShadow={false} />
             <directionalLight position={[-5, -5, -5]} intensity={0.2} />
             <pointLight position={[2, 2, 2]} intensity={0.3} color="#ffffff" />
-            <Environment preset="studio" environmentIntensity={0.4} />
+            <Environment preset="studio" environmentIntensity={theme === 'dark' ? 0.2 : 0.3} />
             
             <React.Suspense fallback={null}>
-              <CinematicPoster progress={smoothProgress} />
+              <CinematicPoster progress={smoothProgress} theme={theme} />
             </React.Suspense>
           </Canvas>
         </div>
-
-        {/* Vignette Overlay */}
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,black_100%)] z-15" />
         
         {/* Scroll Hint */}
         <motion.div 
           style={{ opacity: useTransform(smoothProgress, [0, 0.05], [1, 0]) }}
           className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 z-20"
         >
-          <div className="w-[1px] h-12 bg-gradient-to-b from-white/0 via-white/70 to-white/0 animate-pulse" />
-          <span className="text-[10px] font-black tracking-[0.6em] uppercase text-white/60">Scroll to Explore</span>
+          <div className={`w-[1px] h-12 animate-pulse ${
+            theme === 'dark' ? 'bg-gradient-to-b from-white/0 via-white/70 to-white/0' : 'bg-gradient-to-b from-black/0 via-black/70 to-black/0'
+          }`} />
+          <span className={`text-[10px] font-black tracking-[0.6em] uppercase ${
+            theme === 'dark' ? 'text-white/60' : 'text-black/60'
+          }`}>Scroll to Explore</span>
         </motion.div>
       </div>
 
       {/* Final Transition Overlay */}
       <motion.div 
         style={{ opacity: useTransform(smoothProgress, [0.95, 1], [0, 1]) }}
-        className="absolute bottom-0 left-0 w-full h-screen bg-black z-30 pointer-events-none"
+        className={`absolute bottom-0 left-0 w-full h-screen z-30 pointer-events-none ${
+          theme === 'dark' ? 'bg-black' : 'bg-white'
+        }`}
       />
     </div>
   );

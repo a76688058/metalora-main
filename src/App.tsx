@@ -33,6 +33,7 @@ import { ProductProvider } from './context/ProductContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { CartProvider, useCart } from './context/CartContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 
 import GlobalSplash from './components/GlobalSplash';
 
@@ -130,11 +131,17 @@ function Layout() {
   const location = useLocation();
   const { isProfileOpen, closeProfile, isWorkshopOpen, closeWorkshop, isProfileEditOpen, closeProfileEdit, isOrdersOpen, closeOrders, isInquiryOpen, closeInquiry } = useAuth();
   const { isCartOpen, closeCart } = useCart();
+  const { theme } = useTheme();
   const isAdminPage = location.pathname.startsWith('/admin');
   const isAuthPage = location.pathname === '/login' || location.pathname === '/profile/complete' || location.pathname === '/auth/callback';
 
+  // Force dark mode for admin pages
+  const currentTheme = isAdminPage ? 'dark' : theme;
+
   return (
-    <div className="min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black flex flex-col">
+    <div className={`min-h-screen font-sans selection:bg-white selection:text-black flex flex-col transition-colors duration-300 ${
+      currentTheme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'
+    }`}>
       <AnimatePresence>
         {isCartOpen && <Cart key="cart-overlay" />}
         {isProfileOpen && <ProfileOverlay key="profile-overlay" isOpen={isProfileOpen} onClose={closeProfile} />}
@@ -162,11 +169,13 @@ export default function App() {
       <AuthProvider>
         <ProductProvider>
           <CartProvider>
-            <GlobalSplash />
-            <PresenceTracker />
-            <Router>
-              <Layout />
-            </Router>
+            <ThemeProvider>
+              <GlobalSplash />
+              <PresenceTracker />
+              <Router>
+                <Layout />
+              </Router>
+            </ThemeProvider>
           </CartProvider>
         </ProductProvider>
       </AuthProvider>

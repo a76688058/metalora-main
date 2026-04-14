@@ -44,7 +44,7 @@ export default function PaymentSuccess() {
   const [isSimulationComplete, setIsSimulationComplete] = useState(false);
 
   const SIMULATION_STEPS = [
-    { icon: <Factory size={18} />, text: "메타로라 팩토리 제작 준비 중", duration: 2500 },
+    { icon: <Factory size={18} />, text: "메탈로라 팩토리 제작 준비 중", duration: 2500 },
     { icon: <ShieldCheck size={18} />, text: "1.15mm 프리미엄 알루미늄 패널 검수", duration: 3500 },
     { icon: <Printer size={18} />, text: "180℃ 이상 고온 승화전사 4K 프린팅", duration: 4500 },
     { icon: <Package size={18} />, text: "무타공 패키지 및 패널 안전 패키징", duration: 2500 },
@@ -444,7 +444,7 @@ export default function PaymentSuccess() {
                   {SIMULATION_STEPS[activeStep].text}
                 </motion.p>
                 <p className="text-xs text-zinc-500 mt-1 font-medium">
-                  {isSimulationComplete && selectedStep !== null ? '상세 공정 확인 중' : '메타로라 프리미엄 공정 진행 중'}
+                  {isSimulationComplete && selectedStep !== null ? '상세 공정 확인 중' : '메탈로라 프리미엄 공정 진행 중'}
                 </p>
               </div>
             </div>

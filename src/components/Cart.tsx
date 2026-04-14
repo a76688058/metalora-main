@@ -5,6 +5,7 @@ import { X, ShoppingBag, ChevronRight, MapPin, CreditCard, CheckCircle2, Loader2
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { loadTossPayments } from '@tosspayments/payment-sdk';
 
@@ -18,6 +19,7 @@ const TOSS_CLIENT_KEY = 'test_ck_Poxy1XQL8R9nPR9Xn61Xr7nO5Wml';
 export default function Cart() {
   const navigate = useNavigate();
   const { cartItems, removeFromCart, updateQuantity, totalPrice, isLoading: isCartLoading, isCartOpen, closeCart } = useCart();
+  const { theme } = useTheme();
   const isOpen = isCartOpen;
   const onClose = closeCart;
 
@@ -391,16 +393,20 @@ export default function Cart() {
         animate={{ x: 0 }}
         exit={{ x: '100%' }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className="relative w-full max-w-lg bg-[#0F0F11] h-full flex flex-col shadow-2xl pointer-events-auto transform-gpu will-change-transform"
+        className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl pointer-events-auto transform-gpu will-change-transform transition-colors duration-500 ${
+          theme === 'dark' ? 'bg-[#0F0F11]' : 'bg-white'
+        }`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5">
-          <h2 className="text-2xl font-bold text-white tracking-tight">
+          <h2 className={`text-2xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
             {step === 1 ? '내 컬렉션' : '주문하기'}
           </h2>
           <button 
             onClick={onClose}
-            className="p-2 bg-zinc-800/50 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-all"
+            className={`p-2 rounded-full transition-all ${
+              theme === 'dark' ? 'bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-black'
+            }`}
           >
             <X size={20} />
           </button>
@@ -408,10 +414,10 @@ export default function Cart() {
 
         {/* Step Indicator */}
         <div className="px-6 pb-4 flex items-center gap-3 text-base font-bold tracking-tighter">
-          <span className={step === 1 ? 'text-white' : 'text-zinc-600'}>1. 내 컬렉션</span>
-          <ChevronRight className="text-zinc-700" size={16} />
-          <span className={step === 2 ? 'text-white' : 'text-zinc-600'}>2. 주문서</span>
-          <ChevronRight className="text-zinc-700" size={16} />
+          <span className={step === 1 ? (theme === 'dark' ? 'text-white' : 'text-black') : 'text-zinc-500'}>1. 내 컬렉션</span>
+          <ChevronRight className="text-zinc-500/30" size={16} />
+          <span className={step === 2 ? (theme === 'dark' ? 'text-white' : 'text-black') : 'text-zinc-500'}>2. 주문서</span>
+          <ChevronRight className="text-zinc-500/30" size={16} />
           <span className="text-zinc-600">3. 결제확인</span>
         </div>
 
@@ -429,16 +435,18 @@ export default function Cart() {
               >
                 {cartItems.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-32 text-zinc-500 space-y-4">
-                    <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mb-4">
-                      <ShoppingBag size={32} className="text-zinc-600" />
+                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${theme === 'dark' ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
+                      <ShoppingBag size={32} className="text-zinc-400" />
                     </div>
-                    <p className="text-lg font-medium text-zinc-400">내 컬렉션이 비어있어요</p>
+                    <p className={`text-lg font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>내 컬렉션이 비어있어요</p>
                     <button 
                       onClick={() => {
                         onClose();
                         navigate('/collection');
                       }}
-                      className="px-6 py-3 bg-zinc-800 text-white font-medium rounded-2xl hover:bg-zinc-700 transition-colors mt-2"
+                      className={`px-6 py-3 font-medium rounded-2xl transition-colors mt-2 ${
+                        theme === 'dark' ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-zinc-100 text-black hover:bg-zinc-200'
+                      }`}
                     >
                       상품 둘러보기
                     </button>
@@ -449,12 +457,12 @@ export default function Cart() {
                     <div className="flex items-center justify-between px-1 mb-6">
                       <button 
                         onClick={toggleSelectAll}
-                        className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors"
+                        className={`flex items-center gap-2 transition-colors ${theme === 'dark' ? 'text-zinc-500 hover:text-white' : 'text-zinc-500 hover:text-black'}`}
                       >
                         <span className={`text-sm font-bold tracking-tight ${selectedIds.size === cartItems.length ? 'text-fuchsia-500' : ''}`}>
                           전체 선택
                         </span>
-                        <span className="text-xs text-zinc-600 font-medium">({selectedIds.size}/{cartItems.length})</span>
+                        <span className="text-xs text-zinc-500 font-medium">({selectedIds.size}/{cartItems.length})</span>
                       </button>
                     </div>
 
@@ -480,9 +488,11 @@ export default function Cart() {
                         <div 
                           key={item.id} 
                           onClick={() => toggleItemSelection(item.id)}
-                          className={`p-6 bg-[#1C1C1E] rounded-[32px] flex gap-6 transition-all cursor-pointer border-[1.5px] ${
+                          className={`p-6 rounded-[32px] flex gap-6 transition-all cursor-pointer border-[1.5px] ${
+                            theme === 'dark' ? 'bg-[#1C1C1E]' : 'bg-zinc-50'
+                          } ${
                             isSelected 
-                              ? 'border-fuchsia-500/60 bg-fuchsia-500/[0.12] shadow-[0_0_30px_rgba(217,70,239,0.08)]' 
+                              ? 'border-fuchsia-500/60 bg-fuchsia-500/[0.08] shadow-[0_0_30px_rgba(217,70,239,0.08)]' 
                               : 'border-transparent'
                           }`}
                         >
@@ -492,7 +502,7 @@ export default function Cart() {
                               e.stopPropagation();
                               handleItemClick(e);
                             }}
-                            className="w-24 h-24 bg-zinc-800 rounded-2xl overflow-hidden shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                            className={`w-24 h-24 rounded-2xl overflow-hidden shrink-0 cursor-pointer hover:opacity-80 transition-opacity ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200'}`}
                           >
                             <img 
                               src={image} 
@@ -504,7 +514,7 @@ export default function Cart() {
                           <div className="flex-1 flex flex-col justify-between py-1">
                             <div className="flex justify-between items-start">
                               <div>
-                                <h3 className="text-white font-semibold text-lg leading-tight tracking-tight">{title}</h3>
+                                <h3 className={`font-semibold text-lg leading-tight tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{title}</h3>
                                 <p className="text-zinc-500 text-sm mt-2">{optionName}</p>
                               </div>
                               <button 
@@ -512,34 +522,34 @@ export default function Cart() {
                                   e.stopPropagation();
                                   removeFromCart(item.id);
                                 }}
-                                className="p-2 -mr-2 -mt-2 text-zinc-600 hover:text-white bg-zinc-800/0 hover:bg-zinc-800 rounded-full transition-colors"
+                                className={`p-2 -mr-2 -mt-2 rounded-full transition-colors ${theme === 'dark' ? 'text-zinc-600 hover:text-white hover:bg-zinc-800' : 'text-zinc-400 hover:text-black hover:bg-zinc-100'}`}
                               >
                                 <X size={18} />
                               </button>
                             </div>
                             <div className="flex justify-between items-end mt-4">
-                              <div className="flex items-center bg-zinc-900/80 rounded-full p-1">
+                              <div className={`flex items-center rounded-full p-1 ${theme === 'dark' ? 'bg-zinc-900/80' : 'bg-zinc-200/80'}`}>
                                 <button 
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     updateQuantity(item.id, item.quantity - 1);
                                   }}
-                                  className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-white rounded-full hover:bg-zinc-800 transition-colors"
+                                  className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${theme === 'dark' ? 'text-zinc-500 hover:text-white hover:bg-zinc-800' : 'text-zinc-500 hover:text-black hover:bg-zinc-300'}`}
                                 >
                                   <Minus size={16} />
                                 </button>
-                                <span className="w-8 text-center text-sm font-bold text-white">{item.quantity}</span>
+                                <span className={`w-8 text-center text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{item.quantity}</span>
                                 <button 
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     updateQuantity(item.id, item.quantity + 1);
                                   }}
-                                  className="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-white rounded-full hover:bg-zinc-800 transition-colors"
+                                  className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${theme === 'dark' ? 'text-zinc-500 hover:text-white hover:bg-zinc-800' : 'text-zinc-500 hover:text-black hover:bg-zinc-300'}`}
                                 >
                                   <Plus size={16} />
                                 </button>
                               </div>
-                              <p className="text-white font-bold text-lg">₩{(price * item.quantity).toLocaleString()}</p>
+                              <p className={`font-bold text-lg ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{(price * item.quantity).toLocaleString()}</p>
                             </div>
                           </div>
                         </div>
@@ -558,8 +568,8 @@ export default function Cart() {
                 className="py-4 space-y-8 pb-8"
               >
                 <section>
-                  <h3 className="text-xl font-bold text-white mb-4">주문 상품</h3>
-                  <div className="bg-[#1C1C1E] rounded-3xl p-5 space-y-3">
+                  <h3 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>주문 상품</h3>
+                  <div className={`rounded-3xl p-5 space-y-3 ${theme === 'dark' ? 'bg-[#1C1C1E]' : 'bg-zinc-50'}`}>
                     {selectedItems.map(item => {
                       const isWorkshop = item.product_type === 'workshop';
                       const title = isWorkshop ? (item.product?.title || '커스텀 포스터') : (item.product?.title || '제품');
@@ -567,10 +577,10 @@ export default function Cart() {
                       return (
                         <div key={item.id} className="flex justify-between items-center text-sm">
                           <div className="flex flex-col">
-                            <span className="text-white font-medium">{title}</span>
+                            <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{title}</span>
                             <span className="text-zinc-500 text-xs">수량 {item.quantity}개</span>
                           </div>
-                          <span className="text-white font-semibold">₩{(price * item.quantity).toLocaleString()}</span>
+                          <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{(price * item.quantity).toLocaleString()}</span>
                         </div>
                       );
                     })}
@@ -578,8 +588,8 @@ export default function Cart() {
                 </section>
 
                 <section>
-                  <h3 className="text-xl font-bold text-white mb-4">배송지 정보</h3>
-                  <div className="bg-[#1C1C1E] rounded-3xl p-5 space-y-5">
+                  <h3 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>배송지 정보</h3>
+                  <div className={`rounded-3xl p-5 space-y-5 ${theme === 'dark' ? 'bg-[#1C1C1E]' : 'bg-zinc-50'}`}>
                     <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-zinc-400 mb-2 ml-1">받는 사람</label>
@@ -587,7 +597,9 @@ export default function Cart() {
                           type="text"
                           value={shippingData.name}
                           onChange={(e) => setShippingData({...shippingData, name: e.target.value})}
-                          className="w-full bg-zinc-800/50 border-none rounded-2xl px-4 py-4 text-white placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all"
+                          className={`w-full border-none rounded-2xl px-4 py-4 placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all ${
+                            theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
+                          }`}
                           placeholder="이름을 입력해주세요"
                         />
                       </div>
@@ -597,13 +609,15 @@ export default function Cart() {
                           type="tel"
                           value={shippingData.phone}
                           onChange={(e) => setShippingData({...shippingData, phone: e.target.value})}
-                          className="w-full bg-zinc-800/50 border-none rounded-2xl px-4 py-4 text-white placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all"
+                          className={`w-full border-none rounded-2xl px-4 py-4 placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all ${
+                            theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
+                          }`}
                           placeholder="010-0000-0000"
                         />
                       </div>
                     </div>
                     
-                    <div className="h-[1px] bg-zinc-800/50 my-2" />
+                    <div className={`h-[1px] my-2 ${theme === 'dark' ? 'bg-zinc-800/50' : 'bg-zinc-200'}`} />
                     
                     <div className="space-y-4">
                       <label className="block text-sm font-medium text-zinc-400 mb-2 ml-1">주소</label>
@@ -612,20 +626,24 @@ export default function Cart() {
                           type="text"
                           readOnly
                           value={shippingData.zipCode}
-                          className="w-28 bg-zinc-800/50 border-none rounded-2xl px-4 py-4 text-white focus:ring-2 focus:ring-[#3182F6] transition-all"
+                          className={`w-28 border-none rounded-2xl px-4 py-4 focus:ring-2 focus:ring-[#3182F6] transition-all ${
+                            theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
+                          }`}
                           placeholder="우편번호"
                         />
                         <button 
                           onClick={handleOpenPostcode}
-                          className="px-6 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-2xl transition-all"
+                          className={`px-6 font-medium rounded-2xl transition-all ${
+                            theme === 'dark' ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-zinc-200 hover:bg-zinc-300 text-black'
+                          }`}
                         >
                           주소 검색
                         </button>
                       </div>
                       
                       {isPostcodeOpen && (
-                        <div className="mt-4 border border-zinc-800 rounded-2xl overflow-hidden bg-white">
-                          <div className="flex justify-between items-center p-3 bg-zinc-100 border-b border-zinc-200">
+                        <div className={`mt-4 border rounded-2xl overflow-hidden ${theme === 'dark' ? 'bg-white border-zinc-800' : 'bg-white border-zinc-200'}`}>
+                          <div className={`flex justify-between items-center p-3 border-b ${theme === 'dark' ? 'bg-zinc-100 border-zinc-200' : 'bg-zinc-50 border-zinc-200'}`}>
                             <span className="text-sm font-bold text-zinc-800">우편번호 검색</span>
                             <button onClick={() => setIsPostcodeOpen(false)} className="text-zinc-500 hover:text-zinc-800 p-1"><X size={18} /></button>
                           </div>
@@ -637,14 +655,18 @@ export default function Cart() {
                         type="text"
                         readOnly
                         value={shippingData.address}
-                        className="w-full bg-zinc-800/50 border-none rounded-2xl px-4 py-4 text-white focus:ring-2 focus:ring-[#3182F6] transition-all"
+                        className={`w-full border-none rounded-2xl px-4 py-4 focus:ring-2 focus:ring-[#3182F6] transition-all ${
+                          theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
+                        }`}
                         placeholder="기본 주소"
                       />
                       <input 
                         type="text"
                         value={shippingData.addressDetail}
                         onChange={(e) => setShippingData({...shippingData, addressDetail: e.target.value})}
-                        className="w-full bg-zinc-800/50 border-none rounded-2xl px-4 py-4 text-white placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all"
+                        className={`w-full border-none rounded-2xl px-4 py-4 placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all ${
+                          theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
+                        }`}
                         placeholder="상세 주소를 입력해주세요"
                       />
                     </div>
@@ -652,15 +674,17 @@ export default function Cart() {
                 </section>
 
                 <section className="space-y-6">
-                  <h3 className="text-xl font-bold text-white mb-4">결제 수단</h3>
-                  <div className="relative bg-[#1C1C1E] rounded-2xl p-6 border-2 border-fuchsia-500/50 shadow-[0_0_15px_rgba(217,70,239,0.15)] transition-all cursor-pointer group overflow-hidden">
+                  <h3 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>결제 수단</h3>
+                  <div className={`relative rounded-2xl p-6 border-2 shadow-[0_0_15px_rgba(217,70,239,0.15)] transition-all cursor-pointer group overflow-hidden ${
+                    theme === 'dark' ? 'bg-[#1C1C1E] border-fuchsia-500/50' : 'bg-zinc-50 border-fuchsia-500/30'
+                  }`}>
                     {/* Subtle gradient background for active state */}
                     <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 pointer-events-none" />
                     
                     <div className="relative z-10 flex justify-between items-start">
                       <div className="flex flex-col">
-                        <p className="text-white font-extrabold text-xl tracking-tight">간편 결제</p>
-                        <p className="text-white/60 text-sm font-medium mt-1">신용/체크카드 및 간편 결제 지원</p>
+                        <p className={`font-extrabold text-xl tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>간편 결제</p>
+                        <p className={`text-sm font-medium mt-1 ${theme === 'dark' ? 'text-white/60' : 'text-black/60'}`}>신용/체크카드 및 간편 결제 지원</p>
                       </div>
                       <CheckCircle2 className="text-fuchsia-500 drop-shadow-[0_0_8px_rgba(217,70,239,0.5)]" size={24} />
                     </div>
@@ -684,17 +708,19 @@ export default function Cart() {
         </div>
 
         {/* Footer */}
-        <div className="p-6 bg-[#0F0F11] border-t border-white/5 pb-safe">
+        <div className={`p-6 border-t pb-safe transition-colors duration-500 ${theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'}`}>
           <div className="flex justify-between items-end mb-6 px-2">
             <span className="text-zinc-400 font-medium">총 결제 금액</span>
-            <span className="text-3xl font-bold text-white">₩{displayPrice.toLocaleString()}</span>
+            <span className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{displayPrice.toLocaleString()}</span>
           </div>
           
           <div className="flex gap-3">
             {step === 2 && (
               <button 
                 onClick={handlePrevStep}
-                className="w-1/3 h-14 bg-zinc-800 text-white font-semibold rounded-2xl hover:bg-zinc-700 transition-all"
+                className={`w-1/3 h-14 font-semibold rounded-2xl transition-all ${
+                  theme === 'dark' ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-zinc-100 text-black hover:bg-zinc-200'
+                }`}
               >
                 이전
               </button>

@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
+import { useTheme } from '../context/ThemeContext';
 
 const APPLE_EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -11,6 +12,7 @@ interface StorySectionProps {
 }
 
 const StorySection: React.FC<StorySectionProps> = ({ title, subtitle, bgImage, children }) => {
+  const { theme } = useTheme();
   const ref = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -32,7 +34,7 @@ const StorySection: React.FC<StorySectionProps> = ({ title, subtitle, bgImage, c
   const scale = useTransform(smoothProgress, [0, 1], [1.0, 1.05]);
 
   return (
-    <section ref={ref} className="relative h-[200vh] w-full bg-[#000000]">
+    <section ref={ref} className={`relative h-[200vh] w-full transition-colors duration-500 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
       <div className="sticky top-0 h-screen w-full flex flex-col items-center justify-center overflow-hidden">
         
         {bgImage && (
@@ -40,11 +42,11 @@ const StorySection: React.FC<StorySectionProps> = ({ title, subtitle, bgImage, c
             style={{ scale }}
             className="absolute inset-0 z-0 transform-gpu will-change-transform"
           >
-            <div className="absolute inset-0 bg-[#000000]/60 z-10" />
+            <div className={`absolute inset-0 z-10 ${theme === 'dark' ? 'bg-black/60' : 'bg-white/60'}`} />
             <img 
               src={bgImage} 
               alt="Background" 
-              className="w-full h-full object-cover grayscale opacity-30" 
+              className={`w-full h-full object-cover grayscale opacity-30 ${theme === 'dark' ? '' : 'invert'}`} 
             />
           </motion.div>
         )}
@@ -53,7 +55,9 @@ const StorySection: React.FC<StorySectionProps> = ({ title, subtitle, bgImage, c
           style={{ y, opacity }}
           className="relative z-20 text-center px-6 w-full max-w-7xl mx-auto flex flex-col items-center justify-center transform-gpu will-change-transform"
         >
-          <h2 className="text-7xl md:text-8xl lg:text-[120px] font-extrabold tracking-[-0.05em] text-[#FFFFFF] leading-none whitespace-pre-line break-keep">
+          <h2 className={`text-7xl md:text-8xl lg:text-[120px] font-extrabold tracking-[-0.05em] leading-none whitespace-pre-line break-keep ${
+            theme === 'dark' ? 'text-white' : 'text-black'
+          }`}>
             {title}
           </h2>
           {subtitle && (
@@ -73,6 +77,7 @@ const StorySection: React.FC<StorySectionProps> = ({ title, subtitle, bgImage, c
 };
 
 const AluminumDetail = () => {
+  const { theme } = useTheme();
   const [mouse, setMouse] = useState({ x: 50, y: 50 });
   
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -85,23 +90,31 @@ const AluminumDetail = () => {
   return (
     <div 
       onMouseMove={handleMouseMove}
-      className="relative w-full max-w-5xl mx-auto h-48 md:h-64 bg-[#000000] border-y border-[#8E8E93]/20 overflow-hidden group cursor-crosshair"
+      className={`relative w-full max-w-5xl mx-auto h-48 md:h-64 border-y overflow-hidden group cursor-crosshair transition-colors duration-500 ${
+        theme === 'dark' ? 'bg-black border-[#8E8E93]/20' : 'bg-white border-[#8E8E93]/40'
+      }`}
     >
       {/* Base Metal Texture (Brushed Aluminum) */}
-      <div className="absolute inset-0 opacity-10 bg-[repeating-linear-gradient(90deg,#000000,#000000_1px,#8E8E93_1px,#8E8E93_2px)]" />
+      <div className={`absolute inset-0 opacity-10 ${
+        theme === 'dark' 
+          ? 'bg-[repeating-linear-gradient(90deg,#000000,#000000_1px,#8E8E93_1px,#8E8E93_2px)]' 
+          : 'bg-[repeating-linear-gradient(90deg,#ffffff,#ffffff_1px,#8E8E93_1px,#8E8E93_2px)]'
+      }`} />
       
       {/* Dynamic Reflection based on mouse */}
       <div 
         className="absolute inset-0 opacity-40 transition-opacity duration-500 ease-out"
         style={{
-          background: `radial-gradient(circle 600px at ${mouse.x}% ${mouse.y}%, #FFFFFF 0%, transparent 60%)`,
+          background: `radial-gradient(circle 600px at ${mouse.x}% ${mouse.y}%, ${theme === 'dark' ? '#FFFFFF' : '#000000'} 0%, transparent 60%)`,
           mixBlendMode: 'overlay'
         }}
       />
       
       {/* Center Text */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <span className="text-[#FFFFFF] text-5xl md:text-7xl font-extrabold tracking-[-0.05em] mix-blend-difference">
+        <span className={`text-5xl md:text-7xl font-extrabold tracking-[-0.05em] mix-blend-difference ${
+          theme === 'dark' ? 'text-white' : 'text-black'
+        }`}>
           1.15mm
         </span>
       </div>
@@ -110,8 +123,11 @@ const AluminumDetail = () => {
 };
 
 export default function BrandStory() {
+  const { theme } = useTheme();
   return (
-    <div className="bg-[#000000] text-[#FFFFFF] min-h-screen relative font-sans selection:bg-[#8E8E93] selection:text-[#000000]">
+    <div className={`min-h-screen relative font-sans transition-colors duration-500 selection:bg-[#8E8E93] ${
+      theme === 'dark' ? 'bg-black text-white selection:text-black' : 'bg-white text-black selection:text-white'
+    }`}>
       
       {/* Global Fixed Background Particles - Extremely Minimal (10% density) */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-30">
@@ -147,7 +163,7 @@ export default function BrandStory() {
         />
         
         {/* Final Spacer for smooth ending */}
-        <div className="h-[50vh] bg-[#000000]" />
+        <div className={`h-[50vh] transition-colors duration-500 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`} />
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { useToast } from '../context/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { Loader2, X, Check } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 import PolicyModal from './PolicyModal';
 import { policies } from './Footer';
 
@@ -19,20 +20,24 @@ const CheckboxRow = ({
   required, 
   checked, 
   onChange, 
-  onView 
+  onView,
+  theme
 }: { 
   label: string; 
   required?: boolean; 
   checked: boolean; 
   onChange: () => void; 
   onView?: () => void;
+  theme?: string;
 }) => (
   <div className="flex items-center gap-3 py-2">
     <button
       type="button"
       onClick={onChange}
       className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
-        checked ? 'bg-purple-600' : 'bg-zinc-800 border border-white/10'
+        checked 
+          ? 'bg-purple-600' 
+          : (theme === 'dark' ? 'bg-zinc-800 border border-white/10' : 'bg-zinc-100 border border-black/10')
       }`}
     >
       <AnimatePresence mode="wait">
@@ -55,13 +60,13 @@ const CheckboxRow = ({
       className="flex-1 text-left flex items-center gap-1.5"
     >
       {required && <span className="text-purple-500 text-[14px] font-medium">[필수]</span>}
-      <span className="text-zinc-400 text-[14px]">{label}</span>
+      <span className={`text-[14px] ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>{label}</span>
     </button>
     {onView && (
       <button
         type="button"
         onClick={onView}
-        className="text-[12px] text-zinc-600 underline ml-auto px-2 py-1"
+        className={`text-[12px] underline ml-auto px-2 py-1 ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`}
       >
         보기
       </button>
@@ -72,6 +77,7 @@ const CheckboxRow = ({
 export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '/' }: LoginModalProps) {
   const { user, profile, refreshSession } = useAuth();
   const { showToast } = useToast();
+  const { theme } = useTheme();
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [isConsentOpen, setIsConsentOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -416,12 +422,16 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[50000] bg-[#0c0c0c] flex items-center justify-center"
+            className={`fixed inset-0 z-[50000] flex items-center justify-center transition-colors duration-500 ${
+              theme === 'dark' ? 'bg-[#0c0c0c]' : 'bg-white'
+            }`}
           >
             {/* Close Button - Moved outside scrolling container for visibility */}
             <button 
               onClick={handleClose}
-              className="absolute top-6 right-6 md:top-8 md:right-8 text-white/70 hover:text-white transition-colors z-[10001] p-2"
+              className={`absolute top-6 right-6 md:top-8 md:right-8 transition-colors z-[10001] p-2 ${
+                theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-black/70 hover:text-black'
+              }`}
               aria-label="닫기"
             >
               <X size={24} strokeWidth={2} />
@@ -431,14 +441,16 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="relative w-full max-w-lg h-full overflow-y-auto px-6 pt-24 pb-6 md:pb-10 will-change-transform transform-gpu scrollbar-hide flex flex-col items-center justify-center border border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,1)]"
+              className={`relative w-full max-w-lg h-full overflow-y-auto px-6 pt-24 pb-6 md:pb-10 will-change-transform transform-gpu scrollbar-hide flex flex-col items-center justify-center border shadow-[0_0_50px_-12px_rgba(0,0,0,1)] ${
+                theme === 'dark' ? 'border-white/5' : 'border-black/5'
+              }`}
             >
             <div className="w-full flex flex-col items-center -mt-16 md:-mt-24">
             <div className="flex flex-col items-center mb-10">
               <img 
                 src="https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840" 
                 alt="METALORA" 
-                className="w-36 md:w-44 object-contain filter invert mb-6" 
+                className={`w-36 md:w-44 object-contain mb-6 ${theme === 'dark' ? 'filter invert' : ''}`} 
                 referrerPolicy="no-referrer"
               />
               <p className="text-zinc-400 font-medium tracking-tight">프리미엄 메탈 포스터 멤버십</p>
@@ -455,7 +467,9 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                       value={formData.full_name}
                       onChange={handleInputChange}
                       placeholder="실명"
-                      className="w-full bg-zinc-900 border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
+                      className={`w-full border rounded-2xl px-6 py-5 placeholder:text-zinc-600 focus:outline-none transition-colors text-lg tracking-tight ${
+                        theme === 'dark' ? 'bg-zinc-900 border-white/5 text-white focus:border-white/20' : 'bg-zinc-50 border-black/5 text-black focus:border-black/20'
+                      }`}
                     />
                   </div>
                   <div>
@@ -466,7 +480,9 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                       value={formData.phone_number}
                       onChange={handleInputChange}
                       placeholder="휴대폰 번호 (010-0000-0000)"
-                      className="w-full bg-zinc-900 border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
+                      className={`w-full border rounded-2xl px-6 py-5 placeholder:text-zinc-600 focus:outline-none transition-colors text-lg tracking-tight ${
+                        theme === 'dark' ? 'bg-zinc-900 border-white/5 text-white focus:border-white/20' : 'bg-zinc-50 border-black/5 text-black focus:border-black/20'
+                      }`}
                     />
                   </div>
                 </>
@@ -479,7 +495,9 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                   value={formData.username}
                   onChange={handleInputChange}
                   placeholder="아이디"
-                  className="w-full bg-zinc-900 border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
+                  className={`w-full border rounded-2xl px-6 py-5 placeholder:text-zinc-600 focus:outline-none transition-colors text-lg tracking-tight ${
+                    theme === 'dark' ? 'bg-zinc-900 border-white/5 text-white focus:border-white/20' : 'bg-zinc-50 border-black/5 text-black focus:border-black/20'
+                  }`}
                 />
               </div>
               <div>
@@ -490,7 +508,9 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                   value={formData.password}
                   onChange={handleInputChange}
                   placeholder="비밀번호"
-                  className="w-full bg-zinc-900 border border-white/5 rounded-2xl px-6 py-5 text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/20 transition-colors text-lg tracking-tight"
+                  className={`w-full border rounded-2xl px-6 py-5 placeholder:text-zinc-600 focus:outline-none transition-colors text-lg tracking-tight ${
+                    theme === 'dark' ? 'bg-zinc-900 border-white/5 text-white focus:border-white/20' : 'bg-zinc-50 border-black/5 text-black focus:border-black/20'
+                  }`}
                 />
               </div>
 
@@ -511,9 +531,9 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                 disabled={isLoading || (isLoginMode ? !isLoginValid : !isSignUpValid)}
                 className={`w-full font-bold py-6 rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-xl mt-8 shadow-2xl tracking-tight ${
                   isLoginMode 
-                    ? 'bg-white text-black hover:bg-zinc-200 shadow-white/5 disabled:opacity-50 disabled:cursor-not-allowed'
+                    ? (theme === 'dark' ? 'bg-white text-black hover:bg-zinc-200 shadow-white/5' : 'bg-black text-white hover:bg-zinc-800 shadow-black/5')
                     : 'btn-cyberpunk text-white'
-                }`}
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {isLoading ? <Loader2 className="animate-spin" size={24} /> : null}
                 {isLoginMode ? '로그인' : '가입하기'}
@@ -528,7 +548,9 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                   setErrorMsg('');
                   setSuccessMsg('');
                 }}
-                className="text-zinc-400 hover:text-white text-sm font-bold transition-colors tracking-tight"
+                className={`text-sm font-bold transition-colors tracking-tight ${
+                  theme === 'dark' ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-black'
+                }`}
               >
                 {isLoginMode ? '계정이 없으신가요? 간편 가입하기' : '이미 계정이 있으신가요? 로그인하기'}
               </button>
@@ -550,18 +572,22 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-[#0c0c0c] z-[60000] flex items-end sm:items-center justify-center"
+          className={`fixed inset-0 z-[60000] flex items-end sm:items-center justify-center transition-colors duration-500 ${
+            theme === 'dark' ? 'bg-[#0c0c0c]' : 'bg-black/20 backdrop-blur-sm'
+          }`}
         >
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="w-full max-w-md bg-zinc-900 rounded-t-[32px] sm:rounded-[28px] p-8 text-white relative border border-white/5 shadow-[0_0_50px_-12px_rgba(0,0,0,1)] sm:-translate-y-12 transform-gpu will-change-transform"
+            className={`w-full max-w-md rounded-t-[32px] sm:rounded-[28px] p-8 relative border shadow-[0_0_50px_-12px_rgba(0,0,0,1)] sm:-translate-y-12 transform-gpu will-change-transform ${
+              theme === 'dark' ? 'bg-zinc-900 text-white border-white/5' : 'bg-white text-black border-black/5'
+            }`}
           >
             <button 
               onClick={() => setIsConsentOpen(false)}
-              className="absolute top-8 right-8 text-zinc-500 hover:text-white transition-colors"
+              className="absolute top-8 right-8 text-zinc-500 hover:text-zinc-400 transition-colors"
             >
               <X size={24} />
             </button>
@@ -575,6 +601,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                 checked={agreements.terms}
                 onChange={() => toggleAgreement('terms')}
                 onView={() => setPolicyModalState({ isOpen: true, key: 'terms' })}
+                theme={theme}
               />
               <CheckboxRow
                 label="개인정보처리방침 동의"
@@ -582,6 +609,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                 checked={agreements.privacy}
                 onChange={() => toggleAgreement('privacy')}
                 onView={() => setPolicyModalState({ isOpen: true, key: 'privacy' })}
+                theme={theme}
               />
               <CheckboxRow
                 label="쿠키 정책 동의"
@@ -589,14 +617,16 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                 checked={agreements.cookie}
                 onChange={() => toggleAgreement('cookie')}
                 onView={() => setPolicyModalState({ isOpen: true, key: 'cookie' })}
+                theme={theme}
               />
 
-              <div className="h-[1px] bg-white/5 my-6" />
+              <div className={`h-[1px] my-6 ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'}`} />
 
               <CheckboxRow
                 label="전체 동의 (선택)"
                 checked={allChecked}
                 onChange={handleSelectAll}
+                theme={theme}
               />
             </div>
 

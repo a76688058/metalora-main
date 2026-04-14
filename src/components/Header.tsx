@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { Search, User, Frame } from 'lucide-react';
+import { Search, User, Frame, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useTheme } from '../context/ThemeContext';
 import LoginModal from './LoginModal';
 import AnnouncementBar from './AnnouncementBar';
 
@@ -25,6 +26,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     closeWorkshop
   } = useAuth();
   const { cartItems, isCartOpen, openCart, closeCart } = useCart();
+  const { theme, toggleTheme } = useTheme();
   
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -101,7 +103,9 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
         className={`fixed top-0 left-0 w-full z-[10000] transition-all duration-500 border-b ${
           isTransparent 
             ? 'bg-transparent border-transparent' 
-            : 'bg-black/80 backdrop-blur-md border-white/5'
+            : theme === 'dark'
+              ? 'bg-black/80 backdrop-blur-md border-white/5'
+              : 'bg-white/80 backdrop-blur-md border-black/5'
         }`}
         ref={searchRef}
       >
@@ -109,16 +113,24 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
           <AnnouncementBar />
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between relative w-full">
             {/* Left: Search Icon (Conditional Visibility) */}
-            <div className="flex-1 flex justify-start">
+            <div className="flex-1 flex justify-start items-center gap-x-4">
               {(location.pathname === '/' || location.pathname === '/collection') && (
                 <button 
                   onClick={() => setIsSearchOpen(!isSearchOpen)}
-                  className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
+                  className={`${theme === 'dark' ? 'text-white' : 'text-black'} opacity-60 hover:opacity-100 transition-all duration-300`}
                   title="Search"
                 >
-                  <Search size={24} strokeWidth={1} />
+                  <Search size={22} strokeWidth={1.5} />
                 </button>
               )}
+              
+              <button 
+                onClick={toggleTheme}
+                className={`${theme === 'dark' ? 'text-white' : 'text-black'} opacity-60 hover:opacity-100 transition-all duration-300`}
+                title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {theme === 'dark' ? <Sun size={22} strokeWidth={1.5} /> : <Moon size={22} strokeWidth={1.5} />}
+              </button>
             </div>
 
             {/* Center: Logo (Absolute Center) */}
@@ -140,8 +152,8 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
               >
                 <img 
                   src={LOGO_URL} 
-                  alt="메탈 액자의 기준, 메타로라 | METALORA" 
-                  className="h-9 md:h-11 object-contain filter invert" 
+                  alt="메탈 액자의 기준, 메탈로라 | METALORA" 
+                  className={`h-9 md:h-11 object-contain transition-all duration-500 ${theme === 'dark' ? 'filter invert' : ''}`} 
                   referrerPolicy="no-referrer"
                 />
               </Link>
@@ -160,7 +172,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                       openProfile();
                     }
                   }}
-                  className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
+                  className={`${theme === 'dark' ? 'text-white' : 'text-black'} opacity-60 hover:opacity-100 transition-all duration-300`}
                   title={isAdmin ? "Admin Dashboard" : "My Info"}
                 >
                   <User size={24} strokeWidth={1} />
@@ -171,7 +183,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                     if (isWorkshopOpen) closeWorkshop();
                     setIsLoginModalOpen(true);
                   }} 
-                  className="text-white opacity-60 hover:opacity-100 transition-all duration-300"
+                  className={`${theme === 'dark' ? 'text-white' : 'text-black'} opacity-60 hover:opacity-100 transition-all duration-300`}
                   title="Login"
                 >
                   <User size={24} strokeWidth={1} />
@@ -194,12 +206,12 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                     openCart();
                   }
                 }}
-                className="text-white opacity-60 hover:opacity-100 transition-all duration-300 relative"
+                className={`${theme === 'dark' ? 'text-white' : 'text-black'} opacity-60 hover:opacity-100 transition-all duration-300 relative`}
                 title="My Collection"
               >
                 <Frame size={24} strokeWidth={1} />
                 {currentUser && cartItems.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-white text-black text-[9px] font-bold rounded-full flex items-center justify-center">
+                  <span className={`absolute -top-1 -right-1 w-3.5 h-3.5 ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'} text-[9px] font-bold rounded-full flex items-center justify-center`}>
                     {cartItems.length}
                   </span>
                 )}
@@ -219,7 +231,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
               >
                 <div className="max-w-3xl mx-auto px-6 pb-6 pt-2">
                   <div className="relative group">
-                    <div className="absolute inset-0 bg-white/5 backdrop-blur-2xl rounded-xl border border-white/10 transition-all duration-300 group-focus-within:border-white/30 group-focus-within:shadow-[0_0_20px_rgba(255,255,255,0.1)]" />
+                    <div className={`absolute inset-0 ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'} backdrop-blur-2xl rounded-xl border transition-all duration-300 group-focus-within:border-indigo-500/30 group-focus-within:shadow-[0_0_20px_rgba(99,102,241,0.1)]`} />
                     <input
                       type="text"
                       placeholder="제품명 검색..."
@@ -227,7 +239,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                       onChange={handleSearchChange}
                       onCompositionStart={handleComposition}
                       onCompositionEnd={handleComposition}
-                      className="relative w-full bg-transparent text-white placeholder-white/40 px-6 py-4 outline-none font-light tracking-wide"
+                      className={`relative w-full bg-transparent ${theme === 'dark' ? 'text-white placeholder-white/40' : 'text-black placeholder-black/40'} px-6 py-4 outline-none font-light tracking-wide`}
                       autoFocus
                     />
                   </div>

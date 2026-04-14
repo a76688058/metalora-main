@@ -6,6 +6,7 @@ import {
   ShoppingBag, Zap 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 interface ProfileOverlayProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface ProfileOverlayProps {
 
 export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps) {
     const { user, profile, signOut, openWorkshop, openProfileEdit, openOrders, openInquiry } = useAuth();
+  const { theme } = useTheme();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -121,14 +123,18 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
         animate={{ x: 0 }}
         exit={{ x: '100%' }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className="relative w-full max-w-lg bg-[#0F0F11] h-full flex flex-col shadow-2xl pointer-events-auto"
+        className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl pointer-events-auto transition-colors duration-500 ${
+          theme === 'dark' ? 'bg-[#0F0F11]' : 'bg-white'
+        }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
-          <h2 className="text-2xl font-bold text-white tracking-tight">내 정보</h2>
+        <div className={`flex items-center justify-between px-6 py-5 border-b ${theme === 'dark' ? 'border-white/5' : 'border-black/5'}`}>
+          <h2 className={`text-2xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>내 정보</h2>
           <button 
             onClick={onClose}
-            className="p-2 bg-zinc-800/50 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-all"
+            className={`p-2 rounded-full transition-all ${
+              theme === 'dark' ? 'bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-black'
+            }`}
           >
             <X size={20} />
           </button>
@@ -143,7 +149,7 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1, duration: 0.5, ease: "easeOut" }}
             >
-              <h2 className="text-[32px] font-light text-white tracking-tight leading-tight">
+              <h2 className={`text-[32px] font-light tracking-tight leading-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
                 <span className="font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-fuchsia-400 to-indigo-400 drop-shadow-sm">
                   {profile?.full_name || '사용자'}
                 </span>님,<br />
@@ -162,9 +168,12 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
                 transition={{ delay: idx * 0.05 }}
                 onClick={item.onClick}
                 className={`
-                  bg-zinc-900/40 p-6 flex justify-between items-center group cursor-pointer 
-                  transition-all duration-300 rounded-2xl border border-white/5 relative overflow-hidden
-                  hover:bg-zinc-800/60
+                  p-6 flex justify-between items-center group cursor-pointer 
+                  transition-all duration-300 rounded-2xl border relative overflow-hidden
+                  ${theme === 'dark' 
+                    ? 'bg-zinc-900/40 border-white/5 hover:bg-zinc-800/60' 
+                    : 'bg-zinc-50 border-black/5 hover:bg-zinc-100'
+                  }
                 `}
               >
                 <div className="flex items-center gap-5">
@@ -175,13 +184,13 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
                     {item.icon}
                   </div>
                   <div className="text-left">
-                    <h3 className="text-lg font-bold text-white tracking-tight">
+                    <h3 className={`text-lg font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
                       {item.label}
                     </h3>
                     <p className="text-xs text-zinc-500 mt-0.5 font-light">{item.description}</p>
                   </div>
                 </div>
-                <ChevronRight size={20} className="text-zinc-600 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                <ChevronRight size={20} className="text-zinc-600 group-hover:text-zinc-400 group-hover:translate-x-1 transition-all" />
               </motion.div>
             ))}
           </div>

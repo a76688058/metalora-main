@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
+import { useTheme } from '../context/ThemeContext';
 
 const FALLBACK_MESSAGES = [
   "지금 주문 시 무료 배송 (오늘 마감)",
@@ -11,6 +12,7 @@ const FALLBACK_MESSAGES = [
 
 const AnnouncementBar = () => {
   const [messages, setMessages] = useState<string[]>(FALLBACK_MESSAGES);
+  const { theme } = useTheme();
 
   useEffect(() => {
     const fetchBanners = async () => {
@@ -39,10 +41,16 @@ const AnnouncementBar = () => {
   }, []);
 
   return (
-    <div className="w-full bg-blue-600 border-b border-blue-500 py-3 overflow-hidden whitespace-nowrap relative z-[110]">
+    <div className={`w-full border-b py-3 overflow-hidden whitespace-nowrap relative z-[110] transition-colors duration-500 ${
+      theme === 'dark' ? 'bg-blue-600 border-blue-500' : 'bg-blue-500 border-blue-400'
+    }`}>
       {/* Subtle gradient overlays for a premium feel */}
-      <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-blue-600 to-transparent z-10 pointer-events-none" />
-      <div className="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-blue-600 to-transparent z-10 pointer-events-none" />
+      <div className={`absolute inset-y-0 left-0 w-24 z-10 pointer-events-none ${
+        theme === 'dark' ? 'bg-gradient-to-r from-blue-600 to-transparent' : 'bg-gradient-to-r from-blue-500 to-transparent'
+      }`} />
+      <div className={`absolute inset-y-0 right-0 w-24 z-10 pointer-events-none ${
+        theme === 'dark' ? 'bg-gradient-to-l from-blue-600 to-transparent' : 'bg-gradient-to-l from-blue-500 to-transparent'
+      }`} />
       
       <motion.div 
         className="flex items-center gap-16 text-sm font-bold uppercase tracking-[0.2em] text-white"

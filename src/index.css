@@ -2,6 +2,7 @@
 @import "tailwindcss";
 
 @theme {
+  --dark-mode: class;
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
@@ -34,17 +35,43 @@
 }
 
 body {
-  background-color: #121212;
-  color: #ffffff;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+:root {
+  --bg-primary: #ffffff;
+  --text-primary: #121212;
+  --bg-secondary: #f4f4f5;
+  --border-color: rgba(0, 0, 0, 0.1);
+}
+
+.dark {
+  --bg-primary: #121212;
+  --text-primary: #ffffff;
+  --bg-secondary: #18181b;
+  --border-color: rgba(255, 255, 255, 0.1);
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .glass {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--current-glass-bg, rgba(255, 255, 255, 0.03));
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-color);
+}
+
+.dark .glass {
+  --current-glass-bg: rgba(255, 255, 255, 0.03);
+}
+
+.light .glass {
+  --current-glass-bg: rgba(0, 0, 0, 0.03);
 }
 
 /* Custom Scrollbar */
@@ -54,13 +81,13 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #000000;
+  background: var(--bg-primary);
 }
 
 ::-webkit-scrollbar-thumb {
   background: #4a4a4a;
   border-radius: 3px;
-  border: 1px solid #000000;
+  border: 1px solid var(--bg-primary);
 }
 
 ::-webkit-scrollbar-thumb:hover {

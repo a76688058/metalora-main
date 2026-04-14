@@ -2,22 +2,35 @@ import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { useProducts } from '../context/ProductContext';
 import { ChevronDown } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
-export default function MountingAnimation() {
+interface MountingAnimationProps {
+  productImage?: string;
+}
+
+export default function MountingAnimation({ productImage }: MountingAnimationProps) {
   const { products } = useProducts();
-  const [selectedImage, setSelectedImage] = useState('https://picsum.photos/seed/metalora_fallback/1200/1697');
+  const { theme } = useTheme();
+  const [selectedImage, setSelectedImage] = useState(productImage || 'https://picsum.photos/seed/metalora_fallback/1200/1697');
   const tunnelRef = useRef<HTMLDivElement>(null);
   
-  // Randomly select one image from the actual product pool when products are loaded
+  // Update image when productImage prop changes
   useEffect(() => {
-    if (products && products.length > 0) {
+    if (productImage) {
+      setSelectedImage(productImage);
+    }
+  }, [productImage]);
+
+  // Randomly select one image from the actual product pool when products are loaded (only if no productImage prop)
+  useEffect(() => {
+    if (!productImage && products && products.length > 0) {
       const visibleProducts = products.filter(p => p.is_visible !== false);
       if (visibleProducts.length > 0) {
         const randomProduct = visibleProducts[Math.floor(Math.random() * visibleProducts.length)];
         setSelectedImage(randomProduct.front_image || randomProduct.image);
       }
     }
-  }, [products]);
+  }, [products, productImage]);
 
   const { scrollYProgress } = useScroll({
     target: tunnelRef,
@@ -78,7 +91,7 @@ export default function MountingAnimation() {
   const indicatorY = useTransform(smoothProgress, [0, 0.2], [20, 0]);
 
   return (
-    <div className="relative bg-black z-20">
+    <div className={`relative z-20 transition-colors duration-500 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
       {/* Section A: 3D Assembly Mockup (The Scroll Tunnel) */}
       <section ref={tunnelRef} className="relative h-[500vh]">
         <motion.div 
@@ -86,7 +99,7 @@ export default function MountingAnimation() {
           className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden"
         >
           {/* Background Wall Texture */}
-          <div className="absolute inset-0 bg-black" />
+          <div className={`absolute inset-0 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`} />
 
           {/* Scroll Guide Indicator */}
           <motion.div 
@@ -98,17 +111,17 @@ export default function MountingAnimation() {
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
               className="flex flex-col items-center gap-1"
             >
-              <span className="text-[10px] font-bold tracking-[0.4em] text-white/40 uppercase">
+              <span className={`text-[10px] font-bold tracking-[0.4em] uppercase ${theme === 'dark' ? 'text-white/40' : 'text-black/40'}`}>
                 Keep Scrolling
               </span>
-              <span className="text-xs font-medium tracking-tight text-white/60">
+              <span className={`text-xs font-medium tracking-tight ${theme === 'dark' ? 'text-white/60' : 'text-black/60'}`}>
                 계속해서 아래로 내려가세요
               </span>
             </motion.div>
             <motion.div 
               animate={{ y: [0, 5, 0], opacity: [0.4, 1, 0.4] }}
               transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              className="text-white/40"
+              className={theme === 'dark' ? 'text-white/40' : 'text-black/40'}
             >
               <ChevronDown size={20} strokeWidth={1.5} />
             </motion.div>
@@ -126,9 +139,11 @@ export default function MountingAnimation() {
                 {/* 1. 벽 (Wall - Fixed Base) */}
                 <motion.div 
                   style={{ opacity: wallOpacity, scale: wallScale }}
-                  className="absolute w-72 h-72 md:w-96 md:h-96 bg-zinc-900/20 border border-white/10 rounded-[3rem] flex items-center justify-center"
+                  className={`absolute w-72 h-72 md:w-96 md:h-96 rounded-[3rem] flex items-center justify-center border ${
+                    theme === 'dark' ? 'bg-zinc-900/20 border-white/10' : 'bg-zinc-100/20 border-black/10'
+                  }`}
                 >
-                  <span className="text-5xl md:text-7xl font-bold text-white/20 uppercase tracking-tighter">벽</span>
+                  <span className={`text-5xl md:text-7xl font-bold uppercase tracking-tighter ${theme === 'dark' ? 'text-white/20' : 'text-black/10'}`}>벽</span>
                 </motion.div>
 
                 {/* 2. 벽면 보호 스티커 */}
@@ -141,10 +156,12 @@ export default function MountingAnimation() {
                     scale: stickerScale,
                     boxShadow: stickerShadow
                   }}
-                  className="absolute w-56 h-56 md:w-64 md:h-64 bg-zinc-800/40 rounded-[2rem] border border-white/20 flex items-center justify-center overflow-hidden z-10 backdrop-blur-sm"
+                  className={`absolute w-56 h-56 md:w-64 md:h-64 rounded-[2rem] border flex items-center justify-center overflow-hidden z-10 backdrop-blur-sm ${
+                    theme === 'dark' ? 'bg-zinc-800/40 border-white/20' : 'bg-zinc-200/40 border-black/10'
+                  }`}
                 >
-                  <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
-                  <span className="text-2xl md:text-4xl font-bold text-white/60 text-center leading-tight">벽면 보호<br/>스티커</span>
+                  <div className={`absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] ${theme === 'dark' ? '' : 'invert'}`} />
+                  <span className={`text-2xl md:text-4xl font-bold text-center leading-tight ${theme === 'dark' ? 'text-white/60' : 'text-black/60'}`}>벽면 보호<br/>스티커</span>
                 </motion.div>
 
                 {/* 3. 자석 */}
@@ -157,10 +174,14 @@ export default function MountingAnimation() {
                     scale: magnetScale,
                     boxShadow: magnetShadow
                   }}
-                  className="absolute w-36 h-36 md:w-44 md:h-44 bg-zinc-700 rounded-2xl border border-white/30 flex flex-col items-center justify-center z-20 shadow-2xl"
+                  className={`absolute w-36 h-36 md:w-44 md:h-44 rounded-2xl border flex flex-col items-center justify-center z-20 shadow-2xl ${
+                    theme === 'dark' ? 'bg-zinc-700 border-white/30' : 'bg-zinc-300 border-black/20'
+                  }`}
                 >
-                  <div className="relative w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-zinc-600 to-zinc-800 rounded-2xl">
-                    <span className="text-3xl md:text-5xl font-bold text-white uppercase tracking-widest">자석</span>
+                  <div className={`relative w-full h-full flex flex-col items-center justify-center rounded-2xl ${
+                    theme === 'dark' ? 'bg-gradient-to-br from-zinc-600 to-zinc-800' : 'bg-gradient-to-br from-zinc-200 to-zinc-400'
+                  }`}>
+                    <span className={`text-3xl md:text-5xl font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-white' : 'text-black'}`}>자석</span>
                   </div>
                 </motion.div>
 
@@ -178,7 +199,9 @@ export default function MountingAnimation() {
                   className="absolute w-[280px] aspect-[210/297] md:w-[400px] z-30 preserve-3d"
                 >
                   {/* Main Surface */}
-                  <div className="absolute inset-0 bg-zinc-900 rounded-xl border border-white/10 overflow-hidden">
+                  <div className={`absolute inset-0 rounded-xl border overflow-hidden ${
+                    theme === 'dark' ? 'bg-zinc-900 border-white/10' : 'bg-zinc-100 border-black/10'
+                  }`}>
                     <img 
                       src={selectedImage} 
                       alt="Metal Poster Demo" 

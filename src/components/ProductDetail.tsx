@@ -16,6 +16,7 @@ import Skeleton from './Skeleton';
 import { getFullImageUrl } from '../lib/utils';
 import BrandStorySection from './BrandStorySection';
 import ProductExperience from './ProductExperience';
+import { useTheme } from '../context/ThemeContext';
 
 import LoadingScreen from './LoadingScreen';
 
@@ -76,6 +77,7 @@ export default function ProductDetail() {
   const { user, adminUser, profile } = useAuth();
   const { showToast } = useToast();
   const { addToCart, openCart } = useCart();
+  const { theme } = useTheme();
   
   const currentUser = user || adminUser;
   let product = products.find((p) => p.id === id);
@@ -133,16 +135,18 @@ export default function ProductDetail() {
 
   if (isError) {
     return (
-      <div className="w-full h-[500px] flex flex-col items-center justify-center bg-black px-6 text-center">
-        <div className="bg-zinc-900/50 backdrop-blur-md border border-white/10 p-8 rounded-3xl max-w-md w-full shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+      <div className={`w-full h-[500px] flex flex-col items-center justify-center px-6 text-center ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
+        <div className={`backdrop-blur-md border p-8 rounded-3xl max-w-md w-full shadow-[0_0_30px_rgba(0,0,0,0.5)] ${
+          theme === 'dark' ? 'bg-zinc-900/50 border-white/10' : 'bg-zinc-100/50 border-black/10'
+        }`}>
           <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6">
             <RefreshCw className="text-red-400 w-8 h-8" />
           </div>
-          <h3 className="text-xl font-bold text-white mb-3">
+          <h3 className={`text-xl font-bold mb-3 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
             대표님, 서버 응답이 조금 늦네요.
           </h3>
           <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
-            메타로라의 마스터피스 데이터를 불러오는 중<br/>
+            메탈로라의 마스터피스 데이터를 불러오는 중<br/>
             일시적인 지연이 발생했습니다.
           </p>
           <button
@@ -158,7 +162,7 @@ export default function ProductDetail() {
   }
 
   if (!product) {
-    return <div className="text-white text-center py-20">상품을 찾을 수 없습니다</div>;
+    return <div className={`text-center py-20 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>상품을 찾을 수 없습니다</div>;
   }
 
   const selectedOption = product.options?.find(opt => opt.id === selectedOptionId);
@@ -209,7 +213,7 @@ export default function ProductDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-[#000000] flex flex-col relative">
+    <div className={`min-h-screen flex flex-col relative transition-colors duration-500 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
       {/* Login Modal */}
       <LoginModal
         isOpen={isLoginModalOpen}
@@ -224,16 +228,20 @@ export default function ProductDetail() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[50000] bg-black/95 backdrop-blur-xl flex flex-col pointer-events-auto"
+            className={`fixed inset-0 z-[50000] backdrop-blur-xl flex flex-col pointer-events-auto transition-colors duration-500 ${
+              theme === 'dark' ? 'bg-black/95' : 'bg-white/95'
+            }`}
           >
-            <div className="absolute top-0 left-0 w-full h-20 flex items-center justify-between px-6 z-20">
-              <div className="flex flex-col">
+            <div className="absolute top-0 left-0 w-full h-20 flex items-center justify-center px-6 z-20">
+              <div className="absolute left-6 flex flex-col">
                 <span className="text-[10px] text-cyan-400 font-bold tracking-[0.3em] uppercase mb-1">Interactive</span>
-                <h3 className="text-white font-bold tracking-tight">3D 프리뷰</h3>
+                <h3 className={`font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>3D 프리뷰</h3>
               </div>
               <button 
                 onClick={() => setIsModalOpen(false)}
-                className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors"
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
+                  theme === 'dark' ? 'bg-white/5 border border-white/10 text-white hover:bg-white/10' : 'bg-black/5 border border-black/10 text-black hover:bg-black/10'
+                }`}
               >
                 <X size={24} />
               </button>
@@ -258,16 +266,18 @@ export default function ProductDetail() {
                       minDistance={1.5}
                       maxDistance={6}
                     />
-                    <Environment preset="studio" environmentIntensity={0.3} />
+                    <Environment preset={theme === 'dark' ? "studio" : "city"} environmentIntensity={0.3} />
                   </Suspense>
-                  <ContactShadows position={[0, -1.2, 0]} opacity={0.4} scale={6} blur={2.5} far={2} color="#000000" />
+                  <ContactShadows position={[0, -1.2, 0]} opacity={0.4} scale={6} blur={2.5} far={2} color={theme === 'dark' ? "#000000" : "#333333"} />
                 </Canvas>
               </CanvasErrorBoundary>
 
               <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-none flex flex-col items-center gap-3 w-full px-6">
-                <div className="px-6 py-3 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-3 whitespace-nowrap">
+                <div className={`px-6 py-3 backdrop-blur-md rounded-full border flex items-center gap-3 whitespace-nowrap ${
+                  theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'
+                }`}>
                   <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                  <span className="text-[13px] text-white font-bold tracking-wider">이리저리 자유롭게 돌려보세요</span>
+                  <span className={`text-[13px] font-bold tracking-wider ${theme === 'dark' ? 'text-white' : 'text-black'}`}>이리저리 자유롭게 돌려보세요</span>
                 </div>
               </div>
             </div>
@@ -279,7 +289,7 @@ export default function ProductDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
           {/* Left Column: Image & Visuals */}
           <div className="space-y-6">
-            <button onClick={() => navigate('/')} className="group inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors mb-4 py-2 pr-4 transform-gpu">
+            <button onClick={() => navigate('/')} className={`group inline-flex items-center gap-2 transition-colors mb-4 py-2 pr-4 transform-gpu ${theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-black/70 hover:text-black'}`}>
               <motion.div className="group-hover:-translate-x-1 transition-transform duration-300 ease-out transform-gpu">
                 <ArrowLeft size={16} strokeWidth={1.5} />
               </motion.div>
@@ -291,7 +301,9 @@ export default function ProductDetail() {
                 ref={canvasContainerRef}
                 className="relative aspect-square w-full lg:w-[110%] lg:-ml-[5%] overflow-visible bg-transparent transform-gpu"
               >
-                <div className="absolute top-4 left-4 z-10 px-3 py-1 bg-black/50 backdrop-blur-md rounded-full border border-white/10 text-[10px] tracking-widest text-white font-bold uppercase flex items-center gap-2">
+                <div className={`absolute top-4 left-4 z-10 px-3 py-1 backdrop-blur-md rounded-full border text-[10px] tracking-widest font-bold uppercase flex items-center gap-2 ${
+                  theme === 'dark' ? 'bg-black/50 border-white/10 text-white' : 'bg-white/50 border-black/10 text-black'
+                }`}>
                   <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                   Live 3D Preview
                 </div>
@@ -300,9 +312,11 @@ export default function ProductDetail() {
                   animate={{ scale: [1, 1.1, 1] }}
                   transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
                   onClick={() => setIsModalOpen(true)}
-                  className="absolute top-4 right-4 p-3 bg-white/5 backdrop-blur-md rounded-full border border-white/10 z-10 hover:bg-white/10 transition-colors"
+                  className={`absolute top-4 right-4 p-3 backdrop-blur-md rounded-full border z-10 transition-colors ${
+                    theme === 'dark' ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-black/5 border-black/10 hover:bg-black/10'
+                  }`}
                 >
-                  <Maximize size={18} className="text-white" />
+                  <Maximize size={18} className={theme === 'dark' ? 'text-white' : 'text-black'} />
                 </motion.button>
 
                 <CanvasErrorBoundary fallback={
@@ -354,19 +368,19 @@ export default function ProductDetail() {
 
             <div className="mt-6 flex justify-center gap-8 text-zinc-500">
               <div className="flex flex-col items-center gap-2">
-                <div className="w-12 h-12 rounded-full bg-zinc-900 flex items-center justify-center border border-white/5">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center border ${theme === 'dark' ? 'bg-zinc-900 border-white/5' : 'bg-zinc-100 border-black/5'}`}>
                   <span className="text-sm font-bold text-zinc-400">1.15</span>
                 </div>
                 <span className="text-[10px] font-medium tracking-wider">1.15mm 두께</span>
               </div>
               <div className="flex flex-col items-center gap-2">
-                <div className="w-12 h-12 rounded-full bg-zinc-900 flex items-center justify-center border border-white/5">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center border ${theme === 'dark' ? 'bg-zinc-900 border-white/5' : 'bg-zinc-100 border-black/5'}`}>
                   <Box size={18} className="text-zinc-400" />
                 </div>
                 <span className="text-[10px] font-medium tracking-wider">마그네틱 마운트</span>
               </div>
               <div className="flex flex-col items-center gap-2">
-                <div className="w-12 h-12 rounded-full bg-zinc-900 flex items-center justify-center border border-white/5">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center border ${theme === 'dark' ? 'bg-zinc-900 border-white/5' : 'bg-zinc-100 border-black/5'}`}>
                   <ShieldCheck size={18} className="text-zinc-400" />
                 </div>
                 <span className="text-[10px] font-medium tracking-wider">양면 승화전사</span>
@@ -395,13 +409,13 @@ export default function ProductDetail() {
                   </span>
                 )}
               </div>
-              <h1 className="text-5xl font-extrabold text-white mb-10 tracking-tight leading-tight">{product.title}</h1>
-              <div className="text-3xl font-extrabold text-white mb-10 tracking-tight">₩{currentPrice.toLocaleString()}</div>
+              <h1 className={`text-5xl font-extrabold mb-10 tracking-tight leading-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{product.title}</h1>
+              <div className={`text-3xl font-extrabold mb-10 tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{currentPrice.toLocaleString()}</div>
 
               <div className="space-y-8 mb-10">
                 <div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3">작품 설명</h3>
-                  <p className="text-gray-400 text-sm leading-relaxed">
+                  <h3 className={`text-sm font-bold uppercase tracking-wider mb-3 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>작품 설명</h3>
+                  <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-sm leading-relaxed`}>
                     {product.description}
                     <br /><br />
                     METALORA의 모든 작품은 1.15mm 두께의 프리미엄 알루미늄 패널에 200℃ 이상의 고온에서 승화전사 방식으로 제작됩니다. 
@@ -410,7 +424,7 @@ export default function ProductDetail() {
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3">옵션 선택</h3>
+                  <h3 className={`text-sm font-bold uppercase tracking-wider mb-3 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>옵션 선택</h3>
                   <div className="flex flex-col gap-3">
                     {product.options && product.options.length > 0 ? (
                       product.options.filter(opt => opt.isActive).map((option) => {
@@ -423,10 +437,10 @@ export default function ProductDetail() {
                             disabled={isOptionSoldOut}
                             className={`flex justify-between items-center px-4 py-3 rounded-lg border text-sm transition-all relative w-full ${
                               selectedOptionId === option.id
-                                ? 'border-white bg-white text-black font-bold'
+                                ? theme === 'dark' ? 'border-white bg-white text-black font-bold' : 'border-black bg-black text-white font-bold'
                                 : isOptionSoldOut 
-                                  ? 'border-white/10 text-zinc-600 cursor-not-allowed bg-zinc-900'
-                                  : 'border-white/20 text-zinc-400 hover:border-white/50 hover:text-white'
+                                  ? theme === 'dark' ? 'border-white/10 text-zinc-600 cursor-not-allowed bg-zinc-900' : 'border-black/10 text-zinc-400 cursor-not-allowed bg-zinc-100'
+                                  : theme === 'dark' ? 'border-white/20 text-zinc-400 hover:border-white/50 hover:text-white' : 'border-black/20 text-zinc-600 hover:border-black/50 hover:text-black'
                             }`}
                           >
                             <div className="flex flex-col items-start">
@@ -451,17 +465,17 @@ export default function ProductDetail() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-start gap-3 p-4 rounded-xl bg-white/5 border border-white/5">
+                  <div className={`flex items-start gap-3 p-4 rounded-xl border ${theme === 'dark' ? 'bg-white/5 border-white/5' : 'bg-black/5 border-black/5'}`}>
                     <ShieldCheck className="text-zinc-400 shrink-0" size={20} />
                     <div>
-                      <h4 className="text-sm font-bold text-white mb-1">프리미엄 품질</h4>
+                      <h4 className={`text-sm font-bold mb-1 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>프리미엄 품질</h4>
                       <p className="text-xs text-zinc-400">1.15mm 알루미늄, 8K 초고해상도</p>
                     </div>
                   </div>
-                  <div className="flex items-start gap-3 p-4 rounded-xl bg-white/5 border border-white/5">
+                  <div className={`flex items-start gap-3 p-4 rounded-xl border ${theme === 'dark' ? 'bg-white/5 border-white/5' : 'bg-black/5 border-black/5'}`}>
                     <Box className="text-zinc-400 shrink-0" size={20} />
                     <div>
-                      <h4 className="text-sm font-bold text-white mb-1">마그네틱 마운트</h4>
+                      <h4 className={`text-sm font-bold mb-1 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>마그네틱 마운트</h4>
                       <p className="text-xs text-zinc-400">못 없이 간편한 설치, 벽면 손상 없음</p>
                     </div>
                   </div>
@@ -517,7 +531,7 @@ export default function ProductDetail() {
                     )}
                   </div>
                   
-                  <p className="text-center text-[#CCCCCC] text-[11px] font-medium mt-6 flex items-center justify-center gap-2 tracking-tight opacity-80">
+                  <p className={`text-center text-[11px] font-medium mt-6 flex items-center justify-center gap-2 tracking-tight opacity-80 ${theme === 'dark' ? 'text-[#CCCCCC]' : 'text-[#333333]'}`}>
                     <Truck size={14} strokeWidth={1.5} />
                     전 작품 안전 패키징 & 전 지역 무료 배송
                   </p>
@@ -530,7 +544,7 @@ export default function ProductDetail() {
       </div>
 
       {/* New Interactive Product Experience */}
-      <ProductExperience />
+      <ProductExperience productImage={product.front_image || product.image} />
 
       {/* Cart Particle Animation */}
       {cartParticles.map(p => (

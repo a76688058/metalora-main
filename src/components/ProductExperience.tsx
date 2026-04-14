@@ -8,6 +8,7 @@ import Hook3D from './Hook3D';
 import MountingAnimation from './MountingAnimation';
 import MaterialEdgeAnimation from './MaterialEdgeAnimation';
 import ErrorBoundary from './ErrorBoundary';
+import { useTheme } from '../context/ThemeContext';
 
 const Reveal = ({ children, delay = 0, scale = 1, x = 0, y = 40 }: { children: React.ReactNode, delay?: number, scale?: number, x?: number, y?: number }) => {
   return (
@@ -30,6 +31,7 @@ const MagneticButton = ({ onClick }: { onClick: () => void }) => {
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const { theme } = useTheme();
 
   const springConfig = { damping: 15, stiffness: 150 };
   const x = useSpring(mouseX, springConfig);
@@ -59,14 +61,18 @@ const MagneticButton = ({ onClick }: { onClick: () => void }) => {
       onMouseLeave={handleMouseLeave}
       onClick={onClick}
       style={{ x, y }}
-      className="group relative px-12 py-5 rounded-full bg-white text-black font-black text-xl tracking-tight overflow-hidden transition-shadow hover:shadow-[0_0_50px_rgba(255,255,255,0.3)] active:scale-95"
+      className={`group relative px-12 py-5 rounded-full font-black text-xl tracking-tight overflow-hidden transition-shadow active:scale-95 ${
+        theme === 'dark' 
+          ? 'bg-white text-black hover:shadow-[0_0_50px_rgba(255,255,255,0.3)]' 
+          : 'bg-black text-white hover:shadow-[0_0_50px_rgba(0,0,0,0.15)]'
+      }`}
     >
       <span className="relative z-10 flex items-center gap-3">
         컬렉션 구경하기
         <ArrowRight className="group-hover:translate-x-1 transition-transform" size={24} />
       </span>
       <motion.div 
-        className="absolute inset-0 bg-zinc-200"
+        className={`absolute inset-0 ${theme === 'dark' ? 'bg-zinc-200' : 'bg-zinc-800'}`}
         initial={{ y: "100%" }}
         whileHover={{ y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
@@ -75,98 +81,128 @@ const MagneticButton = ({ onClick }: { onClick: () => void }) => {
   );
 };
 
-const MagneticMountVisual = () => (
-  <div className="relative w-full max-w-md aspect-square flex items-center justify-center">
-    {/* Wall Background */}
-    <div className="absolute inset-0 bg-zinc-900/20 rounded-3xl border border-white/5 overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.02)_0%,transparent_50%)]" />
-    </div>
-
-    {/* Magnetic Field Waves */}
-    {[...Array(3)].map((_, i) => (
-      <motion.div
-        key={i}
-        animate={{ 
-          scale: [1, 2],
-          opacity: [0.5, 0],
-        }}
-        transition={{ 
-          duration: 3, 
-          repeat: Infinity, 
-          delay: i * 1,
-          ease: "easeOut"
-        }}
-        className="absolute w-32 h-32 border border-purple-500/30 rounded-full"
-      />
-    ))}
-
-    {/* The Mechanism */}
-    <div className="relative z-10 flex items-center gap-12">
-      {/* Wall Side Sticker */}
-      <div className="relative">
-        <motion.div 
-          animate={{ 
-            boxShadow: ["0 0 20px rgba(168,85,247,0.2)", "0 0 40px rgba(168,85,247,0.4)", "0 0 20px rgba(168,85,247,0.2)"]
-          }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="w-24 h-32 bg-zinc-800 border border-purple-500/50 rounded-md flex items-center justify-center relative overflow-hidden"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-transparent" />
-          <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
-            <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-          </div>
-        </motion.div>
-        <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-[10px] font-mono text-purple-400/60 whitespace-nowrap">
-          MAGNETIC STICKER
-        </div>
+const MagneticMountVisual = () => {
+  const { theme } = useTheme();
+  return (
+    <div className="relative w-full max-w-md aspect-square flex items-center justify-center">
+      {/* Wall Background */}
+      <div className={`absolute inset-0 rounded-3xl border overflow-hidden ${
+        theme === 'dark' ? 'bg-zinc-900/20 border-white/5' : 'bg-zinc-100 border-black/5'
+      }`}>
+        <div className={`absolute inset-0 ${
+          theme === 'dark' 
+            ? 'bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.02)_0%,transparent_50%)]'
+            : 'bg-[radial-gradient(circle_at_30%_30%,rgba(0,0,0,0.02)_0%,transparent_50%)]'
+        }`} />
       </div>
 
-      {/* Snap Indicator */}
-      <motion.div 
-        animate={{ x: [-10, 10], opacity: [0.2, 1, 0.2] }}
-        transition={{ duration: 1, repeat: Infinity }}
-        className="flex gap-1"
-      >
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="w-1 h-1 bg-white/30 rounded-full" />
-        ))}
-      </motion.div>
-
-      {/* Metal Poster Side */}
-      <div className="relative">
-        <motion.div 
+      {/* Magnetic Field Waves */}
+      {[...Array(3)].map((_, i) => (
+        <motion.div
+          key={i}
           animate={{ 
-            x: [20, 0, 20],
-            rotateY: [-10, 0, -10]
+            scale: [1, 2],
+            opacity: [0.5, 0],
           }}
-          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-          className="w-24 h-32 bg-gradient-to-br from-zinc-700 to-zinc-900 border border-white/20 rounded-md shadow-2xl flex items-center justify-center relative"
-        >
-          <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent,45%,rgba(255,255,255,0.1),50%,transparent)] bg-[length:200%_100%] animate-shimmer" />
-          <Layers size={20} className="text-white/20" />
-        </motion.div>
-        <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-[10px] font-mono text-white/40 whitespace-nowrap">
-          METAL POSTER
-        </div>
-      </div>
-    </div>
-
-    {/* Technical HUD Elements */}
-    <div className="absolute top-8 left-8 flex flex-col gap-1">
-      <div className="w-12 h-1 bg-purple-500/30 rounded-full overflow-hidden">
-        <motion.div 
-          animate={{ x: [-48, 48] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-          className="w-full h-full bg-purple-400"
+          transition={{ 
+            duration: 3, 
+            repeat: Infinity, 
+            delay: i * 1,
+            ease: "easeOut"
+          }}
+          className={`absolute w-32 h-32 border rounded-full ${
+            theme === 'dark' ? 'border-purple-500/30' : 'border-purple-500/20'
+          }`}
         />
-      </div>
-      <span className="text-[8px] font-mono text-zinc-600 uppercase">Alignment Active</span>
-    </div>
-  </div>
-);
+      ))}
 
-const ProductExperience = () => {
+      {/* The Mechanism */}
+      <div className="relative z-10 flex items-center gap-12">
+        {/* Wall Side Sticker */}
+        <div className="relative">
+          <motion.div 
+            animate={{ 
+              boxShadow: theme === 'dark' 
+                ? ["0 0 20px rgba(168,85,247,0.2)", "0 0 40px rgba(168,85,247,0.4)", "0 0 20px rgba(168,85,247,0.2)"]
+                : ["0 0 10px rgba(168,85,247,0.1)", "0 0 20px rgba(168,85,247,0.2)", "0 0 10px rgba(168,85,247,0.1)"]
+            }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className={`w-24 h-32 border rounded-md flex items-center justify-center relative overflow-hidden ${
+              theme === 'dark' ? 'bg-zinc-800 border-purple-500/50' : 'bg-white border-purple-500/30'
+            }`}
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-transparent" />
+            <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
+              <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+            </div>
+          </motion.div>
+          <div className={`absolute -bottom-8 left-1/2 -translate-x-1/2 text-[10px] font-mono whitespace-nowrap ${
+            theme === 'dark' ? 'text-purple-400/60' : 'text-purple-600/60'
+          }`}>
+            MAGNETIC STICKER
+          </div>
+        </div>
+
+        {/* Snap Indicator */}
+        <motion.div 
+          animate={{ x: [-10, 10], opacity: [0.2, 1, 0.2] }}
+          transition={{ duration: 1, repeat: Infinity }}
+          className="flex gap-1"
+        >
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className={`w-1 h-1 rounded-full ${theme === 'dark' ? 'bg-white/30' : 'bg-black/20'}`} />
+          ))}
+        </motion.div>
+
+        {/* Metal Poster Side */}
+        <div className="relative">
+          <motion.div 
+            animate={{ 
+              x: [20, 0, 20],
+              rotateY: [-10, 0, -10]
+            }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            className={`w-24 h-32 border rounded-md shadow-2xl flex items-center justify-center relative ${
+              theme === 'dark' 
+                ? 'bg-gradient-to-br from-zinc-700 to-zinc-900 border-white/20' 
+                : 'bg-gradient-to-br from-zinc-100 to-zinc-200 border-black/10'
+            }`}
+          >
+            <div className={`absolute inset-0 bg-[linear-gradient(110deg,transparent,45%,rgba(255,255,255,0.1),50%,transparent)] bg-[length:200%_100%] animate-shimmer ${
+              theme === 'dark' ? 'opacity-100' : 'opacity-50'
+            }`} />
+            <Layers size={20} className={theme === 'dark' ? 'text-white/20' : 'text-black/20'} />
+          </motion.div>
+          <div className={`absolute -bottom-8 left-1/2 -translate-x-1/2 text-[10px] font-mono whitespace-nowrap ${
+            theme === 'dark' ? 'text-white/40' : 'text-black/40'
+          }`}>
+            METAL POSTER
+          </div>
+        </div>
+      </div>
+
+      {/* Technical HUD Elements */}
+      <div className="absolute top-8 left-8 flex flex-col gap-1">
+        <div className={`w-12 h-1 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-purple-500/30' : 'bg-purple-500/20'}`}>
+          <motion.div 
+            animate={{ x: [-48, 48] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            className="w-full h-full bg-purple-400"
+          />
+        </div>
+        <span className={`text-[8px] font-mono uppercase ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`}>Alignment Active</span>
+      </div>
+    </div>
+  );
+};
+
+interface ProductExperienceProps {
+  productImage?: string;
+}
+
+const ProductExperience = ({ productImage }: ProductExperienceProps) => {
   const navigate = useNavigate();
+  const { theme } = useTheme();
   const { scrollYProgress: globalScroll } = useScroll();
   const textY = useTransform(globalScroll, [0, 1], [0, 200]);
   
@@ -180,14 +216,24 @@ const ProductExperience = () => {
   const xTranslate = useTransform(horizontalProgress, [0, 1], ["0%", "-66.66%"]);
 
   return (
-    <div className="w-full bg-black text-white selection:bg-white selection:text-black">
+    <div className={`w-full transition-colors duration-500 ${
+      theme === 'dark' ? 'bg-black text-white selection:bg-white selection:text-black' : 'bg-white text-black selection:bg-black selection:text-white'
+    }`}>
       
       {/* SECTION 1: Horizontal "Deep Dive" Specs */}
       <section ref={horizontalRef} className="h-[400vh] relative">
         <div className="sticky top-0 h-screen overflow-hidden flex items-center">
           {/* Background Technical Grid */}
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:40px_40px] opacity-20" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.05)_0%,transparent_70%)]" />
+          <div className={`absolute inset-0 bg-[size:40px_40px] opacity-20 ${
+            theme === 'dark' 
+              ? 'bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)]' 
+              : 'bg-[linear-gradient(to_right,#00000005_1px,transparent_1px),linear-gradient(to_bottom,#00000005_1px,transparent_1px)]'
+          }`} />
+          <div className={`absolute inset-0 ${
+            theme === 'dark' 
+              ? 'bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.05)_0%,transparent_70%)]'
+              : 'bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.05)_0%,transparent_70%)]'
+          }`} />
 
           <motion.div 
             style={{ x: xTranslate }}
@@ -199,9 +245,9 @@ const ProductExperience = () => {
                 <div className="space-y-6 lg:space-y-8 text-center lg:text-left">
                   <h2 className="text-[14vw] lg:text-[8vw] font-black tracking-tighter leading-[0.85] lg:leading-none">
                     1.15MM<br/>
-                    <span className="text-zinc-500">SLIM EDGE.</span>
+                    <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}>SLIM EDGE.</span>
                   </h2>
-                  <p className="text-zinc-400 text-base md:text-xl font-light leading-relaxed max-w-md mx-auto lg:mx-0 break-keep">
+                  <p className={`${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'} text-base md:text-xl font-light leading-relaxed max-w-md mx-auto lg:mx-0 break-keep`}>
                     항공기 소재 등급의 프리미엄 알루미늄. 얇지만 강인한 물성으로 공간에 압도적인 존재감을 선사합니다.
                   </p>
                 </div>
@@ -209,15 +255,19 @@ const ProductExperience = () => {
                   <motion.div 
                     animate={{ rotateY: [0, 360] }}
                     transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                    className="w-1 h-48 lg:h-80 bg-gradient-to-b from-transparent via-white to-transparent shadow-[0_0_50px_rgba(255,255,255,0.5)]"
+                    className={`w-1 h-48 lg:h-80 bg-gradient-to-b from-transparent via-current to-transparent ${
+                      theme === 'dark' ? 'text-white shadow-[0_0_50px_rgba(255,255,255,0.5)]' : 'text-black shadow-[0_0_50px_rgba(0,0,0,0.2)]'
+                    }`}
                   />
-                  <div className="absolute inset-0 border border-white/5 rounded-full animate-spin-slow" />
+                  <div className={`absolute inset-0 border rounded-full animate-spin-slow ${theme === 'dark' ? 'border-white/5' : 'border-black/5'}`} />
                 </div>
               </div>
             </div>
 
             {/* Slide 2: Resolution */}
-            <div className="w-screen h-full flex flex-col items-center justify-center px-6 md:px-12 bg-zinc-950/30 pt-20 lg:pt-0">
+            <div className={`w-screen h-full flex flex-col items-center justify-center px-6 md:px-12 pt-20 lg:pt-0 ${
+              theme === 'dark' ? 'bg-zinc-950/30' : 'bg-zinc-50/30'
+            }`}>
               <div className="max-w-7xl w-full grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
                 <div className="order-2 lg:order-1 relative aspect-square flex items-center justify-center scale-75 lg:scale-100">
                   <div className="grid grid-cols-8 gap-2 w-48 h-48 lg:w-64 lg:h-64">
@@ -227,7 +277,9 @@ const ProductExperience = () => {
                         animate={{ 
                           opacity: [0.2, 1, 0.2],
                           scale: [1, 1.1, 1],
-                          backgroundColor: i % 3 === 0 ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.1)"
+                          backgroundColor: i % 3 === 0 
+                            ? (theme === 'dark' ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)") 
+                            : (theme === 'dark' ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)")
                         }}
                         transition={{ duration: 2, repeat: Infinity, delay: i * 0.02 }}
                         className="w-full h-full rounded-sm"
@@ -235,7 +287,7 @@ const ProductExperience = () => {
                     ))}
                   </div>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-6xl lg:text-8xl font-black text-white/10">4K</span>
+                    <span className={`text-6xl lg:text-8xl font-black ${theme === 'dark' ? 'text-white/10' : 'text-black/10'}`}>4K</span>
                     <motion.div 
                       animate={{ opacity: [0.3, 1, 0.3] }}
                       transition={{ duration: 1.5, repeat: Infinity }}
@@ -248,9 +300,9 @@ const ProductExperience = () => {
                 <div className="order-1 lg:order-2 space-y-6 lg:space-y-8 text-center lg:text-left">
                   <h2 className="text-[14vw] lg:text-[8vw] font-black tracking-tighter leading-[0.85] lg:leading-none">
                     ULTRA<br/>
-                    <span className="text-zinc-500">HD 4K.</span>
+                    <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}>HD 4K.</span>
                   </h2>
-                  <p className="text-zinc-400 text-base md:text-xl font-light leading-relaxed max-w-md mx-auto lg:mx-0 break-keep">
+                  <p className={`${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'} text-base md:text-xl font-light leading-relaxed max-w-md mx-auto lg:mx-0 break-keep`}>
                     180℃ 이상의 고온 승화전사 공법과 AI-UPScaling 기술로 완성된 4K 해상도. 분자 속에 스며든 안료가 영원히 변치 않는 선명함을 보장합니다.
                   </p>
                 </div>
@@ -263,9 +315,9 @@ const ProductExperience = () => {
                 <div className="space-y-6 lg:space-y-8 text-center lg:text-left">
                   <h2 className="text-[14vw] lg:text-[8vw] font-black tracking-tighter leading-[0.85] lg:leading-none">
                     MAGNETIC<br/>
-                    <span className="text-zinc-500">MOUNT.</span>
+                    <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}>MOUNT.</span>
                   </h2>
-                  <p className="text-zinc-400 text-base md:text-xl font-light leading-relaxed max-w-md mx-auto lg:mx-0 break-keep">
+                  <p className={`${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'} text-base md:text-xl font-light leading-relaxed max-w-md mx-auto lg:mx-0 break-keep`}>
                     못 없이 단 1분 만에 완성되는 갤러리. 강력한 마그네틱 시스템이 벽면 손상 없이 완벽한 밀착감을 제공합니다.
                   </p>
                 </div>
@@ -277,10 +329,12 @@ const ProductExperience = () => {
           </motion.div>
 
           {/* Progress Bar */}
-          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-64 h-1 bg-white/10 rounded-full overflow-hidden">
+          <div className={`absolute bottom-12 left-1/2 -translate-x-1/2 w-64 h-1 rounded-full overflow-hidden ${
+            theme === 'dark' ? 'bg-white/10' : 'bg-black/10'
+          }`}>
             <motion.div 
               style={{ scaleX: horizontalProgress }}
-              className="w-full h-full bg-white origin-left"
+              className={`w-full h-full origin-left ${theme === 'dark' ? 'bg-white' : 'bg-black'}`}
             />
           </div>
         </div>
@@ -288,11 +342,13 @@ const ProductExperience = () => {
 
       {/* SECTION 2: Wall-Sticker-Magnet-Poster Interactive (Restored & Optimized) */}
       <div className="relative z-[70]">
-        <MountingAnimation />
+        <MountingAnimation productImage={productImage} />
       </div>
 
       {/* SECTION 3: SCAR-FREE Text Section */}
-      <section className="relative z-[60] min-h-screen pt-28 pb-20 bg-[#000000] flex items-center">
+      <section className={`relative z-[60] min-h-screen pt-28 pb-20 flex items-center transition-colors duration-500 ${
+        theme === 'dark' ? 'bg-black' : 'bg-white'
+      }`}>
         <div className="max-w-7xl mx-auto px-6 text-left w-full">
           <div className="space-y-32">
             <div className="space-y-6">
@@ -301,7 +357,9 @@ const ProductExperience = () => {
                 whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 viewport={{ once: true, amount: 0.8 }}
                 transition={{ duration: 1.0, ease: [0.16, 1, 0.3, 1] }}
-                className="text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] text-[#F2F2F7]"
+                className={`text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] ${
+                  theme === 'dark' ? 'text-[#F2F2F7]' : 'text-[#1C1C1E]'
+                }`}
               >
                 벽에 상처를
               </motion.h2>
@@ -310,7 +368,9 @@ const ProductExperience = () => {
                 whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 viewport={{ once: true, amount: 0.8 }}
                 transition={{ duration: 1.0, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-                className="text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] text-[#F2F2F7]"
+                className={`text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] ${
+                  theme === 'dark' ? 'text-[#F2F2F7]' : 'text-[#1C1C1E]'
+                }`}
               >
                 남기지 마세요.
               </motion.h2>
@@ -322,7 +382,9 @@ const ProductExperience = () => {
                 whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 viewport={{ once: true, amount: 0.8 }}
                 transition={{ duration: 1.0, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className="text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] text-[#F2F2F7]"
+                className={`text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] ${
+                  theme === 'dark' ? 'text-[#F2F2F7]' : 'text-[#1C1C1E]'
+                }`}
               >
                 오직 예술만
               </motion.h2>
@@ -331,10 +393,16 @@ const ProductExperience = () => {
                 whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                 viewport={{ once: true, amount: 0.8 }}
                 transition={{ duration: 1.0, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] relative inline-block"
+                className={`text-6xl md:text-9xl font-bold tracking-[-0.02em] leading-[1.2] relative inline-block ${
+                  theme === 'dark' ? 'text-[#F2F2F7]' : 'text-[#1C1C1E]'
+                }`}
               >
                 <span 
-                  className="relative z-10 bg-clip-text text-transparent bg-[linear-gradient(110deg,#F2F2F7,45%,#71717a,50%,#F2F2F7,55%,#F2F2F7)] bg-[length:250%_100%]" 
+                  className={`relative z-10 bg-clip-text text-transparent bg-[length:250%_100%] ${
+                    theme === 'dark' 
+                      ? 'bg-[linear-gradient(110deg,#F2F2F7,45%,#71717a,50%,#F2F2F7,55%,#F2F2F7)]'
+                      : 'bg-[linear-gradient(110deg,#1C1C1E,45%,#8E8E93,50%,#1C1C1E,55%,#1C1C1E)]'
+                  }`} 
                   style={{ animation: 'shimmer 4s infinite cubic-bezier(0.4, 0, 0.2, 1)' }}
                 >
                   남기세요.
@@ -349,8 +417,10 @@ const ProductExperience = () => {
               transition={{ duration: 0.5, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
               className="flex items-center gap-4"
             >
-              <div className="w-1 h-8 bg-[#8E8E93]/30 rounded-full" />
-              <p className="text-xl md:text-3xl font-light tracking-[0.3em] text-[#8E8E93] uppercase">
+              <div className={`w-1 h-8 rounded-full ${theme === 'dark' ? 'bg-[#8E8E93]/30' : 'bg-[#8E8E93]/20'}`} />
+              <p className={`text-xl md:text-3xl font-light tracking-[0.3em] uppercase ${
+                theme === 'dark' ? 'text-[#8E8E93]' : 'text-[#636366]'
+              }`}>
                 3단계. 1분. 도구 불필요
               </p>
             </motion.div>
@@ -364,12 +434,18 @@ const ProductExperience = () => {
       </div>
 
       {/* SECTION 5: Trust Indicators */}
-      <section className="relative z-[30] min-h-[80vh] pt-40 pb-32 px-6 flex items-center justify-center bg-black">
+      <section className={`relative z-[30] min-h-[80vh] pt-40 pb-32 px-6 flex items-center justify-center transition-colors duration-500 ${
+        theme === 'dark' ? 'bg-black' : 'bg-white'
+      }`}>
         <div className="max-w-4xl mx-auto text-center space-y-24 w-full">
           <Reveal y={40}>
             <div className="space-y-8">
-              <h2 className="text-5xl md:text-7xl font-black tracking-tighter uppercase text-white">신뢰의 지표</h2>
-              <p className="text-xl text-zinc-500 font-light max-w-2xl mx-auto">정밀한 공정과 투명한 과정을 통해 당신의 예술을 배달합니다.</p>
+              <h2 className={`text-5xl md:text-7xl font-black tracking-tighter uppercase ${
+                theme === 'dark' ? 'text-white' : 'text-black'
+              }`}>신뢰의 지표</h2>
+              <p className={`text-xl font-light max-w-2xl mx-auto ${
+                theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'
+              }`}>정밀한 공정과 투명한 과정을 통해 당신의 예술을 배달합니다.</p>
             </div>
           </Reveal>
 
@@ -387,12 +463,16 @@ const ProductExperience = () => {
                 transition={{ duration: 1.0, delay: item.delay, ease: [0.16, 1, 0.3, 1] }}
                 className="relative z-10 flex flex-col items-center text-center space-y-6 group"
               >
-                <div className="w-16 h-16 rounded-2xl bg-zinc-900 flex items-center justify-center border border-white/10 group-hover:bg-white group-hover:text-black transition-all duration-500">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border transition-all duration-500 ${
+                  theme === 'dark' 
+                    ? 'bg-zinc-900 border-white/10 group-hover:bg-white group-hover:text-black' 
+                    : 'bg-zinc-100 border-black/10 group-hover:bg-black group-hover:text-white'
+                }`}>
                   {item.icon}
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-xl font-bold text-white">{item.title}</h3>
-                  <p className="text-zinc-500 text-sm font-light">{item.desc}</p>
+                  <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{item.title}</h3>
+                  <p className={`text-sm font-light ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>{item.desc}</p>
                 </div>
               </motion.div>
             ))}
@@ -401,9 +481,13 @@ const ProductExperience = () => {
       </section>
 
       {/* SECTION 6: Magnetic "Snap" Finale (Bottom) */}
-      <section className="py-64 px-6 flex flex-col items-center justify-center text-center bg-black relative overflow-hidden">
+      <section className={`py-64 px-6 flex flex-col items-center justify-center text-center relative overflow-hidden transition-colors duration-500 ${
+        theme === 'dark' ? 'bg-black' : 'bg-white'
+      }`}>
         {/* Background Ambient Light */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-[120px] pointer-events-none" />
+        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full blur-[120px] pointer-events-none ${
+          theme === 'dark' ? 'bg-white/5' : 'bg-black/5'
+        }`} />
         
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -414,13 +498,17 @@ const ProductExperience = () => {
           <div className="space-y-6">
             <div className="flex justify-center gap-2 mb-8">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                <div key={i} className={`w-1.5 h-1.5 rounded-full ${theme === 'dark' ? 'bg-white/20' : 'bg-black/10'}`} />
               ))}
             </div>
-            <h3 className="text-4xl md:text-7xl font-black text-white tracking-tighter leading-none">
+            <h3 className={`text-4xl md:text-7xl font-black tracking-tighter leading-none ${
+              theme === 'dark' ? 'text-white' : 'text-black'
+            }`}>
               당신의 공간을<br/>갤러리로 만드세요.
             </h3>
-            <p className="text-zinc-500 text-xl font-light max-w-xl mx-auto break-keep">
+            <p className={`text-xl font-light max-w-xl mx-auto break-keep ${
+              theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'
+            }`}>
               METALORA의 모든 컬렉션은 당신의 일상을 예술로 바꾸기 위해 설계되었습니다.
             </p>
           </div>
@@ -431,7 +519,9 @@ const ProductExperience = () => {
         </motion.div>
 
         {/* Bottom Decorative Line */}
-        <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        <div className={`absolute bottom-0 left-0 w-full h-px ${
+          theme === 'dark' ? 'bg-gradient-to-r from-transparent via-white/10 to-transparent' : 'bg-gradient-to-r from-transparent via-black/10 to-transparent'
+        }`} />
       </section>
 
     </div>

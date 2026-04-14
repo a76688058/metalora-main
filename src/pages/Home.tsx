@@ -8,9 +8,11 @@ import { Clock, Shuffle } from 'lucide-react';
 import { getOptimizedImageUrl } from '../lib/utils';
 import ProductGrid from '../components/ProductGrid';
 import HeroCinematic from '../components/HeroCinematic';
+import { useTheme } from '../context/ThemeContext';
 
 export default function Home() {
   const { products, isLoading, isError, fetchProducts } = useProducts();
+  const { theme } = useTheme();
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
   const location = useLocation();
@@ -71,9 +73,9 @@ export default function Home() {
 
   if (isError) {
     return (
-      <div className="min-h-screen bg-black pt-24 flex flex-col items-center justify-center gap-4">
+      <div className={`min-h-screen pt-24 flex flex-col items-center justify-center gap-4 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
         <div className="text-red-400">Failed to load products.</div>
-        <button onClick={fetchProducts} className="px-4 py-2 bg-white text-black rounded-lg">Retry</button>
+        <button onClick={fetchProducts} className={`px-4 py-2 rounded-lg ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}>Retry</button>
       </div>
     );
   }
@@ -84,7 +86,7 @@ export default function Home() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
-      className="min-h-screen bg-black text-white pb-24"
+      className={`min-h-screen pb-24 ${theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'}`}
     >
       <HeroCinematic />
 
@@ -98,9 +100,9 @@ export default function Home() {
 
       <div className="max-w-7xl mx-auto px-4 md:px-8 lg:px-12">
         {/* Section Header & Sorting */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6 border-b border-white/10 pb-6">
+        <div className={`flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6 border-b pb-6 ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}>
           <div className="flex flex-col gap-2">
-            <h2 className="text-2xl md:text-3xl font-light tracking-[0.2em] uppercase text-white">
+            <h2 className={`text-2xl md:text-3xl font-light tracking-[0.2em] uppercase ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
               All Artworks
             </h2>
             <p className="text-[10px] md:text-xs font-medium tracking-[0.3em] text-zinc-500 uppercase">
@@ -108,11 +110,13 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="flex items-center bg-zinc-900/80 backdrop-blur-md p-1 rounded-full border border-white/10 shadow-xl">
+          <div className={`flex items-center backdrop-blur-md p-1 rounded-full border shadow-xl ${theme === 'dark' ? 'bg-zinc-900/80 border-white/10' : 'bg-zinc-100/80 border-black/10'}`}>
             <button
               onClick={() => handleSortChange('latest')}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all ${
-                sortBy === 'latest' ? 'bg-white text-black shadow-md' : 'text-zinc-400 hover:text-white'
+                sortBy === 'latest' 
+                  ? theme === 'dark' ? 'bg-white text-black shadow-md' : 'bg-black text-white shadow-md'
+                  : 'text-zinc-400 hover:text-zinc-600'
               }`}
             >
               <Clock size={14} strokeWidth={2.5} />
@@ -121,7 +125,9 @@ export default function Home() {
             <button
               onClick={() => handleSortChange('random')}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all ${
-                sortBy === 'random' ? 'bg-white text-black shadow-md' : 'text-zinc-400 hover:text-white'
+                sortBy === 'random'
+                  ? theme === 'dark' ? 'bg-white text-black shadow-md' : 'bg-black text-white shadow-md'
+                  : 'text-zinc-400 hover:text-zinc-600'
               }`}
             >
               <Shuffle size={14} strokeWidth={2.5} />
@@ -148,7 +154,9 @@ export default function Home() {
                   className="group flex flex-col transform-gpu will-change-transform"
                 >
                   <Link to={`/product/${product.id}`} className="flex flex-col w-full relative">
-                    <div className="block overflow-hidden bg-zinc-900 aspect-[210/297] relative border border-white/5 shadow-2xl shadow-black/50">
+                    <div className={`block overflow-hidden aspect-[210/297] relative border shadow-2xl ${
+                      theme === 'dark' ? 'bg-zinc-900 border-white/5 shadow-black/50' : 'bg-zinc-100 border-black/5 shadow-black/10'
+                    }`}>
                       <img 
                         src={getOptimizedImageUrl(product.image || product.front_image, 400)} 
                         alt={product.title}
@@ -186,12 +194,14 @@ export default function Home() {
                         <p className="text-[9px] font-medium tracking-[0.3em] text-zinc-500 uppercase mb-1">
                           {product.artist}
                         </p>
-                        <h3 className="text-[12px] md:text-[14px] font-sans font-light tracking-[0.1em] text-white uppercase truncate w-full text-center group-hover:text-purple-400 transition-colors duration-500">
+                        <h3 className={`text-[12px] md:text-[14px] font-sans font-light tracking-[0.1em] uppercase truncate w-full text-center group-hover:text-purple-400 transition-colors duration-500 ${
+                          theme === 'dark' ? 'text-white' : 'text-black'
+                        }`}>
                           {product.title}
                         </h3>
                       </div>
-                      <div className="h-[1px] w-4 bg-white/10 group-hover:w-8 transition-all duration-700" />
-                      <p className="text-[11px] md:text-[12px] font-sans font-medium tracking-widest text-zinc-300">
+                      <div className={`h-[1px] w-4 group-hover:w-8 transition-all duration-700 ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
+                      <p className={`text-[11px] md:text-[12px] font-sans font-medium tracking-widest ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
                         ₩{product.options?.[0]?.price?.toLocaleString() || '0'}
                       </p>
                     </div>

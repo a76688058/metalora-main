@@ -3,6 +3,7 @@ import { useProducts } from '../context/ProductContext';
 import ProductCard from './ProductCard';
 import { motion, useMotionValue, useAnimationFrame } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
 import LoadingScreen from './LoadingScreen';
 
@@ -14,6 +15,7 @@ const wrap = (min: number, max: number, v: number) => {
 
 export default function ProductGrid() {
   const { products: allProducts, isLoading, isError, fetchProducts } = useProducts();
+  const { theme } = useTheme();
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [contentWidth, setContentWidth] = useState(0);
@@ -113,10 +115,16 @@ export default function ProductGrid() {
   }
 
   return (
-    <section id="product-grid" className="relative w-full py-0 overflow-x-hidden overflow-y-visible bg-black flex items-center">
+    <section id="product-grid" className={`relative w-full py-0 overflow-x-hidden overflow-y-visible flex items-center transition-colors duration-500 ${
+      theme === 'dark' ? 'bg-black' : 'bg-white'
+    }`}>
       {/* Fade Masks for smooth appearance/disappearance */}
-      <div className="absolute left-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-r from-black to-transparent z-20 pointer-events-none" />
-      <div className="absolute right-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-l from-black to-transparent z-20 pointer-events-none" />
+      <div className={`absolute left-0 top-0 bottom-0 w-16 md:w-32 z-20 pointer-events-none ${
+        theme === 'dark' ? 'bg-gradient-to-r from-black to-transparent' : 'bg-gradient-to-r from-white to-transparent'
+      }`} />
+      <div className={`absolute right-0 top-0 bottom-0 w-16 md:w-32 z-20 pointer-events-none ${
+        theme === 'dark' ? 'bg-gradient-to-l from-black to-transparent' : 'bg-gradient-to-l from-white to-transparent'
+      }`} />
 
       {/* Marquee Track */}
       <motion.div 

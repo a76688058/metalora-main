@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useTheme } from '../context/ThemeContext';
 import { 
   Loader2, X, ChevronLeft
 } from 'lucide-react';
@@ -14,6 +15,7 @@ interface ProfileEditModalProps {
 
 export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
   const { user, profile, refreshProfile, openProfile } = useAuth();
+  const { theme } = useTheme();
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   
@@ -176,18 +178,24 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="relative w-full max-w-lg bg-[#0F0F11] h-full flex flex-col shadow-2xl overflow-hidden border-l border-white/5 pointer-events-auto"
+            className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden border-l pointer-events-auto transition-colors duration-500 ${
+              theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'
+            }`}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 sticky top-0 bg-[#0F0F11]/80 backdrop-blur-xl z-20">
+            <div className={`flex items-center justify-between px-6 py-5 border-b sticky top-0 backdrop-blur-xl z-20 transition-colors duration-500 ${
+              theme === 'dark' ? 'border-white/5 bg-[#0F0F11]/80' : 'border-black/5 bg-white/80'
+            }`}>
               <div className="flex items-center gap-3">
                 <button 
                   onClick={handleBack}
-                  className="p-2 bg-zinc-800/50 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-all"
+                  className={`p-2 rounded-full transition-all ${
+                    theme === 'dark' ? 'bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-black'
+                  }`}
                 >
                   <ChevronLeft size={20} />
                 </button>
-                <h2 className="text-xl font-bold text-white tracking-tight">프로필 수정</h2>
+                <h2 className={`text-xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>프로필 수정</h2>
               </div>
             </div>
 
@@ -198,42 +206,52 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                 <section className="space-y-6">
                   <div className="flex items-center gap-2">
                     <div className="w-1 h-4 bg-cyan-500 rounded-full" />
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">기본 정보</h3>
+                    <h3 className={`text-xs font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>기본 정보</h3>
                   </div>
                   
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-[11px] font-bold text-zinc-500 ml-1 uppercase tracking-tighter">아이디</label>
+                      <label className={`text-[11px] font-bold ml-1 uppercase tracking-tighter ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>아이디</label>
                       <input
                         type="text"
                         readOnly
                         disabled
                         value={formData.user_custom_id}
-                        className="w-full h-14 bg-zinc-900/30 border border-white/5 rounded-2xl px-5 text-zinc-500 text-sm font-medium cursor-not-allowed"
+                        className={`w-full h-14 border rounded-2xl px-5 text-sm font-medium cursor-not-allowed ${
+                          theme === 'dark' ? 'bg-zinc-900/30 border-white/5 text-zinc-500' : 'bg-zinc-50 border-black/5 text-zinc-400'
+                        }`}
                       />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label className="text-[11px] font-bold text-zinc-500 ml-1 uppercase tracking-tighter">이름</label>
+                        <label className={`text-[11px] font-bold ml-1 uppercase tracking-tighter ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>이름</label>
                         <input
                           type="text"
                           required
                           value={formData.full_name}
                           onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                           placeholder="이름을 입력하세요"
-                          className="w-full h-14 bg-zinc-900/50 border border-white/10 rounded-2xl px-5 text-white text-sm focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20 transition-all placeholder:text-zinc-700 font-medium"
+                          className={`w-full h-14 border rounded-2xl px-5 text-sm focus:outline-none focus:ring-1 transition-all font-medium ${
+                            theme === 'dark' 
+                              ? 'bg-zinc-900/50 border-white/10 text-white focus:border-cyan-500/50 focus:ring-cyan-500/20 placeholder:text-zinc-700' 
+                              : 'bg-zinc-50 border-black/10 text-black focus:border-cyan-500/50 focus:ring-cyan-500/20 placeholder:text-zinc-300'
+                          }`}
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[11px] font-bold text-zinc-500 ml-1 uppercase tracking-tighter">연락처</label>
+                        <label className={`text-[11px] font-bold ml-1 uppercase tracking-tighter ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>연락처</label>
                         <input
                           type="tel"
                           required
                           value={formData.phone_number}
                           onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
                           placeholder="010-0000-0000"
-                          className="w-full h-14 bg-zinc-900/50 border border-white/10 rounded-2xl px-5 text-white text-sm focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20 transition-all placeholder:text-zinc-700 font-medium"
+                          className={`w-full h-14 border rounded-2xl px-5 text-sm focus:outline-none focus:ring-1 transition-all font-medium ${
+                            theme === 'dark' 
+                              ? 'bg-zinc-900/50 border-white/10 text-white focus:border-cyan-500/50 focus:ring-cyan-500/20 placeholder:text-zinc-700' 
+                              : 'bg-zinc-50 border-black/10 text-black focus:border-cyan-500/50 focus:ring-cyan-500/20 placeholder:text-zinc-300'
+                          }`}
                         />
                       </div>
                     </div>
@@ -245,12 +263,14 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       <div className="w-1 h-4 bg-emerald-500 rounded-full" />
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">배송지 정보</h3>
+                      <h3 className={`text-xs font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>배송지 정보</h3>
                     </div>
                     <button
                       type="button"
                       onClick={handleOpenPostcode}
-                      className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-4 py-2 rounded-xl hover:bg-emerald-500/20 transition-all active:scale-95"
+                      className={`text-[11px] font-bold px-4 py-2 rounded-xl transition-all active:scale-95 ${
+                        theme === 'dark' ? 'text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20' : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
+                      }`}
                     >
                       주소 찾기
                     </button>
@@ -262,14 +282,18 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                       readOnly
                       value={formData.zip_code}
                       placeholder="우편번호"
-                      className="w-full h-14 bg-zinc-900/30 border border-white/5 rounded-2xl px-5 text-zinc-500 text-sm font-medium cursor-default"
+                      className={`w-full h-14 border rounded-2xl px-5 text-sm font-medium cursor-default ${
+                        theme === 'dark' ? 'bg-zinc-900/30 border-white/5 text-zinc-500' : 'bg-zinc-50 border-black/5 text-zinc-400'
+                      }`}
                     />
                     <input
                       type="text"
                       readOnly
                       value={formData.address}
                       placeholder="기본 주소"
-                      className="w-full h-14 bg-zinc-900/30 border border-white/5 rounded-2xl px-5 text-zinc-500 text-sm font-medium cursor-default"
+                      className={`w-full h-14 border rounded-2xl px-5 text-sm font-medium cursor-default ${
+                        theme === 'dark' ? 'bg-zinc-900/30 border-white/5 text-zinc-500' : 'bg-zinc-50 border-black/5 text-zinc-400'
+                      }`}
                     />
                     <input
                       type="text"
@@ -277,7 +301,11 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                       value={formData.address_detail}
                       onChange={(e) => setFormData({ ...formData, address_detail: e.target.value })}
                       placeholder="상세 주소를 입력하세요"
-                      className="w-full h-14 bg-zinc-900/50 border border-white/10 rounded-2xl px-5 text-white text-sm focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all placeholder:text-zinc-700 font-medium"
+                      className={`w-full h-14 border rounded-2xl px-5 text-sm focus:outline-none focus:ring-1 transition-all font-medium ${
+                        theme === 'dark' 
+                          ? 'bg-zinc-900/50 border-white/10 text-white focus:border-emerald-500/50 focus:ring-emerald-500/20 placeholder:text-zinc-700' 
+                          : 'bg-zinc-50 border-black/10 text-black focus:border-emerald-500/50 focus:ring-emerald-500/20 placeholder:text-zinc-300'
+                      }`}
                     />
                   </div>
                 </section>
@@ -287,7 +315,11 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full h-16 bg-white text-black font-bold text-base rounded-2xl hover:bg-zinc-200 transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50 shadow-[0_10px_30px_rgba(255,255,255,0.1)]"
+                    className={`w-full h-16 font-bold text-base rounded-2xl transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50 ${
+                      theme === 'dark' 
+                        ? 'bg-white text-black hover:bg-zinc-200 shadow-[0_10px_30px_rgba(255,255,255,0.1)]' 
+                        : 'bg-black text-white hover:bg-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.1)]'
+                    }`}
                   >
                     {isLoading ? (
                       <Loader2 className="animate-spin" size={20} />
@@ -301,13 +333,15 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
 
             {/* Postcode Overlay */}
             {isPostcodeOpen && (
-              <div className="absolute inset-0 z-[13000] bg-black flex flex-col p-6 overflow-y-auto">
+              <div className={`absolute inset-0 z-[13000] flex flex-col p-6 overflow-y-auto ${theme === 'dark' ? 'bg-black' : 'bg-zinc-100'}`}>
                 <div className="flex justify-between items-center mb-6 w-full">
-                  <h2 className="text-xl font-bold text-white tracking-tight">주소 검색</h2>
+                  <h2 className={`text-xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>주소 검색</h2>
                   <button 
                     type="button" 
                     onClick={() => setIsPostcodeOpen(false)} 
-                    className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition-all active:scale-90"
+                    className={`p-2 rounded-full transition-all active:scale-90 ${
+                      theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white' : 'bg-black/5 hover:bg-black/10 text-zinc-500 hover:text-black'
+                    }`}
                   >
                     <X size={24} />
                   </button>
