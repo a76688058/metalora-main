@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import LoadingScreen from '../components/LoadingScreen';
 import { useCart } from '../context/CartContext';
+import { useTheme } from '../context/ThemeContext';
 
 /**
  * METALORA PII(Personally Identifiable Information) 보호 모듈
@@ -36,6 +37,7 @@ export default function PaymentSuccess() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { refreshCart } = useCart();
+  const { theme } = useTheme();
   const [isConfirming, setIsConfirming] = useState(true);
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -239,7 +241,7 @@ export default function PaymentSuccess() {
 
         await sendDiscordNotification(discordPayload);
         
-        // 4. 장바구니 비우기 (결제된 품목만)
+        // 4. 장바구기 비우기 (결제된 품목만)
         if (pendingItems && pendingItems.length > 0) {
           const { data: userAuth } = await supabase.auth.getUser();
           const userId = userAuth.user?.id;
@@ -301,8 +303,8 @@ export default function PaymentSuccess() {
 
   if (errorMessage) {
     return (
-      <div className="min-h-screen bg-[#0F0F11] flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-[#1C1C1E] rounded-3xl p-8 text-center border border-red-500/20">
+      <div className={`min-h-screen flex items-center justify-center p-6 transition-colors duration-500 ${theme === 'dark' ? 'bg-[#0F0F11]' : 'bg-white'}`}>
+        <div className={`max-w-md w-full rounded-3xl p-8 text-center border shadow-2xl ${theme === 'dark' ? 'bg-[#1C1C1E] border-red-500/20' : 'bg-zinc-50 border-red-500/10'}`}>
           <p className="text-red-500 font-bold mb-6">{errorMessage}</p>
           <button 
             onClick={() => navigate('/')}
@@ -316,207 +318,217 @@ export default function PaymentSuccess() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0F0F11] text-white flex flex-col">
+    <div className={`min-h-screen flex flex-col transition-colors duration-500 ${theme === 'dark' ? 'bg-[#0F0F11] text-white' : 'bg-white text-black'}`}>
       {/* Step Indicator */}
       <div className="w-full max-w-2xl mx-auto px-8 pt-8 pb-4 flex items-center justify-center gap-4">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-[#1C1C1E] text-zinc-500 flex items-center justify-center text-xs font-bold">1</div>
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${theme === 'dark' ? 'bg-[#1C1C1E] text-zinc-500' : 'bg-zinc-100 text-zinc-400'}`}>1</div>
           <span className="text-sm font-medium text-zinc-500 hidden sm:inline">내 컬렉션</span>
         </div>
-        <div className="w-4 h-[1px] bg-white/10" />
+        <div className={`w-4 h-[1px] ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-[#1C1C1E] text-zinc-500 flex items-center justify-center text-xs font-bold">2</div>
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${theme === 'dark' ? 'bg-[#1C1C1E] text-zinc-500' : 'bg-zinc-100 text-zinc-400'}`}>2</div>
           <span className="text-sm font-medium text-zinc-500 hidden sm:inline">주문서</span>
         </div>
-        <div className="w-4 h-[1px] bg-white/10" />
+        <div className={`w-4 h-[1px] ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-full bg-[#3182F6] text-white flex items-center justify-center text-xs font-bold">3</div>
-          <span className="text-sm font-medium text-white">결제확인</span>
+          <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-black'}`}>결제확인</span>
         </div>
       </div>
 
       <div className="flex-1 flex items-start justify-center p-6 pt-4 md:pt-8">
-        <div className="max-w-md w-full bg-[#1C1C1E] rounded-3xl p-6 md:p-8 text-center shadow-2xl transform-gpu will-change-transform">
+        <div className={`max-w-md w-full rounded-3xl p-6 md:p-8 text-center shadow-2xl transform-gpu will-change-transform border transition-colors duration-500 ${
+          theme === 'dark' ? 'bg-[#1C1C1E] border-white/5' : 'bg-zinc-50 border-black/5'
+        }`}>
           <div className="relative flex items-center justify-center w-20 h-20 mx-auto mb-6 transform-gpu">
-          <motion.svg 
-            className="absolute inset-0 w-full h-full transform-gpu"
-            viewBox="0 0 100 100"
+            <motion.svg 
+              className="absolute inset-0 w-full h-full transform-gpu"
+              viewBox="0 0 100 100"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              <motion.circle 
+                className="text-[#3182F6]" 
+                strokeWidth="6" 
+                stroke="currentColor" 
+                fill="transparent" 
+                r="47" cx="50" cy="50"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: 1, ease: "easeInOut" }}
+              />
+            </motion.svg>
+            <motion.div
+              className="absolute inset-0 flex items-center justify-center origin-center transform-gpu"
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 1, type: "spring", stiffness: 200, damping: 10 }}
+            >
+              <Check size={40} className="text-[#3182F6]" />
+            </motion.div>
+          </div>
+          <h1 className={`text-2xl md:text-3xl font-bold mb-8 tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>결제가 완료되었습니다</h1>
+          
+          <motion.div 
+            className={`rounded-2xl p-5 md:p-6 mb-8 transform-gpu will-change-transform transition-colors duration-500 ${
+              theme === 'dark' ? 'bg-[#0F0F11]' : 'bg-white border border-black/5 shadow-sm'
+            }`}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.2, duration: 0.5 }}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-zinc-400 text-sm font-medium">주문번호</span>
+              <div className="flex items-center gap-2">
+                <span className={`font-mono whitespace-nowrap text-sm ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{orderId}</span>
+                <button 
+                  onClick={handleCopy}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-black'
+                  }`}
+                  title="주문번호 복사"
+                >
+                  <AnimatePresence mode="wait">
+                    {copied ? (
+                      <motion.div
+                        key="check"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0 }}
+                      >
+                        <Check size={14} className="text-[#3182F6]" />
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="copy"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0 }}
+                      >
+                        <Copy size={14} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-zinc-400 text-sm font-medium">결제금액</span>
+              <span className="text-[#3182F6] font-bold text-lg md:text-xl">{Number(totalAmount).toLocaleString()}원</span>
+            </div>
+          </motion.div>
+
+          {/* Real-time Delivery Simulation (Toss UI Redesign) */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.5 }}
+            className="mb-10 text-left transform-gpu will-change-transform"
+          >
+            <div className="flex items-center justify-between mb-4 px-1">
+              <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.15em]">Production Status</h3>
+              <span className="text-[10px] font-medium text-[#3182F6] bg-[#3182F6]/10 px-2 py-0.5 rounded-full">Live</span>
+            </div>
+
+            <div className={`rounded-[28px] p-6 border relative overflow-hidden shadow-inner transition-colors duration-500 ${
+              theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'
+            }`}>
+              {/* Current Step Highlight */}
+              <div className="flex items-center gap-5 mb-8">
+                <motion.div 
+                  key={activeStep}
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="w-14 h-14 rounded-2xl bg-[#3182F6] flex items-center justify-center text-white shadow-[0_8px_24px_rgba(49,130,246,0.25)]"
+                >
+                  {SIMULATION_STEPS[activeStep].icon}
+                </motion.div>
+                <div>
+                  <motion.p 
+                    key={`text-${activeStep}`}
+                    initial={{ y: 10, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    className={`text-lg font-bold tracking-tight leading-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}
+                  >
+                    {SIMULATION_STEPS[activeStep].text}
+                  </motion.p>
+                  <p className="text-xs text-zinc-500 mt-1 font-medium">
+                    {isSimulationComplete && selectedStep !== null ? '상세 공정 확인 중' : '메탈로라 프리미엄 공정 진행 중'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Horizontal Step Map */}
+              <div className="relative pt-2 pb-1">
+                {/* Background Line */}
+                <div className={`absolute top-[18px] left-0 w-full h-[3px] rounded-full ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-100'}`} />
+                
+                {/* Progress Line */}
+                <motion.div 
+                  className="absolute top-[18px] left-0 h-[3px] bg-[#3182F6] rounded-full shadow-[0_0_12px_rgba(49,130,246,0.6)]"
+                  initial={{ width: "0%" }}
+                  animate={{ width: `${(simulationStep / (SIMULATION_STEPS.length - 1)) * 100}%` }}
+                  transition={{ duration: 0.8, ease: "circOut" }}
+                />
+
+                <div className="relative flex justify-between items-center">
+                  {SIMULATION_STEPS.map((step, idx) => (
+                    <button 
+                      key={idx} 
+                      onClick={() => isSimulationComplete && setSelectedStep(idx)}
+                      disabled={!isSimulationComplete}
+                      className={`flex flex-col items-center group relative outline-none transition-all ${isSimulationComplete ? 'cursor-pointer' : 'cursor-default'}`}
+                    >
+                      <div 
+                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-500 z-10 border-4 ${
+                          theme === 'dark' ? 'border-[#0F0F11]' : 'border-white'
+                        } ${
+                          idx <= simulationStep 
+                            ? (activeStep === idx ? (theme === 'dark' ? 'bg-white text-[#3182F6] scale-110 shadow-[0_0_15px_rgba(255,255,255,0.3)]' : 'bg-black text-white scale-110 shadow-[0_0_15px_rgba(0,0,0,0.1)]') : 'bg-[#3182F6] text-white') 
+                            : (theme === 'dark' ? 'bg-zinc-800 text-zinc-600' : 'bg-zinc-100 text-zinc-300')
+                        }`}
+                      >
+                        {idx < simulationStep && activeStep !== idx ? (
+                          <Check size={14} strokeWidth={3} />
+                        ) : (
+                          <div className={`w-1.5 h-1.5 rounded-full ${idx === simulationStep && !isSimulationComplete ? (theme === 'dark' ? 'bg-white' : 'bg-black') + ' animate-pulse' : (activeStep === idx ? (theme === 'dark' ? 'bg-[#3182F6]' : 'bg-white') : 'bg-current')}`} />
+                        )}
+                      </div>
+                      {/* Tooltip-like text for desktop, hidden on mobile if too crowded */}
+                      <span className={`absolute -bottom-6 text-[8px] font-bold whitespace-nowrap transition-all duration-300 ${
+                        activeStep === idx ? (theme === 'dark' ? 'text-white opacity-100' : 'text-black opacity-100') : 'text-zinc-600 opacity-0 group-hover:opacity-100'
+                      }`}>
+                        STEP {idx + 1}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {isSimulationComplete && selectedStep === null && (
+                <motion.p 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-center text-[10px] text-zinc-500 mt-10 font-medium"
+                >
+                  공정 단계를 클릭하면 상세 내용을 다시 볼 수 있습니다.
+                </motion.p>
+              )}
+            </div>
+          </motion.div>
+          
+          <motion.button
+            onClick={() => navigate('/')}
+            className="w-full h-14 btn-cyberpunk rounded-2xl font-bold text-lg text-white mb-2"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
+            transition={{ delay: 1.7, duration: 0.5 }}
           >
-            <motion.circle 
-              className="text-[#3182F6]" 
-              strokeWidth="6" 
-              stroke="currentColor" 
-              fill="transparent" 
-              r="47" cx="50" cy="50"
-              initial={{ pathLength: 0 }}
-              animate={{ pathLength: 1 }}
-              transition={{ duration: 1, ease: "easeInOut" }}
-            />
-          </motion.svg>
-          <motion.div
-            className="absolute inset-0 flex items-center justify-center origin-center transform-gpu"
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 1, type: "spring", stiffness: 200, damping: 10 }}
-          >
-            <Check size={40} className="text-[#3182F6]" />
-          </motion.div>
+            홈으로 돌아가기
+          </motion.button>
         </div>
-        <h1 className="text-2xl md:text-3xl font-bold text-white mb-8 tracking-tight">결제가 완료되었습니다</h1>
-        
-        <motion.div 
-          className="bg-[#0F0F11] rounded-2xl p-5 md:p-6 mb-8 transform-gpu will-change-transform"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.2, duration: 0.5 }}
-        >
-          <div className="flex justify-between items-center mb-4">
-            <span className="text-zinc-400 text-sm font-medium">주문번호</span>
-            <div className="flex items-center gap-2">
-              <span className="text-white font-mono whitespace-nowrap text-sm">{orderId}</span>
-              <button 
-                onClick={handleCopy}
-                className="p-1.5 rounded-md bg-white/5 hover:bg-white/10 transition-colors text-zinc-400 hover:text-white"
-                title="주문번호 복사"
-              >
-                <AnimatePresence mode="wait">
-                  {copied ? (
-                    <motion.div
-                      key="check"
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      exit={{ scale: 0 }}
-                    >
-                      <Check size={14} className="text-[#3182F6]" />
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="copy"
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      exit={{ scale: 0 }}
-                    >
-                      <Copy size={14} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </button>
-            </div>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-zinc-400 text-sm font-medium">결제금액</span>
-            <span className="text-[#3182F6] font-bold text-lg md:text-xl">{Number(totalAmount).toLocaleString()}원</span>
-          </div>
-        </motion.div>
-
-        {/* Real-time Delivery Simulation (Toss UI Redesign) */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.5 }}
-          className="mb-10 text-left transform-gpu will-change-transform"
-        >
-          <div className="flex items-center justify-between mb-4 px-1">
-            <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.15em]">Production Status</h3>
-            <span className="text-[10px] font-medium text-[#3182F6] bg-[#3182F6]/10 px-2 py-0.5 rounded-full">Live</span>
-          </div>
-
-          <div className="bg-[#0F0F11] rounded-[28px] p-6 border border-white/5 relative overflow-hidden shadow-inner">
-            {/* Current Step Highlight */}
-            <div className="flex items-center gap-5 mb-8">
-              <motion.div 
-                key={activeStep}
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="w-14 h-14 rounded-2xl bg-[#3182F6] flex items-center justify-center text-white shadow-[0_8px_24px_rgba(49,130,246,0.25)]"
-              >
-                {SIMULATION_STEPS[activeStep].icon}
-              </motion.div>
-              <div>
-                <motion.p 
-                  key={`text-${activeStep}`}
-                  initial={{ y: 10, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  className="text-lg font-bold text-white tracking-tight leading-tight"
-                >
-                  {SIMULATION_STEPS[activeStep].text}
-                </motion.p>
-                <p className="text-xs text-zinc-500 mt-1 font-medium">
-                  {isSimulationComplete && selectedStep !== null ? '상세 공정 확인 중' : '메탈로라 프리미엄 공정 진행 중'}
-                </p>
-              </div>
-            </div>
-
-            {/* Horizontal Step Map */}
-            <div className="relative pt-2 pb-1">
-              {/* Background Line */}
-              <div className="absolute top-[18px] left-0 w-full h-[3px] bg-zinc-800 rounded-full" />
-              
-              {/* Progress Line */}
-              <motion.div 
-                className="absolute top-[18px] left-0 h-[3px] bg-[#3182F6] rounded-full shadow-[0_0_12px_rgba(49,130,246,0.6)]"
-                initial={{ width: "0%" }}
-                animate={{ width: `${(simulationStep / (SIMULATION_STEPS.length - 1)) * 100}%` }}
-                transition={{ duration: 0.8, ease: "circOut" }}
-              />
-
-              <div className="relative flex justify-between items-center">
-                {SIMULATION_STEPS.map((step, idx) => (
-                  <button 
-                    key={idx} 
-                    onClick={() => isSimulationComplete && setSelectedStep(idx)}
-                    disabled={!isSimulationComplete}
-                    className={`flex flex-col items-center group relative outline-none transition-all ${isSimulationComplete ? 'cursor-pointer' : 'cursor-default'}`}
-                  >
-                    <div 
-                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-500 z-10 border-4 border-[#0F0F11] ${
-                        idx <= simulationStep 
-                          ? (activeStep === idx ? 'bg-white text-[#3182F6] scale-110 shadow-[0_0_15px_rgba(255,255,255,0.3)]' : 'bg-[#3182F6] text-white') 
-                          : 'bg-zinc-800 text-zinc-600'
-                      }`}
-                    >
-                      {idx < simulationStep && activeStep !== idx ? (
-                        <Check size={14} strokeWidth={3} />
-                      ) : (
-                        <div className={`w-1.5 h-1.5 rounded-full ${idx === simulationStep && !isSimulationComplete ? 'bg-white animate-pulse' : (activeStep === idx ? 'bg-[#3182F6]' : 'bg-current')}`} />
-                      )}
-                    </div>
-                    {/* Tooltip-like text for desktop, hidden on mobile if too crowded */}
-                    <span className={`absolute -bottom-6 text-[8px] font-bold whitespace-nowrap transition-all duration-300 ${
-                      activeStep === idx ? 'text-white opacity-100' : 'text-zinc-600 opacity-0 group-hover:opacity-100'
-                    }`}>
-                      STEP {idx + 1}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            {isSimulationComplete && selectedStep === null && (
-              <motion.p 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center text-[10px] text-zinc-500 mt-10 font-medium"
-              >
-                공정 단계를 클릭하면 상세 내용을 다시 볼 수 있습니다.
-              </motion.p>
-            )}
-          </div>
-        </motion.div>
-        
-        <motion.button
-          onClick={() => navigate('/')}
-          className="w-full h-14 btn-cyberpunk rounded-2xl font-bold text-lg text-white mb-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.7, duration: 0.5 }}
-        >
-          홈으로 돌아가기
-        </motion.button>
       </div>
     </div>
-  </div>
   );
 }
