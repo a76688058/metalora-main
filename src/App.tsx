@@ -36,6 +36,7 @@ import { CartProvider, useCart } from './context/CartContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 
 import GlobalSplash from './components/GlobalSplash';
+import CookieBanner from './components/CookieBanner';
 
 // Scroll to top on route change
 function ScrollToTop() {
@@ -175,6 +176,7 @@ export default function App() {
               <Router>
                 <Layout />
               </Router>
+              <CookieBanner />
             </ThemeProvider>
           </CartProvider>
         </ProductProvider>

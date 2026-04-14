@@ -294,7 +294,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await supabase.auth.signOut().catch(() => {});
         
         // Hard Cleanup immediately after signOut
+        // Preserve theme and language preference
+        const savedTheme = localStorage.getItem('theme');
+        const savedLang = localStorage.getItem('language');
         localStorage.clear();
+        if (savedTheme) localStorage.setItem('theme', savedTheme);
+        if (savedLang) localStorage.setItem('language', savedLang);
+        
         sessionStorage.clear();
         
         setSession(null);
@@ -318,8 +324,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoggingOut(false);
       setIsLoading(false);
       if (!options?.adminOnly) {
-        // Force clear all browser storage
+        // Force clear all browser storage but preserve theme and language
+        const savedTheme = localStorage.getItem('theme');
+        const savedLang = localStorage.getItem('language');
         localStorage.clear();
+        if (savedTheme) localStorage.setItem('theme', savedTheme);
+        if (savedLang) localStorage.setItem('language', savedLang);
+        
         sessionStorage.clear();
         // Clear all cookies
         document.cookie.split(";").forEach((c) => {

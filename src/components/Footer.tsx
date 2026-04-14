@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PolicyModal from './PolicyModal';
 import { ShieldCheck, AlertCircle, Settings, BarChart3 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
@@ -505,6 +505,17 @@ export default function Footer() {
   const closeModal = () => {
     setModalState({ isOpen: false, key: null });
   };
+
+  useEffect(() => {
+    const handleOpenPolicy = (e: CustomEvent) => {
+      if (e.detail && policies[e.detail as keyof typeof policies]) {
+        openModal(e.detail as keyof typeof policies);
+      }
+    };
+    
+    window.addEventListener('open-policy', handleOpenPolicy as EventListener);
+    return () => window.removeEventListener('open-policy', handleOpenPolicy as EventListener);
+  }, []);
 
   return (
     <footer className={`border-t w-full font-sans transition-colors duration-500 ${theme === 'dark' ? 'bg-zinc-950 border-white/5' : 'bg-white border-black/5'}`}>
