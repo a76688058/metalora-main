@@ -116,6 +116,14 @@ export default function ProductDetail() {
   const [cartParticles, setCartParticles] = useState<{ id: number; x: number; y: number; img: string }[]>([]);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
 
+  const handleBack = () => {
+    if (window.history.state && window.history.state.idx > 0) {
+      navigate(-1);
+    } else {
+      navigate('/');
+    }
+  };
+
   // Set initial selected option
   useEffect(() => {
     if (product?.options && product.options.length > 0) {
@@ -289,7 +297,7 @@ export default function ProductDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
           {/* Left Column: Image & Visuals */}
           <div className="space-y-6">
-            <button onClick={() => navigate('/')} className={`group inline-flex items-center gap-2 transition-colors mb-4 py-2 pr-4 transform-gpu ${theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-black/70 hover:text-black'}`}>
+            <button onClick={handleBack} className={`group inline-flex items-center gap-2 transition-colors mb-4 py-2 pr-4 transform-gpu ${theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-black/70 hover:text-black'}`}>
               <motion.div className="group-hover:-translate-x-1 transition-transform duration-300 ease-out transform-gpu">
                 <ArrowLeft size={16} strokeWidth={1.5} />
               </motion.div>
@@ -492,7 +500,11 @@ export default function ProductDetail() {
                     {id === 'workshop-single' && cartItemFromState ? (
                       <button
                         onClick={() => openCart()}
-                        className="flex-1 font-bold text-xl tracking-tight h-[64px] rounded-2xl transition-all active:scale-95 duration-150 shadow-2xl flex items-center justify-center gap-3 border-[0.5px] bg-white text-black hover:bg-zinc-100 shadow-white/10 border-white/20"
+                        className={`flex-1 font-bold text-xl tracking-tight h-[64px] rounded-2xl transition-all active:scale-95 duration-150 shadow-2xl flex items-center justify-center gap-3 border-[0.5px] ${
+                          theme === 'dark'
+                            ? 'bg-white text-black hover:bg-zinc-100 shadow-white/10 border-white/20'
+                            : 'bg-black text-white hover:bg-zinc-800 shadow-black/10 border-black/20'
+                        }`}
                       >
                         <ArrowLeft size={24} />
                         <span className="tracking-[-0.02em]">내 컬렉션으로</span>
@@ -503,10 +515,10 @@ export default function ProductDetail() {
                         disabled={isSoldOut || isAddingToCart || isAdded}
                         className={`flex-1 font-bold text-xl tracking-tight h-[64px] rounded-2xl transition-all active:scale-95 duration-150 shadow-2xl flex items-center justify-center gap-3 border-[0.5px] ${
                           isSoldOut 
-                            ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border-transparent' 
+                            ? theme === 'dark' ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border-transparent' : 'bg-zinc-200 text-zinc-400 cursor-not-allowed border-transparent'
                             : isAdded
-                              ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                              : 'bg-white text-black hover:bg-zinc-100 shadow-white/10 border-white/20'
+                              ? theme === 'dark' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-green-50 text-green-600 border-green-200'
+                              : theme === 'dark' ? 'bg-white text-black hover:bg-zinc-100 shadow-white/10 border-white/20' : 'bg-black text-white hover:bg-zinc-800 shadow-black/10 border-black/20'
                         }`}
                       >
                         {isAddingToCart ? (

@@ -500,7 +500,6 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
         
         setIsFlashing(false);
         setIsUploading(false);
-        showToast('내 컬렉션에 안전하게 담겼습니다', 'success');
         
         if (onClose) {
           onClose();

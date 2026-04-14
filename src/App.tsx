@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate, useNavigationType } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -41,14 +41,18 @@ import CookieBanner from './components/CookieBanner';
 // Scroll to top on route change
 function ScrollToTop() {
   const { pathname } = useLocation();
+  const navType = useNavigationType();
 
   useEffect(() => {
+    if (navType === 'POP') {
+      return;
+    }
     window.scrollTo({
       top: 0,
       left: 0,
       behavior: 'instant'
     });
-  }, [pathname]);
+  }, [pathname, navType]);
 
   return null;
 }

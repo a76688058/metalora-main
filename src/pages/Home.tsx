@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProducts } from '../context/ProductContext';
-import { Link, useSearchParams, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import LoadingScreen from '../components/LoadingScreen';
 import { Clock, Shuffle } from 'lucide-react';
@@ -17,6 +17,7 @@ export default function Home() {
   const searchQuery = searchParams.get('q') || '';
   const location = useLocation();
   const navigate = useNavigate();
+  const navType = useNavigationType();
   const { openCart } = useCart();
 
   const [sortBy, setSortBy] = useState<'latest' | 'random'>('latest');
@@ -35,6 +36,27 @@ export default function Home() {
       navigate('/', { replace: true, state: {} });
     }
   }, [location, openCart, navigate]);
+
+  useEffect(() => {
+    if (navType === 'POP') {
+      const savedScroll = sessionStorage.getItem('homeScrollPosition');
+      if (savedScroll) {
+        // Use requestAnimationFrame to ensure DOM is ready before scrolling
+        requestAnimationFrame(() => {
+          window.scrollTo(0, parseInt(savedScroll, 10));
+        });
+      }
+    } else {
+      sessionStorage.removeItem('homeScrollPosition');
+    }
+
+    const handleScroll = () => {
+      sessionStorage.setItem('homeScrollPosition', window.scrollY.toString());
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [navType]);
 
   const visibleProducts = useMemo(() => {
     let filtered = products
