@@ -16,7 +16,11 @@ export default function ProductCard({ product }: ProductCardProps) {
   };
 
   return (
-    <Link to={`/product/${product.id}`} className="block h-full">
+    <Link 
+      to={`/product/${product.id}`} 
+      onClick={() => sessionStorage.setItem('homeScrollPosition', window.scrollY.toString())}
+      className="block h-full"
+    >
       <div className="relative w-full aspect-[210/297] rounded-none bg-transparent overflow-hidden cursor-pointer group border-none transform-gpu">
         <img
           src={getOptimizedImageUrl(product.front_image || product.image, 200) || undefined}

@@ -22,6 +22,10 @@ console.error = (...args) => {
   originalConsoleError.apply(console, args);
 };
 
+if ('scrollRestoration' in window.history) {
+  window.history.scrollRestoration = 'manual';
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <LanguageProvider>

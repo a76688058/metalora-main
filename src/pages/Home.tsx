@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProducts } from '../context/ProductContext';
 import { Link, useSearchParams, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
@@ -22,6 +22,7 @@ export default function Home() {
 
   const [sortBy, setSortBy] = useState<'latest' | 'random'>('latest');
   const [randomSeed, setRandomSeed] = useState(0);
+  const hasRestoredScroll = useRef(false);
 
   const handleSortChange = (type: 'latest' | 'random') => {
     setSortBy(type);
@@ -35,28 +36,38 @@ export default function Home() {
       openCart();
       navigate('/', { replace: true, state: {} });
     }
-  }, [location, openCart, navigate]);
+  }, [location.state, openCart, navigate]);
 
+  // Restore scroll position
   useEffect(() => {
-    if (navType === 'POP') {
+    if (navType === 'POP' && !isLoading && products.length > 0 && !hasRestoredScroll.current) {
       const savedScroll = sessionStorage.getItem('homeScrollPosition');
       if (savedScroll) {
-        // Use requestAnimationFrame to ensure DOM is ready before scrolling
-        requestAnimationFrame(() => {
-          window.scrollTo(0, parseInt(savedScroll, 10));
-        });
+        const scrollPos = parseInt(savedScroll, 10);
+        if (!isNaN(scrollPos) && scrollPos > 0) {
+          // Aggressive restore to combat layout shifts
+          let frameCount = 0;
+          const restore = () => {
+            window.scrollTo({ top: scrollPos, behavior: 'instant' });
+            frameCount++;
+            if (frameCount < 20) { // Force for ~300ms
+              requestAnimationFrame(restore);
+            }
+          };
+          requestAnimationFrame(restore);
+        }
       }
-    } else {
-      sessionStorage.removeItem('homeScrollPosition');
+      hasRestoredScroll.current = true;
     }
+  }, [navType, isLoading, products.length]);
 
-    const handleScroll = () => {
-      sessionStorage.setItem('homeScrollPosition', window.scrollY.toString());
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [navType]);
+  // Reset restoration flag on new navigation
+  useEffect(() => {
+    if (navType === 'PUSH' && location.pathname === '/') {
+      sessionStorage.removeItem('homeScrollPosition');
+      hasRestoredScroll.current = false;
+    }
+  }, [navType, location.pathname]);
 
   const visibleProducts = useMemo(() => {
     let filtered = products
@@ -175,7 +186,11 @@ export default function Home() {
                   }}
                   className="group flex flex-col transform-gpu will-change-transform"
                 >
-                  <Link to={`/product/${product.id}`} className="flex flex-col w-full relative">
+                  <Link 
+                    to={`/product/${product.id}`} 
+                    onClick={() => sessionStorage.setItem('homeScrollPosition', window.scrollY.toString())}
+                    className="flex flex-col w-full relative"
+                  >
                     <div className={`block overflow-hidden aspect-[210/297] relative border shadow-2xl ${
                       theme === 'dark' ? 'bg-zinc-900 border-white/5 shadow-black/50' : 'bg-zinc-100 border-black/5 shadow-black/10'
                     }`}>

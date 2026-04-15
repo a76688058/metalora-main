@@ -143,10 +143,24 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
   const deleteProduct = async (id: string) => {
     if (!supabase) return;
     try {
-      const { error } = await supabase.from('products').delete().eq('id', id);
+      // Optimistically update local state
+      setProducts(prev => prev.filter(p => p.id !== id));
+      
+      // Use select() to return the deleted rows. If empty, it means RLS blocked it or ID not found.
+      const { data, error } = await supabase.from('products').delete().eq('id', id).select();
       if (error) throw error;
+      
+      if (!data || data.length === 0) {
+        // Revert optimistic update if failed
+        await fetchProducts();
+        throw new Error('삭제 권한이 없거나 상품을 찾을 수 없습니다. (Supabase RLS 정책을 확인해주세요)');
+      }
+      
       await fetchProducts();
     } catch (error) {
+      console.error("Delete product error:", error);
+      // Revert optimistic update on error
+      await fetchProducts();
       throw error;
     }
   };

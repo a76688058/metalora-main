@@ -16,6 +16,7 @@ export default function AdminProducts() {
   const { showToast } = useToast();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [orderedProducts, setOrderedProducts] = useState<Product[]>([]);
@@ -251,6 +252,16 @@ export default function AdminProducts() {
                         >
                           <Edit size={16} />
                         </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setProductToDelete(product);
+                          }}
+                          className="p-2 text-zinc-500 hover:text-white bg-white/5 hover:bg-red-600 rounded-lg transition-all active:scale-90"
+                          title="삭제"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </button>
                       </div>
                     </div>
                   </Reorder.Item>
@@ -273,6 +284,42 @@ export default function AdminProducts() {
           onSave={handleSave}
           onClose={() => setIsFormOpen(false)}
         />
+      )}
+
+      {/* 상품 삭제 확인 모달 */}
+      {productToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#1C1C1E] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-2">상품 삭제</h3>
+            <p className="text-zinc-400 mb-6 text-sm leading-relaxed">
+              정말 <span className="text-white font-medium">'{productToDelete.title}'</span> 상품을 삭제하시겠습니까?<br/>
+              이 작업은 되돌릴 수 없습니다.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setProductToDelete(null)}
+                className="px-4 py-2 rounded-lg font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await deleteProduct(productToDelete.id);
+                    showToast('상품이 성공적으로 삭제되었습니다.', 'success');
+                  } catch (error: any) {
+                    showToast(error.message || '상품 삭제에 실패했습니다.', 'error');
+                  } finally {
+                    setProductToDelete(null);
+                  }
+                }}
+                className="px-4 py-2 rounded-lg font-medium bg-red-600 hover:bg-red-700 text-white transition-colors shadow-lg shadow-red-600/20"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AdminLayout>
   );

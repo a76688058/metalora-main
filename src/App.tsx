@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate, useNavigationType } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
@@ -42,16 +42,25 @@ import CookieBanner from './components/CookieBanner';
 function ScrollToTop() {
   const { pathname } = useLocation();
   const navType = useNavigationType();
+  const lastPathname = useRef(pathname);
 
   useEffect(() => {
-    if (navType === 'POP') {
+    if (navType === 'POP' || pathname === lastPathname.current) {
+      lastPathname.current = pathname;
       return;
     }
-    window.scrollTo({
-      top: 0,
-      left: 0,
-      behavior: 'instant'
-    });
+    
+    // Delay scroll to top to allow unmounting components to save state
+    const timeoutId = setTimeout(() => {
+      window.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: 'instant'
+      });
+    }, 10);
+    
+    lastPathname.current = pathname;
+    return () => clearTimeout(timeoutId);
   }, [pathname, navType]);
 
   return null;
