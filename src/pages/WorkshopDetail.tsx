@@ -1,30 +1,18 @@
 import React, { useState, useEffect, Suspense, useRef } from 'react';
-import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Html, ContactShadows, Environment } from '@react-three/drei';
 import * as THREE from 'three';
-import { useProducts } from '../context/ProductContext';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
-import { supabase } from '../lib/supabase';
-import Poster3D from './Poster3D';
-import LoginModal from './LoginModal';
-import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, RotateCw, Frame, RefreshCw, Package, Maximize, X } from 'lucide-react';
-import Skeleton from './Skeleton';
+import Poster3D from '../components/Poster3D';
+import LoginModal from '../components/LoginModal';
+import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, Frame, Package, Maximize, X } from 'lucide-react';
 import { getFullImageUrl, FALLBACK_IMAGE } from '../lib/utils';
-import BrandStorySection from './BrandStorySection';
-import ProductExperience from './ProductExperience';
+import ProductExperience from '../components/ProductExperience';
 import { useTheme } from '../context/ThemeContext';
-
-import LoadingScreen from './LoadingScreen';
-
-declare global {
-  interface Window {
-    IMP: any;
-  }
-}
 
 function CanvasLoader() {
   return (
@@ -69,28 +57,16 @@ class CanvasErrorBoundary extends React.Component<{ children: React.ReactNode, f
   }
 }
 
-export default function ProductDetail() {
-  const { id } = useParams<{ id: string }>();
+export default function WorkshopDetail() {
   const location = useLocation();
   const cartItemFromState = location.state?.cartItem;
-  const { products, fetchProducts, isLoading, isError } = useProducts();
-  const { user, adminUser, profile } = useAuth();
-  const { showToast } = useToast();
-  const { addToCart, openCart } = useCart();
+  const { user, adminUser } = useAuth();
+  const { openCart } = useCart();
   const { theme } = useTheme();
   
-  const currentUser = user || adminUser;
-  const product = products.find((p) => p.id === id);
-
   const navigate = useNavigate();
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [selectedOptionId, setSelectedOptionId] = useState<string>('');
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isAdded, setIsAdded] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
   const [hasInteracted, setHasInteracted] = useState(false);
-  const [cartParticles, setCartParticles] = useState<{ id: number; x: number; y: number; img: string }[]>([]);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   const handleBack = () => {
@@ -101,111 +77,40 @@ export default function ProductDetail() {
     }
   };
 
-  // Set initial selected option
-  useEffect(() => {
-    if (product?.options && product.options.length > 0) {
-      const firstAvailable = product.options.find(opt => opt.isActive && opt.stock > 0) || product.options[0];
-      setSelectedOptionId(firstAvailable.id);
-    }
-  }, [product]);
-
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     e.currentTarget.src = FALLBACK_IMAGE;
     e.currentTarget.onerror = null;
   };
 
-  if (isLoading && products.length === 0) {
-    return <LoadingScreen />;
+  if (!cartItemFromState) {
+    return <div className={`text-center py-20 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>커스텀 작품 정보를 찾을 수 없습니다</div>;
   }
 
-  if (isError) {
-    return (
-      <div className={`w-full h-[500px] flex flex-col items-center justify-center px-6 text-center ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
-        <div className={`backdrop-blur-md border p-8 rounded-3xl max-w-md w-full shadow-[0_0_30px_rgba(0,0,0,0.5)] ${
-          theme === 'dark' ? 'bg-zinc-900/50 border-white/10' : 'bg-zinc-100/50 border-black/10'
-        }`}>
-          <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6">
-            <RefreshCw className="text-red-400 w-8 h-8" />
-          </div>
-          <h3 className={`text-xl font-bold mb-3 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-            대표님, 서버 응답이 조금 늦네요.
-          </h3>
-          <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
-            메탈로라의 마스터피스 데이터를 불러오는 중<br/>
-            일시적인 지연이 발생했습니다.
-          </p>
-          <button
-            onClick={fetchProducts}
-            className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded-2xl transition-all transform active:scale-95 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(34,211,238,0.3)]"
-          >
-            <RefreshCw size={18} />
-            다시 불러오기
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!product) {
-    return <div className={`text-center py-20 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>상품을 찾을 수 없습니다</div>;
-  }
-
-  const selectedOption = product.options?.find(opt => opt.id === selectedOptionId);
-  const isSoldOut = !selectedOption || selectedOption.stock <= 0 || !selectedOption.isActive;
-  const currentPrice = selectedOption ? selectedOption.price : 0;
-
-  const handleAddToCart = async () => {
-    if (!currentUser) {
-      setIsLoginModalOpen(true);
-      return;
-    }
-
-    if (!product?.id || !selectedOptionId) {
-      showToast('상품 옵션을 선택해주세요.', 'error');
-      return;
-    }
-
-    try {
-      setIsAddingToCart(true);
-      
-      await addToCart(product.id, selectedOptionId, 1);
-
-      // 파티클 애니메이션 실행
-      if (canvasContainerRef.current) {
-        const rect = canvasContainerRef.current.getBoundingClientRect();
-        const startX = rect.left + rect.width / 2;
-        const startY = rect.top + rect.height / 2;
-        const newParticle = { id: Date.now(), x: startX, y: startY, img: product.front_image || product.image };
-        
-        setCartParticles(prev => [...prev, newParticle]);
-        
-        setTimeout(() => {
-          setCartParticles(prev => prev.filter(p => p.id !== newParticle.id));
-        }, 1200);
+  const product = {
+    id: 'workshop-single',
+    title: '커스텀 작품',
+    artist: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'METALORA Artist',
+    image: cartItemFromState.custom_image || '',
+    front_image: cartItemFromState.custom_image || '',
+    description: 'METALORA 워크숍에서 제작된 세상에 단 하나뿐인 커스텀 작품입니다.',
+    limited: true,
+    options: [
+      {
+        id: 'custom',
+        name: cartItemFromState.custom_config?.size || '커스텀 옵션',
+        price: cartItemFromState.custom_config?.price || 0,
+        stock: 1,
+        isActive: true,
+        dimension: cartItemFromState.custom_config?.size || 'A4'
       }
-
-      setIsAdded(true);
-      
-      // 장바구니 열기
-      setTimeout(() => {
-        openCart();
-      }, 800);
-    } catch (error: any) {
-      console.error('Add to Cart Failed:', error.message || error);
-    } finally {
-      setIsAddingToCart(false);
-    }
+    ]
   };
+
+  const selectedOption = product.options[0];
+  const currentPrice = selectedOption.price;
 
   return (
     <div className={`min-h-screen flex flex-col relative transition-colors duration-500 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
-      {/* Login Modal */}
-      <LoginModal
-        isOpen={isLoginModalOpen}
-        onClose={() => setIsLoginModalOpen(false)}
-        onSuccess={() => setIsLoginModalOpen(false)}
-      />
-
       {/* 3D Interactive Modal */}
       <AnimatePresence>
         {isModalOpen && (
@@ -235,7 +140,7 @@ export default function ProductDetail() {
             <div className="flex-1 relative">
               <CanvasErrorBoundary fallback={
                 <div className="w-full h-full flex items-center justify-center p-8">
-                  <img src={getFullImageUrl(product?.front_image || product?.image) || undefined} alt="Preview" className="max-w-full max-h-full object-contain" />
+                  <img src={getFullImageUrl(product.front_image || product.image) || undefined} alt="Preview" className="max-w-full max-h-full object-contain" />
                 </div>
               }>
                 <Canvas shadows camera={{ position: [0, 0, 3], fov: 45 }}>
@@ -278,10 +183,10 @@ export default function ProductDetail() {
               <motion.div className="group-hover:-translate-x-1 transition-transform duration-300 ease-out transform-gpu">
                 <ArrowLeft size={16} strokeWidth={1.5} />
               </motion.div>
-              <span className="text-[10px] font-light uppercase tracking-[0.2em]">SHOP</span>
+              <span className="text-[10px] font-light uppercase tracking-[0.2em]">BACK</span>
             </button>
 
-            <div className="py-0 -mx-4 sm:mx-0 transform-gpu"> {/* Safe Scroll Area */}
+            <div className="py-0 -mx-4 sm:mx-0 transform-gpu">
               <div 
                 ref={canvasContainerRef}
                 className="relative aspect-square w-full lg:w-[110%] lg:-ml-[5%] overflow-visible bg-transparent transform-gpu"
@@ -329,7 +234,7 @@ export default function ProductDetail() {
                     onPointerDown={() => setHasInteracted(true)}
                     onCreated={({ gl }) => {
                       gl.outputColorSpace = THREE.SRGBColorSpace;
-                      gl.setClearColor(0x000000, 0); // Transparent background
+                      gl.setClearColor(0x000000, 0);
                       window.dispatchEvent(new CustomEvent('3d-poster-loaded'));
                     }}
                     style={{ background: 'transparent', pointerEvents: 'none' }}
@@ -344,10 +249,6 @@ export default function ProductDetail() {
                     </Suspense>
                   </Canvas>
                 </CanvasErrorBoundary>
-                
-                <AnimatePresence>
-                  {/* Interaction guide removed from main view as it's now view-only */}
-                </AnimatePresence>
               </div>
             </div>
 
@@ -383,16 +284,9 @@ export default function ProductDetail() {
               className="relative z-10 transform-gpu will-change-transform"
             >
               <div className="flex items-center gap-2 mb-2">
-                {product.limited && (
-                  <span className="text-yellow-400 text-xs font-bold uppercase tracking-wider border border-yellow-400/30 px-2 py-0.5 rounded bg-yellow-400/10">
-                    한정판
-                  </span>
-                )}
-                {product.created_at && (new Date().getTime() - new Date(product.created_at).getTime()) / (1000 * 3600 * 24) <= 7 && (
-                  <span className="text-green-400 text-xs font-bold uppercase border border-green-500/30 px-2 py-0.5 rounded bg-green-500/10">
-                    신상품
-                  </span>
-                )}
+                <span className="text-yellow-400 text-xs font-bold uppercase tracking-wider border border-yellow-400/30 px-2 py-0.5 rounded bg-yellow-400/10">
+                  한정판
+                </span>
               </div>
               <h1 className={`text-5xl font-extrabold mb-10 tracking-tight leading-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{product.title}</h1>
               <div className={`text-3xl font-extrabold mb-10 tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{currentPrice.toLocaleString()}</div>
@@ -411,41 +305,19 @@ export default function ProductDetail() {
                 <div>
                   <h3 className={`text-sm font-bold uppercase tracking-wider mb-3 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>옵션 선택</h3>
                   <div className="flex flex-col gap-3">
-                    {product.options && product.options.length > 0 ? (
-                      product.options.filter(opt => opt.isActive).map((option) => {
-                        const isOptionSoldOut = option.stock <= 0;
-                        
-                        return (
-                          <button
-                            key={option.id}
-                            onClick={() => setSelectedOptionId(option.id)}
-                            disabled={isOptionSoldOut}
-                            className={`flex justify-between items-center px-4 py-3 rounded-lg border text-sm transition-all relative w-full ${
-                              selectedOptionId === option.id
-                                ? theme === 'dark' ? 'border-white bg-white text-black font-bold' : 'border-black bg-black text-white font-bold'
-                                : isOptionSoldOut 
-                                  ? theme === 'dark' ? 'border-white/10 text-zinc-600 cursor-not-allowed bg-zinc-900' : 'border-black/10 text-zinc-400 cursor-not-allowed bg-zinc-100'
-                                  : theme === 'dark' ? 'border-white/20 text-zinc-400 hover:border-white/50 hover:text-white' : 'border-black/20 text-zinc-600 hover:border-black/50 hover:text-black'
-                            }`}
-                          >
-                            <div className="flex flex-col items-start">
-                              <span>{option.name}</span>
-                              <span className={`text-[10px] ${selectedOptionId === option.id ? 'text-zinc-600' : 'text-zinc-500'}`}>
-                                {option.dimension}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span>₩{option.price.toLocaleString()}</span>
-                              {isOptionSoldOut && (
-                                <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">품절</span>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <div className="text-zinc-500 text-sm py-2">등록된 옵션이 없습니다.</div>
-                    )}
+                    <div className={`flex justify-between items-center px-4 py-3 rounded-lg border text-sm transition-all relative w-full ${
+                      theme === 'dark' ? 'border-white bg-white text-black font-bold' : 'border-black bg-black text-white font-bold'
+                    }`}>
+                      <div className="flex flex-col items-start">
+                        <span>{selectedOption.name}</span>
+                        <span className="text-[10px] text-zinc-600">
+                          {selectedOption.dimension}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span>₩{selectedOption.price.toLocaleString()}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -468,41 +340,17 @@ export default function ProductDetail() {
 
                 {/* Purchase Button in Flow */}
                 <div className="pt-6 space-y-4">
-                  {errorMsg && (
-                    <div className="text-center text-red-500 text-sm font-bold animate-pulse bg-red-500/10 py-2 rounded-xl backdrop-blur-md border border-red-500/20">
-                      {errorMsg}
-                    </div>
-                  )}
                   <div className="flex gap-3">
                     <button
-                      onClick={handleAddToCart}
-                      disabled={isSoldOut || isAddingToCart || isAdded}
+                      onClick={() => openCart()}
                       className={`flex-1 font-bold text-xl tracking-tight h-[64px] rounded-2xl transition-all active:scale-95 duration-150 shadow-2xl flex items-center justify-center gap-3 border-[0.5px] ${
-                        isSoldOut 
-                          ? theme === 'dark' ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border-transparent' : 'bg-zinc-200 text-zinc-400 cursor-not-allowed border-transparent'
-                          : isAdded
-                            ? theme === 'dark' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-green-50 text-green-600 border-green-200'
-                            : theme === 'dark' ? 'bg-white text-black hover:bg-zinc-100 shadow-white/10 border-white/20' : 'bg-black text-white hover:bg-zinc-800 shadow-black/10 border-black/20'
+                        theme === 'dark'
+                          ? 'bg-white text-black hover:bg-zinc-100 shadow-white/10 border-white/20'
+                          : 'bg-black text-white hover:bg-zinc-800 shadow-black/10 border-black/20'
                       }`}
                     >
-                      {isAddingToCart ? (
-                        <>
-                          <Loader2 className="animate-spin" size={24} />
-                          <span className="ml-1">컬렉션에 담는 중...</span>
-                        </>
-                      ) : isAdded ? (
-                        <>
-                          <Check size={24} className="text-green-400" />
-                          <span className="ml-1">컬렉션에 담겼습니다</span>
-                        </>
-                      ) : isSoldOut ? (
-                        '품절'
-                      ) : (
-                        <div className="flex items-center justify-center gap-3">
-                          <Frame size={24} />
-                          <span>내 컬렉션에 담기</span>
-                        </div>
-                      )}
+                      <ArrowLeft size={24} />
+                      <span className="tracking-[-0.02em]">내 컬렉션으로</span>
                     </button>
                   </div>
                   
@@ -520,27 +368,6 @@ export default function ProductDetail() {
 
       {/* New Interactive Product Experience */}
       <ProductExperience productImage={product.front_image || product.image} />
-
-      {/* Cart Particle Animation */}
-      {cartParticles.map(p => (
-        <motion.div
-          key={p.id}
-          initial={{ x: p.x - 20, y: p.y - 20, scale: 1, opacity: 1 }}
-          animate={{ 
-            x: window.innerWidth - 60, 
-            y: 20, 
-            scale: 0.5, 
-            opacity: 0
-          }}
-          transition={{ 
-            duration: 0.8,
-            ease: [0.16, 1, 0.3, 1]
-          }}
-          className="fixed z-[100] pointer-events-none w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-[0_0_20px_rgba(255,255,255,0.8)] transform-gpu will-change-transform"
-        >
-          <Frame size={20} className="text-black" />
-        </motion.div>
-      ))}
     </div>
   );
 }

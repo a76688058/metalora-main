@@ -1,5 +1,7 @@
 export const STORAGE_BASE_URL = 'https://qifloweuwyhvukabgnoa.supabase.co/storage/v1/object/public';
 
+export const FALLBACK_IMAGE = 'https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840';
+
 export const getFullImageUrl = (path: string | null | undefined, isWorkshop: boolean = false) => {
   if (!path) return null;
   if (path.startsWith('http')) return path;

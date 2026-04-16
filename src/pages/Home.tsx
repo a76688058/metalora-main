@@ -5,7 +5,7 @@ import { Link, useSearchParams, useLocation, useNavigate, useNavigationType } fr
 import { useCart } from '../context/CartContext';
 import LoadingScreen from '../components/LoadingScreen';
 import { Clock, Shuffle } from 'lucide-react';
-import { getOptimizedImageUrl } from '../lib/utils';
+import { getOptimizedImageUrl, FALLBACK_IMAGE } from '../lib/utils';
 import ProductGrid from '../components/ProductGrid';
 import HeroCinematic from '../components/HeroCinematic';
 import { useTheme } from '../context/ThemeContext';
@@ -45,16 +45,10 @@ export default function Home() {
       if (savedScroll) {
         const scrollPos = parseInt(savedScroll, 10);
         if (!isNaN(scrollPos) && scrollPos > 0) {
-          // Aggressive restore to combat layout shifts
-          let frameCount = 0;
-          const restore = () => {
+          // Simple scroll restoration
+          setTimeout(() => {
             window.scrollTo({ top: scrollPos, behavior: 'instant' });
-            frameCount++;
-            if (frameCount < 20) { // Force for ~300ms
-              requestAnimationFrame(restore);
-            }
-          };
-          requestAnimationFrame(restore);
+          }, 50);
         }
       }
       hasRestoredScroll.current = true;
@@ -96,7 +90,7 @@ export default function Home() {
   }, [products, searchQuery, sortBy, randomSeed]);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    e.currentTarget.src = 'https://picsum.photos/seed/metalora_fallback/210/297';
+    e.currentTarget.src = FALLBACK_IMAGE;
     e.currentTarget.onerror = null; // Prevent infinite loop
   };
 

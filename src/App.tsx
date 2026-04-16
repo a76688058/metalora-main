@@ -18,6 +18,7 @@ import ProfileComplete from './pages/ProfileComplete';
 import AuthCallback from './pages/AuthCallback';
 import BrandStory from './pages/BrandStory';
 import Collection from './pages/Collection';
+import WorkshopDetail from './pages/WorkshopDetail';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFail from './pages/PaymentFail';
 import LoadingScreen from './components/LoadingScreen';
@@ -108,6 +109,7 @@ function AnimatedRoutes() {
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Home />} />
         <Route path="/product/:id" element={<ProductDetail />} />
+        <Route path="/workshop/detail" element={<WorkshopDetail />} />
         <Route path="/login" element={<Login />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/brand-story" element={<BrandStory />} />

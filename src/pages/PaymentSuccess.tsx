@@ -104,38 +104,34 @@ export default function PaymentSuccess() {
       setErrorMessage(null);
 
       try {
-        // 1. 세션 스토리지에서 대기 중인 주문 정보 가져오기
-        const pendingOrderStr = sessionStorage.getItem('pendingOrder');
-        if (!pendingOrderStr) {
-          // 세션 스토리지에 없으면 이미 처리된 주문인지 DB 확인
-          const { data: existingOrder } = await supabase
-            .from('orders')
-            .select('id, status')
-            .eq('order_number', orderId)
-            .single();
-            
-          if (existingOrder && existingOrder.status === 'PAID') {
-            setIsConfirming(false);
-            return;
-          }
+        // 1. Fetch pending order from DB
+        const { data: existingOrder, error: fetchError } = await supabase
+          .from('orders')
+          .select('*, order_items(*)')
+          .eq('order_number', orderId)
+          .single();
+          
+        if (fetchError || !existingOrder) {
           throw new Error('결제 대기 중인 주문 정보를 찾을 수 없습니다.');
         }
-        
-        const pendingOrderData = JSON.parse(pendingOrderStr);
-        const { order: pendingOrder, items: pendingItems } = pendingOrderData;
+
+        if (existingOrder.status === 'PAID') {
+          setIsConfirming(false);
+          return;
+        }
 
         // 2. 무결성 검증 (Integrity Check)
-        if (pendingOrder.total_price !== Number(totalAmount)) {
+        if (existingOrder.total_price !== Number(totalAmount)) {
           const mismatchError = new Error(`[SECURITY_ALERT] Amount mismatch detected. Order: ${orderId}`);
           console.error(mismatchError);
           
           const alertPayload = {
-            content: `🚨 **[SECURITY_ALERT] 결제 금액 불일치 감지!**\n주문번호: ${orderId}\n요청 금액: ${pendingOrder.total_price}원\n실제 결제 금액: ${totalAmount}원`,
+            content: `🚨 **[SECURITY_ALERT] 결제 금액 불일치 감지!**\n주문번호: ${orderId}\n요청 금액: ${existingOrder.total_price}원\n실제 결제 금액: ${totalAmount}원`,
             embeds: [{
               color: 0xff0000,
               fields: [
-                { name: "주문자", value: MaskingUtil.name(pendingOrder.shipping_name || '알수없음'), inline: true },
-                { name: "연락처", value: MaskingUtil.phone(pendingOrder.shipping_phone || '알수없음'), inline: true },
+                { name: "주문자", value: MaskingUtil.name(existingOrder.shipping_name || '알수없음'), inline: true },
+                { name: "연락처", value: MaskingUtil.phone(existingOrder.shipping_phone || '알수없음'), inline: true },
                 { name: "상태", value: "결제 중단 및 리포트 생성 완료" }
               ]
             }]
@@ -147,55 +143,35 @@ export default function PaymentSuccess() {
           return;
         }
 
-        // 3. DB 업데이트 (결제 성공 시 주문 데이터 생성)
-        const shippingAddress = searchParams.get('shipping_address') || pendingOrder.shipping_address;
-        
-        const newOrderData = { 
-          ...pendingOrder,
-          status: 'PAID',
-          paymentKey,
-          method: method || '정보 확인 중',
-          total_price: Number(totalAmount),
-          shipping_address: shippingAddress
-        };
-
-        const { data: insertedOrder, error: insertError } = await supabase
+        // 3. DB 업데이트 (결제 성공 시 주문 상태 업데이트)
+        const { error: updateError } = await supabase
           .from('orders')
-          .insert([newOrderData])
-          .select()
-          .single();
+          .update({
+            status: 'PAID',
+            paymentKey,
+            method: method || '정보 확인 중',
+            total_price: Number(totalAmount),
+          })
+          .eq('id', existingOrder.id);
             
-        if (insertError) throw insertError;
+        if (updateError) throw updateError;
 
-        // 주문 상품 데이터 생성
-        if (insertedOrder && pendingItems && pendingItems.length > 0) {
-          const orderItemsToInsert = pendingItems.map((item: any) => ({
-            ...item,
-            order_id: insertedOrder.id
-          }));
-
-          const { error: itemsError } = await supabase
-            .from('order_items')
-            .insert(orderItemsToInsert);
-
-          if (itemsError) {
-            console.error('Failed to insert order items:', itemsError);
-          }
-        }
+        const pendingItems = existingOrder.order_items || [];
+        const pendingOrder = existingOrder;
         
         // 3.1. [추가] 회원 총 결제 금액(total_spent) 업데이트
-        if (insertedOrder && insertedOrder.user_id) {
+        if (existingOrder && existingOrder.user_id) {
           const { data: profile } = await supabase
             .from('profiles')
             .select('total_spent')
-            .eq('id', insertedOrder.user_id)
+            .eq('id', existingOrder.user_id)
             .single();
           
           if (profile) {
             await supabase
               .from('profiles')
               .update({ total_spent: (profile.total_spent || 0) + Number(totalAmount) })
-              .eq('id', insertedOrder.user_id);
+              .eq('id', existingOrder.user_id);
           }
         }
         

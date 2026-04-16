@@ -14,7 +14,7 @@ interface CartProps {
   onClose: () => void;
 }
 
-const TOSS_CLIENT_KEY = 'test_ck_Poxy1XQL8R9nPR9Xn61Xr7nO5Wml';
+const TOSS_CLIENT_KEY = import.meta.env.VITE_TOSS_CLIENT_KEY || 'test_ck_Poxy1XQL8R9nPR9Xn61Xr7nO5Wml';
 
 export default function Cart() {
   const navigate = useNavigate();
@@ -163,13 +163,23 @@ export default function Cart() {
   // Daum Postcode Script Loading
   useEffect(() => {
     const scriptId = 'daum-postcode-script';
-    if (!document.getElementById(scriptId)) {
-      const script = document.createElement('script');
+    let script = document.getElementById(scriptId) as HTMLScriptElement;
+    let addedByUs = false;
+
+    if (!script) {
+      script = document.createElement('script');
       script.id = scriptId;
       script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
       script.async = true;
       document.body.appendChild(script);
+      addedByUs = true;
     }
+
+    return () => {
+      if (addedByUs && script && script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    };
   }, []);
 
   const handleOpenPostcode = () => {
@@ -225,36 +235,16 @@ export default function Cart() {
       setIsProcessing(true);
       const client = getClient();
       
-      // 0. Sync Profile Address
-      try {
-        const { error: profileError } = await client
-          .from('profiles')
-          .upsert({
-            id: currentUser.id,
-            full_name: shippingData.name,
-            phone_number: shippingData.phone,
-            zip_code: shippingData.zipCode,
-            address: shippingData.address,
-            address_detail: shippingData.addressDetail,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'id' });
-          
-        if (profileError) {
-          console.error('Profile address sync error:', profileError);
-        }
-      } catch (syncError) {
-        console.error('Profile address sync exception:', syncError);
-      }
-      
       // 1. Prepare Order Data
-      const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const orderId = crypto.randomUUID();
+      const orderNumber = `ORD-${Date.now().toString().slice(-6)}-${orderId.split('-')[0].toUpperCase()}`;
       
       const pendingOrderData = {
         order_number: orderNumber,
         user_id: currentUser.id,
         user_custom_id: profile?.user_custom_id || null,
         total_price: selectedTotalPrice,
-        status: 'PAID', // Will be created as PAID upon success
+        status: 'PENDING', // Create as PENDING first
         shipping_name: shippingData.name,
         shipping_phone: shippingData.phone,
         zip_code: shippingData.zipCode,
@@ -278,7 +268,19 @@ export default function Cart() {
         }))
       };
 
-      // 2. Prepare Order Items Data
+      // 2. Insert PENDING order to DB securely
+      const { data: insertedOrder, error: insertError } = await client
+        .from('orders')
+        .insert([pendingOrderData])
+        .select()
+        .single();
+        
+      if (insertError) {
+        console.error('Order creation error:', insertError);
+        throw new Error('주문 생성에 실패했습니다.');
+      }
+
+      // 3. Prepare and Insert Order Items Data
       const pendingOrderItems = selectedItems.map(item => {
         // Calculate price based on item type
         let price = 0;
@@ -297,6 +299,7 @@ export default function Cart() {
         }
         
         return {
+          order_id: insertedOrder.id,
           product_id: item.product_id === 'workshop-single' ? null : item.product_id,
           product_title: title,
           option: optionName,
@@ -305,12 +308,16 @@ export default function Cart() {
         };
       });
 
-      sessionStorage.setItem('pendingOrder', JSON.stringify({
-        order: pendingOrderData,
-        items: pendingOrderItems
-      }));
+      const { error: itemsError } = await client
+        .from('order_items')
+        .insert(pendingOrderItems);
 
-      // 3. Initialize Toss Payments
+      if (itemsError) {
+        console.error('Order items creation error:', itemsError);
+        // We continue anyway as the main order is created, but log it
+      }
+
+      // 4. Initialize Toss Payments
       const tossPayments = await loadTossPayments(TOSS_CLIENT_KEY);
       
       const orderName = selectedItems.length > 1 
@@ -478,7 +485,7 @@ export default function Cart() {
                         e.stopPropagation();
                         onClose();
                         if (isWorkshop) {
-                          navigate(`/product/workshop-single`, { state: { cartItem: item } });
+                          navigate(`/workshop/detail`, { state: { cartItem: item } });
                         } else {
                           navigate(`/product/${item.product_id}`);
                         }

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Product } from '../data/products';
-import { getOptimizedImageUrl } from '../lib/utils';
+import { getOptimizedImageUrl, FALLBACK_IMAGE } from '../lib/utils';
 
 interface ProductCardProps {
   product: Product;
@@ -11,7 +11,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   const [isLoaded, setIsLoaded] = React.useState(false);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    e.currentTarget.src = 'https://picsum.photos/seed/metalora_fallback/210/297';
+    e.currentTarget.src = FALLBACK_IMAGE;
     e.currentTarget.onerror = null; // Prevent infinite loop
   };
 
