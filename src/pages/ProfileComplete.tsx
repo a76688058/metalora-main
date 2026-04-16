@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import DaumPostcode from 'react-daum-postcode';
@@ -9,11 +8,11 @@ import { Loader2, X } from 'lucide-react';
 
 export default function ProfileComplete() {
   const { user, profile, adminProfile, refreshProfile } = useAuth();
-  const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectUrl = searchParams.get('redirect') || '/';
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [isPostcodeOpen, setIsPostcodeOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [formData, setFormData] = useState({
@@ -99,9 +98,11 @@ export default function ProfileComplete() {
       if (error) throw error;
       
       await refreshProfile();
-      showToast('배송 정보가 저장되었습니다.', 'success');
+      setIsSuccess(true);
       
-      navigate(redirectUrl);
+      setTimeout(() => {
+        navigate(redirectUrl);
+      }, 1500);
     } catch (error: any) {
       console.error('Profile update error:', error);
       setErrorMsg(error.message || '저장 중 오류가 발생했습니다.');
@@ -192,11 +193,31 @@ export default function ProfileComplete() {
 
           <button
             type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2 mt-8 text-lg"
+            disabled={isSubmitting || isSuccess}
+            className={`w-full h-16 font-bold text-base rounded-2xl transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50 mt-8 ${
+              isSuccess 
+                ? 'bg-emerald-500 text-white' 
+                : 'bg-white text-black hover:bg-zinc-200 shadow-[0_10px_30px_rgba(255,255,255,0.1)]'
+            }`}
           >
-            {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : null}
-            저장하고 완료하기
+            {isSubmitting ? (
+              <Loader2 className="animate-spin" size={20} />
+            ) : isSuccess ? (
+              <>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', damping: 12, stiffness: 200 }}
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </motion.div>
+                <span>저장 완료</span>
+              </>
+            ) : (
+              "저장하고 완료하기"
+            )}
           </button>
         </form>
       </motion.div>

@@ -6,7 +6,6 @@ import { OrbitControls, Html, ContactShadows, Environment } from '@react-three/d
 import * as THREE from 'three';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { useToast } from '../context/ToastContext';
 import Poster3D from '../components/Poster3D';
 import LoginModal from '../components/LoginModal';
 import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, Frame, Package, Maximize, X } from 'lucide-react';

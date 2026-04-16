@@ -1,5 +1,5 @@
 {
-  "name": "메탈 액자의 기준, 메탈로라 | METALORA",
+  "name": "메탈로라",
   "short_name": "메탈로라",
   "start_url": "/",
   "display": "standalone",
@@ -7,12 +7,12 @@
   "theme_color": "#0F0F11",
   "icons": [
     {
-      "src": "https://postfiles.pstatic.net/MjAyNjA0MTBfMjQ2/MDAxNzc1ODA3NDc3Mzk5.Y5zLtBg2H25kHAELQCpz6uLYFidsoPiVGMzxPwuiQF4g.qG7FTctfIgWLAP0elEOYBZqF-Pea2OuCiR7WQF0Qn2Eg.PNG/Gemini_Generated_Image_mcnx7jmcnx7jmcnx_(1).png?type=w3840",
+      "src": "https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "https://postfiles.pstatic.net/MjAyNjA0MTBfMjQ2/MDAxNzc1ODA3NDc3Mzk5.Y5zLtBg2H25kHAELQCpz6uLYFidsoPiVGMzxPwuiQF4g.qG7FTctfIgWLAP0elEOYBZqF-Pea2OuCiR7WQF0Qn2Eg.PNG/Gemini_Generated_Image_mcnx7jmcnx7jmcnx_(1).png?type=w3840",
+      "src": "https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840",
       "sizes": "512x512",
       "type": "image/png"
     }

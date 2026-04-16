@@ -32,7 +32,7 @@ import InquiryModal from './components/InquiryModal';
 import WorkshopOverlay from './components/WorkshopOverlay';
 import { ProductProvider } from './context/ProductContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { ToastProvider, useToast } from './context/ToastContext';
+import { ToastProvider } from './context/ToastContext';
 import { CartProvider, useCart } from './context/CartContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 
@@ -70,7 +70,6 @@ function ScrollToTop() {
 // Middleware Protected Route Component
 function ProtectedRoute({ children, requireAdmin = false }: { children: React.ReactNode, requireAdmin?: boolean }) {
   const { user, profile, adminUser, adminProfile, isLoading } = useAuth();
-  const { showToast } = useToast();
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -82,7 +81,6 @@ function ProtectedRoute({ children, requireAdmin = false }: { children: React.Re
     if (!isAdmin) {
       if (user || adminUser) {
         // Logged in but not an admin
-        showToast('관리자 권한이 없습니다.', 'error');
         return <Navigate to="/" replace />;
       }
       return <Navigate to="/admin/login" replace />;

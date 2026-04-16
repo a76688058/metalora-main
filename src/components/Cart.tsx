@@ -4,7 +4,6 @@ import { motion, AnimatePresence, animate } from 'framer-motion';
 import { X, ShoppingBag, ChevronRight, MapPin, CreditCard, CheckCircle2, Loader2, Trash2, Plus, Minus, Search, Check } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { loadTossPayments } from '@tosspayments/payment-sdk';
@@ -35,10 +34,10 @@ export default function Cart() {
   }, [isOpen]);
 
   const { user, adminUser, profile, adminProfile } = useAuth();
-  const { showToast } = useToast();
   const [step, setStep] = useState(1); // 1: List, 2: Order Form
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [displayPrice, setDisplayPrice] = useState(0);
 
@@ -184,7 +183,8 @@ export default function Cart() {
 
   const handleOpenPostcode = () => {
     if (!(window as any).daum || !(window as any).daum.Postcode) {
-      showToast('주소 서비스 로딩 중입니다. 잠시 후 다시 시도해주세요.', 'error');
+      setErrorMsg('주소 서비스 로딩 중입니다. 잠시 후 다시 시도해주세요.');
+      setTimeout(() => setErrorMsg(''), 3000);
       return;
     }
     
@@ -222,12 +222,14 @@ export default function Cart() {
     const currentUser = user || adminUser;
     if (!currentUser) return;
     if (!shippingData.name || !shippingData.phone || !shippingData.address || !shippingData.zipCode || !shippingData.addressDetail) {
-      showToast('배송 정보를 모두 입력해 주세요.', 'error');
+      setErrorMsg('배송 정보를 모두 입력해 주세요.');
+      setTimeout(() => setErrorMsg(''), 3000);
       return;
     }
 
     if (!isAllConsented) {
-      showToast('필수 약관에 모두 동의해 주세요.', 'error');
+      setErrorMsg('필수 약관에 모두 동의해 주세요.');
+      setTimeout(() => setErrorMsg(''), 3000);
       return;
     }
 
@@ -337,7 +339,8 @@ export default function Cart() {
     } catch (error: any) {
       console.error('Payment Error:', error);
       const errorMessage = error?.message || '결제 요청 중 오류가 발생했습니다.';
-      showToast(errorMessage, 'error');
+      setErrorMsg(errorMessage);
+      setTimeout(() => setErrorMsg(''), 3000);
     } finally {
       setIsProcessing(false);
     }
@@ -721,6 +724,12 @@ export default function Cart() {
             <span className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{displayPrice.toLocaleString()}</span>
           </div>
           
+          {errorMsg && (
+            <div className="text-center text-red-500 text-sm font-bold animate-pulse bg-red-500/10 py-2 rounded-xl backdrop-blur-md border border-red-500/20 mb-4">
+              {errorMsg}
+            </div>
+          )}
+
           <div className="flex gap-3">
             {step === 2 && (
               <button 

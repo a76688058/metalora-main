@@ -42,7 +42,7 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
           .select('*')
           .eq('user_id', user.id)
           .eq('agreement_version', 'ML_Legal_v260325')
-          .single();
+          .maybeSingle();
 
         if (data && !error) {
           // Already agreed, redirect

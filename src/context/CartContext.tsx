@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
-import { useToast } from './ToastContext';
 import { Product } from '../data/products';
 
 interface CartItem {
@@ -38,7 +37,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const { user, adminUser } = useAuth();
-  const { showToast } = useToast();
 
   const openCart = () => setIsCartOpen(true);
   const closeCart = () => setIsCartOpen(false);
@@ -151,8 +149,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       
       if (!currentUserId) {
         console.error('Auth Error: No user session found in context or storage');
-        showToast('로그인이 필요합니다.', 'error');
-        return;
+        throw new Error('로그인이 필요합니다.');
       }
 
       console.log('User ID:', currentUserId);
@@ -209,10 +206,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
 
       await refreshCart();
-      showToast('내 컬렉션에 안전하게 담겼습니다', 'success');
     } catch (error: any) {
       console.error('Final AddToCart Error:', error);
-      showToast(`컬렉션 담기에 실패했습니다: ${error.message || '알 수 없는 오류'}`, 'error');
+      throw error;
     } finally {
       setIsLoading(false);
       console.log('--- ADD TO CART DEBUG END ---');
@@ -242,10 +238,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       
       await refreshCart();
-      showToast('상품이 삭제되었습니다.', 'success');
     } catch (error) {
       console.error('Error removing from cart:', error);
-      showToast('삭제에 실패했습니다.', 'error');
+      throw error;
     }
   };
 

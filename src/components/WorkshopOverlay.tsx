@@ -56,7 +56,7 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
           .select('*')
           .eq('user_id', user.id)
           .eq('agreement_version', 'ML_Legal_v260325')
-          .single();
+          .maybeSingle();
 
         if (data && !error) {
           setView('workshop');

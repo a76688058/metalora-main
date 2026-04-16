@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
 import { 
-  ChevronLeft, Plus, MessageSquare, Loader2, Send, X 
+  ChevronLeft, Plus, MessageSquare, Loader2, Send, X, Check 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
 
 interface InquiryModalProps {
   isOpen: boolean;
@@ -17,12 +16,13 @@ interface InquiryModalProps {
 export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
   const { user, openProfile } = useAuth();
   const { theme } = useTheme();
-  const { showToast } = useToast();
   const navigate = useNavigate();
   
   const [inquiries, setInquiries] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [selectedInquiry, setSelectedInquiry] = useState<any>(null);
   
@@ -95,11 +95,13 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      showToast('로그인이 필요한 서비스입니다.', 'info');
+      setErrorMsg('로그인이 필요한 서비스입니다.');
+      setTimeout(() => setErrorMsg(''), 3000);
       return;
     }
     if (!title.trim() || !content.trim()) {
-      showToast('제목과 내용을 입력해주세요.', 'error');
+      setErrorMsg('제목과 내용을 입력해주세요.');
+      setTimeout(() => setErrorMsg(''), 3000);
       return;
     }
 
@@ -122,14 +124,18 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
 
       if (error) throw error;
 
-      showToast('문의가 접수되었습니다.', 'success');
-      setTitle('');
-      setContent('');
-      setShowForm(false);
-      fetchInquiries();
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        setTitle('');
+        setContent('');
+        setShowForm(false);
+        fetchInquiries();
+      }, 1500);
     } catch (error: any) {
       console.error('CS Inquiry Submission Failed:', error.message || error);
-      showToast('문의 접수에 실패했습니다. 다시 시도해주세요.', 'error');
+      setErrorMsg('문의 접수에 실패했습니다. 다시 시도해주세요.');
+      setTimeout(() => setErrorMsg(''), 3000);
     } finally {
       setIsSubmitting(false);
     }
@@ -242,24 +248,38 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                           </div>
                         </div>
 
-                        <button
-                          type="submit"
-                          disabled={isSubmitting}
-                          className={`w-full h-20 font-bold tracking-tight rounded-2xl transition-all flex items-center justify-center gap-3 disabled:opacity-50 text-xl active:scale-[0.98] ${
-                            theme === 'dark' 
-                              ? 'bg-white text-black hover:bg-zinc-200 shadow-[0_10px_30px_rgba(255,255,255,0.1)]' 
-                              : 'bg-black text-white hover:bg-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.1)]'
-                          }`}
-                        >
-                          {isSubmitting ? (
-                            <Loader2 className="animate-spin" size={28} />
-                          ) : (
-                            <>
-                              <Send size={24} strokeWidth={2.5} />
-                              <span>문의 보내기</span>
-                            </>
+                        <div className="space-y-4">
+                          {errorMsg && (
+                            <div className="text-center text-red-500 text-sm font-bold animate-pulse bg-red-500/10 py-2 rounded-xl backdrop-blur-md border border-red-500/20">
+                              {errorMsg}
+                            </div>
                           )}
-                        </button>
+                          <button
+                            type="submit"
+                            disabled={isSubmitting || isSuccess}
+                            className={`w-full h-20 font-bold tracking-tight rounded-2xl transition-all flex items-center justify-center gap-3 disabled:opacity-50 text-xl active:scale-[0.98] ${
+                              isSuccess
+                                ? theme === 'dark' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-green-50 text-green-600 border border-green-200'
+                                : theme === 'dark' 
+                                  ? 'bg-white text-black hover:bg-zinc-200 shadow-[0_10px_30px_rgba(255,255,255,0.1)]' 
+                                  : 'bg-black text-white hover:bg-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.1)]'
+                            }`}
+                          >
+                            {isSubmitting ? (
+                              <Loader2 className="animate-spin" size={28} />
+                            ) : isSuccess ? (
+                              <>
+                                <Check size={24} className="text-green-400" />
+                                <span>접수 완료</span>
+                              </>
+                            ) : (
+                              <>
+                                <Send size={24} strokeWidth={2.5} />
+                                <span>문의 보내기</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </form>
                     </motion.div>
                   ) : selectedInquiry ? (

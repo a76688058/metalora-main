@@ -8,7 +8,6 @@ import Header from '../Header';
 import LoadingScreen from '../LoadingScreen';
 import ErrorBoundary from '../ErrorBoundary';
 import { supabase } from '../../lib/supabase';
-import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -192,11 +191,11 @@ interface WorkshopViewProps {
 export default function WorkshopView({ onBack, onClose, hideHeader = false }: WorkshopViewProps) {
   const { user } = useAuth();
   const { theme } = useTheme();
-  const { showToast } = useToast();
   const { addToCart, openCart } = useCart();
   const [currentStep, setCurrentStep] = useState(1);
   const [direction, setDirection] = useState(1);
   const totalSteps = STEPS.length;
+  const [errorMsg, setErrorMsg] = useState('');
 
   // Workshop State
   const [materialType, setMaterialType] = useState<'aluminum'>('aluminum');
@@ -442,7 +441,8 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
         const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
         
         if (userError || !currentUser) {
-          showToast("로그인이 필요합니다.", "error");
+          setErrorMsg("로그인이 필요합니다.");
+          setTimeout(() => setErrorMsg(''), 3000);
           setIsUploading(false);
           return;
         }
@@ -460,7 +460,8 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
 
           if (uploadError) {
             console.error('Storage upload error during checkout:', uploadError);
-            showToast("이미지 업로드에 실패했습니다. 다시 시도해주세요.", "error");
+            setErrorMsg("이미지 업로드에 실패했습니다. 다시 시도해주세요.");
+            setTimeout(() => setErrorMsg(''), 3000);
             setIsUploading(false);
             return;
           }
@@ -507,8 +508,9 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
         setTimeout(() => openCart(), 100);
       } catch (err: any) {
         console.error('Failed to save to collection:', err);
-        const errorMsg = err.message || err.details || JSON.stringify(err);
-        showToast(`컬렉션 저장 중 오류가 발생했습니다: ${errorMsg}`, "error");
+        const errorMessage = err.message || err.details || JSON.stringify(err);
+        setErrorMsg(`컬렉션 저장 중 오류가 발생했습니다: ${errorMessage}`);
+        setTimeout(() => setErrorMsg(''), 3000);
         setIsUploading(false);
       }
     } else {
@@ -897,6 +899,11 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
         theme === 'dark' ? 'bg-gradient-to-t from-black via-black/90 to-transparent' : 'bg-gradient-to-t from-white via-white/90 to-transparent'
       }`}>
         <div className="max-w-xl mx-auto w-full pointer-events-auto">
+          {errorMsg && (
+            <div className="text-center text-red-500 text-sm font-bold animate-pulse bg-red-500/10 py-2 rounded-xl backdrop-blur-md border border-red-500/20 mb-4">
+              {errorMsg}
+            </div>
+          )}
           <button
             onClick={handleActionClick}
             disabled={isButtonDisabled}

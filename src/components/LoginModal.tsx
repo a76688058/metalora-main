@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { Loader2, X, Check } from 'lucide-react';
@@ -76,7 +75,6 @@ const CheckboxRow = ({
 
 export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '/' }: LoginModalProps) {
   const { user, profile, refreshSession } = useAuth();
-  const { showToast } = useToast();
   const { theme } = useTheme();
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [isConsentOpen, setIsConsentOpen] = useState(false);
@@ -378,7 +376,8 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           
           if (signInError) {
             if (signInError.message.includes('Email not confirmed')) {
-              showToast('회원가입은 완료되었으나 이메일 인증이 필요합니다.', 'info');
+              setSuccessMsg('회원가입은 완료되었으나 이메일 인증이 필요합니다.');
+              setTimeout(() => setSuccessMsg(''), 3000);
               setIsConsentOpen(false);
               return;
             }
@@ -390,7 +389,8 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           }
         }
         
-        showToast('METALORA 멤버십 가입을 환영합니다!', 'purple');
+        setSuccessMsg('METALORA 멤버십 가입을 환영합니다!');
+        setTimeout(() => setSuccessMsg(''), 3000);
         setIsConsentOpen(false);
         if (onSuccess) {
           onSuccess();

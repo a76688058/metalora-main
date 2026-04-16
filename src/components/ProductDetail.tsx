@@ -7,7 +7,6 @@ import * as THREE from 'three';
 import { useProducts } from '../context/ProductContext';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
 import Poster3D from './Poster3D';
 import LoginModal from './LoginModal';
@@ -75,7 +74,6 @@ export default function ProductDetail() {
   const cartItemFromState = location.state?.cartItem;
   const { products, fetchProducts, isLoading, isError } = useProducts();
   const { user, adminUser, profile } = useAuth();
-  const { showToast } = useToast();
   const { addToCart, openCart } = useCart();
   const { theme } = useTheme();
   
@@ -161,7 +159,8 @@ export default function ProductDetail() {
     }
 
     if (!product?.id || !selectedOptionId) {
-      showToast('상품 옵션을 선택해주세요.', 'error');
+      setErrorMsg('상품 옵션을 선택해주세요.');
+      setTimeout(() => setErrorMsg(''), 3000);
       return;
     }
 

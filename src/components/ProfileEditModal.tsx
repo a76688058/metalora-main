@@ -4,9 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
 import { 
-  Loader2, X, ChevronLeft
+  Loader2, X, ChevronLeft, Check
 } from 'lucide-react';
-import { useToast } from '../context/ToastContext';
 
 interface ProfileEditModalProps {
   isOpen: boolean;
@@ -16,8 +15,9 @@ interface ProfileEditModalProps {
 export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
   const { user, profile, refreshProfile, openProfile } = useAuth();
   const { theme } = useTheme();
-  const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   
   const handleBack = () => {
     onClose();
@@ -148,10 +148,12 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
       if (error) throw error;
       
       await refreshProfile();
-      showToast("정보가 성공적으로 수정되었습니다.", 'success');
+      setIsSuccess(true);
+      setTimeout(() => setIsSuccess(false), 2000);
       // onClose(); // Removed to keep the modal open after saving
     } catch (error: any) {
-      showToast("수정 실패: " + error.message, 'error');
+      setErrorMsg("수정 실패: " + error.message);
+      setTimeout(() => setErrorMsg(''), 3000);
     } finally {
       setIsLoading(false);
     }
@@ -311,18 +313,30 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                 </section>
 
                 {/* Save Button */}
-                <div className="pt-4 pb-8">
+                <div className="pt-4 pb-8 space-y-4">
+                  {errorMsg && (
+                    <div className="text-center text-red-500 text-sm font-bold animate-pulse bg-red-500/10 py-2 rounded-xl backdrop-blur-md border border-red-500/20">
+                      {errorMsg}
+                    </div>
+                  )}
                   <button
                     type="submit"
-                    disabled={isLoading}
+                    disabled={isLoading || isSuccess}
                     className={`w-full h-16 font-bold text-base rounded-2xl transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50 ${
-                      theme === 'dark' 
-                        ? 'bg-white text-black hover:bg-zinc-200 shadow-[0_10px_30px_rgba(255,255,255,0.1)]' 
-                        : 'bg-black text-white hover:bg-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.1)]'
+                      isSuccess
+                        ? theme === 'dark' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-green-50 text-green-600 border border-green-200'
+                        : theme === 'dark' 
+                          ? 'bg-white text-black hover:bg-zinc-200 shadow-[0_10px_30px_rgba(255,255,255,0.1)]' 
+                          : 'bg-black text-white hover:bg-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.1)]'
                     }`}
                   >
                     {isLoading ? (
                       <Loader2 className="animate-spin" size={20} />
+                    ) : isSuccess ? (
+                      <>
+                        <Check size={20} className="text-green-400" />
+                        <span>저장 완료</span>
+                      </>
                     ) : (
                       "변경사항 저장하기"
                     )}
