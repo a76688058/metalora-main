@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await client
         .from('profiles')
-        .select('*, address_detail')
+        .select('id, user_custom_id, full_name, email, phone_number, zip_code, address, address_detail, avatar_url, total_spent, is_admin, role, created_at, updated_at')
         .eq('id', userId)
         .single();
         
@@ -365,16 +365,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const value = React.useMemo(() => ({ 
+    session, user, profile, 
+    adminSession, adminUser, adminProfile,
+    isLoading, isLoggingOut, isProfileOpen, isWorkshopOpen, isProfileEditOpen, isOrdersOpen, isInquiryOpen,
+    signOut, refreshProfile, refreshSession,
+    openProfile, closeProfile, openWorkshop, closeWorkshop,
+    openProfileEdit, closeProfileEdit, openOrders, closeOrders,
+    openInquiry, closeInquiry
+  }), [
+    session, user, profile, 
+    adminSession, adminUser, adminProfile,
+    isLoading, isLoggingOut, isProfileOpen, isWorkshopOpen, isProfileEditOpen, isOrdersOpen, isInquiryOpen
+  ]);
+
   return (
-    <AuthContext.Provider value={{ 
-      session, user, profile, 
-      adminSession, adminUser, adminProfile,
-      isLoading, isLoggingOut, isProfileOpen, isWorkshopOpen, isProfileEditOpen, isOrdersOpen, isInquiryOpen,
-      signOut, refreshProfile, refreshSession,
-      openProfile, closeProfile, openWorkshop, closeWorkshop,
-      openProfileEdit, closeProfileEdit, openOrders, closeOrders,
-      openInquiry, closeInquiry
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

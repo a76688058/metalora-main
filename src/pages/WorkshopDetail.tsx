@@ -117,7 +117,7 @@ export default function WorkshopDetail() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className={`fixed inset-0 z-[50000] backdrop-blur-xl flex flex-col pointer-events-auto transition-colors duration-500 ${
+            className={`fixed inset-0 z-[50000] backdrop-blur-xl flex flex-col pointer-events-auto touch-none transition-colors duration-500 ${
               theme === 'dark' ? 'bg-black/95' : 'bg-white/95'
             }`}
           >

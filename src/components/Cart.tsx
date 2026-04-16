@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { loadTossPayments } from '@tosspayments/payment-sdk';
+import { loadScript } from '../lib/utils';
 
 interface CartProps {
   isOpen: boolean;
@@ -14,6 +15,29 @@ interface CartProps {
 }
 
 const TOSS_CLIENT_KEY = import.meta.env.VITE_TOSS_CLIENT_KEY || 'test_ck_Poxy1XQL8R9nPR9Xn61Xr7nO5Wml';
+
+const CONSENT_TEXTS = {
+  content: {
+    title: '콘텐츠 권리 책임 동의',
+    items: [
+      '업로드한 이미지의 <strong class="text-fuchsia-500">저작권 및 초상권</strong>은 본인에게 있습니다.',
+      '권리자의 허가 없이 사용 시 발생하는 <strong class="text-fuchsia-500">모든 법적 책임</strong>은 본인에게 있습니다.'
+    ]
+  },
+  refund: {
+    title: '환불 정책 동의',
+    items: [
+      '<strong class="text-fuchsia-500">주문 제작 상품</strong>은 단순 변심에 의한 <strong class="text-fuchsia-500">환불이 제한</strong>됩니다.',
+      '<strong class="text-fuchsia-500">하자 또는 오배송</strong> 시에만 재제작 또는 환불이 가능합니다.'
+    ]
+  },
+  terms: {
+    title: '전체 약관 동의',
+    items: [
+      '<strong class="text-fuchsia-500">이용약관, 개인정보처리방침, 쿠키 정책, 커스텀 제작 동의서</strong>를 모두 확인하였으며 이에 동의합니다.'
+    ]
+  }
+};
 
 export default function Cart() {
   const navigate = useNavigate();
@@ -48,13 +72,20 @@ export default function Cart() {
     }
   }, [isOpen, cartItems.length]);
 
-  const selectedItems = cartItems.filter(item => selectedIds.has(item.id));
-  const selectedTotalPrice = selectedItems.reduce((sum, item) => {
-    const price = item.product_type === 'workshop' 
-      ? (item.custom_config?.price || 0) 
-      : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
-    return sum + (price * item.quantity);
-  }, 0);
+  const selectedItems = React.useMemo(() => 
+    cartItems.filter(item => selectedIds.has(item.id)),
+    [cartItems, selectedIds]
+  );
+
+  const selectedTotalPrice = React.useMemo(() => 
+    selectedItems.reduce((sum, item) => {
+      const price = item.product_type === 'workshop' 
+        ? (item.custom_config?.price || 0) 
+        : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
+      return sum + (price * item.quantity);
+    }, 0),
+    [selectedItems]
+  );
 
   // Toss-style price animation
   useEffect(() => {
@@ -115,35 +146,19 @@ export default function Cart() {
     }
   }, [isBottomSheetOpen]);
 
-  const hasWorkshopItems = selectedItems.some(item => item.product_type === 'workshop');
-  const isAllConsented = consents.refund && consents.terms && (!hasWorkshopItems || consents.content);
+  const hasWorkshopItems = React.useMemo(() => 
+    selectedItems.some(item => item.product_type === 'workshop'),
+    [selectedItems]
+  );
+
+  const isAllConsented = React.useMemo(() => 
+    consents.refund && consents.terms && (!hasWorkshopItems || consents.content),
+    [consents, hasWorkshopItems]
+  );
 
   // Helper to get the correct supabase client based on active session
   const getClient = () => {
     return supabase;
-  };
-
-  const CONSENT_TEXTS = {
-    content: {
-      title: '콘텐츠 권리 책임 동의',
-      items: [
-        '업로드한 이미지의 <strong class="text-fuchsia-500">저작권 및 초상권</strong>은 본인에게 있습니다.',
-        '권리자의 허가 없이 사용 시 발생하는 <strong class="text-fuchsia-500">모든 법적 책임</strong>은 본인에게 있습니다.'
-      ]
-    },
-    refund: {
-      title: '환불 정책 동의',
-      items: [
-        '<strong class="text-fuchsia-500">주문 제작 상품</strong>은 단순 변심에 의한 <strong class="text-fuchsia-500">환불이 제한</strong>됩니다.',
-        '<strong class="text-fuchsia-500">하자 또는 오배송</strong> 시에만 재제작 또는 환불이 가능합니다.'
-      ]
-    },
-    terms: {
-      title: '전체 약관 동의',
-      items: [
-        '<strong class="text-fuchsia-500">이용약관, 개인정보처리방침, 쿠키 정책, 커스텀 제작 동의서</strong>를 모두 확인하였으며 이에 동의합니다.'
-      ]
-    }
   };
 
   // Initialize shipping data from profile
@@ -161,24 +176,8 @@ export default function Cart() {
 
   // Daum Postcode Script Loading
   useEffect(() => {
-    const scriptId = 'daum-postcode-script';
-    let script = document.getElementById(scriptId) as HTMLScriptElement;
-    let addedByUs = false;
-
-    if (!script) {
-      script = document.createElement('script');
-      script.id = scriptId;
-      script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
-      script.async = true;
-      document.body.appendChild(script);
-      addedByUs = true;
-    }
-
-    return () => {
-      if (addedByUs && script && script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-    };
+    loadScript('https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js')
+      .catch(err => console.error('Failed to load Daum Postcode script:', err));
   }, []);
 
   const handleOpenPostcode = () => {
@@ -227,6 +226,13 @@ export default function Cart() {
       return;
     }
 
+    const phoneRegex = /^01([0|1|6|7|8|9])-?([0-9]{3,4})-?([0-9]{4})$/;
+    if (!phoneRegex.test(shippingData.phone)) {
+      setErrorMsg('올바른 연락처 형식이 아닙니다. (예: 010-0000-0000)');
+      setTimeout(() => setErrorMsg(''), 3000);
+      return;
+    }
+
     if (!isAllConsented) {
       setErrorMsg('필수 약관에 모두 동의해 주세요.');
       setTimeout(() => setErrorMsg(''), 3000);
@@ -237,7 +243,16 @@ export default function Cart() {
       setIsProcessing(true);
       const client = getClient();
       
-      // 1. Prepare Order Data
+      // 1. 무결성 검증 (Integrity Check)
+      if (selectedTotalPrice <= 0) {
+        throw new Error('결제 금액이 0원 이하입니다.');
+      }
+      
+      if (selectedItems.length === 0) {
+        throw new Error('선택된 상품이 없습니다.');
+      }
+      
+      // 2. Prepare Order Data
       const orderId = crypto.randomUUID();
       const orderNumber = `ORD-${Date.now().toString().slice(-6)}-${orderId.split('-')[0].toUpperCase()}`;
       
@@ -432,7 +447,7 @@ export default function Cart() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-6">
+        <div className="flex-1 overflow-y-auto custom-scrollbar overscroll-contain px-6">
           <AnimatePresence mode="wait">
             {step === 1 ? (
               <motion.div
@@ -607,7 +622,7 @@ export default function Cart() {
                           type="text"
                           value={shippingData.name}
                           onChange={(e) => setShippingData({...shippingData, name: e.target.value})}
-                          className={`w-full border-none rounded-2xl px-4 py-4 placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all ${
+                          className={`w-full border-none rounded-2xl px-4 py-4 text-base md:text-sm placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all ${
                             theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
                           }`}
                           placeholder="이름을 입력해주세요"
@@ -619,7 +634,7 @@ export default function Cart() {
                           type="tel"
                           value={shippingData.phone}
                           onChange={(e) => setShippingData({...shippingData, phone: e.target.value})}
-                          className={`w-full border-none rounded-2xl px-4 py-4 placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all ${
+                          className={`w-full border-none rounded-2xl px-4 py-4 text-base md:text-sm placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all ${
                             theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
                           }`}
                           placeholder="010-0000-0000"
@@ -636,7 +651,7 @@ export default function Cart() {
                           type="text"
                           readOnly
                           value={shippingData.zipCode}
-                          className={`w-28 border-none rounded-2xl px-4 py-4 focus:ring-2 focus:ring-[#3182F6] transition-all ${
+                          className={`w-28 border-none rounded-2xl px-4 py-4 text-base md:text-sm focus:ring-2 focus:ring-[#3182F6] transition-all ${
                             theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
                           }`}
                           placeholder="우편번호"
@@ -665,7 +680,7 @@ export default function Cart() {
                         type="text"
                         readOnly
                         value={shippingData.address}
-                        className={`w-full border-none rounded-2xl px-4 py-4 focus:ring-2 focus:ring-[#3182F6] transition-all ${
+                        className={`w-full border-none rounded-2xl px-4 py-4 text-base md:text-sm focus:ring-2 focus:ring-[#3182F6] transition-all ${
                           theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
                         }`}
                         placeholder="기본 주소"
@@ -674,7 +689,7 @@ export default function Cart() {
                         type="text"
                         value={shippingData.addressDetail}
                         onChange={(e) => setShippingData({...shippingData, addressDetail: e.target.value})}
-                        className={`w-full border-none rounded-2xl px-4 py-4 placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all ${
+                        className={`w-full border-none rounded-2xl px-4 py-4 text-base md:text-sm placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all ${
                           theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
                         }`}
                         placeholder="상세 주소를 입력해주세요"
@@ -718,7 +733,7 @@ export default function Cart() {
         </div>
 
         {/* Footer */}
-        <div className={`px-6 pt-6 pb-12 border-t transition-colors duration-500 ${theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'}`}>
+        <div className={`px-6 pt-6 pb-[calc(3rem+env(safe-area-inset-bottom))] border-t transition-colors duration-500 ${theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'}`}>
           <div className="flex justify-between items-end mb-6 px-2">
             <span className="text-zinc-400 font-medium">총 결제 금액</span>
             <span className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{displayPrice.toLocaleString()}</span>
@@ -788,7 +803,7 @@ export default function Cart() {
                   <X size={20} />
                 </button>
               </div>
-              <div className={`p-8 max-h-[60vh] overflow-y-auto space-y-6 ${theme === 'dark' ? 'bg-black' : 'bg-zinc-50'}`}>
+              <div className={`p-8 max-h-[60vh] overflow-y-auto overscroll-contain space-y-6 ${theme === 'dark' ? 'bg-black' : 'bg-zinc-50'}`}>
                 {CONSENT_TEXTS[consentModal.type].items.map((item, idx) => (
                   <div key={idx} className="flex gap-4 items-start">
                     <div className="mt-2 w-1.5 h-1.5 rounded-full bg-fuchsia-500 shrink-0 shadow-[0_0_8px_rgba(217,70,239,0.5)]" />

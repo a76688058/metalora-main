@@ -141,7 +141,7 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 pb-[max(2rem,env(safe-area-inset-bottom))] custom-scrollbar">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-6 pb-[max(2rem,env(safe-area-inset-bottom))] custom-scrollbar">
           {/* User Greeting */}
           <div className="mb-10 px-2 pt-4">
             <motion.div 

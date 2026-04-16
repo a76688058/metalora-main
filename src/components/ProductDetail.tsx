@@ -78,11 +78,19 @@ export default function ProductDetail() {
   const { theme } = useTheme();
   
   const currentUser = user || adminUser;
-  const product = products.find((p) => p.id === id);
+  const product = React.useMemo(() => 
+    products.find((p) => p.id === id),
+    [products, id]
+  );
 
   const navigate = useNavigate();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
+  
+  const selectedOption = React.useMemo(() => 
+    product?.options?.find((opt) => opt.id === selectedOptionId),
+    [product, selectedOptionId]
+  );
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
@@ -148,7 +156,6 @@ export default function ProductDetail() {
     return <div className={`text-center py-20 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>상품을 찾을 수 없습니다</div>;
   }
 
-  const selectedOption = product.options?.find(opt => opt.id === selectedOptionId);
   const isSoldOut = !selectedOption || selectedOption.stock <= 0 || !selectedOption.isActive;
   const currentPrice = selectedOption ? selectedOption.price : 0;
 
@@ -212,7 +219,7 @@ export default function ProductDetail() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className={`fixed inset-0 z-[50000] backdrop-blur-xl flex flex-col pointer-events-auto transition-colors duration-500 ${
+            className={`fixed inset-0 z-[50000] backdrop-blur-xl flex flex-col pointer-events-auto touch-none transition-colors duration-500 ${
               theme === 'dark' ? 'bg-black/95' : 'bg-white/95'
             }`}
           >

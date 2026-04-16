@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, Search } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { loadScript } from '../lib/utils';
 
 interface ShippingModalProps {
   isOpen: boolean;
@@ -27,16 +28,9 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
   const postcodeContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const scriptId = 'daum-postcode-script';
-    if (document.getElementById(scriptId)) {
-      setIsScriptLoaded(true);
-      return;
-    }
-    const script = document.createElement('script');
-    script.id = scriptId;
-    script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
-    script.onload = () => setIsScriptLoaded(true);
-    document.body.appendChild(script);
+    loadScript('https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js')
+      .then(() => setIsScriptLoaded(true))
+      .catch(err => console.error('Failed to load Daum Postcode script:', err));
   }, []);
 
   useEffect(() => {
@@ -194,7 +188,7 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[9999] bg-[#121212] flex flex-col overflow-y-auto custom-scrollbar p-6 md:p-10">
+        <div className="fixed inset-0 z-[9999] bg-[#121212] flex flex-col overflow-y-auto overscroll-contain custom-scrollbar p-6 md:p-10">
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}

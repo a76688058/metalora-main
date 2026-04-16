@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Environment, Float, PerspectiveCamera, useTexture } from '@react-three/drei';
@@ -82,7 +82,7 @@ function CinematicPoster({ progress, theme }: { progress: any, theme: string }) 
       posterTexture.needsUpdate = true;
     }
 
-    return [
+    const mats = [
       sideMaterial, // right
       sideMaterial, // left
       sideMaterial, // top
@@ -90,7 +90,16 @@ function CinematicPoster({ progress, theme }: { progress: any, theme: string }) 
       frontMaterial, // front
       sideMaterial, // back
     ];
-  }, [posterTexture]);
+
+    return mats;
+  }, [posterTexture, theme]);
+
+  // Ensure materials are disposed on unmount
+  useEffect(() => {
+    return () => {
+      materials.forEach(m => m.dispose());
+    };
+  }, [materials]);
 
   return (
     <group>

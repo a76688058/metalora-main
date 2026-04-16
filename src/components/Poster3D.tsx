@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Environment, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -119,7 +119,7 @@ export default function Poster3D({
       metalness: 0.7, // Premium metallic feel
     };
 
-    return [
+    const mats = [
       new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }), // Right
       new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }), // Left
       new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }), // Top
@@ -143,7 +143,22 @@ export default function Poster3D({
         toneMapped: false
       }), 
     ];
+
+    // Cleanup function for useMemo is not directly supported, 
+    // but we can handle it via useEffect if needed.
+    // In R3F, materials passed to 'material' prop are usually managed, 
+    // but manual creation in useMemo might need care.
+    return mats;
   }, [frontTexture, backTexture]);
+
+  // Ensure materials and textures are disposed on unmount
+  useEffect(() => {
+    return () => {
+      materials.forEach(m => m.dispose());
+      if (frontTexture) frontTexture.dispose();
+      if (backTexture) backTexture.dispose();
+    };
+  }, [materials, frontTexture, backTexture]);
 
   return (
     <>

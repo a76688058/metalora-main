@@ -59,10 +59,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       
       const client = getClient();
       
-      // 1. Fetch cart items WITHOUT join to avoid PGRST200 error
+      // 1. Fetch cart items with specific columns
       const { data: items, error: itemsError } = await client
         .from('cart_items')
-        .select('*')
+        .select('id, user_id, product_id, selected_option, quantity, created_at, custom_image, custom_config')
         .eq('user_id', currentUserId)
         .order('created_at', { ascending: false });
 
@@ -84,7 +84,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         const client = getClient();
         const { data: products, error: productsError } = await client
           .from('products')
-          .select('*')
+          .select('id, title, subtitle, front_image, image, description, is_limited, options')
           .in('id', standardProductIds);
         
         if (!productsError && products) {
@@ -94,7 +94,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       // 3. Hydrate and merge data
       const hydratedData = items.map(item => {
-        const product_type = item.product_id === 'workshop-single' ? 'workshop' : 'stock';
+        const product_type = (item.product_id === 'workshop-single' ? 'workshop' : 'stock') as 'workshop' | 'stock';
         
         if (item.product_id === 'workshop-single') {
           return {
@@ -284,20 +284,32 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return acc + (price * item.quantity);
   }, 0);
 
+  const value = React.useMemo(() => ({ 
+    cartItems, 
+    isLoading, 
+    addToCart, 
+    removeFromCart, 
+    updateQuantity, 
+    clearCart,
+    totalPrice,
+    refreshCart,
+    isCartOpen,
+    openCart,
+    closeCart
+  }), [
+    cartItems, 
+    isLoading, 
+    totalPrice, 
+    isCartOpen,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    refreshCart
+  ]);
+
   return (
-    <CartContext.Provider value={{ 
-      cartItems, 
-      isLoading, 
-      addToCart, 
-      removeFromCart, 
-      updateQuantity, 
-      clearCart,
-      totalPrice,
-      refreshCart,
-      isCartOpen,
-      openCart,
-      closeCart
-    }}>
+    <CartContext.Provider value={value}>
       {children}
     </CartContext.Provider>
   );
