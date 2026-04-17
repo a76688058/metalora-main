@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+import { useToast } from './ToastContext';
 import { Product } from '../data/products';
 
 interface CartItem {
@@ -37,6 +38,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const { user, adminUser } = useAuth();
+  const { showToast } = useToast();
 
   const openCart = () => setIsCartOpen(true);
   const closeCart = () => setIsCartOpen(false);
@@ -59,10 +61,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       
       const client = getClient();
       
-      // 1. Fetch cart items with specific columns
+      // 1. Fetch cart items WITHOUT join to avoid PGRST200 error
       const { data: items, error: itemsError } = await client
         .from('cart_items')
-        .select('id, user_id, product_id, selected_option, quantity, created_at, custom_image, custom_config')
+        .select('*')
         .eq('user_id', currentUserId)
         .order('created_at', { ascending: false });
 
@@ -84,7 +86,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         const client = getClient();
         const { data: products, error: productsError } = await client
           .from('products')
-          .select('id, title, subtitle, front_image, image, description, is_limited, options')
+          .select('*')
           .in('id', standardProductIds);
         
         if (!productsError && products) {
@@ -94,7 +96,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       // 3. Hydrate and merge data
       const hydratedData = items.map(item => {
-        const product_type = (item.product_id === 'workshop-single' ? 'workshop' : 'stock') as 'workshop' | 'stock';
+        const product_type = item.product_id === 'workshop-single' ? 'workshop' : 'stock';
         
         if (item.product_id === 'workshop-single') {
           return {
@@ -149,7 +151,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       
       if (!currentUserId) {
         console.error('Auth Error: No user session found in context or storage');
-        throw new Error('로그인이 필요합니다.');
+        showToast('로그인이 필요합니다.', 'error');
+        return;
       }
 
       console.log('User ID:', currentUserId);
@@ -206,9 +209,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
 
       await refreshCart();
+      showToast('내 컬렉션에 안전하게 담겼습니다', 'success');
     } catch (error: any) {
       console.error('Final AddToCart Error:', error);
-      throw error;
+      showToast(`컬렉션 담기에 실패했습니다: ${error.message || '알 수 없는 오류'}`, 'error');
     } finally {
       setIsLoading(false);
       console.log('--- ADD TO CART DEBUG END ---');
@@ -238,9 +242,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       
       await refreshCart();
+      showToast('상품이 삭제되었습니다.', 'success');
     } catch (error) {
       console.error('Error removing from cart:', error);
-      throw error;
+      showToast('삭제에 실패했습니다.', 'error');
     }
   };
 
@@ -284,32 +289,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return acc + (price * item.quantity);
   }, 0);
 
-  const value = React.useMemo(() => ({ 
-    cartItems, 
-    isLoading, 
-    addToCart, 
-    removeFromCart, 
-    updateQuantity, 
-    clearCart,
-    totalPrice,
-    refreshCart,
-    isCartOpen,
-    openCart,
-    closeCart
-  }), [
-    cartItems, 
-    isLoading, 
-    totalPrice, 
-    isCartOpen,
-    addToCart,
-    removeFromCart,
-    updateQuantity,
-    clearCart,
-    refreshCart
-  ]);
-
   return (
-    <CartContext.Provider value={value}>
+    <CartContext.Provider value={{ 
+      cartItems, 
+      isLoading, 
+      addToCart, 
+      removeFromCart, 
+      updateQuantity, 
+      clearCart,
+      totalPrice,
+      refreshCart,
+      isCartOpen,
+      openCart,
+      closeCart
+    }}>
       {children}
     </CartContext.Provider>
   );

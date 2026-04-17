@@ -3,10 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
-import { loadScript } from '../lib/utils';
 import { 
-  Loader2, X, ChevronLeft, Check
+  Loader2, X, ChevronLeft
 } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
 
 interface ProfileEditModalProps {
   isOpen: boolean;
@@ -16,9 +16,8 @@ interface ProfileEditModalProps {
 export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
   const { user, profile, refreshProfile, openProfile } = useAuth();
   const { theme } = useTheme();
+  const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
   
   const handleBack = () => {
     onClose();
@@ -67,9 +66,16 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
   }, [isOpen]);
 
   useEffect(() => {
-    loadScript('https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js')
-      .then(() => setIsScriptLoaded(true))
-      .catch(err => console.error('Failed to load Daum Postcode script:', err));
+    const scriptId = 'daum-postcode-script';
+    if (document.getElementById(scriptId)) {
+      setIsScriptLoaded(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+    script.onload = () => setIsScriptLoaded(true);
+    document.body.appendChild(script);
   }, []);
 
   const handleOpenPostcode = () => {
@@ -125,13 +131,6 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
     e.preventDefault();
     if (!user) return;
     
-    const phoneRegex = /^01([0|1|6|7|8|9])-?([0-9]{3,4})-?([0-9]{4})$/;
-    if (!phoneRegex.test(formData.phone_number)) {
-      setErrorMsg('올바른 연락처 형식이 아닙니다. (예: 010-0000-0000)');
-      setTimeout(() => setErrorMsg(''), 3000);
-      return;
-    }
-    
     try {
       setIsLoading(true);
       const { error } = await supabase
@@ -149,12 +148,10 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
       if (error) throw error;
       
       await refreshProfile();
-      setIsSuccess(true);
-      setTimeout(() => setIsSuccess(false), 2000);
+      showToast("정보가 성공적으로 수정되었습니다.", 'success');
       // onClose(); // Removed to keep the modal open after saving
     } catch (error: any) {
-      setErrorMsg("수정 실패: " + error.message);
-      setTimeout(() => setErrorMsg(''), 3000);
+      showToast("수정 실패: " + error.message, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -220,7 +217,7 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                         readOnly
                         disabled
                         value={formData.user_custom_id}
-                        className={`w-full h-14 border rounded-2xl px-5 text-base md:text-sm font-medium cursor-not-allowed ${
+                        className={`w-full h-14 border rounded-2xl px-5 text-sm font-medium cursor-not-allowed ${
                           theme === 'dark' ? 'bg-zinc-900/30 border-white/5 text-zinc-500' : 'bg-zinc-50 border-black/5 text-zinc-400'
                         }`}
                       />
@@ -235,7 +232,7 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                           value={formData.full_name}
                           onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                           placeholder="이름을 입력하세요"
-                          className={`w-full h-14 border rounded-2xl px-5 text-base md:text-sm focus:outline-none focus:ring-1 transition-all font-medium ${
+                          className={`w-full h-14 border rounded-2xl px-5 text-sm focus:outline-none focus:ring-1 transition-all font-medium ${
                             theme === 'dark' 
                               ? 'bg-zinc-900/50 border-white/10 text-white focus:border-cyan-500/50 focus:ring-cyan-500/20 placeholder:text-zinc-700' 
                               : 'bg-zinc-50 border-black/10 text-black focus:border-cyan-500/50 focus:ring-cyan-500/20 placeholder:text-zinc-300'
@@ -250,7 +247,7 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                           value={formData.phone_number}
                           onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
                           placeholder="010-0000-0000"
-                          className={`w-full h-14 border rounded-2xl px-5 text-base md:text-sm focus:outline-none focus:ring-1 transition-all font-medium ${
+                          className={`w-full h-14 border rounded-2xl px-5 text-sm focus:outline-none focus:ring-1 transition-all font-medium ${
                             theme === 'dark' 
                               ? 'bg-zinc-900/50 border-white/10 text-white focus:border-cyan-500/50 focus:ring-cyan-500/20 placeholder:text-zinc-700' 
                               : 'bg-zinc-50 border-black/10 text-black focus:border-cyan-500/50 focus:ring-cyan-500/20 placeholder:text-zinc-300'
@@ -285,7 +282,7 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                       readOnly
                       value={formData.zip_code}
                       placeholder="우편번호"
-                      className={`w-full h-14 border rounded-2xl px-5 text-base md:text-sm font-medium cursor-default ${
+                      className={`w-full h-14 border rounded-2xl px-5 text-sm font-medium cursor-default ${
                         theme === 'dark' ? 'bg-zinc-900/30 border-white/5 text-zinc-500' : 'bg-zinc-50 border-black/5 text-zinc-400'
                       }`}
                     />
@@ -294,7 +291,7 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                       readOnly
                       value={formData.address}
                       placeholder="기본 주소"
-                      className={`w-full h-14 border rounded-2xl px-5 text-base md:text-sm font-medium cursor-default ${
+                      className={`w-full h-14 border rounded-2xl px-5 text-sm font-medium cursor-default ${
                         theme === 'dark' ? 'bg-zinc-900/30 border-white/5 text-zinc-500' : 'bg-zinc-50 border-black/5 text-zinc-400'
                       }`}
                     />
@@ -304,7 +301,7 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                       value={formData.address_detail}
                       onChange={(e) => setFormData({ ...formData, address_detail: e.target.value })}
                       placeholder="상세 주소를 입력하세요"
-                      className={`w-full h-14 border rounded-2xl px-5 text-base md:text-sm focus:outline-none focus:ring-1 transition-all font-medium ${
+                      className={`w-full h-14 border rounded-2xl px-5 text-sm focus:outline-none focus:ring-1 transition-all font-medium ${
                         theme === 'dark' 
                           ? 'bg-zinc-900/50 border-white/10 text-white focus:border-emerald-500/50 focus:ring-emerald-500/20 placeholder:text-zinc-700' 
                           : 'bg-zinc-50 border-black/10 text-black focus:border-emerald-500/50 focus:ring-emerald-500/20 placeholder:text-zinc-300'
@@ -314,30 +311,18 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                 </section>
 
                 {/* Save Button */}
-                <div className="pt-4 pb-8 space-y-4">
-                  {errorMsg && (
-                    <div className="text-center text-red-500 text-sm font-bold animate-pulse bg-red-500/10 py-2 rounded-xl backdrop-blur-md border border-red-500/20">
-                      {errorMsg}
-                    </div>
-                  )}
+                <div className="pt-4 pb-8">
                   <button
                     type="submit"
-                    disabled={isLoading || isSuccess}
+                    disabled={isLoading}
                     className={`w-full h-16 font-bold text-base rounded-2xl transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50 ${
-                      isSuccess
-                        ? theme === 'dark' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-green-50 text-green-600 border border-green-200'
-                        : theme === 'dark' 
-                          ? 'bg-white text-black hover:bg-zinc-200 shadow-[0_10px_30px_rgba(255,255,255,0.1)]' 
-                          : 'bg-black text-white hover:bg-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.1)]'
+                      theme === 'dark' 
+                        ? 'bg-white text-black hover:bg-zinc-200 shadow-[0_10px_30px_rgba(255,255,255,0.1)]' 
+                        : 'bg-black text-white hover:bg-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.1)]'
                     }`}
                   >
                     {isLoading ? (
                       <Loader2 className="animate-spin" size={20} />
-                    ) : isSuccess ? (
-                      <>
-                        <Check size={20} className="text-green-400" />
-                        <span>저장 완료</span>
-                      </>
                     ) : (
                       "변경사항 저장하기"
                     )}
@@ -348,7 +333,7 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
 
             {/* Postcode Overlay */}
             {isPostcodeOpen && (
-              <div className={`absolute inset-0 z-[13000] flex flex-col p-6 overflow-y-auto overscroll-contain ${theme === 'dark' ? 'bg-black' : 'bg-zinc-100'}`}>
+              <div className={`absolute inset-0 z-[13000] flex flex-col p-6 overflow-y-auto ${theme === 'dark' ? 'bg-black' : 'bg-zinc-100'}`}>
                 <div className="flex justify-between items-center mb-6 w-full">
                   <h2 className={`text-xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>주소 검색</h2>
                   <button 

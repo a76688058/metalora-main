@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Truck, CheckCircle, Palette, X, Download, Image, Search, ChevronRight, Package, Clock, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { Order, OrderItem } from '../types/database';
-import { getFullImageUrl, FALLBACK_IMAGE } from '../lib/utils';
+import { getFullImageUrl } from '../lib/utils';
 import { OrderStepper } from '../components/OrderStepper';
 
 const ORDER_STATUS = {
@@ -161,7 +161,7 @@ export default function AdminOrders() {
                       <img 
                         src={displayImageUrl} 
                         className="w-full h-full object-cover" 
-                        onError={(e) => (e.currentTarget.src = FALLBACK_IMAGE)}
+                        onError={(e) => (e.currentTarget.src = 'https://picsum.photos/seed/error/200/200')}
                       />
                     ) : <Image className="w-full h-full p-4 text-zinc-700" />;
                   })()}
@@ -269,7 +269,7 @@ export default function AdminOrders() {
                               <img 
                                 src={displayImageUrl} 
                                 className="w-full h-full object-cover" 
-                                onError={(e) => (e.currentTarget.src = FALLBACK_IMAGE)}
+                                onError={(e) => (e.currentTarget.src = 'https://picsum.photos/seed/error/200/200')}
                               />
                             ) : <Image className="w-full h-full p-4 text-zinc-700" />}
                           </div>

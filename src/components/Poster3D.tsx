@@ -1,9 +1,9 @@
-import React, { useRef, useState, useMemo, useEffect } from 'react';
+import React, { useRef, useState, useMemo, useEffect, Suspense } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Environment, useTexture } from '@react-three/drei';
+import { Environment, useTexture, Html } from '@react-three/drei';
+import ErrorBoundary from './ErrorBoundary';
 import * as THREE from 'three';
 import { Product } from '../data/products';
-import { FALLBACK_IMAGE } from '../lib/utils';
 
 interface Poster3DProps {
   product?: Product;
@@ -14,6 +14,56 @@ interface Poster3DProps {
   scale?: number;
   interactive?: boolean;
   autoRotate?: boolean;
+}
+
+export function Poster3DWithFallback({ product, imageUrl, backImageUrl, width, height, scale, interactive, autoRotate, fallbackImageUrl }: Poster3DProps & { fallbackImageUrl?: string }) {
+  const [showFallback, setShowFallback] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowFallback(true), 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const imageSrc = fallbackImageUrl || imageUrl || product?.front_image || product?.image;
+
+  if (showFallback || hasError) {
+    return (
+      <Html center className="w-full h-full"> 
+         <img 
+          src={imageSrc || 'https://picsum.photos/seed/metalora_fallback/210/297'} 
+          alt="Poster" 
+          className="w-full h-full object-contain"
+          onError={() => setHasError(true)}
+        />
+      </Html>
+    );
+  }
+
+  return (
+    <ErrorBoundary fallback={
+       <Html center className="w-full h-full">
+        <img 
+          src={imageSrc || 'https://picsum.photos/seed/metalora_fallback/210/297'} 
+          alt="Poster" 
+          className="w-full h-full object-contain"
+        />
+      </Html>
+    }>
+      <Suspense fallback={null}>
+         <Poster3D 
+           product={product}
+           imageUrl={imageUrl}
+           backImageUrl={backImageUrl}
+           width={width}
+           height={height}
+           scale={scale}
+           interactive={interactive}
+           autoRotate={autoRotate}
+         />
+      </Suspense>
+    </ErrorBoundary>
+  );
 }
 
 export default function Poster3D({ 
@@ -31,19 +81,16 @@ export default function Poster3D({
   const [hovered, setHovered] = useState(false);
   const [active, setActive] = useState(false);
   
-  const imageUrl = propImageUrl || product?.front_image || product?.image || undefined;
-  const backImageUrl = propBackImageUrl || product?.back_image || product?.backImage || undefined;
+  const imageUrl = propImageUrl || product?.front_image || product?.image || '';
+  const backImageUrl = propBackImageUrl || product?.back_image || product?.backImage || '';
 
   // Use useTexture for better caching and Suspense support
-  const texturePaths = useMemo(() => {
-    const paths = [imageUrl, backImageUrl].filter(Boolean) as string[];
-    return paths.length > 0 ? paths : [FALLBACK_IMAGE];
-  }, [imageUrl, backImageUrl]);
+  const textures = useTexture(
+    [imageUrl, backImageUrl].filter(Boolean) as string[]
+  );
 
-  const textures = useTexture(texturePaths);
-
-  const frontTexture = imageUrl ? textures[0] : (texturePaths[0] === FALLBACK_IMAGE ? textures[0] : undefined);
-  const backTexture = backImageUrl ? (imageUrl ? textures[1] : textures[0]) : null;
+  const frontTexture = textures[0];
+  const backTexture = backImageUrl ? textures[1] : null;
 
   // Apply cover logic and quality settings once
   useMemo(() => {
@@ -116,11 +163,38 @@ export default function Poster3D({
     }
   });
 
-  const fallbackMaterialProps = {
-    color: '#1a1a1a',
-    roughness: 0.3, // Prevent wash-out from reflections
-    metalness: 0.7, // Premium metallic feel
-  };
+  const materials = useMemo(() => {
+    const fallbackMaterialProps = {
+      color: '#1a1a1a',
+      roughness: 0.3, // Prevent wash-out from reflections
+      metalness: 0.7, // Premium metallic feel
+    };
+
+    return [
+      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }), // Right
+      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }), // Left
+      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }), // Top
+      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }), // Bottom
+      new THREE.MeshStandardMaterial({ 
+        ...fallbackMaterialProps,
+        map: frontTexture, 
+        emissiveMap: frontTexture,
+        emissive: new THREE.Color('#ffffff'),
+        emissiveIntensity: 1.0, // Ultimate emissive for maximum clarity
+        color: frontTexture ? '#ffffff' : '#1a1a1a',
+        toneMapped: false
+      }), 
+      new THREE.MeshStandardMaterial({ 
+        ...fallbackMaterialProps,
+        map: backTexture,
+        emissiveMap: backTexture,
+        emissive: new THREE.Color('#ffffff'),
+        emissiveIntensity: 1.0,
+        color: backTexture ? '#ffffff' : '#1a1a1a',
+        toneMapped: false
+      }), 
+    ];
+  }, [frontTexture, backTexture]);
 
   return (
     <>
@@ -148,14 +222,9 @@ export default function Poster3D({
             e.stopPropagation();
             setHovered(false);
           }}
+          material={materials}
         >
           <boxGeometry args={[width, height, 0.008]} /> 
-          <meshStandardMaterial attach="material-0" {...fallbackMaterialProps} />
-          <meshStandardMaterial attach="material-1" {...fallbackMaterialProps} />
-          <meshStandardMaterial attach="material-2" {...fallbackMaterialProps} />
-          <meshStandardMaterial attach="material-3" {...fallbackMaterialProps} />
-          <meshStandardMaterial attach="material-4" {...fallbackMaterialProps} map={frontTexture} emissiveMap={frontTexture} emissive="#ffffff" emissiveIntensity={1.0} color={frontTexture ? '#ffffff' : '#1a1a1a'} toneMapped={false} />
-          <meshStandardMaterial attach="material-5" {...fallbackMaterialProps} map={backTexture} emissiveMap={backTexture} emissive="#ffffff" emissiveIntensity={1.0} color={backTexture ? '#ffffff' : '#1a1a1a'} toneMapped={false} />
         </mesh>
       </group>
     </>

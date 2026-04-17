@@ -2,7 +2,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import Poster3D from './Poster3D';
+import Poster3D, { Poster3DWithFallback } from './Poster3D';
 import { useProducts } from '../context/ProductContext';
 import { Product } from '../data/products';
 
@@ -83,8 +83,8 @@ export default function Hero() {
               <pointLight position={[2, 2, 2]} intensity={0.1} color="#a855f7" />
               <pointLight position={[-2, -1, 2]} intensity={0.05} color="#ffffff" />
               
-              <Suspense fallback={<Html center><div className="w-full h-full bg-transparent" /></Html>}>
-                <Poster3D 
+              <Suspense fallback={null}>
+                <Poster3DWithFallback 
                   interactive={false} 
                   autoRotate={true}
                   scale={2.4}

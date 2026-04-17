@@ -25,13 +25,6 @@ export default function LoadingScreen() {
           <img
             src={LOGO_URL}
             alt="METALORA"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-              const span = document.createElement('span');
-              span.textContent = 'METALORA';
-              span.className = 'text-2xl md:text-3xl font-black tracking-[0.3em] text-white';
-              e.currentTarget.parentNode?.insertBefore(span, e.currentTarget);
-            }}
             className={`h-12 md:h-16 object-contain transition-all duration-500 ${
               theme === 'dark' ? 'filter invert opacity-30' : 'opacity-100'
             }`}

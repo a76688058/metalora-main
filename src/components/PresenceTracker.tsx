@@ -6,12 +6,12 @@ export default function PresenceTracker() {
   const { user, profile } = useAuth();
 
   useEffect(() => {
-    if (!supabase || !user) return; // Only track authenticated users
+    if (!supabase) return;
 
     const channel = supabase.channel('online-users', {
       config: {
         presence: {
-          key: user.id,
+          key: user?.id || 'anonymous-' + Math.random().toString(36).substring(2, 9),
         },
       },
     });

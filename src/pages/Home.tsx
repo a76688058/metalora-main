@@ -5,11 +5,10 @@ import { Link, useSearchParams, useLocation, useNavigate, useNavigationType } fr
 import { useCart } from '../context/CartContext';
 import LoadingScreen from '../components/LoadingScreen';
 import { Clock, Shuffle } from 'lucide-react';
-import { getOptimizedImageUrl, FALLBACK_IMAGE } from '../lib/utils';
+import { getOptimizedImageUrl } from '../lib/utils';
 import ProductGrid from '../components/ProductGrid';
 import HeroCinematic from '../components/HeroCinematic';
 import { useTheme } from '../context/ThemeContext';
-import ErrorBoundary from '../components/ErrorBoundary';
 
 export default function Home() {
   const { products, isLoading, isError, fetchProducts } = useProducts();
@@ -46,10 +45,16 @@ export default function Home() {
       if (savedScroll) {
         const scrollPos = parseInt(savedScroll, 10);
         if (!isNaN(scrollPos) && scrollPos > 0) {
-          // Simple scroll restoration
-          setTimeout(() => {
+          // Aggressive restore to combat layout shifts
+          let frameCount = 0;
+          const restore = () => {
             window.scrollTo({ top: scrollPos, behavior: 'instant' });
-          }, 50);
+            frameCount++;
+            if (frameCount < 20) { // Force for ~300ms
+              requestAnimationFrame(restore);
+            }
+          };
+          requestAnimationFrame(restore);
         }
       }
       hasRestoredScroll.current = true;
@@ -91,7 +96,7 @@ export default function Home() {
   }, [products, searchQuery, sortBy, randomSeed]);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    e.currentTarget.src = FALLBACK_IMAGE;
+    e.currentTarget.src = 'https://picsum.photos/seed/metalora_fallback/210/297';
     e.currentTarget.onerror = null; // Prevent infinite loop
   };
 
@@ -116,12 +121,10 @@ export default function Home() {
       transition={{ duration: 0.5 }}
       className={`min-h-screen pb-24 ${theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'}`}
     >
-      <ErrorBoundary>
-        <HeroCinematic />
-      </ErrorBoundary>
+      <HeroCinematic />
 
-      {/* Seamless transition from Monolith to Marquee */}
-      <div className="h-12 md:h-20" />
+      {/* Spacer between Hero and Marquee (Increased to match Marquee visual weight) */}
+      <div className="h-40 md:h-56 lg:h-72" />
 
       {/* Marquee Section (Re-inserted) */}
       <div className="mb-12 md:mb-16">

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { useToast } from './ToastContext';
 
 interface Profile {
   id: string;
@@ -56,6 +57,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { showToast } = useToast();
+  
   // User State
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -110,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await client
         .from('profiles')
-        .select('id, user_custom_id, full_name, email, phone_number, zip_code, address, address_detail, avatar_url, total_spent, is_admin, role, created_at, updated_at')
+        .select('*, address_detail')
         .eq('id', userId)
         .single();
         
@@ -260,6 +263,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (adminUser && adminProfile?.is_admin) {
         inactivityTimeout = setTimeout(() => {
           signOut({ adminOnly: true });
+          showToast("보안을 위해 장시간 미활동으로 관리자 세션이 만료되었습니다.", 'info');
         }, INACTIVITY_LIMIT);
       }
     };
@@ -284,6 +288,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAdminSession(null);
         setAdminUser(null);
         setAdminProfile(null);
+        showToast('관리자 세션이 종료되었습니다.', 'success');
       } else {
         // Sign out both safely
         await supabase.auth.signOut().catch(() => {});
@@ -310,9 +315,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const channel = new BroadcastChannel('metalora-auth-sync');
         channel.postMessage({ type: 'SYNC_SESSION' });
         channel.close();
+
+        showToast('모든 세션이 종료되었습니다.', 'success');
       }
     } catch (error) {
-      console.error('Logout error:', error);
+      showToast('로그아웃 중 에러가 발생했습니다.', 'error');
     } finally {
       setIsLoggingOut(false);
       setIsLoading(false);
@@ -365,22 +372,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const value = React.useMemo(() => ({ 
-    session, user, profile, 
-    adminSession, adminUser, adminProfile,
-    isLoading, isLoggingOut, isProfileOpen, isWorkshopOpen, isProfileEditOpen, isOrdersOpen, isInquiryOpen,
-    signOut, refreshProfile, refreshSession,
-    openProfile, closeProfile, openWorkshop, closeWorkshop,
-    openProfileEdit, closeProfileEdit, openOrders, closeOrders,
-    openInquiry, closeInquiry
-  }), [
-    session, user, profile, 
-    adminSession, adminUser, adminProfile,
-    isLoading, isLoggingOut, isProfileOpen, isWorkshopOpen, isProfileEditOpen, isOrdersOpen, isInquiryOpen
-  ]);
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ 
+      session, user, profile, 
+      adminSession, adminUser, adminProfile,
+      isLoading, isLoggingOut, isProfileOpen, isWorkshopOpen, isProfileEditOpen, isOrdersOpen, isInquiryOpen,
+      signOut, refreshProfile, refreshSession,
+      openProfile, closeProfile, openWorkshop, closeWorkshop,
+      openProfileEdit, closeProfileEdit, openOrders, closeOrders,
+      openInquiry, closeInquiry
+    }}>
       {children}
     </AuthContext.Provider>
   );

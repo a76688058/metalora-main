@@ -3,7 +3,6 @@ import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
 import { useProducts } from '../context/ProductContext';
 import { ChevronDown } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-import { FALLBACK_IMAGE } from '../lib/utils';
 
 interface MountingAnimationProps {
   productImage?: string;
@@ -12,7 +11,7 @@ interface MountingAnimationProps {
 export default function MountingAnimation({ productImage }: MountingAnimationProps) {
   const { products } = useProducts();
   const { theme } = useTheme();
-  const [selectedImage, setSelectedImage] = useState(productImage || FALLBACK_IMAGE);
+  const [selectedImage, setSelectedImage] = useState(productImage || 'https://picsum.photos/seed/metalora_fallback/1200/1697');
   const tunnelRef = useRef<HTMLDivElement>(null);
   
   // Update image when productImage prop changes

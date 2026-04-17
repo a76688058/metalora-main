@@ -12,8 +12,6 @@ interface ProductContextType {
   addProduct: (product: Product) => Promise<void>;
   updateProduct: (id: string, updatedProduct: Product) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
-  customBasePrice: number;
-  updateCustomBasePrice: (price: number) => Promise<void>;
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
@@ -28,37 +26,10 @@ export const useProducts = () => {
 
 export const ProductProvider = ({ children }: { children: ReactNode }) => {
   const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // Start as true to prevent flicker
+  const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [customBasePrice, setCustomBasePrice] = useState(49000);
   const hasLoadedRef = useRef(false);
-
-  const fetchCustomBasePrice = useCallback(async () => {
-    if (!supabasePublic) return;
-    try {
-      const { data, error } = await supabasePublic
-        .from('site_settings')
-        .select('value')
-        .eq('key', 'custom_base_price')
-        .single();
-      
-      if (error) {
-        // PGRST205: Table not found, PGRST116: No rows found
-        if (error.code === 'PGRST116' || error.code === 'PGRST205') {
-          return;
-        }
-        throw error;
-      }
-      
-      if (data && data.value) {
-        setCustomBasePrice(Number(data.value));
-      }
-    } catch (error) {
-      // Silent fail for fetch to avoid annoying toasts for missing table
-      console.warn("Custom base price fetch skipped (table might not exist yet)");
-    }
-  }, []);
 
   const fetchProducts = useCallback(async () => {
     if (!supabasePublic) return;
@@ -128,12 +99,10 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
     // Only fetch if not already loaded to prevent unnecessary re-renders
     if (products.length === 0) {
       fetchProducts();
-      fetchCustomBasePrice();
     }
 
     const handleRefresh = () => {
       fetchProducts();
-      fetchCustomBasePrice();
     };
 
     window.addEventListener('refresh-products', handleRefresh);
@@ -196,54 +165,8 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateCustomBasePrice = async (price: number) => {
-    if (!supabase) return;
-    try {
-      setCustomBasePrice(price);
-      const { error } = await supabase
-        .from('site_settings')
-        .upsert({ key: 'custom_base_price', value: price.toString() }, { onConflict: 'key' });
-      
-      if (error) {
-        if (error.code === 'PGRST205') {
-          throw new Error('데이터베이스에 "site_settings" 테이블이 없습니다. SQL을 실행하여 테이블을 생성해 주세요.');
-        }
-        throw error;
-      }
-    } catch (error) {
-      console.error("Update custom base price error:", error);
-      await fetchCustomBasePrice();
-      throw error;
-    }
-  };
-
-  const value = React.useMemo(() => ({ 
-    products, 
-    isLoading, 
-    isError, 
-    searchTerm, 
-    setSearchTerm, 
-    fetchProducts, 
-    addProduct, 
-    updateProduct, 
-    deleteProduct,
-    customBasePrice,
-    updateCustomBasePrice
-  }), [
-    products, 
-    isLoading, 
-    isError, 
-    searchTerm, 
-    customBasePrice,
-    fetchProducts,
-    addProduct,
-    updateProduct,
-    deleteProduct,
-    updateCustomBasePrice
-  ]);
-
   return (
-    <ProductContext.Provider value={value}>
+    <ProductContext.Provider value={{ products, isLoading, isError, searchTerm, setSearchTerm, fetchProducts, addProduct, updateProduct, deleteProduct }}>
       {children}
     </ProductContext.Provider>
   );

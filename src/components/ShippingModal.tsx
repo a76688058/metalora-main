@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, Search } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { loadScript } from '../lib/utils';
+import { useToast } from '../context/ToastContext';
 
 interface ShippingModalProps {
   isOpen: boolean;
@@ -13,6 +13,7 @@ interface ShippingModalProps {
 
 export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingModalProps) {
   const { user, profile, refreshProfile } = useAuth();
+  const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [formData, setFormData] = useState({
@@ -28,9 +29,16 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
   const postcodeContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    loadScript('https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js')
-      .then(() => setIsScriptLoaded(true))
-      .catch(err => console.error('Failed to load Daum Postcode script:', err));
+    const scriptId = 'daum-postcode-script';
+    if (document.getElementById(scriptId)) {
+      setIsScriptLoaded(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+    script.onload = () => setIsScriptLoaded(true);
+    document.body.appendChild(script);
   }, []);
 
   useEffect(() => {
@@ -139,8 +147,7 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
       
       if (authError) {
         if (authError.message?.includes('Lock was stolen') || String(authError).includes('Lock was stolen')) {
-          setErrorMsg('인증 세션 충돌이 발생했습니다. 다시 시도해주세요.');
-          setTimeout(() => setErrorMsg(''), 3000);
+          showToast('인증 세션 충돌이 발생했습니다. 다시 시도해주세요.', 'error');
           setIsLoading(false);
           return;
         }
@@ -166,12 +173,13 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
       if (error) throw error;
 
       await refreshProfile();
+      showToast('배송지가 저장되었습니다.', 'success'); // 성공 시에만 모달 닫기
       onClose(); 
       onSuccess(); // 결제 단계로 전환
     } catch (error: any) {
       console.error('Error updating shipping info:', error);
+      showToast("배송지 저장 실패: " + error.message, 'error');
       setErrorMsg(error.message || '배송지 정보 저장 중 오류가 발생했습니다.');
-      setTimeout(() => setErrorMsg(''), 3000);
     } finally {
       setIsLoading(false);
     }
@@ -188,7 +196,7 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[9999] bg-[#121212] flex flex-col overflow-y-auto overscroll-contain custom-scrollbar p-6 md:p-10">
+        <div className="fixed inset-0 z-[9999] bg-[#121212] flex flex-col overflow-y-auto custom-scrollbar p-6 md:p-10">
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}

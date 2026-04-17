@@ -50,7 +50,7 @@ export default function PolicyModal({ isOpen, onClose, title, content }: PolicyM
           </div>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto overscroll-contain px-6 pb-40 relative z-10">
+          <div className="flex-1 overflow-y-auto px-6 pb-40 relative z-10">
             <div className={`max-w-3xl mx-auto pt-4 ${theme === 'dark' ? 'text-zinc-200' : 'text-zinc-950'}`}>
               {content}
             </div>

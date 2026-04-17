@@ -12,7 +12,7 @@ import { getFullImageUrl } from '../lib/utils';
 import LoadingScreen from '../components/LoadingScreen';
 
 export default function AdminProducts() {
-  const { products, addProduct, updateProduct, deleteProduct, fetchProducts, isLoading, customBasePrice, updateCustomBasePrice } = useProducts();
+  const { products, addProduct, updateProduct, deleteProduct, fetchProducts, isLoading } = useProducts();
   const { showToast } = useToast();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -21,16 +21,10 @@ export default function AdminProducts() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [orderedProducts, setOrderedProducts] = useState<Product[]>([]);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
-  const [tempPrice, setTempPrice] = useState(customBasePrice.toString());
-  const [isSavingPrice, setIsSavingPrice] = useState(false);
 
   useEffect(() => {
     setOrderedProducts(products);
   }, [products]);
-
-  useEffect(() => {
-    setTempPrice(customBasePrice.toString());
-  }, [customBasePrice]);
 
   // Debounce search term
   useEffect(() => {
@@ -108,24 +102,6 @@ export default function AdminProducts() {
     }
   };
 
-  const handleUpdatePrice = async () => {
-    const price = parseInt(tempPrice);
-    if (isNaN(price)) {
-      showToast('올바른 금액을 입력해주세요.', 'error');
-      return;
-    }
-
-    setIsSavingPrice(true);
-    try {
-      await updateCustomBasePrice(price);
-      showToast('커스텀 제작 기본가가 저장되었습니다.', 'success');
-    } catch (error) {
-      showToast('저장 중 오류가 발생했습니다.', 'error');
-    } finally {
-      setIsSavingPrice(false);
-    }
-  };
-
   const filteredProducts = orderedProducts.filter((p) => {
     const searchLower = debouncedSearchTerm.toLowerCase();
     const titleMatch = (p.title || '').toLowerCase().includes(searchLower);
@@ -140,34 +116,6 @@ export default function AdminProducts() {
   return (
     <AdminLayout>
       <div className="space-y-8">
-        {/* 커스텀 제작 기본가 설정 */}
-        <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-6 backdrop-blur-sm">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-bold text-white mb-1">커스텀 제작 기본가 설정</h3>
-              <p className="text-sm text-zinc-500">워크숍에서 커스텀 액자 제작 시 적용되는 기본 금액입니다.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">₩</span>
-                <input
-                  type="number"
-                  value={tempPrice}
-                  onChange={(e) => setTempPrice(e.target.value)}
-                  className="bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-4 py-2 text-white w-32 focus:outline-none focus:border-indigo-500 transition-colors"
-                />
-              </div>
-              <button
-                onClick={handleUpdatePrice}
-                disabled={isSavingPrice}
-                className="bg-white text-black px-4 py-2 rounded-lg font-bold text-sm hover:bg-zinc-200 transition-colors disabled:opacity-50"
-              >
-                {isSavingPrice ? '저장 중...' : '저장'}
-              </button>
-            </div>
-          </div>
-        </div>
-
         {/* 헤더 및 액션 버튼 */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">

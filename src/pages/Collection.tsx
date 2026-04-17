@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useProducts } from '../context/ProductContext';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Clock, Shuffle } from 'lucide-react';
-import { getOptimizedImageUrl, FALLBACK_IMAGE } from '../lib/utils';
+import { getOptimizedImageUrl } from '../lib/utils';
 import { useTheme } from '../context/ThemeContext';
 
 import LoadingScreen from '../components/LoadingScreen';
@@ -51,7 +51,7 @@ export default function Collection() {
   }, [products, searchQuery, sortBy, randomSeed]);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    e.currentTarget.src = FALLBACK_IMAGE;
+    e.currentTarget.src = 'https://picsum.photos/seed/metalora_fallback/210/297';
     e.currentTarget.onerror = null;
   };
 

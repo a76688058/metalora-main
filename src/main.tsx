@@ -26,22 +26,6 @@ if ('scrollRestoration' in window.history) {
   window.history.scrollRestoration = 'manual';
 }
 
-// Clean up any old service workers (e.g., from previous Next.js deployments)
-// to prevent MIME type errors when the browser tries to update them.
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    for (const registration of registrations) {
-      registration.unregister().then((boolean) => {
-        if (boolean) {
-          console.log('Unregistered old service worker:', registration.scope);
-        }
-      });
-    }
-  }).catch((error) => {
-    console.error('Failed to unregister service worker:', error);
-  });
-}
-
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <LanguageProvider>

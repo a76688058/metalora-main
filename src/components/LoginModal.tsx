@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { Loader2, X, Check } from 'lucide-react';
@@ -75,6 +76,7 @@ const CheckboxRow = ({
 
 export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '/' }: LoginModalProps) {
   const { user, profile, refreshSession } = useAuth();
+  const { showToast } = useToast();
   const { theme } = useTheme();
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [isConsentOpen, setIsConsentOpen] = useState(false);
@@ -376,8 +378,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           
           if (signInError) {
             if (signInError.message.includes('Email not confirmed')) {
-              setSuccessMsg('회원가입은 완료되었으나 이메일 인증이 필요합니다.');
-              setTimeout(() => setSuccessMsg(''), 3000);
+              showToast('회원가입은 완료되었으나 이메일 인증이 필요합니다.', 'info');
               setIsConsentOpen(false);
               return;
             }
@@ -389,8 +390,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           }
         }
         
-        setSuccessMsg('METALORA 멤버십 가입을 환영합니다!');
-        setTimeout(() => setSuccessMsg(''), 3000);
+        showToast('METALORA 멤버십 가입을 환영합니다!', 'purple');
         setIsConsentOpen(false);
         if (onSuccess) {
           onSuccess();
@@ -441,7 +441,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className={`relative w-full max-w-lg h-full overflow-y-auto overscroll-contain px-6 pt-24 pb-6 md:pb-10 will-change-transform transform-gpu scrollbar-hide flex flex-col items-center justify-center border shadow-[0_0_50px_-12px_rgba(0,0,0,1)] ${
+              className={`relative w-full max-w-lg h-full overflow-y-auto px-6 pt-24 pb-6 md:pb-10 will-change-transform transform-gpu scrollbar-hide flex flex-col items-center justify-center border shadow-[0_0_50px_-12px_rgba(0,0,0,1)] ${
                 theme === 'dark' ? 'border-white/5' : 'border-black/5'
               }`}
             >

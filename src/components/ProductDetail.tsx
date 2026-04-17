@@ -7,12 +7,13 @@ import * as THREE from 'three';
 import { useProducts } from '../context/ProductContext';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
-import Poster3D from './Poster3D';
+import Poster3D, { Poster3DWithFallback } from './Poster3D';
 import LoginModal from './LoginModal';
 import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, RotateCw, Frame, RefreshCw, Package, Maximize, X } from 'lucide-react';
 import Skeleton from './Skeleton';
-import { getFullImageUrl, FALLBACK_IMAGE } from '../lib/utils';
+import { getFullImageUrl } from '../lib/utils';
 import BrandStorySection from './BrandStorySection';
 import ProductExperience from './ProductExperience';
 import { useTheme } from '../context/ThemeContext';
@@ -74,23 +75,39 @@ export default function ProductDetail() {
   const cartItemFromState = location.state?.cartItem;
   const { products, fetchProducts, isLoading, isError } = useProducts();
   const { user, adminUser, profile } = useAuth();
+  const { showToast } = useToast();
   const { addToCart, openCart } = useCart();
   const { theme } = useTheme();
   
   const currentUser = user || adminUser;
-  const product = React.useMemo(() => 
-    products.find((p) => p.id === id),
-    [products, id]
-  );
+  let product = products.find((p) => p.id === id);
+
+  // Handle workshop-single from cart state
+  if (!product && id === 'workshop-single' && cartItemFromState) {
+    product = {
+      id: 'workshop-single',
+      title: '커스텀 작품',
+      artist: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'METALORA Artist',
+      image: cartItemFromState.custom_image || '',
+      front_image: cartItemFromState.custom_image || '',
+      description: 'METALORA 워크숍에서 제작된 세상에 단 하나뿐인 커스텀 작품입니다.',
+      limited: true,
+      options: [
+        {
+          id: 'custom',
+          name: cartItemFromState.custom_config?.size || '커스텀 옵션',
+          price: cartItemFromState.custom_config?.price || 0,
+          stock: 1,
+          isActive: true,
+          dimension: cartItemFromState.custom_config?.size || 'A4'
+        }
+      ]
+    };
+  }
 
   const navigate = useNavigate();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
-  
-  const selectedOption = React.useMemo(() => 
-    product?.options?.find((opt) => opt.id === selectedOptionId),
-    [product, selectedOptionId]
-  );
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
@@ -116,7 +133,7 @@ export default function ProductDetail() {
   }, [product]);
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    e.currentTarget.src = FALLBACK_IMAGE;
+    e.currentTarget.src = 'https://picsum.photos/seed/metalora_fallback/210/297';
     e.currentTarget.onerror = null;
   };
 
@@ -156,6 +173,7 @@ export default function ProductDetail() {
     return <div className={`text-center py-20 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>상품을 찾을 수 없습니다</div>;
   }
 
+  const selectedOption = product.options?.find(opt => opt.id === selectedOptionId);
   const isSoldOut = !selectedOption || selectedOption.stock <= 0 || !selectedOption.isActive;
   const currentPrice = selectedOption ? selectedOption.price : 0;
 
@@ -166,8 +184,7 @@ export default function ProductDetail() {
     }
 
     if (!product?.id || !selectedOptionId) {
-      setErrorMsg('상품 옵션을 선택해주세요.');
-      setTimeout(() => setErrorMsg(''), 3000);
+      showToast('상품 옵션을 선택해주세요.', 'error');
       return;
     }
 
@@ -219,7 +236,7 @@ export default function ProductDetail() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className={`fixed inset-0 z-[50000] backdrop-blur-xl flex flex-col pointer-events-auto touch-none transition-colors duration-500 ${
+            className={`fixed inset-0 z-[50000] backdrop-blur-xl flex flex-col pointer-events-auto transition-colors duration-500 ${
               theme === 'dark' ? 'bg-black/95' : 'bg-white/95'
             }`}
           >
@@ -340,14 +357,12 @@ export default function ProductDetail() {
                     }}
                     style={{ background: 'transparent', pointerEvents: 'none' }}
                   >
-                    <Suspense fallback={<Html center><CanvasLoader /></Html>}>
-                      <Poster3D 
-                        product={product}
-                        scale={1.8}
-                        interactive={false}
-                        autoRotate={true}
-                      />
-                    </Suspense>
+                    <Poster3DWithFallback 
+                      product={product} 
+                      interactive={false} 
+                      autoRotate={true}
+                      scale={1.8}
+                    />
                   </Canvas>
                 </CanvasErrorBoundary>
                 
@@ -480,36 +495,50 @@ export default function ProductDetail() {
                     </div>
                   )}
                   <div className="flex gap-3">
-                    <button
-                      onClick={handleAddToCart}
-                      disabled={isSoldOut || isAddingToCart || isAdded}
-                      className={`flex-1 font-bold text-xl tracking-tight h-[64px] rounded-2xl transition-all active:scale-95 duration-150 shadow-2xl flex items-center justify-center gap-3 border-[0.5px] ${
-                        isSoldOut 
-                          ? theme === 'dark' ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border-transparent' : 'bg-zinc-200 text-zinc-400 cursor-not-allowed border-transparent'
-                          : isAdded
-                            ? theme === 'dark' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-green-50 text-green-600 border-green-200'
-                            : theme === 'dark' ? 'bg-white text-black hover:bg-zinc-100 shadow-white/10 border-white/20' : 'bg-black text-white hover:bg-zinc-800 shadow-black/10 border-black/20'
-                      }`}
-                    >
-                      {isAddingToCart ? (
-                        <>
-                          <Loader2 className="animate-spin" size={24} />
-                          <span className="ml-1">컬렉션에 담는 중...</span>
-                        </>
-                      ) : isAdded ? (
-                        <>
-                          <Check size={24} className="text-green-400" />
-                          <span className="ml-1">컬렉션에 담겼습니다</span>
-                        </>
-                      ) : isSoldOut ? (
-                        '품절'
-                      ) : (
-                        <div className="flex items-center justify-center gap-3">
-                          <Frame size={24} />
-                          <span>내 컬렉션에 담기</span>
-                        </div>
-                      )}
-                    </button>
+                    {id === 'workshop-single' && cartItemFromState ? (
+                      <button
+                        onClick={() => openCart()}
+                        className={`flex-1 font-bold text-xl tracking-tight h-[64px] rounded-2xl transition-all active:scale-95 duration-150 shadow-2xl flex items-center justify-center gap-3 border-[0.5px] ${
+                          theme === 'dark'
+                            ? 'bg-white text-black hover:bg-zinc-100 shadow-white/10 border-white/20'
+                            : 'bg-black text-white hover:bg-zinc-800 shadow-black/10 border-black/20'
+                        }`}
+                      >
+                        <ArrowLeft size={24} />
+                        <span className="tracking-[-0.02em]">내 컬렉션으로</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleAddToCart}
+                        disabled={isSoldOut || isAddingToCart || isAdded}
+                        className={`flex-1 font-bold text-xl tracking-tight h-[64px] rounded-2xl transition-all active:scale-95 duration-150 shadow-2xl flex items-center justify-center gap-3 border-[0.5px] ${
+                          isSoldOut 
+                            ? theme === 'dark' ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border-transparent' : 'bg-zinc-200 text-zinc-400 cursor-not-allowed border-transparent'
+                            : isAdded
+                              ? theme === 'dark' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-green-50 text-green-600 border-green-200'
+                              : theme === 'dark' ? 'bg-white text-black hover:bg-zinc-100 shadow-white/10 border-white/20' : 'bg-black text-white hover:bg-zinc-800 shadow-black/10 border-black/20'
+                        }`}
+                      >
+                        {isAddingToCart ? (
+                          <>
+                            <Loader2 className="animate-spin" size={24} />
+                            <span className="ml-1">컬렉션에 담는 중...</span>
+                          </>
+                        ) : isAdded ? (
+                          <>
+                            <Check size={24} className="text-green-400" />
+                            <span className="ml-1">컬렉션에 담겼습니다</span>
+                          </>
+                        ) : isSoldOut ? (
+                          '품절'
+                        ) : (
+                          <div className="flex items-center justify-center gap-3">
+                            <Frame size={24} />
+                            <span>내 컬렉션에 담기</span>
+                          </div>
+                        )}
+                      </button>
+                    )}
                   </div>
                   
                   <p className={`text-center text-[11px] font-medium mt-6 flex items-center justify-center gap-2 tracking-tight opacity-80 ${theme === 'dark' ? 'text-[#CCCCCC]' : 'text-[#333333]'}`}>

@@ -132,7 +132,7 @@ const useBestSellers = (period: Period, appliedRange: { start: Date; end: Date }
                             name === '커스텀 작품(Workshop)' ||
                             !!userImageUrl;
 
-          const productImage = userImageUrl || ji.front_image || undefined;
+          const productImage = userImageUrl || ji.front_image || '';
 
           if (!aggregation[name]) {
             aggregation[name] = { name, count: 0, revenue: 0, isWorkshop, image: productImage };

@@ -8,7 +8,7 @@ import {
   Loader2, ChevronLeft, Package, Image
 } from 'lucide-react';
 import { OrderStepper } from './OrderStepper';
-import { getFullImageUrl, FALLBACK_IMAGE } from '../lib/utils';
+import { getFullImageUrl } from '../lib/utils';
 
 interface OrdersModalProps {
   isOpen: boolean;
@@ -211,7 +211,7 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
                                     <img 
                                       src={displayImageUrl} 
                                       className="w-full h-full object-cover" 
-                                      onError={(e) => (e.currentTarget.src = FALLBACK_IMAGE)}
+                                      onError={(e) => (e.currentTarget.src = 'https://picsum.photos/seed/error/200/200')}
                                     />
                                   ) : <Image className={`w-full h-full p-4 ${theme === 'dark' ? 'text-zinc-700' : 'text-zinc-300'}`} />}
                                 </div>

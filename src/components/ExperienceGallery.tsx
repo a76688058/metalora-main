@@ -2,7 +2,6 @@ import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { motion, useScroll, useTransform, useSpring, useMotionValue, useVelocity, useAnimationFrame } from 'framer-motion';
 import { useProducts } from '../context/ProductContext';
 import { useNavigate } from 'react-router-dom';
-import { FALLBACK_IMAGE } from '../lib/utils';
 
 interface BentoCardProps {
   product: any;
@@ -62,7 +61,7 @@ const BentoCard = ({ product, size }: BentoCardProps) => {
       className={`relative flex-shrink-0 mx-4 rounded-2xl overflow-hidden border border-white/10 bg-zinc-900 group cursor-pointer transform-gpu will-change-transform ${sizeClasses[size]}`}
     >
       <img
-        src={product.image_url || FALLBACK_IMAGE}
+        src={product.image_url || `https://picsum.photos/seed/${product.id}/800/800`}
         alt={product.name}
         className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-500"
         referrerPolicy="no-referrer"

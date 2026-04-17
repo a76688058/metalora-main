@@ -152,7 +152,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto overscroll-contain p-6 lg:p-10 custom-scrollbar">
+        <main className="flex-1 overflow-y-auto p-6 lg:p-10 custom-scrollbar">
           <div className="max-w-7xl mx-auto">
             {children}
           </div>
