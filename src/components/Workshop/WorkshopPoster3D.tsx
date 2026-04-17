@@ -91,47 +91,16 @@ export default function WorkshopPoster3D({
     }
   });
 
-  const materials = useMemo(() => {
-    const isAluminum = materialType === 'aluminum';
-    const roughness = isAluminum ? 0.3 : 0.85;
-    const metalness = isAluminum ? 0.7 : 0.1;
-
-    const fallbackMaterialProps = {
-      color: '#1a1a1a',
-      roughness,
-      metalness,
-    };
-
-    const mats = [
-      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }),
-      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }),
-      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }),
-      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }),
-      new THREE.MeshStandardMaterial({ 
-        ...fallbackMaterialProps,
-        map: texture, 
-        emissiveMap: texture,
-        emissive: new THREE.Color('#ffffff'),
-        emissiveIntensity: isAluminum ? 1.0 : 0.05,
-        color: '#ffffff',
-        toneMapped: false
-      }), 
-      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }),
-    ];
-
-    return mats;
-  }, [texture, materialType]);
-
-  // Ensure materials and textures are disposed on unmount
-  useEffect(() => {
-    return () => {
-      materials.forEach(m => m.dispose());
-      if (texture) texture.dispose();
-    };
-  }, [materials, texture]);
-
   const isAluminum = materialType === 'aluminum';
   const depth = isAluminum ? 0.008 : 0.04;
+  const roughness = isAluminum ? 0.3 : 0.85;
+  const metalness = isAluminum ? 0.7 : 0.1;
+
+  const fallbackMaterialProps = {
+    color: '#1a1a1a',
+    roughness,
+    metalness,
+  };
 
   const geometryArgs = useMemo(() => {
     const width = 1;
@@ -152,11 +121,16 @@ export default function WorkshopPoster3D({
           ref={meshRef}
           onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
           onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
-          material={materials}
           castShadow
           receiveShadow
         >
           <boxGeometry args={geometryArgs} /> 
+          <meshStandardMaterial attach="material-0" {...fallbackMaterialProps} />
+          <meshStandardMaterial attach="material-1" {...fallbackMaterialProps} />
+          <meshStandardMaterial attach="material-2" {...fallbackMaterialProps} />
+          <meshStandardMaterial attach="material-3" {...fallbackMaterialProps} />
+          <meshStandardMaterial attach="material-4" {...fallbackMaterialProps} map={texture} emissiveMap={texture} emissive="#ffffff" emissiveIntensity={isAluminum ? 1.0 : 0.05} color="#ffffff" toneMapped={false} />
+          <meshStandardMaterial attach="material-5" {...fallbackMaterialProps} />
         </mesh>
       </group>
     </>

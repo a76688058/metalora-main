@@ -21,8 +21,8 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
     title: '',
     artist: '',
     description: '',
-    image: '',
-    backImage: '',
+    image: undefined,
+    backImage: undefined,
     limited: false,
     is_visible: true,
     options: [],
@@ -33,8 +33,8 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
       setFormData({
         ...product,
         artist: product.subtitle || product.artist || '',
-        image: product.front_image || product.image || '',
-        backImage: product.back_image || product.backImage || '',
+        image: product.front_image || product.image || undefined,
+        backImage: product.back_image || product.backImage || undefined,
         options: product.options || [],
         is_visible: product.is_visible !== false,
       });

@@ -9,6 +9,7 @@ import { getOptimizedImageUrl, FALLBACK_IMAGE } from '../lib/utils';
 import ProductGrid from '../components/ProductGrid';
 import HeroCinematic from '../components/HeroCinematic';
 import { useTheme } from '../context/ThemeContext';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 export default function Home() {
   const { products, isLoading, isError, fetchProducts } = useProducts();
@@ -115,10 +116,12 @@ export default function Home() {
       transition={{ duration: 0.5 }}
       className={`min-h-screen pb-24 ${theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'}`}
     >
-      <HeroCinematic />
+      <ErrorBoundary>
+        <HeroCinematic />
+      </ErrorBoundary>
 
-      {/* Spacer between Hero and Marquee (Increased to match Marquee visual weight) */}
-      <div className="h-40 md:h-56 lg:h-72" />
+      {/* Seamless transition from Monolith to Marquee */}
+      <div className="h-12 md:h-20" />
 
       {/* Marquee Section (Re-inserted) */}
       <div className="mb-12 md:mb-16">

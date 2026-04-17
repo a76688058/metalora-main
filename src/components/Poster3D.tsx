@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { Environment, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { Product } from '../data/products';
+import { FALLBACK_IMAGE } from '../lib/utils';
 
 interface Poster3DProps {
   product?: Product;
@@ -30,16 +31,19 @@ export default function Poster3D({
   const [hovered, setHovered] = useState(false);
   const [active, setActive] = useState(false);
   
-  const imageUrl = propImageUrl || product?.front_image || product?.image || '';
-  const backImageUrl = propBackImageUrl || product?.back_image || product?.backImage || '';
+  const imageUrl = propImageUrl || product?.front_image || product?.image || undefined;
+  const backImageUrl = propBackImageUrl || product?.back_image || product?.backImage || undefined;
 
   // Use useTexture for better caching and Suspense support
-  const textures = useTexture(
-    [imageUrl, backImageUrl].filter(Boolean) as string[]
-  );
+  const texturePaths = useMemo(() => {
+    const paths = [imageUrl, backImageUrl].filter(Boolean) as string[];
+    return paths.length > 0 ? paths : [FALLBACK_IMAGE];
+  }, [imageUrl, backImageUrl]);
 
-  const frontTexture = textures[0];
-  const backTexture = backImageUrl ? textures[1] : null;
+  const textures = useTexture(texturePaths);
+
+  const frontTexture = imageUrl ? textures[0] : (texturePaths[0] === FALLBACK_IMAGE ? textures[0] : undefined);
+  const backTexture = backImageUrl ? (imageUrl ? textures[1] : textures[0]) : null;
 
   // Apply cover logic and quality settings once
   useMemo(() => {
@@ -112,53 +116,11 @@ export default function Poster3D({
     }
   });
 
-  const materials = useMemo(() => {
-    const fallbackMaterialProps = {
-      color: '#1a1a1a',
-      roughness: 0.3, // Prevent wash-out from reflections
-      metalness: 0.7, // Premium metallic feel
-    };
-
-    const mats = [
-      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }), // Right
-      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }), // Left
-      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }), // Top
-      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }), // Bottom
-      new THREE.MeshStandardMaterial({ 
-        ...fallbackMaterialProps,
-        map: frontTexture, 
-        emissiveMap: frontTexture,
-        emissive: new THREE.Color('#ffffff'),
-        emissiveIntensity: 1.0, // Ultimate emissive for maximum clarity
-        color: frontTexture ? '#ffffff' : '#1a1a1a',
-        toneMapped: false
-      }), 
-      new THREE.MeshStandardMaterial({ 
-        ...fallbackMaterialProps,
-        map: backTexture,
-        emissiveMap: backTexture,
-        emissive: new THREE.Color('#ffffff'),
-        emissiveIntensity: 1.0,
-        color: backTexture ? '#ffffff' : '#1a1a1a',
-        toneMapped: false
-      }), 
-    ];
-
-    // Cleanup function for useMemo is not directly supported, 
-    // but we can handle it via useEffect if needed.
-    // In R3F, materials passed to 'material' prop are usually managed, 
-    // but manual creation in useMemo might need care.
-    return mats;
-  }, [frontTexture, backTexture]);
-
-  // Ensure materials and textures are disposed on unmount
-  useEffect(() => {
-    return () => {
-      materials.forEach(m => m.dispose());
-      if (frontTexture) frontTexture.dispose();
-      if (backTexture) backTexture.dispose();
-    };
-  }, [materials, frontTexture, backTexture]);
+  const fallbackMaterialProps = {
+    color: '#1a1a1a',
+    roughness: 0.3, // Prevent wash-out from reflections
+    metalness: 0.7, // Premium metallic feel
+  };
 
   return (
     <>
@@ -186,9 +148,14 @@ export default function Poster3D({
             e.stopPropagation();
             setHovered(false);
           }}
-          material={materials}
         >
           <boxGeometry args={[width, height, 0.008]} /> 
+          <meshStandardMaterial attach="material-0" {...fallbackMaterialProps} />
+          <meshStandardMaterial attach="material-1" {...fallbackMaterialProps} />
+          <meshStandardMaterial attach="material-2" {...fallbackMaterialProps} />
+          <meshStandardMaterial attach="material-3" {...fallbackMaterialProps} />
+          <meshStandardMaterial attach="material-4" {...fallbackMaterialProps} map={frontTexture} emissiveMap={frontTexture} emissive="#ffffff" emissiveIntensity={1.0} color={frontTexture ? '#ffffff' : '#1a1a1a'} toneMapped={false} />
+          <meshStandardMaterial attach="material-5" {...fallbackMaterialProps} map={backTexture} emissiveMap={backTexture} emissive="#ffffff" emissiveIntensity={1.0} color={backTexture ? '#ffffff' : '#1a1a1a'} toneMapped={false} />
         </mesh>
       </group>
     </>

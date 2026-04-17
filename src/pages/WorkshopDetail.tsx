@@ -89,8 +89,8 @@ export default function WorkshopDetail() {
     id: 'workshop-single',
     title: '커스텀 작품',
     artist: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'METALORA Artist',
-    image: cartItemFromState.custom_image || '',
-    front_image: cartItemFromState.custom_image || '',
+    image: cartItemFromState.custom_image || undefined,
+    front_image: cartItemFromState.custom_image || undefined,
     description: 'METALORA 워크숍에서 제작된 세상에 단 하나뿐인 커스텀 작품입니다.',
     limited: true,
     options: [

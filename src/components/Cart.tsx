@@ -496,7 +496,7 @@ export default function Cart() {
                       const title = isWorkshop ? (item.product?.title || '커스텀 포스터') : (item.product?.title || '제품');
                       const optionName = isWorkshop ? (item.custom_config?.size || '커스텀 옵션') : (item.product?.options?.find(opt => opt.id === item.selected_option)?.name || '기본 옵션');
                       const price = isWorkshop ? (item.custom_config?.price || 0) : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
-                      const image = item.custom_image || item.product?.front_image || item.product?.image || '';
+                      const image = item.custom_image || item.product?.front_image || item.product?.image || undefined;
                       const isSelected = selectedIds.has(item.id);
                       
                       const handleItemClick = (e: React.MouseEvent) => {
