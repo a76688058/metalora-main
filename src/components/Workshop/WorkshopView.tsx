@@ -37,16 +37,38 @@ const STEPS = [
 
 type SizeType = 'A4' | 'Custom';
 
+// 3D Loaded Event Emitter Component
+function WorkshopCanvasLoadTracker() {
+  useEffect(() => {
+    // Dispatch an event to signal that the Suspense boundary resolved
+    window.dispatchEvent(new CustomEvent('workshop-3d-poster-rendered'));
+  }, []);
+  return null;
+}
+
 function WorkshopPoster3DWithFallback({ imageUrl, materialType, interactive, size, autoRotate, theme }: { imageUrl: string | null, materialType: string, interactive?: boolean, size?: SizeType, autoRotate?: boolean, theme: string }) {
   const [showFallback, setShowFallback] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [isRendered, setIsRendered] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowFallback(true), 1000);
-    return () => clearTimeout(timer);
+    const handleRendered = () => setIsRendered(true);
+    window.addEventListener('workshop-3d-poster-rendered', handleRendered);
+
+    const timer = setTimeout(() => {
+      // If the 3D model hasn't fired the rendered event after 1.5s, fallback
+      setShowFallback(true);
+    }, 1500);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('workshop-3d-poster-rendered', handleRendered);
+    };
   }, []);
 
-  if (showFallback || hasError) {
+  const shouldShowFallback = hasError || (showFallback && !isRendered);
+
+  if (shouldShowFallback) {
     return (
        <Html center className="w-screen h-screen flex items-center justify-center">
         <img 
@@ -70,6 +92,7 @@ function WorkshopPoster3DWithFallback({ imageUrl, materialType, interactive, siz
       </Html>
     }>
       <Suspense fallback={null}>
+        <WorkshopCanvasLoadTracker />
         <WorkshopPoster3D 
           imageUrl={imageUrl} 
           materialType={materialType} 

@@ -422,7 +422,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className={`fixed inset-0 z-[50000] flex items-center justify-center transition-colors duration-500 ${
+            className={`fixed inset-0 z-[50000] flex items-center justify-center transition-colors duration-500 will-change-transform transform-gpu ${
               theme === 'dark' ? 'bg-[#0c0c0c]' : 'bg-white'
             }`}
           >
@@ -572,7 +572,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className={`fixed inset-0 z-[60000] flex items-end sm:items-center justify-center transition-colors duration-500 ${
+          className={`fixed inset-0 z-[60000] flex items-end sm:items-center justify-center transition-colors duration-500 will-change-transform transform-gpu ${
             theme === 'dark' ? 'bg-[#0c0c0c]' : 'bg-black/20 backdrop-blur-sm'
           }`}
         >

@@ -139,7 +139,7 @@ export default function MountingAnimation({ productImage }: MountingAnimationPro
                 {/* 1. 벽 (Wall - Fixed Base) */}
                 <motion.div 
                   style={{ opacity: wallOpacity, scale: wallScale }}
-                  className={`absolute w-72 h-72 md:w-96 md:h-96 rounded-[3rem] flex items-center justify-center border ${
+                  className={`absolute w-72 h-72 md:w-96 md:h-96 rounded-[3rem] flex items-center justify-center border will-change-transform transform-gpu ${
                     theme === 'dark' ? 'bg-zinc-900/20 border-white/10' : 'bg-zinc-100/20 border-black/10'
                   }`}
                 >
@@ -156,7 +156,7 @@ export default function MountingAnimation({ productImage }: MountingAnimationPro
                     scale: stickerScale,
                     boxShadow: stickerShadow
                   }}
-                  className={`absolute w-56 h-56 md:w-64 md:h-64 rounded-[2rem] border flex items-center justify-center overflow-hidden z-10 backdrop-blur-sm ${
+                  className={`absolute w-56 h-56 md:w-64 md:h-64 rounded-[2rem] border flex items-center justify-center overflow-hidden z-10 backdrop-blur-sm will-change-transform transform-gpu ${
                     theme === 'dark' ? 'bg-zinc-800/40 border-white/20' : 'bg-zinc-200/40 border-black/10'
                   }`}
                 >
@@ -174,7 +174,7 @@ export default function MountingAnimation({ productImage }: MountingAnimationPro
                     scale: magnetScale,
                     boxShadow: magnetShadow
                   }}
-                  className={`absolute w-36 h-36 md:w-44 md:h-44 rounded-2xl border flex flex-col items-center justify-center z-20 shadow-2xl ${
+                  className={`absolute w-36 h-36 md:w-44 md:h-44 rounded-2xl border flex flex-col items-center justify-center z-20 shadow-2xl will-change-transform transform-gpu ${
                     theme === 'dark' ? 'bg-zinc-700 border-white/30' : 'bg-zinc-300 border-black/20'
                   }`}
                 >
@@ -196,7 +196,7 @@ export default function MountingAnimation({ productImage }: MountingAnimationPro
                     scale: posterScale,
                     boxShadow: posterShadow
                   }}
-                  className="absolute w-[280px] aspect-[210/297] md:w-[400px] z-30 preserve-3d"
+                  className="absolute w-[280px] aspect-[210/297] md:w-[400px] z-30 preserve-3d will-change-transform transform-gpu"
                 >
                   {/* Main Surface */}
                   <div className={`absolute inset-0 rounded-xl border overflow-hidden ${

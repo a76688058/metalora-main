@@ -442,7 +442,7 @@ export default function Cart() {
                     <button 
                       onClick={() => {
                         onClose();
-                        navigate('/collection');
+                        navigate('/#marquee-section');
                       }}
                       className={`px-6 py-3 font-medium rounded-2xl transition-colors mt-2 ${
                         theme === 'dark' ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-zinc-100 text-black hover:bg-zinc-200'

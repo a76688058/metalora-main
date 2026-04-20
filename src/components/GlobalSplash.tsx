@@ -65,12 +65,12 @@ export default function GlobalSplash() {
             initial={{ scale: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="relative flex items-center justify-center"
+            className="relative flex items-center justify-center will-change-transform"
           >
             <motion.div
               animate={{ scale: [1, 1.05, 1] }}
               transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              className="relative"
+              className="relative will-change-transform"
             >
               {/* Base Logo */}
               <img
@@ -82,28 +82,33 @@ export default function GlobalSplash() {
                 referrerPolicy="no-referrer"
               />
               
-              {/* Shimmer Logo */}
+              {/* Shimmer Logo optimized with translateX instead of backgroundPosition */}
               {theme === 'dark' && (
-                <motion.div
-                  className="absolute inset-0 z-10"
+                <div 
+                  className="absolute inset-0 z-10 overflow-hidden" 
                   style={{
                     WebkitMaskImage: `url(${LOGO_URL})`,
                     WebkitMaskSize: 'contain',
                     WebkitMaskRepeat: 'no-repeat',
                     WebkitMaskPosition: 'center',
-                    background: 'linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)',
-                    backgroundSize: '200% 100%',
                     filter: 'invert(1)',
                   }}
-                  animate={{
-                    backgroundPosition: ['200% 0', '-200% 0'],
-                  }}
-                  transition={{
-                    duration: 2.5,
-                    repeat: Infinity,
-                    ease: 'linear',
-                  }}
-                />
+                >
+                  <motion.div
+                    className="absolute inset-y-0 w-[200%] will-change-transform"
+                    style={{
+                      background: 'linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)',
+                    }}
+                    animate={{
+                      x: ['-50%', '0%'],
+                    }}
+                    transition={{
+                      duration: 2.5,
+                      repeat: Infinity,
+                      ease: 'linear',
+                    }}
+                  />
+                </div>
               )}
             </motion.div>
           </motion.div>

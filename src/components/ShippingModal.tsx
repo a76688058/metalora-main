@@ -202,7 +202,7 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="relative w-full max-w-3xl mx-auto my-auto will-change-transform flex flex-col"
+            className="relative w-full max-w-3xl mx-auto my-auto will-change-transform transform-gpu flex flex-col"
           >
             {/* Header */}
             <div className="sticky top-0 z-[70] bg-[#121212] py-8 flex items-center justify-between border-b border-white/5">

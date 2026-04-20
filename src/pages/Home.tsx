@@ -34,9 +34,32 @@ export default function Home() {
   useEffect(() => {
     if (location.state?.openCart) {
       openCart();
-      navigate('/', { replace: true, state: {} });
+      navigate('/', { replace: true, state: { ...location.state, openCart: undefined } });
     }
-  }, [location.state, openCart, navigate]);
+    
+    if (location.state?.scrollTo === 'marquee-section' || location.hash === '#marquee-section') {
+      setTimeout(() => {
+        const element = document.getElementById('marquee-section');
+        if (element) {
+          const headerOffset = 100; // Account for fixed header height
+          const elementPosition = element.getBoundingClientRect().top;
+          const offsetPosition = elementPosition + window.scrollY - headerOffset;
+
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
+          });
+        }
+      }, 100);
+      
+      // Clean up the hash/state without triggering a full re-render
+      if (location.hash === '#marquee-section') {
+        window.history.replaceState(null, '', '/');
+      } else if (location.state?.scrollTo === 'marquee-section') {
+        navigate('/', { replace: true, state: { ...location.state, scrollTo: undefined } });
+      }
+    }
+  }, [location.state, location.hash, openCart, navigate]);
 
   // Restore scroll position
   useEffect(() => {
@@ -127,7 +150,7 @@ export default function Home() {
       <div className="h-40 md:h-56 lg:h-72" />
 
       {/* Marquee Section (Re-inserted) */}
-      <div className="mb-12 md:mb-16">
+      <div id="marquee-section" className="scroll-mt-28 mb-12 md:mb-16">
         <ProductGrid />
       </div>
 

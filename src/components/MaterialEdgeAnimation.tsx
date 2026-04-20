@@ -146,7 +146,8 @@ export default function MaterialEdgeAnimation() {
             }>
               <Canvas 
                 frameloop="always" 
-                gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
+                dpr={[1, 1.5]}
+                gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
                 onCreated={() => {
                   window.dispatchEvent(new CustomEvent('3d-poster-loaded'));
                 }}
@@ -167,7 +168,7 @@ export default function MaterialEdgeAnimation() {
           <div className="relative z-10 w-full max-w-7xl mx-auto px-6 pointer-events-none">
             <motion.div 
               style={{ opacity: textOpacity, y: textY }}
-              className={`flex flex-col items-start text-left space-y-8 ${
+              className={`flex flex-col items-start text-left space-y-8 will-change-transform transform-gpu ${
                 theme === 'dark' ? 'drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]' : 'drop-shadow-[0_4px_12px_rgba(255,255,255,0.8)]'
               }`}
             >

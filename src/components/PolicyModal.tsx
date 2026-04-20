@@ -31,7 +31,7 @@ export default function PolicyModal({ isOpen, onClose, title, content }: PolicyM
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: '100%' }}
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          className={`fixed inset-0 z-[70000] flex flex-col transition-colors duration-500 ${
+          className={`fixed inset-0 z-[70000] flex flex-col transition-colors duration-500 will-change-transform transform-gpu ${
             theme === 'dark' ? 'bg-zinc-950' : 'bg-white'
           }`}
         >

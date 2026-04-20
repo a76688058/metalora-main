@@ -5,6 +5,15 @@ import ErrorBoundary from './ErrorBoundary';
 import * as THREE from 'three';
 import { Product } from '../data/products';
 
+// 3D Loaded Event Emitter Component
+function CanvasLoadTracker() {
+  useEffect(() => {
+    // Dispatch an event to signal that the Suspense boundary resolved
+    window.dispatchEvent(new CustomEvent('3d-poster-rendered'));
+  }, []);
+  return null;
+}
+
 interface Poster3DProps {
   product?: Product;
   imageUrl?: string;
@@ -19,15 +28,29 @@ interface Poster3DProps {
 export function Poster3DWithFallback({ product, imageUrl, backImageUrl, width, height, scale, interactive, autoRotate, fallbackImageUrl }: Poster3DProps & { fallbackImageUrl?: string }) {
   const [showFallback, setShowFallback] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [isRendered, setIsRendered] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowFallback(true), 1000);
-    return () => clearTimeout(timer);
+    const handleRendered = () => setIsRendered(true);
+    window.addEventListener('3d-poster-rendered', handleRendered);
+
+    const timer = setTimeout(() => {
+      // If the 3D model hasn't fired the rendered event after 1.5s, fallback
+      setShowFallback(true);
+    }, 1500);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('3d-poster-rendered', handleRendered);
+    };
   }, []);
 
   const imageSrc = fallbackImageUrl || imageUrl || product?.front_image || product?.image;
 
-  if (showFallback || hasError) {
+  // if explicitly hasError, or if timer triggered AND it never rendered
+  const shouldShowFallback = hasError || (showFallback && !isRendered);
+
+  if (shouldShowFallback) {
     return (
       <Html center className="w-full h-full"> 
          <img 
@@ -51,6 +74,7 @@ export function Poster3DWithFallback({ product, imageUrl, backImageUrl, width, h
       </Html>
     }>
       <Suspense fallback={null}>
+         <CanvasLoadTracker />
          <Poster3D 
            product={product}
            imageUrl={imageUrl}

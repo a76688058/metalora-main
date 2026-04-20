@@ -30,15 +30,37 @@ function CinematicPoster({ progress, theme }: { progress: any, theme: string }) 
   // 0.4 -> 1.0: Continuous zoom-in until section disappears
   const rotationY = useTransform(progress, [0, 0.1, 0.4], [Math.PI / 2, Math.PI / 2, 0]);
   const scale = useTransform(progress, [0.3, 0.4, 1.0], [0.8, 1.2, 5.0]);
-  const edgeLightIntensity = useTransform(progress, [0, 0.05, 0.1], [0, 40, 0]);
+  const edgeLightIntensity = useTransform(progress, [0, 0.05, 0.1], [5, 40, 0]);
 
-  useFrame(() => {
+  useFrame((state) => {
+    const scrollVal = progress.get();
+    const idleWeight = Math.max(0, 1 - (scrollVal * 20)); // Fades out on scroll
+    const time = state.clock.getElapsedTime();
+
+    // The Hovering Aura: Seamless, infinite, fluid motion
+    // Rotating around Y axis with a slow, soothing phase shift
+    // 5 degrees = ~0.08 radians
+    // Time multiplier: previous * 2 -> 0.675*2=1.35, 0.45*2=0.9, 0.9*2=1.8
+    const yaw = Math.sin(time * 1.35) * 0.05; // 5 degrees sway
+    const pitch = Math.sin(time * 0.9) * 0.02; // Gentle float
+    const roll = Math.cos(time * 1.8) * 0.015; // Subtle roll
+    
+    // Y-rotation to show sides (slow constant rotation, also 2x speed)
+    const baseRotationY = rotationY.get() + (Math.sin(time * 0.9) * 0.08); 
+
     if (meshRef.current) {
-      meshRef.current.rotation.y = rotationY.get();
+      meshRef.current.rotation.set(pitch, baseRotationY + yaw, roll);
+      // No pulse scale - static scale to maintain metallic solidity
       meshRef.current.scale.setScalar(scale.get());
     }
+    
     if (edgeLightRef.current) {
-      edgeLightRef.current.intensity = edgeLightIntensity.get();
+      // Glare sweep: linked to the gentle rotation
+      const glare = Math.pow(Math.abs(Math.sin(time * 0.4)), 3) * 20 * idleWeight;
+      
+      // Correct way to get value from Transform
+      const baseIntensity = edgeLightIntensity.get(); 
+      edgeLightRef.current.intensity = baseIntensity + glare;
     }
   });
 

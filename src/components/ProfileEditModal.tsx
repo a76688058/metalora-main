@@ -178,7 +178,7 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden border-l pointer-events-auto transition-colors duration-500 ${
+            className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden border-l pointer-events-auto transition-colors duration-500 will-change-transform transform-gpu ${
               theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'
             }`}
           >
