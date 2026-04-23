@@ -58,11 +58,32 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
 
     checkInitialAgreement();
 
-    // Fetch IP address for logging
-    fetch('https://api.ipify.org?format=json')
-      .then(res => res.json())
-      .then(data => setClientIp(data.ip))
-      .catch(err => console.error('Failed to fetch IP:', err));
+    // Fetch IP address for logging with fallback
+    const fetchIp = async () => {
+      try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        if (!response.ok) throw new Error('Primary IP fetch failed');
+        const data = await response.json();
+        setClientIp(data.ip);
+      } catch (err) {
+        // Fallback to Cloudflare if primary fails
+        try {
+          const cfResponse = await fetch('https://1.1.1.1/cdn-cgi/trace');
+          if (cfResponse.ok) {
+            const text = await cfResponse.text();
+            const ipMatch = text.match(/ip=(.*)/);
+            if (ipMatch && ipMatch[1]) {
+              setClientIp(ipMatch[1]);
+              return;
+            }
+          }
+        } catch (innerErr) {
+          // Both failed, ignore silently
+        }
+      }
+    };
+
+    fetchIp();
   }, [user, onAgree, navigate]);
 
   const toggleAgreement = (key: keyof typeof agreements) => {
@@ -138,7 +159,7 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
       
       {/* Header Area */}
       <div className={`flex-none px-6 ${hideHeader ? 'pt-16 pb-6' : 'pt-24 pb-6'} ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
-        <div className="max-w-xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <motion.h1 
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -159,7 +180,7 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
 
       {/* Article Checkbox List (Scrollable Area) */}
       <div className="flex-1 overflow-y-auto px-6 pb-20 scrollbar-hide overscroll-contain touch-pan-y">
-        <div className="max-w-xl mx-auto space-y-4">
+        <div className="max-w-5xl mx-auto space-y-4">
           {articles.map((article, index) => (
             <motion.div
               key={article.id}

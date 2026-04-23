@@ -81,7 +81,7 @@ const BentoCard = ({ product, size }: BentoCardProps) => {
 
       {/* Content Overlay */}
       <div className="absolute inset-0 p-6 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-400 mb-2">Collection</p>
+        <p className="text-[12px] font-black uppercase tracking-[0.4em] text-zinc-300 mb-2">Collection</p>
         <h3 className="text-lg font-bold text-white tracking-tight">{product.name}</h3>
       </div>
 
@@ -174,7 +174,7 @@ export default function ExperienceGallery() {
           transition={{ duration: 0.8, ease: [0.17, 0.67, 0.83, 0.67] }}
           className="space-y-6"
         >
-          <span className="text-xs font-black uppercase tracking-[0.5em] text-zinc-600">Archive</span>
+          <span className="text-sm font-black uppercase tracking-[0.5em] text-zinc-400">Archive</span>
           <h2 className="text-3xl md:text-5xl font-light tracking-[0.2em] text-white/80 uppercase">
             지나간 작품도 다시 확인해보세요.
           </h2>
@@ -226,7 +226,7 @@ export default function ExperienceGallery() {
           className="flex items-center gap-4 text-zinc-600"
         >
           <div className="w-12 h-px bg-zinc-800" />
-          <span className="text-[10px] font-bold uppercase tracking-[0.3em]">Drag to Explore</span>
+          <span className="text-[12px] font-bold uppercase tracking-[0.3em] text-zinc-300">Drag to Explore</span>
           <div className="w-12 h-px bg-zinc-800" />
         </motion.div>
       </div>

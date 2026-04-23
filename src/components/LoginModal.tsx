@@ -59,14 +59,14 @@ const CheckboxRow = ({
       onClick={onChange}
       className="flex-1 text-left flex items-center gap-1.5"
     >
-      {required && <span className="text-purple-500 text-[14px] font-medium">[필수]</span>}
-      <span className={`text-[14px] ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>{label}</span>
+      {required && <span className="text-purple-500 text-[15px] font-bold">[필수]</span>}
+      <span className={`text-[15px] font-medium ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>{label}</span>
     </button>
     {onView && (
       <button
         type="button"
         onClick={onView}
-        className={`text-[12px] underline ml-auto px-2 py-1 ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`}
+        className={`text-[13px] underline ml-auto px-2 py-1 font-medium ${theme === 'dark' ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600'}`}
       >
         보기
       </button>
@@ -556,7 +556,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
               </button>
             </div>
 
-            <p className="text-center text-zinc-600 text-[11px] mt-12 font-medium tracking-tight">
+            <p className="text-center text-zinc-500 text-[12px] mt-12 font-bold tracking-tight">
               가입 시 METALORA의 이용약관 및 개인정보처리방침에 동의하게 됩니다.
             </p>
             </div>

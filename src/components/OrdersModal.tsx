@@ -31,26 +31,16 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
 
   useEffect(() => {
     if (isOpen) {
-      const scrollY = window.scrollY;
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
-      document.body.style.overflowY = 'scroll';
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = 'hidden';
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
     } else {
-      const scrollY = document.body.style.top;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflowY = '';
-      if (scrollY) {
-        window.scrollTo(0, parseInt(scrollY || '0') * -1);
-      }
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
     }
     return () => {
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflowY = '';
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
     };
   }, [isOpen]);
 
@@ -121,9 +111,9 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
-            exit={{ x: '100%' }}
+            exit={{ opacity: 0 }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden border-l pointer-events-auto transition-colors duration-500 will-change-transform transform-gpu ${
+            className={`relative w-full md:w-[50%] h-full flex flex-col shadow-2xl overflow-hidden border-l pointer-events-auto transition-colors duration-500 will-change-transform transform-gpu ${
               theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'
             }`}
           >
@@ -140,7 +130,7 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
                 >
                   <ChevronLeft size={20} />
                 </button>
-                <h2 className={`text-xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>주문 내역</h2>
+                <h2 className={`text-2xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>주문 내역</h2>
               </div>
             </div>
 
@@ -182,10 +172,10 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
                     >
                       <div className="flex justify-between items-start">
                         <div className="space-y-1">
-                          <p className={`text-[11px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`}>{order.order_number}</p>
-                          <p className={`text-lg font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{new Date(order.created_at).toLocaleDateString()}</p>
+                          <p className={`text-[14px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>{order.order_number}</p>
+                          <p className={`text-xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{new Date(order.created_at).toLocaleDateString()}</p>
                         </div>
-                        <span className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest ${
+                        <span className={`px-4 py-2 rounded-xl text-[13px] font-bold uppercase tracking-widest ${
                           order.status === '배송완료' 
                             ? 'bg-emerald-500/10 text-emerald-400' 
                             : theme === 'dark' ? 'bg-white/5 text-zinc-400' : 'bg-black/5 text-zinc-500'
@@ -217,12 +207,12 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-1">
-                                    <p className={`font-bold text-sm truncate ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{ji.title}</p>
+                                    <p className={`font-bold text-base truncate ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{ji.title}</p>
                                     {isWorkshop && (
-                                      <span className="bg-[#8B5CF6]/20 text-[#8B5CF6] text-[8px] font-black px-1.5 py-0.5 rounded">CUSTOM</span>
+                                      <span className="bg-[#8B5CF6]/20 text-[#8B5CF6] text-[12px] font-black px-2 py-0.5 rounded">CUSTOM</span>
                                     )}
                                   </div>
-                                  <p className={`text-xs font-medium ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>{ji.option} • {ji.quantity}개</p>
+                                  <p className={`text-sm font-medium ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>{ji.option} • {ji.quantity}개</p>
                                 </div>
                               </div>
                             );
@@ -230,24 +220,24 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
                         </div>
 
                         <div className={`flex justify-between items-center pt-5 border-t ${theme === 'dark' ? 'border-white/5' : 'border-black/5'}`}>
-                          <span className={`${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'} font-medium`}>결제 금액</span>
-                          <span className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{order.total_price?.toLocaleString()}</span>
+                          <span className={`text-lg ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'} font-bold`}>결제 금액</span>
+                          <span className={`text-3xl font-black ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{order.total_price?.toLocaleString()}</span>
                         </div>
                         
                         <div className="pt-2">
-                          <p className={`text-[10px] font-black uppercase tracking-widest mb-6 ml-1 ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>주문 진행 상태</p>
+                          <p className={`text-[14px] font-black uppercase tracking-widest mb-6 ml-1 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-700'}`}>주문 진행 상태</p>
                           <OrderStepper status={order.status} />
                         </div>
 
                         {order.courier && order.tracking_number && (
                           <div className={`pt-5 border-t ${theme === 'dark' ? 'border-white/5' : 'border-black/5'}`}>
                             <div className="flex items-center gap-2 mb-2">
-                              <div className={`w-1 h-3 rounded-full ${theme === 'dark' ? 'bg-zinc-700' : 'bg-zinc-300'}`} />
-                              <p className={`text-[11px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>배송 정보</p>
+                              <div className={`w-1.5 h-4 rounded-full ${theme === 'dark' ? 'bg-zinc-600' : 'bg-zinc-400'}`} />
+                              <p className={`text-[14px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-700'}`}>배송 정보</p>
                             </div>
-                            <div className={`flex justify-between items-center rounded-xl px-4 py-3 ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'}`}>
-                              <span className={`text-sm font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>{order.courier}</span>
-                              <span className={`text-sm font-bold tracking-wider ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{order.tracking_number}</span>
+                            <div className={`flex justify-between items-center rounded-xl px-5 py-4 ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'}`}>
+                              <span className={`text-base font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>{order.courier}</span>
+                              <span className={`text-base font-bold tracking-wider ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{order.tracking_number}</span>
                             </div>
                           </div>
                         )}

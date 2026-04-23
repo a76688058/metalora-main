@@ -121,7 +121,7 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
       <motion.div
         initial={{ x: '100%' }}
         animate={{ x: 0 }}
-        exit={{ x: '100%' }}
+        exit={{ opacity: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
         className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl pointer-events-auto transition-colors duration-500 ${
           theme === 'dark' ? 'bg-[#0F0F11]' : 'bg-white'

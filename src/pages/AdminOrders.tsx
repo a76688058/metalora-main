@@ -170,9 +170,17 @@ export default function AdminOrders() {
                   <div className="flex items-center gap-2 mb-0.5">
                     <p className="font-black text-white text-sm truncate">{order.order_number}</p>
                     {(() => {
-                      const hasCustom = (order.ordered_items as any[])?.some(ji => !!ji.user_image_url);
-                      return hasCustom && (
-                        <span className="bg-[#8B5CF6]/20 text-[#8B5CF6] text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">Custom</span>
+                      const hasCustom = (order.ordered_items as any[])?.some(ji => ji.product_id === 'workshop-single');
+                      const hasLandscape = (order.ordered_items as any[])?.some(ji => ji.orientation === 'landscape');
+                      return (
+                        <>
+                          {hasCustom && (
+                            <span className="bg-[#8B5CF6]/20 text-[#8B5CF6] text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">Custom</span>
+                          )}
+                          {hasLandscape && (
+                            <span className="bg-pink-500/20 text-pink-400 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">가로형</span>
+                          )}
+                        </>
                       );
                     })()}
                   </div>
@@ -278,6 +286,17 @@ export default function AdminOrders() {
                               <p className="font-bold text-white text-sm truncate">{ji.title}</p>
                               {isWorkshop && (
                                 <span className="bg-[#8B5CF6]/20 text-[#8B5CF6] text-[8px] font-black px-1.5 py-0.5 rounded">CUSTOM</span>
+                              )}
+                              {ji.orientation && (
+                                <span className="bg-pink-500/20 text-pink-400 text-[8px] font-black px-1.5 py-0.5 rounded">
+                                  {ji.orientation === 'portrait' ? '세로형' : '가로형'}
+                                </span>
+                              )}
+                              {ji.custom_config?.ai_upscale && (
+                                <span className="bg-cyan-500/20 text-cyan-400 text-[8px] font-black px-1.5 py-0.5 rounded">AI UHD</span>
+                              )}
+                              {ji.custom_config?.ai_outpaint && (
+                                <span className="bg-blue-500/20 text-blue-400 text-[8px] font-black px-1.5 py-0.5 rounded">AI EXT</span>
                               )}
                             </div>
                             <p className="text-xs text-zinc-500 font-medium mb-3">{ji.option} • {ji.quantity}개</p>

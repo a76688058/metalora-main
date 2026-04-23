@@ -322,17 +322,17 @@ export default function PaymentSuccess() {
       {/* Step Indicator */}
       <div className="w-full max-w-2xl mx-auto px-8 pt-8 pb-4 flex items-center justify-center gap-4">
         <div className="flex items-center gap-2">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${theme === 'dark' ? 'bg-[#1C1C1E] text-zinc-500' : 'bg-zinc-100 text-zinc-400'}`}>1</div>
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold ${theme === 'dark' ? 'bg-[#1C1C1E] text-zinc-300' : 'bg-zinc-100 text-zinc-800'}`}>1</div>
           <span className="text-sm font-medium text-zinc-500 hidden sm:inline">내 컬렉션</span>
         </div>
         <div className={`w-4 h-[1px] ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
         <div className="flex items-center gap-2">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${theme === 'dark' ? 'bg-[#1C1C1E] text-zinc-500' : 'bg-zinc-100 text-zinc-400'}`}>2</div>
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold ${theme === 'dark' ? 'bg-[#1C1C1E] text-zinc-300' : 'bg-zinc-100 text-zinc-800'}`}>2</div>
           <span className="text-sm font-medium text-zinc-500 hidden sm:inline">주문서</span>
         </div>
         <div className={`w-4 h-[1px] ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-[#3182F6] text-white flex items-center justify-center text-xs font-bold">3</div>
+          <div className="w-6 h-6 rounded-full bg-[#3182F6] text-white flex items-center justify-center text-[12px] font-bold">3</div>
           <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-black'}`}>결제확인</span>
         </div>
       </div>
@@ -427,8 +427,8 @@ export default function PaymentSuccess() {
             className="mb-10 text-left transform-gpu will-change-transform"
           >
             <div className="flex items-center justify-between mb-4 px-1">
-              <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.15em]">Production Status</h3>
-              <span className="text-[10px] font-medium text-[#3182F6] bg-[#3182F6]/10 px-2 py-0.5 rounded-full">Live</span>
+              <h3 className="text-[13px] font-bold text-zinc-800 dark:text-zinc-300 uppercase tracking-[0.15em]">Production Status</h3>
+              <span className="text-[12px] font-medium text-[#3182F6] bg-[#3182F6]/10 px-2 py-0.5 rounded-full">Live</span>
             </div>
 
             <div className={`rounded-[28px] p-6 border relative overflow-hidden shadow-inner transition-colors duration-500 ${
@@ -453,7 +453,7 @@ export default function PaymentSuccess() {
                   >
                     {SIMULATION_STEPS[activeStep].text}
                   </motion.p>
-                  <p className="text-xs text-zinc-500 mt-1 font-medium">
+                  <p className="text-[13px] text-zinc-600 dark:text-zinc-400 mt-1 font-medium">
                     {isSimulationComplete && selectedStep !== null ? '상세 공정 확인 중' : '메탈로라 프리미엄 공정 진행 중'}
                   </p>
                 </div>
@@ -496,8 +496,8 @@ export default function PaymentSuccess() {
                         )}
                       </div>
                       {/* Tooltip-like text for desktop, hidden on mobile if too crowded */}
-                      <span className={`absolute -bottom-6 text-[8px] font-bold whitespace-nowrap transition-all duration-300 ${
-                        activeStep === idx ? (theme === 'dark' ? 'text-white opacity-100' : 'text-black opacity-100') : 'text-zinc-600 opacity-0 group-hover:opacity-100'
+                      <span className={`absolute -bottom-6 text-[12px] font-bold whitespace-nowrap transition-all duration-300 ${
+                        activeStep === idx ? (theme === 'dark' ? 'text-white opacity-100' : 'text-black opacity-100') : 'text-zinc-500 opacity-0 group-hover:opacity-100'
                       }`}>
                         STEP {idx + 1}
                       </span>
@@ -510,7 +510,7 @@ export default function PaymentSuccess() {
                 <motion.p 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="text-center text-[10px] text-zinc-500 mt-10 font-medium"
+                  className="text-center text-[12px] text-zinc-800 dark:text-zinc-200 mt-10 font-medium"
                 >
                   공정 단계를 클릭하면 상세 내용을 다시 볼 수 있습니다.
                 </motion.p>

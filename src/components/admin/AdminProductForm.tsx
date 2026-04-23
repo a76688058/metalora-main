@@ -16,6 +16,8 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFrontUploading, setIsFrontUploading] = useState(false);
   const [isBackUploading, setIsBackUploading] = useState(false);
+  const [isLandscapeUploading, setIsLandscapeUploading] = useState(false);
+  const [isLandscapeBackUploading, setIsLandscapeBackUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Product>>({
     title: '',
@@ -23,6 +25,9 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
     description: '',
     image: '',
     backImage: '',
+    landscape_image: '',
+    landscape_back_image: '',
+    supported_orientations: ['portrait'],
     limited: false,
     is_visible: true,
     options: [],
@@ -35,6 +40,9 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
         artist: product.subtitle || product.artist || '',
         image: product.front_image || product.image || '',
         backImage: product.back_image || product.backImage || '',
+        landscape_image: product.landscape_image || '',
+        landscape_back_image: product.landscape_back_image || '',
+        supported_orientations: product.supported_orientations || ['portrait'],
         options: product.options || [],
         is_visible: product.is_visible !== false,
       });
@@ -95,7 +103,7 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
     }));
   };
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'image' | 'backImage') => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'image' | 'backImage' | 'landscape_image' | 'landscape_back_image') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -105,9 +113,16 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
       return;
     }
 
-    const setUploading = field === 'image' ? setIsFrontUploading : setIsBackUploading;
+    const setUploading = field === 'image' ? setIsFrontUploading : field === 'backImage' ? setIsBackUploading : field === 'landscape_image' ? setIsLandscapeUploading : setIsLandscapeBackUploading;
     setUploading(true);
     setError(null);
+
+    // ★ 방어막: 업로드 무한 대기 방지 (15분 타임아웃 - 50MB 초고화질 원본 대응)
+    const uploadTimeout = setTimeout(() => {
+      setUploading(false);
+      setError("스토리지 업로드 시간이 초과되었습니다. (15분 초과) 대용량 파일의 경우 네트워크 환경에 따라 오래 걸릴 수 있습니다. 인터넷 연결을 확인해주세요.");
+      showToast("업로드 시간 초과", 'error');
+    }, 900000);
 
     try {
       const fileExt = file.name.split('.').pop();
@@ -123,12 +138,13 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
       const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName);
       
       setFormData((prev) => ({ ...prev, [field]: publicUrl }));
-      showToast(`${field === 'image' ? '앞면' : '뒷면'} 이미지가 성공적으로 업로드되었습니다.`, 'success');
+      showToast(`${field === 'image' ? '앞면' : field === 'backImage' ? '뒷면' : field === 'landscape_image' ? '가로형 앞면' : '가로형 뒷면'} 이미지가 성공적으로 업로드되었습니다.`, 'success');
     } catch (err) {
       console.error(`Error uploading ${field}:`, err);
       setError(err instanceof Error ? err.message : '이미지 업로드 중 오류가 발생했습니다.');
       showToast("업로드 실패: " + (err instanceof Error ? err.message : '알 수 없는 오류'), 'error');
     } finally {
+      clearTimeout(uploadTimeout);
       setUploading(false);
     }
   };
@@ -154,6 +170,9 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
           description: formData.description || null,
           front_image: formData.image || null,
           back_image: formData.backImage || null,
+          landscape_image: formData.landscape_image || null,
+          landscape_back_image: formData.landscape_back_image || null,
+          supported_orientations: formData.supported_orientations || ['portrait'],
           is_limited: formData.limited || false,
           options: formData.options?.map(opt => ({
             ...opt,
@@ -328,6 +347,139 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
 
               {/* 오른쪽: 상세 정보 및 설정 */}
               <div className="lg:col-span-7 space-y-12">
+                {/* 지원 옵션 (가로/세로) */}
+                <div className="bg-[#1C1C1E] p-8 rounded-[32px] border border-white/5 space-y-6">
+                  <h3 className="text-xl font-bold text-white tracking-tight flex items-center gap-3">
+                    <ImageIcon size={24} className="text-pink-400" />
+                    제작 지원 방향
+                  </h3>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                      <div className="relative flex items-center justify-center w-6 h-6">
+                        <input
+                          type="checkbox"
+                          checked={formData.supported_orientations?.includes('portrait')}
+                          onChange={(e) => {
+                            const current = formData.supported_orientations || [];
+                            if (e.target.checked) {
+                              setFormData(prev => ({ ...prev, supported_orientations: [...current, 'portrait'] }));
+                            } else {
+                              if (current.length === 1) return; // 최소 하나는 선택
+                              setFormData(prev => ({ ...prev, supported_orientations: current.filter(o => o !== 'portrait') }));
+                            }
+                          }}
+                          className="peer sr-only"
+                        />
+                        <div className="w-6 h-6 rounded-md border-2 border-white/20 peer-checked:bg-pink-500 peer-checked:border-pink-500 transition-all flex items-center justify-center group-hover:border-white/40">
+                          <svg className="w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" viewBox="0 0 14 10" fill="none">
+                            <path d="M1 5L4.5 8.5L13 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </div>
+                      </div>
+                      <span className="text-base font-medium text-zinc-300 group-hover:text-white transition-colors">세로형 (Portrait) 지원</span>
+                    </label>
+
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                      <div className="relative flex items-center justify-center w-6 h-6">
+                        <input
+                          type="checkbox"
+                          checked={formData.supported_orientations?.includes('landscape')}
+                          onChange={(e) => {
+                            const current = formData.supported_orientations || [];
+                            if (e.target.checked) {
+                              setFormData(prev => ({ ...prev, supported_orientations: [...current, 'landscape'] }));
+                            } else {
+                              if (current.length === 1) return; // 최소 하나는 선택
+                              setFormData(prev => ({ ...prev, supported_orientations: current.filter(o => o !== 'landscape') }));
+                            }
+                          }}
+                          className="peer sr-only"
+                        />
+                        <div className="w-6 h-6 rounded-md border-2 border-white/20 peer-checked:bg-pink-500 peer-checked:border-pink-500 transition-all flex items-center justify-center group-hover:border-white/40">
+                          <svg className="w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" viewBox="0 0 14 10" fill="none">
+                            <path d="M1 5L4.5 8.5L13 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </div>
+                      </div>
+                      <span className="text-base font-medium text-zinc-300 group-hover:text-white transition-colors">가로형 (Landscape) 지원</span>
+                    </label>
+                  </div>
+
+                  {formData.supported_orientations?.includes('landscape') && (
+                    <div className="pt-6 border-t border-white/5 space-y-8">
+                      {/* 가로형 앞면 이미지 */}
+                      <div>
+                        <label className="block text-xs font-bold text-zinc-500 mb-4 uppercase tracking-widest ml-1">Landscape Front (가로형 앞면)</label>
+                        <div className="relative aspect-[4/3] bg-zinc-900 rounded-2xl overflow-hidden border-2 border-dashed border-zinc-800 hover:border-pink-500/50 transition-all group">
+                          {isLandscapeUploading ? (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-10">
+                              <Loader2 size={40} className="text-pink-500 animate-spin mb-3" />
+                              <span className="text-sm text-white font-bold animate-pulse">고화질 이미지 업로드 중...</span>
+                            </div>
+                          ) : null}
+
+                          {formData.landscape_image ? (
+                            <>
+                              <img src={formData.landscape_image} alt="Landscape Preview" className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                <Upload className="text-white mb-2" size={32} />
+                                <span className="text-sm text-white font-bold tracking-tight">가로형 이미지 변경</span>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-700">
+                              <ImageIcon size={56} className="mb-4 opacity-20" />
+                              <span className="text-base font-bold tracking-tight">가로형 앞면 이미지 업로드</span>
+                            </div>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleImageChange(e, 'landscape_image')}
+                            className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                            disabled={isLandscapeUploading}
+                          />
+                        </div>
+                      </div>
+
+                      {/* 가로형 뒷면 이미지 */}
+                      <div>
+                        <label className="block text-xs font-bold text-zinc-500 mb-4 uppercase tracking-widest ml-1">Landscape Back (가로형 뒷면)</label>
+                        <div className="relative aspect-[4/3] bg-zinc-900 rounded-2xl overflow-hidden border-2 border-dashed border-zinc-800 hover:border-pink-500/50 transition-all group">
+                          {isLandscapeBackUploading ? (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-10">
+                              <Loader2 size={40} className="text-pink-500 animate-spin mb-3" />
+                              <span className="text-sm text-white font-bold animate-pulse">고화질 이미지 업로드 중...</span>
+                            </div>
+                          ) : null}
+
+                          {formData.landscape_back_image ? (
+                            <>
+                              <img src={formData.landscape_back_image} alt="Landscape Back Preview" className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                <Upload className="text-white mb-2" size={32} />
+                                <span className="text-sm text-white font-bold tracking-tight">가로형 뒷면 이미지 변경</span>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-700">
+                              <ImageIcon size={56} className="mb-4 opacity-20" />
+                              <span className="text-base font-bold tracking-tight">가로형 뒷면 이미지 업로드 (선택)</span>
+                            </div>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleImageChange(e, 'landscape_back_image')}
+                            className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                            disabled={isLandscapeBackUploading}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* 기본 정보 */}
                 <div className="grid grid-cols-2 gap-8">
                   <div className="col-span-2">

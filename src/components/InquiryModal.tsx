@@ -39,20 +39,12 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
 
   useEffect(() => {
     if (isOpen) {
-      const scrollY = window.scrollY;
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
-      document.body.style.overflowY = 'scroll';
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = 'hidden';
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
     } else {
-      const scrollY = document.body.style.top;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflowY = '';
-      if (scrollY) {
-        window.scrollTo(0, parseInt(scrollY || '0') * -1);
-      }
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
       // Reset state when closed
       setShowForm(false);
       setSelectedInquiry(null);
@@ -60,10 +52,8 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
       setContent('');
     }
     return () => {
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflowY = '';
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
     };
   }, [isOpen]);
 
@@ -156,9 +146,9 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
-            exit={{ x: '100%' }}
+            exit={{ opacity: 0 }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden border-l pointer-events-auto transition-colors duration-500 will-change-transform transform-gpu ${
+            className={`relative w-full md:w-[50%] h-full flex flex-col shadow-2xl overflow-hidden border-l pointer-events-auto transition-colors duration-500 will-change-transform transform-gpu ${
               theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'
             }`}
           >
@@ -175,13 +165,13 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                 >
                   <ChevronLeft size={20} />
                 </button>
-                <h2 className={`text-xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>1:1 문의</h2>
+                <h2 className={`text-2xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>1:1 문의</h2>
               </div>
             </div>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar overscroll-contain touch-pan-y">
-              <div className="max-w-xl mx-auto pb-24">
+              <div className="max-w-2xl mx-auto pb-24">
                 <AnimatePresence mode="wait">
                   {showForm ? (
                     <motion.div
@@ -209,7 +199,7 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                           <div className="space-y-3">
                             <div className="flex items-center gap-2 mb-1">
                               <div className="w-1 h-4 bg-amber-500 rounded-full" />
-                              <label className={`text-xs font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>제목</label>
+                              <label className={`text-sm font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-700'}`}>제목</label>
                             </div>
                             <input
                               type="text"
@@ -227,7 +217,7 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                           <div className="space-y-3">
                             <div className="flex items-center gap-2 mb-1">
                               <div className="w-1 h-4 bg-amber-500 rounded-full" />
-                              <label className={`text-xs font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>내용</label>
+                              <label className={`text-sm font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-700'}`}>내용</label>
                             </div>
                             <textarea
                               value={content}
@@ -280,14 +270,14 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
 
                       <div className="space-y-4">
                         <div className="flex items-center gap-3">
-                          <span className={`text-[11px] font-bold px-3 py-1.5 rounded-xl uppercase tracking-widest ${
+                          <span className={`text-[12px] font-bold px-3 py-1.5 rounded-xl uppercase tracking-widest ${
                             selectedInquiry.status === '답변완료' 
                               ? 'bg-emerald-500/10 text-emerald-400' 
-                              : theme === 'dark' ? 'bg-zinc-800 text-zinc-500' : 'bg-zinc-100 text-zinc-400'
+                              : theme === 'dark' ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500'
                           }`}>
                             {selectedInquiry.status}
                           </span>
-                          <span className={`text-[11px] font-bold tracking-widest ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`}>
+                          <span className={`text-[12px] font-bold tracking-widest ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
                             {new Date(selectedInquiry.created_at).toLocaleDateString()}
                           </span>
                         </div>
@@ -298,7 +288,7 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                         <div className="space-y-5">
                           <div className="flex items-center gap-2">
                             <div className={`w-1 h-3 rounded-full ${theme === 'dark' ? 'bg-zinc-700' : 'bg-zinc-300'}`} />
-                            <label className={`text-[11px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>문의 내용</label>
+                            <label className={`text-[12px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>문의 내용</label>
                           </div>
                           <div className={`border rounded-[2rem] p-8 transition-colors duration-500 ${
                             theme === 'dark' ? 'bg-zinc-900/40 border-white/5' : 'bg-zinc-50 border-black/5'
@@ -312,7 +302,7 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                         <div className="space-y-5">
                           <div className="flex items-center gap-2">
                             <div className="w-1 h-3 bg-amber-500 rounded-full" />
-                            <label className="text-[11px] font-bold text-amber-500/80 uppercase tracking-widest">관리자 답변</label>
+                            <label className="text-[12px] font-bold text-amber-500 uppercase tracking-widest">관리자 답변</label>
                           </div>
                           <div className={`rounded-[2rem] p-8 border transition-colors duration-500 ${
                             selectedInquiry.answer 
@@ -378,18 +368,18 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                               }`}
                             >
                               <div className="flex justify-between items-center">
-                                <span className={`text-[10px] font-bold px-3 py-1.5 rounded-xl uppercase tracking-widest ${
+                                <span className={`text-sm font-bold px-3 py-1.5 rounded-xl uppercase tracking-widest ${
                                   inquiry.status === '답변완료' 
                                     ? 'bg-emerald-500/10 text-emerald-400' 
-                                    : theme === 'dark' ? 'bg-zinc-800 text-zinc-500' : 'bg-zinc-100 text-zinc-400'
+                                    : theme === 'dark' ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500'
                                 }`}>
                                   {inquiry.status}
                                 </span>
-                                <span className={`text-[10px] font-bold tracking-widest ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`}>
+                                <span className={`text-sm font-bold tracking-widest ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-700'}`}>
                                   {new Date(inquiry.created_at).toLocaleDateString()}
                                 </span>
                               </div>
-                              <h4 className={`text-lg font-bold tracking-tight truncate group-hover:text-amber-400 transition-colors ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{inquiry.title}</h4>
+                              <h4 className={`text-xl font-bold tracking-tight truncate group-hover:text-amber-400 transition-colors ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{inquiry.title}</h4>
                             </button>
                           ))
                         )}

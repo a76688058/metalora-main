@@ -521,7 +521,7 @@ export default function Footer() {
     <footer className={`border-t w-full font-sans transition-colors duration-500 ${theme === 'dark' ? 'bg-zinc-950 border-white/5' : 'bg-white border-black/5'}`}>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-10 px-6 py-16 max-w-7xl mx-auto">
         {/* Left: Company Info */}
-        <div className="text-center md:text-left text-zinc-600 dark:text-zinc-400 text-xs leading-relaxed">
+        <div className="text-center md:text-left text-zinc-900 dark:text-zinc-200 text-[14px] leading-relaxed">
           <div className="mb-6 flex justify-center">
             <img 
               src="https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840" 
@@ -535,7 +535,7 @@ export default function Footer() {
           <p>통신판매업신고번호: 제XXXX-XXXX호</p>
           <p>주소: 울산광역시 울주군 서생면 진하해변길 8, 12층 1202호 라-04호실(아성일마레)</p>
           <p>이메일: a76688058@gmail.com</p>
-          <p className="mt-6 text-zinc-700 dark:text-zinc-500">© 2026 METALORA. All rights reserved.</p>
+          <p className="mt-8 text-zinc-950 dark:text-zinc-400 font-medium">© 2026 METALORA. All rights reserved.</p>
         </div>
 
         {/* Center: Policy Links */}

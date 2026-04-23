@@ -11,6 +11,7 @@ interface CartItem {
   selected_option: string;
   quantity: number;
   created_at: string;
+  orientation?: 'portrait' | 'landscape';
   custom_image?: string;
   custom_config?: any;
   product?: Product;
@@ -20,7 +21,14 @@ interface CartItem {
 interface CartContextType {
   cartItems: CartItem[];
   isLoading: boolean;
-  addToCart: (productId: string, selectedOption: string, quantity: number, customImage?: string, customConfig?: any) => Promise<void>;
+  addToCart: (
+    productId: string, 
+    selectedOption: string, 
+    quantity: number, 
+    customImage?: string, 
+    customConfig?: any,
+    orientation?: 'portrait' | 'landscape'
+  ) => Promise<void>;
   removeFromCart: (itemId: string) => Promise<void>;
   updateQuantity: (itemId: string, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -133,7 +141,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     refreshCart();
   }, [refreshCart]);
 
-  const addToCart = async (productId: string, selectedOption: string, quantity: number, customImage?: string, customConfig?: any) => {
+  const addToCart = async (
+    productId: string, 
+    selectedOption: string, 
+    quantity: number, 
+    customImage?: string, 
+    customConfig?: any,
+    orientation?: 'portrait' | 'landscape'
+  ) => {
     try {
       setIsLoading(true);
       console.log('--- ADD TO CART DEBUG START ---');
@@ -166,13 +181,23 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       // 1. 기존 아이템 확인 (workshop-single은 항상 새로 추가)
       let existingItem = null;
       if (productId !== 'workshop-single') {
-        const { data, error } = await client
+        let query = client
           .from('cart_items')
           .select('*')
           .eq('user_id', currentUserId)
           .eq('product_id', productId)
           .eq('selected_option', selectedOption)
           .is('custom_image', null);
+          
+        if (orientation) {
+          query = query.eq('orientation', orientation);
+        } else {
+          // Backward compatibility: If no orientation specified, match those with null or those without orientation
+          // But since orientation is a new column, some existing rows might have it as null.
+          query = query.is('orientation', null);
+        }
+          
+        const { data, error } = await query;
           
         if (error) {
           console.error('Existing Item Check Error:', error);
@@ -199,6 +224,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               product_id: productId,
               selected_option: selectedOption,
               quantity: quantity,
+              orientation: orientation || null,
               custom_image: customImage || null,
               custom_config: customConfig || null
               // Note: product_type column might not exist yet in DB, 

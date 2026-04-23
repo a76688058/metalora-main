@@ -6,11 +6,10 @@ import * as THREE from 'three';
 import { Product } from '../data/products';
 
 // 3D Loaded Event Emitter Component
-function CanvasLoadTracker() {
+function CanvasLoadTracker({ onLoaded }: { onLoaded: () => void }) {
   useEffect(() => {
-    // Dispatch an event to signal that the Suspense boundary resolved
-    window.dispatchEvent(new CustomEvent('3d-poster-rendered'));
-  }, []);
+    onLoaded();
+  }, [onLoaded]);
   return null;
 }
 
@@ -23,40 +22,35 @@ interface Poster3DProps {
   scale?: number;
   interactive?: boolean;
   autoRotate?: boolean;
+  orientation?: 'portrait' | 'landscape';
 }
 
-export function Poster3DWithFallback({ product, imageUrl, backImageUrl, width, height, scale, interactive, autoRotate, fallbackImageUrl }: Poster3DProps & { fallbackImageUrl?: string }) {
+export function Poster3DWithFallback({ product, imageUrl, backImageUrl, width, height, scale, interactive, autoRotate, orientation, fallbackImageUrl }: Poster3DProps & { fallbackImageUrl?: string }) {
   const [showFallback, setShowFallback] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [isRendered, setIsRendered] = useState(false);
 
   useEffect(() => {
-    const handleRendered = () => setIsRendered(true);
-    window.addEventListener('3d-poster-rendered', handleRendered);
-
     const timer = setTimeout(() => {
-      // If the 3D model hasn't fired the rendered event after 1.5s, fallback
+      // If the 3D model hasn't rendered after 1.5s, fallback
       setShowFallback(true);
     }, 1500);
 
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('3d-poster-rendered', handleRendered);
-    };
+    return () => clearTimeout(timer);
   }, []);
 
-  const imageSrc = fallbackImageUrl || imageUrl || product?.front_image || product?.image;
+  const imageSrc = fallbackImageUrl || imageUrl || (orientation === 'landscape' && product?.landscape_image ? product.landscape_image : (product?.front_image || product?.image));
 
   // if explicitly hasError, or if timer triggered AND it never rendered
   const shouldShowFallback = hasError || (showFallback && !isRendered);
 
   if (shouldShowFallback) {
     return (
-      <Html center className="w-full h-full"> 
+      <Html center className="w-full h-full pointer-events-none"> 
          <img 
           src={imageSrc || 'https://picsum.photos/seed/metalora_fallback/210/297'} 
           alt="Poster" 
-          className="w-full h-full object-contain"
+          className="w-full h-full object-contain drop-shadow-2xl"
           onError={() => setHasError(true)}
         />
       </Html>
@@ -65,16 +59,16 @@ export function Poster3DWithFallback({ product, imageUrl, backImageUrl, width, h
 
   return (
     <ErrorBoundary fallback={
-       <Html center className="w-full h-full">
+       <Html center className="w-full h-full pointer-events-none">
         <img 
           src={imageSrc || 'https://picsum.photos/seed/metalora_fallback/210/297'} 
           alt="Poster" 
-          className="w-full h-full object-contain"
+          className="w-full h-full object-contain drop-shadow-2xl"
         />
       </Html>
     }>
       <Suspense fallback={null}>
-         <CanvasLoadTracker />
+         <CanvasLoadTracker onLoaded={() => setIsRendered(true)} />
          <Poster3D 
            product={product}
            imageUrl={imageUrl}
@@ -84,6 +78,7 @@ export function Poster3DWithFallback({ product, imageUrl, backImageUrl, width, h
            scale={scale}
            interactive={interactive}
            autoRotate={autoRotate}
+           orientation={orientation}
          />
       </Suspense>
     </ErrorBoundary>
@@ -98,15 +93,19 @@ export default function Poster3D({
   height = 1.414, 
   scale: baseScale = 1, 
   interactive = true,
-  autoRotate = false
+  autoRotate = false,
+  orientation = 'portrait'
 }: Poster3DProps) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
   const [active, setActive] = useState(false);
+
+  const finalWidth = orientation === 'landscape' ? height : width;
+  const finalHeight = orientation === 'landscape' ? width : height;
   
-  const imageUrl = propImageUrl || product?.front_image || product?.image || '';
-  const backImageUrl = propBackImageUrl || product?.back_image || product?.backImage || '';
+  const imageUrl = propImageUrl || (orientation === 'landscape' && product?.landscape_image ? product.landscape_image : (product?.front_image || product?.image || ''));
+  const backImageUrl = propBackImageUrl || (orientation === 'landscape' && product?.landscape_back_image ? product.landscape_back_image : (product?.back_image || product?.backImage || ''));
 
   // Use useTexture for better caching and Suspense support
   const textures = useTexture(
@@ -118,7 +117,7 @@ export default function Poster3D({
 
   // Apply cover logic and quality settings once
   useMemo(() => {
-    const targetAspect = width / height;
+    const targetAspect = finalWidth / finalHeight;
     
     [frontTexture, backTexture].forEach(tex => {
       if (!tex || !tex.image) return;
@@ -140,7 +139,7 @@ export default function Poster3D({
       tex.magFilter = THREE.LinearFilter;
       tex.needsUpdate = true;
     });
-  }, [frontTexture, backTexture, width, height]);
+  }, [frontTexture, backTexture, finalWidth, finalHeight]);
 
   useFrame((state, delta) => {
     if (groupRef.current) {
@@ -248,7 +247,7 @@ export default function Poster3D({
           }}
           material={materials}
         >
-          <boxGeometry args={[width, height, 0.008]} /> 
+          <boxGeometry args={[finalWidth, finalHeight, 0.008]} /> 
         </mesh>
       </group>
     </>

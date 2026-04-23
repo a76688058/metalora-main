@@ -135,8 +135,10 @@ export default function Cart() {
     refund: {
       title: '환불 정책 동의',
       items: [
-        '<strong class="text-fuchsia-500">주문 제작 상품</strong>은 단순 변심에 의한 <strong class="text-fuchsia-500">환불이 제한</strong>됩니다.',
-        '<strong class="text-fuchsia-500">하자 또는 오배송</strong> 시에만 재제작 또는 환불이 가능합니다.'
+        '본 상품은 <strong class="text-fuchsia-500">주문 제작 상품</strong>으로, 단순 변심에 의한 취소 및 환불이 제한됩니다.',
+        '주문 접수 후 제작이 시작된 경우에는 <strong class="text-fuchsia-500">취소가 불가능</strong>합니다.',
+        '제품의 <strong class="text-fuchsia-500">명백한 하자 또는 오배송</strong>의 경우에 한하여 재제작 또는 환불이 가능합니다.',
+        '모니터와 실제 출력물 간 <strong class="text-fuchsia-500">색상 차이, 이미지 해상도 및 원본 파일 품질 문제</strong>는 환불/재제작 사유에 해당하지 않습니다.'
       ]
     },
     terms: {
@@ -381,7 +383,7 @@ export default function Cart() {
               className="flex flex-col items-center gap-4"
             >
               <div className="w-16 h-16 border-2 border-white/10 border-t-white rounded-full animate-spin" />
-              <span className="text-white font-bold tracking-[0.3em] uppercase text-[10px]">Processing...</span>
+              <span className="text-white font-bold tracking-[0.3em] uppercase text-[12px]">Processing...</span>
             </motion.div>
           </motion.div>
         )}
@@ -391,7 +393,7 @@ export default function Cart() {
       <motion.div
         initial={{ x: '100%' }}
         animate={{ x: 0 }}
-        exit={{ x: '100%' }}
+        exit={{ opacity: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
         className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl pointer-events-auto transform-gpu will-change-transform transition-colors duration-500 ${
           theme === 'dark' ? 'bg-[#0F0F11]' : 'bg-white'
@@ -462,17 +464,29 @@ export default function Cart() {
                         <span className={`text-sm font-bold tracking-tight ${selectedIds.size === cartItems.length ? 'text-fuchsia-500' : ''}`}>
                           전체 선택
                         </span>
-                        <span className="text-xs text-zinc-500 font-medium">({selectedIds.size}/{cartItems.length})</span>
+                        <span className="text-sm text-zinc-400 font-medium">({selectedIds.size}/{cartItems.length})</span>
                       </button>
                     </div>
 
-                    {cartItems.map((item) => {
-                      const isWorkshop = item.product_type === 'workshop';
-                      const title = isWorkshop ? (item.product?.title || '커스텀 포스터') : (item.product?.title || '제품');
-                      const optionName = isWorkshop ? (item.custom_config?.size || '커스텀 옵션') : (item.product?.options?.find(opt => opt.id === item.selected_option)?.name || '기본 옵션');
-                      const price = isWorkshop ? (item.custom_config?.price || 0) : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
-                      const image = item.custom_image || item.product?.front_image || item.product?.image || '';
-                      const isSelected = selectedIds.has(item.id);
+                      {cartItems.map((item) => {
+                        const isWorkshop = item.product_type === 'workshop';
+                        const title = isWorkshop ? (item.product?.title || '커스텀 포스터') : (item.product?.title || '제품');
+                        
+                        // Extract options
+                        const orientationName = item.orientation ? (item.orientation === 'landscape' ? '가로형' : '세로형') : '';
+                        const sizeName = isWorkshop ? (item.custom_config?.size || 'A4') : (item.product?.options?.find(opt => opt.id === item.selected_option)?.name || '기본 옵션');
+                        
+                        const aiOptions = [];
+                        if (isWorkshop && item.custom_config) {
+                          if (item.custom_config.ai_upscale) aiOptions.push('AI 고화질');
+                          if (item.custom_config.ai_outpaint) aiOptions.push('AI 비율복원');
+                        }
+                        
+                        const optionDisplay = [sizeName, orientationName, ...aiOptions].filter(Boolean).join(' • ');
+
+                        const price = isWorkshop ? (item.custom_config?.price || 0) : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
+                        const image = item.custom_image || (item.orientation === 'landscape' && item.product?.landscape_image ? item.product.landscape_image : (item.product?.front_image || item.product?.image || ''));
+                        const isSelected = selectedIds.has(item.id);
                       
                       const handleItemClick = (e: React.MouseEvent) => {
                         e.stopPropagation();
@@ -515,7 +529,7 @@ export default function Cart() {
                             <div className="flex justify-between items-start">
                               <div>
                                 <h3 className={`font-semibold text-lg leading-tight tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{title}</h3>
-                                <p className="text-zinc-500 text-sm mt-2">{optionName}</p>
+                                <p className="text-zinc-500 text-sm mt-2 font-medium">{optionDisplay}</p>
                               </div>
                               <button 
                                 onClick={(e) => {
@@ -572,13 +586,13 @@ export default function Cart() {
                   <div className={`rounded-3xl p-5 space-y-3 ${theme === 'dark' ? 'bg-[#1C1C1E]' : 'bg-zinc-50'}`}>
                     {selectedItems.map(item => {
                       const isWorkshop = item.product_type === 'workshop';
-                      const title = isWorkshop ? (item.product?.title || '커스텀 포스터') : (item.product?.title || '제품');
+                      const title = (isWorkshop ? (item.product?.title || '커스텀 포스터') : (item.product?.title || '제품')) + (item.orientation ? ` (${item.orientation === 'landscape' ? '가로형' : '세로형'})` : '');
                       const price = isWorkshop ? (item.custom_config?.price || 0) : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
                       return (
                         <div key={item.id} className="flex justify-between items-center text-sm">
                           <div className="flex flex-col">
                             <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{title}</span>
-                            <span className="text-zinc-500 text-xs">수량 {item.quantity}개</span>
+                            <span className={`text-sm font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>수량 {item.quantity}개</span>
                           </div>
                           <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{(price * item.quantity).toLocaleString()}</span>
                         </div>
@@ -690,13 +704,13 @@ export default function Cart() {
                     </div>
 
                     <div className="relative z-10 flex items-center gap-3 mt-6">
-                      <div className="w-11 h-11 bg-[#3182F6] rounded-full flex items-center justify-center text-white font-bold text-xs italic border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+                      <div className="w-11 h-11 bg-[#3182F6] rounded-full flex items-center justify-center text-white font-bold text-[12px] italic border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
                         toss
                       </div>
-                      <div className="w-11 h-11 bg-[#FEE500] rounded-full flex items-center justify-center text-[#191919] font-bold text-xs border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+                      <div className="w-11 h-11 bg-[#FEE500] rounded-full flex items-center justify-center text-[#191919] font-bold text-[12px] border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
                         pay
                       </div>
-                      <div className="w-11 h-11 bg-[#03C75A] rounded-full flex items-center justify-center text-white font-bold text-xs border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+                      <div className="w-11 h-11 bg-[#03C75A] rounded-full flex items-center justify-center text-white font-bold text-[12px] border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
                         N
                       </div>
                     </div>

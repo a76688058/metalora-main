@@ -52,7 +52,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
         // Query Optimization: Select only necessary columns and limit results
         const fetchPromise = supabasePublic
           .from('products')
-          .select('id, title, subtitle, front_image, back_image, description, is_limited, is_visible, options, created_at, display_order')
+          .select('id, title, subtitle, front_image, back_image, landscape_image, landscape_back_image, supported_orientations, description, is_limited, is_visible, options, created_at, display_order')
           .order('display_order', { ascending: true })
           .limit(20);
           

@@ -83,7 +83,7 @@ export default function Collection() {
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.2, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className="text-3xl md:text-5xl font-serif font-light tracking-[0.2em] uppercase"
+              className="text-3xl md:text-5xl font-sans font-light tracking-[0.2em] uppercase"
             >
               COLLECTION
             </motion.h1>
@@ -92,10 +92,10 @@ export default function Collection() {
           <div className={`flex items-center backdrop-blur-md p-1 rounded-full border shadow-xl ${theme === 'dark' ? 'bg-zinc-900/80 border-white/10' : 'bg-zinc-100/80 border-black/10'}`}>
             <button
               onClick={() => handleSortChange('latest')}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all ${
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[11px] font-bold tracking-widest uppercase transition-all ${
                 sortBy === 'latest' 
                   ? theme === 'dark' ? 'bg-white text-black shadow-md' : 'bg-black text-white shadow-md' 
-                  : 'text-zinc-400 hover:text-zinc-600'
+                  : 'text-zinc-500 hover:text-zinc-700'
               }`}
             >
               <Clock size={14} strokeWidth={2.5} />
@@ -103,10 +103,10 @@ export default function Collection() {
             </button>
             <button
               onClick={() => handleSortChange('random')}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all ${
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[11px] font-bold tracking-widest uppercase transition-all ${
                 sortBy === 'random' 
                   ? theme === 'dark' ? 'bg-white text-black shadow-md' : 'bg-black text-white shadow-md' 
-                  : 'text-zinc-400 hover:text-zinc-600'
+                  : 'text-zinc-500 hover:text-zinc-700'
               }`}
             >
               <Shuffle size={14} strokeWidth={2.5} />
@@ -149,12 +149,12 @@ export default function Collection() {
                       {/* Badges */}
                       <div className="absolute top-3 left-3 flex flex-col gap-2 z-10">
                         {product.limited && (
-                          <span className="bg-white/90 backdrop-blur-md text-black text-[9px] font-black px-2 py-1 tracking-[0.2em] uppercase shadow-lg">
+                          <span className="bg-white/90 backdrop-blur-md text-black text-[11px] font-black px-2 py-1 tracking-[0.2em] uppercase shadow-lg">
                             Limited
                           </span>
                         )}
                         {product.isNew && (
-                          <span className="bg-purple-600/90 backdrop-blur-md text-white text-[9px] font-black px-2 py-1 tracking-[0.2em] uppercase shadow-lg">
+                          <span className="bg-purple-600/90 backdrop-blur-md text-white text-[11px] font-black px-2 py-1 tracking-[0.2em] uppercase shadow-lg">
                             New
                           </span>
                         )}
@@ -162,7 +162,7 @@ export default function Collection() {
   
                       {/* Subtle overlay on hover */}
                       <div className="absolute inset-0 bg-black/0 transition-all duration-700 group-hover:bg-black/30 pointer-events-none flex items-center justify-center">
-                        <span className="text-[10px] font-black tracking-[0.4em] uppercase text-white opacity-0 group-hover:opacity-100 transition-all duration-700 translate-y-4 group-hover:translate-y-0">
+                        <span className="text-[12px] font-black tracking-[0.4em] uppercase text-white opacity-0 group-hover:opacity-100 transition-all duration-700 translate-y-4 group-hover:translate-y-0">
                           View Details
                         </span>
                       </div>
@@ -170,7 +170,7 @@ export default function Collection() {
                     
                     <div className="mt-6 flex flex-col items-center space-y-2">
                       <div className="flex flex-col items-center">
-                        <p className="text-[9px] font-medium tracking-[0.3em] text-zinc-500 uppercase mb-1">
+                        <p className="text-[11px] font-medium tracking-[0.3em] text-zinc-600 dark:text-zinc-300 uppercase mb-1">
                           {product.artist}
                         </p>
                         <h3 className={`text-[12px] md:text-[14px] font-sans font-light tracking-[0.1em] uppercase truncate w-full text-center group-hover:text-purple-400 transition-colors duration-500 ${
@@ -180,7 +180,7 @@ export default function Collection() {
                         </h3>
                       </div>
                       <div className={`h-[1px] w-4 group-hover:w-8 transition-all duration-700 ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
-                      <p className={`text-[11px] md:text-[12px] font-sans font-medium tracking-widest ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                      <p className={`text-[12px] md:text-[13px] font-sans font-medium tracking-widest ${theme === 'dark' ? 'text-zinc-200' : 'text-zinc-800'}`}>
                         ₩{product.options?.[0]?.price?.toLocaleString() || '0'}
                       </p>
                     </div>

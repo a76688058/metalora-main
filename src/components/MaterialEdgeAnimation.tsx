@@ -192,7 +192,7 @@ export default function MaterialEdgeAnimation() {
               {/* Micro Detail Label */}
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-px ${theme === 'dark' ? 'bg-white/40' : 'bg-black/20'}`} />
-                <span className={`text-[10px] font-bold tracking-[0.4em] uppercase ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                <span className={`text-[11px] font-bold tracking-[0.4em] uppercase ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
                   Precision Edge Technology
                 </span>
               </div>
@@ -205,7 +205,7 @@ export default function MaterialEdgeAnimation() {
             whileInView={{ opacity: 0.3 }}
             className="absolute bottom-12 left-6 flex flex-col items-start space-y-2"
           >
-            <div className={`text-[9px] font-black tracking-[0.5em] uppercase ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+            <div className={`text-[11px] font-black tracking-[0.5em] uppercase ${theme === 'dark' ? 'text-zinc-200' : 'text-zinc-800'}`}>
               Material Permanence
             </div>
             <div className={`w-24 h-px ${theme === 'dark' ? 'bg-white/20' : 'bg-black/10'}`} />

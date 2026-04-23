@@ -211,7 +211,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
               >
                 <Frame size={24} strokeWidth={1} />
                 {currentUser && cartItems.length > 0 && (
-                  <span className={`absolute -top-1 -right-1 w-3.5 h-3.5 ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'} text-[9px] font-bold rounded-full flex items-center justify-center`}>
+                  <span className={`absolute -top-1 -right-1 w-4 h-4 ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'} text-[11px] font-bold rounded-full flex items-center justify-center`}>
                     {cartItems.length}
                   </span>
                 )}

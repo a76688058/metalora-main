@@ -46,7 +46,7 @@ function WorkshopCanvasLoadTracker() {
   return null;
 }
 
-function WorkshopPoster3DWithFallback({ imageUrl, materialType, interactive, size, autoRotate, theme }: { imageUrl: string | null, materialType: string, interactive?: boolean, size?: SizeType, autoRotate?: boolean, theme: string }) {
+function WorkshopPoster3DWithFallback({ imageUrl, materialType, interactive, size, orientation, autoRotate, theme }: { imageUrl: string | null, materialType: string, interactive?: boolean, size?: SizeType, orientation?: 'portrait' | 'landscape', autoRotate?: boolean, theme: string }) {
   const [showFallback, setShowFallback] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [isRendered, setIsRendered] = useState(false);
@@ -70,25 +70,29 @@ function WorkshopPoster3DWithFallback({ imageUrl, materialType, interactive, siz
 
   if (shouldShowFallback) {
     return (
-       <Html center className="w-screen h-screen flex items-center justify-center">
-        <img 
-          src={imageUrl || DEFAULT_IMAGE} 
-          alt="Poster" 
-          className="w-full h-full object-contain"
-          onError={() => setHasError(true)}
-        />
+       <Html center className="flex items-center justify-center pointer-events-none">
+        <div className={`relative transition-all duration-500 ${orientation === 'landscape' ? 'w-[280px] h-[200px]' : 'w-[200px] h-[280px]'}`}>
+          <img 
+            src={imageUrl || DEFAULT_IMAGE} 
+            alt="Poster" 
+            className="w-full h-full object-contain"
+            onError={() => setHasError(true)}
+          />
+        </div>
       </Html>
     );
   }
 
   return (
     <ErrorBoundary fallback={
-       <Html center className="w-screen h-screen">
-        <img 
-          src={imageUrl || DEFAULT_IMAGE} 
-          alt="Poster" 
-          className="w-full h-full object-contain"
-        />
+       <Html center className="pointer-events-none">
+        <div className={`relative transition-all duration-500 ${orientation === 'landscape' ? 'w-[280px] h-[200px]' : 'w-[200px] h-[280px]'}`}>
+          <img 
+            src={imageUrl || DEFAULT_IMAGE} 
+            alt="Poster" 
+            className="w-full h-full object-contain"
+          />
+        </div>
       </Html>
     }>
       <Suspense fallback={null}>
@@ -98,6 +102,7 @@ function WorkshopPoster3DWithFallback({ imageUrl, materialType, interactive, siz
           materialType={materialType} 
           interactive={interactive}
           size={size}
+          orientation={orientation}
           autoRotate={autoRotate}
         />
       </Suspense>
@@ -111,28 +116,31 @@ function WorkshopPoster3D({
   materialType, 
   interactive = false, 
   size = 'A4',
+  orientation = 'portrait',
   autoRotate = false 
 }: { 
   imageUrl: string | null, 
   materialType: string, 
   interactive?: boolean, 
   size?: SizeType,
+  orientation?: 'portrait' | 'landscape',
   autoRotate?: boolean
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
+  const [active, setActive] = useState(false);
   const targetRotation = useRef({ x: 0, y: 0 });
   
   const textureUrl = imageUrl || DEFAULT_IMAGE;
   const texture = useTexture(textureUrl);
 
   const targetAspect = useMemo(() => {
-    if (size === 'A4') return 1 / 1.414;
-    return 1 / 1.414; // Default or Custom
-  }, [size]);
+    const baseAspect = 1 / 1.414;
+    return orientation === 'landscape' ? 1 / baseAspect : baseAspect;
+  }, [size, orientation]);
 
-  useMemo(() => {
+  useEffect(() => {
     if (!texture || !texture.image) return;
     const img = texture.image as HTMLImageElement;
     const imageAspect = img.width / img.height;
@@ -167,6 +175,20 @@ function WorkshopPoster3D({
   }, [interactive, autoRotate]);
 
   useFrame((state, delta) => {
+    if (groupRef.current) {
+      const targetRotationY = active ? Math.PI : 0;
+      groupRef.current.rotation.y = THREE.MathUtils.lerp(
+        groupRef.current.rotation.y,
+        targetRotationY,
+        delta * 5
+      );
+
+      const targetScale = active ? 1.1 : 1;
+      const currentScale = groupRef.current.scale.x;
+      const newScale = THREE.MathUtils.lerp(currentScale, targetScale, delta * 5);
+      groupRef.current.scale.setScalar(newScale);
+    }
+
     if (meshRef.current) {
       if (interactive) {
         meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0, delta * 5);
@@ -214,18 +236,22 @@ function WorkshopPoster3D({
         color: '#ffffff',
         toneMapped: false
       }), 
-      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }),
+      new THREE.MeshStandardMaterial({ 
+        ...fallbackMaterialProps,
+        color: '#1a1a1a',
+        toneMapped: false
+      }), 
     ];
-  }, [texture, materialType]);
+  }, [texture, materialType, orientation]); // Added orientation to force material refresh
 
   const isAluminum = materialType === 'aluminum';
   const depth = isAluminum ? 0.008 : 0.04;
 
   const geometryArgs = useMemo(() => {
-    const width = 1;
-    const height = size === 'A4' ? 1.414 : 1.414;
+    const width = orientation === 'landscape' ? 1.414 : 1;
+    const height = orientation === 'landscape' ? 1 : 1.414;
     return [width, height, depth] as [number, number, number];
-  }, [size, depth]);
+  }, [size, depth, orientation]);
 
   return (
     <>
@@ -238,6 +264,15 @@ function WorkshopPoster3D({
       <group ref={groupRef}>
         <mesh
           ref={meshRef}
+          onClick={(e) => {
+            if (!interactive) return;
+            e.stopPropagation();
+            if (active) {
+              setActive(false);
+            } else {
+              setActive(true);
+            }
+          }}
           onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
           onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
           material={materials}
@@ -269,6 +304,9 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
   // Workshop State
   const [materialType, setMaterialType] = useState<'aluminum'>('aluminum');
   const [size, setSize] = useState<SizeType>('A4');
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
+  const [aiUpscale, setAiUpscale] = useState(false);
+  const [aiOutpaint, setAiOutpaint] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -549,6 +587,9 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
             shaderType: '커스텀 제작',
             material: materialType,
             size: size,
+            orientation: orientation,
+            ai_upscale: aiUpscale,
+            ai_outpaint: aiOutpaint,
             price: 49000,
             serial_number: `WS-${Date.now()}`
           }
@@ -649,7 +690,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
         </div>
         
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-          <div className={`text-[10px] font-bold tracking-widest uppercase mb-0.5 ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>
+          <div className={`text-[12px] font-bold tracking-widest uppercase mb-0.5 ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>
             Step {currentStep} / {totalSteps}
           </div>
           <h1 className={`text-sm font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
@@ -712,7 +753,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
         className="relative z-10 flex-1 flex flex-col pt-8 pb-32 overflow-y-auto custom-scrollbar overscroll-contain touch-pan-y"
       >
         {/* Step Progress Bar (Minimal) */}
-        <div className="max-w-xl mx-auto w-full px-6 mb-8">
+        <div className="max-w-xl md:max-w-7xl mx-auto w-full px-6 mb-8">
             <div className={`h-[2px] w-full rounded-full overflow-hidden ${theme === 'dark' ? 'bg-white/10' : 'bg-black/5'}`}>
               <motion.div 
                 initial={{ width: 0 }}
@@ -724,7 +765,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
           </div>
 
         {/* Content Area */}
-        <div className="flex-1 max-w-xl mx-auto w-full px-6 relative">
+        <div className="flex-1 max-w-xl md:max-w-7xl mx-auto w-full px-6 relative">
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={currentStep}
@@ -733,58 +774,115 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: direction > 0 ? -20 : 20 }}
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-              className="w-full"
+              className="w-full h-full"
             >
               {/* --- STEP 1: Material & Size Selection --- */}
               {currentStep === 1 && (
-                <div className="flex flex-col gap-8">
-                  <div>
-                    <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>재질 확인</h3>
-                    <div className="flex flex-col gap-4">
-                      <div 
-                        className={`p-6 rounded-3xl border text-left transition-all cursor-default relative overflow-hidden ${
-                          theme === 'dark' 
-                            ? 'bg-cyan-500/10 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.2)]' 
-                            : 'bg-cyan-50 border-cyan-500/30 shadow-[0_10px_30px_rgba(6,182,212,0.1)]'
-                        }`}
-                      >
-                        <h3 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-cyan-900'}`}>메탈릭 알루미늄</h3>
-                        <p className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>METALORA Signature: 얇고 매끄러운 표면. 빛이 금속 특유의 광택으로 반사되어 미래지향적인 색감을 구현합니다.</p>
-                        <div className={`mt-4 pt-4 border-t text-xs font-medium flex items-center gap-1.5 ${
-                          theme === 'dark' ? 'border-cyan-500/20 text-cyan-400' : 'border-cyan-500/10 text-cyan-600'
-                        }`}>
-                          <Check size={14} />
-                          METALORA 시그니처 재질로 확정되었습니다
+                <div className="flex flex-col md:flex-row gap-12 md:gap-20">
+                  <div className="flex-1 space-y-12">
+                    <div>
+                      <h3 className={`text-xl font-bold mb-6 flex items-center gap-3 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+                        <div className="w-1.5 h-6 bg-cyan-400 rounded-full" />
+                        재질 확인
+                      </h3>
+                      <div className="flex flex-col gap-4">
+                        <div 
+                          className={`p-8 rounded-[40px] border text-left transition-all cursor-default relative overflow-hidden ${
+                            theme === 'dark' 
+                              ? 'bg-cyan-500/10 border-cyan-400 shadow-[0_0_40px_rgba(34,211,238,0.15)]' 
+                              : 'bg-cyan-50 border-cyan-500/30'
+                          }`}
+                        >
+                          <div className={`text-[12px] font-black tracking-[0.3em] uppercase mb-4 ${theme === 'dark' ? 'text-cyan-300' : 'text-cyan-800'}`}>Premium Material</div>
+                          <h3 className={`text-2xl font-black mb-3 ${theme === 'dark' ? 'text-white' : 'text-cyan-900'}`}>메탈릭 알루미늄</h3>
+                          <p className={`text-base leading-relaxed break-keep ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                            METALORA Signature: 얇고 매끄러운 표면. 빛이 금속 특유의 광택으로 반사되어 미래지향적인 색감을 구현합니다.
+                          </p>
+                          <div className={`mt-8 pt-6 border-t text-sm font-bold flex items-center gap-2 ${
+                            theme === 'dark' ? 'border-cyan-500/20 text-cyan-400' : 'border-cyan-500/10 text-cyan-700'
+                          }`}>
+                            <div className="w-5 h-5 rounded-full bg-cyan-400/20 flex items-center justify-center">
+                              <Check size={12} />
+                            </div>
+                            시그니처 재질로 자동 선택되었습니다
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div>
-                    <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>사이즈 선택</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => setSize('A4')}
-                        className={`py-4 rounded-2xl border text-center transition-all ${
-                          size === 'A4' 
-                            ? theme === 'dark' 
-                              ? 'bg-purple-500/10 border-purple-400 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]' 
-                              : 'bg-purple-50 border-purple-500 text-purple-600 shadow-[0_10px_20px_rgba(168,85,247,0.1)]'
-                            : theme === 'dark'
-                              ? 'bg-zinc-900/40 border-white/5 text-zinc-400 hover:border-white/20'
-                              : 'bg-zinc-50 border-black/5 text-zinc-500 hover:border-black/10'
-                        }`}
-                      >
-                        <div className="font-bold">A4 (210x297mm)</div>
-                      </button>
-                      <button
-                        disabled
-                        className={`py-4 rounded-2xl border text-center transition-all cursor-not-allowed relative overflow-hidden ${
-                          theme === 'dark' ? 'bg-zinc-900/20 border-white/5 text-zinc-600' : 'bg-zinc-100 border-black/5 text-zinc-400'
-                        }`}
-                      >
-                        <div className="font-bold">Custom (준비중)</div>
-                      </button>
+                  <div className="w-full md:w-[400px] space-y-12">
+                    <div>
+                      <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>사이즈 선택</h3>
+                      <div className="grid grid-cols-1 gap-4">
+                        <button
+                          onClick={() => setSize('A4')}
+                          className={`py-6 px-8 rounded-3xl border text-left transition-all flex items-center justify-between ${
+                            size === 'A4' 
+                              ? theme === 'dark' 
+                                ? 'bg-purple-500/10 border-purple-400 text-purple-400' 
+                                : 'bg-purple-50 border-purple-500 text-purple-600'
+                              : theme === 'dark'
+                                ? 'bg-zinc-900/40 border-white/5 text-zinc-400'
+                                : 'bg-zinc-50 border-black/5 text-zinc-500'
+                          }`}
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-black text-lg underline decoration-2 underline-offset-4 decoration-purple-500/30">A4 Standard</span>
+                            <span className="text-[14px] font-semibold opacity-90">210 x 297 mm</span>
+                          </div>
+                          <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${size === 'A4' ? 'bg-purple-500 border-purple-500' : 'border-zinc-700'}`}>
+                            {size === 'A4' && <Check size={16} className="text-white" />}
+                          </div>
+                        </button>
+                        <button
+                          disabled
+                          className={`py-6 px-8 rounded-3xl border text-left transition-all cursor-not-allowed opacity-40 ${
+                            theme === 'dark' ? 'bg-zinc-900/20 border-white/5 text-zinc-600' : 'bg-zinc-100 border-black/5 text-zinc-400'
+                          }`}
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-black text-lg">Custom Size</span>
+                            <span className="text-sm font-medium">Coming Soon</span>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>방향 선택</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <button
+                          onClick={() => setOrientation('portrait')}
+                          className={`py-6 rounded-3xl border text-center transition-all flex flex-col items-center gap-3 ${
+                            orientation === 'portrait' 
+                              ? theme === 'dark' 
+                                ? 'bg-cyan-500/10 border-cyan-400 text-cyan-400 shadow-xl' 
+                                : 'bg-cyan-50 border-cyan-500 text-cyan-600 shadow-lg'
+                              : theme === 'dark'
+                                ? 'bg-zinc-900/40 border-white/5 text-zinc-400'
+                                : 'bg-zinc-50 border-black/5 text-zinc-500'
+                          }`}
+                        >
+                          <div className={`w-6 h-9 rounded-md border-2 transition-transform duration-500 ${orientation === 'portrait' ? 'border-current scale-110 shadow-lg shadow-cyan-400/20' : (theme === 'dark' ? 'border-zinc-700' : 'border-zinc-300')}`} />
+                          <div className="font-black text-[14px] tracking-tighter">세로형 (Portrait)</div>
+                        </button>
+                        <button
+                          onClick={() => setOrientation('landscape')}
+                          className={`py-6 rounded-3xl border text-center transition-all flex flex-col items-center gap-3 ${
+                            orientation === 'landscape' 
+                              ? theme === 'dark' 
+                                ? 'bg-cyan-500/10 border-cyan-400 text-cyan-400 shadow-xl' 
+                                : 'bg-cyan-50 border-cyan-500 text-cyan-600 shadow-lg'
+                              : theme === 'dark'
+                                ? 'bg-zinc-900/40 border-white/5 text-zinc-400'
+                                : 'bg-zinc-50 border-black/5 text-zinc-500'
+                          }`}
+                        >
+                          <div className={`w-9 h-6 rounded-md border-2 transition-transform duration-500 ${orientation === 'landscape' ? 'border-current scale-110 shadow-lg shadow-cyan-400/20' : (theme === 'dark' ? 'border-zinc-700' : 'border-zinc-300')}`} />
+                          <div className="font-black text-[14px] tracking-tighter">가로형 (Landscape)</div>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -792,150 +890,249 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
 
               {/* --- STEP 2: Image Upload & 3D Preview --- */}
               {currentStep === 2 && (
-                <div className="flex flex-col gap-6">
-                  <div className={`w-full aspect-[3/4] max-w-sm mx-auto rounded-3xl overflow-hidden border relative shadow-2xl transition-colors duration-500 ${
-                    theme === 'dark' ? 'bg-black border-white/10' : 'bg-zinc-50 border-black/5'
-                  }`}>
-                    <div className={`absolute top-4 left-4 z-10 px-3 py-1 backdrop-blur-md rounded-full border text-[10px] tracking-widest font-bold uppercase flex items-center gap-2 ${
-                      theme === 'dark' ? 'bg-black/50 border-white/10 text-white' : 'bg-white/50 border-black/5 text-black'
+                <div className="flex flex-col md:flex-row md:items-start gap-8 md:gap-16">
+                  {/* Left Column: 3D Preview */}
+                  <div className="flex-1 w-full order-1 md:order-1">
+                    <div className={`w-full aspect-square md:aspect-[16/10] rounded-[32px] md:rounded-[48px] overflow-hidden border relative shadow-2xl transition-colors duration-500 ${
+                      theme === 'dark' ? 'bg-black border-white/10' : 'bg-zinc-50 border-black/5'
                     }`}>
-                      <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                      Live 3D Preview
-                    </div>
-                    
-                    <motion.button 
-                      animate={{ scale: [1, 1.1, 1] }}
-                      transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                      onClick={() => setIsModalOpen(true)}
-                      className={`absolute top-4 right-4 p-3 backdrop-blur-md rounded-full border z-10 transition-colors ${
-                        theme === 'dark' ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-black/5 border-black/10 hover:bg-black/10'
-                      }`}
-                    >
-                      <Maximize size={18} className={theme === 'dark' ? 'text-white' : 'text-black'} />
-                    </motion.button>
-                    
-                    {isResumingImage && uploadedImage && (
-                      <div className={`absolute inset-0 z-20 flex items-center justify-center backdrop-blur-sm ${theme === 'dark' ? 'bg-black/80' : 'bg-white/80'}`}>
-                        <div className="flex flex-col items-center gap-3">
-                          <div className={`w-8 h-8 border-2 border-t-transparent rounded-full animate-spin ${
-                            theme === 'dark' ? 'border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)]' : 'border-cyan-600'
-                          }`} />
-                          <span className={`font-bold text-sm tracking-widest animate-pulse ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>이미지를 불러오는 중...</span>
+                      <div className={`absolute top-4 left-4 z-10 px-4 py-1.5 backdrop-blur-md rounded-full border text-[12px] tracking-[0.2em] font-bold uppercase flex items-center gap-2.5 ${
+                        theme === 'dark' ? 'bg-black/50 border-white/10 text-white' : 'bg-white/50 border-black/5 text-black'
+                      }`}>
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                        Studio Live Preview
+                      </div>
+                      
+                      <motion.button 
+                        animate={{ scale: [1, 1.1, 1] }}
+                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                        onClick={() => setIsModalOpen(true)}
+                        className={`absolute top-6 right-6 p-3 backdrop-blur-md rounded-full border z-10 transition-colors ${
+                          theme === 'dark' ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-black/5 border-black/10 hover:bg-black/10'
+                        }`}
+                      >
+                        <Maximize size={18} className={theme === 'dark' ? 'text-white' : 'text-black'} />
+                      </motion.button>
+                      
+                      {isResumingImage && uploadedImage && (
+                        <div className={`absolute inset-0 z-20 flex items-center justify-center backdrop-blur-sm ${theme === 'dark' ? 'bg-black/80' : 'bg-white/80'}`}>
+                          <div className="flex flex-col items-center gap-3">
+                            <div className={`w-8 h-8 border-2 border-t-transparent rounded-full animate-spin ${
+                              theme === 'dark' ? 'border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.5)]' : 'border-cyan-600'
+                            }`} />
+                            <span className={`font-bold text-sm tracking-widest animate-pulse ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>이미지를 불러오는 중...</span>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    <ErrorBoundary fallback={
-                      <div className="w-full h-full flex items-center justify-center p-8">
-                        {uploadedImage && <img src={uploadedImage} alt="Preview" className="max-w-full max-h-full object-contain" />}
-                      </div>
-                    }>
-                      <Canvas shadows camera={{ position: [0, 0, 2.5], fov: 45 }} style={{ pointerEvents: 'none' }}>
-                          <WorkshopPoster3DWithFallback 
-                            imageUrl={uploadedImage} 
-                            materialType={materialType} 
-                            interactive={false}
-                            size={size}
-                            theme={theme}
-                          />
-                        <ContactShadows position={[0, -1, 0]} opacity={theme === 'dark' ? 0.5 : 0.2} scale={5} blur={2} far={2} color={theme === 'dark' ? "#000000" : "#666666"} />
-                      </Canvas>
-                    </ErrorBoundary>
+                      <ErrorBoundary fallback={
+                        <div className="w-full h-full flex items-center justify-center p-8">
+                          {uploadedImage && <img src={uploadedImage} alt="Preview" className="max-w-full max-h-full object-contain" />}
+                        </div>
+                      }>
+                        <Canvas shadows camera={{ position: [0, 0, 2.8], fov: 45 }} style={{ pointerEvents: 'none' }}>
+                            <WorkshopPoster3DWithFallback 
+                              key={`preview-${orientation}`}
+                              imageUrl={uploadedImage} 
+                              materialType={materialType} 
+                              interactive={false}
+                              size={size}
+                              orientation={orientation}
+                              autoRotate={true}
+                              theme={theme}
+                            />
+                          <ContactShadows position={[0, -1.2, 0]} opacity={theme === 'dark' ? 0.6 : 0.2} scale={6} blur={2.5} far={2} color={theme === 'dark' ? "#000000" : "#666666"} />
+                        </Canvas>
+                      </ErrorBoundary>
+                    </div>
                   </div>
 
-                  <div className={`backdrop-blur-md border rounded-3xl p-6 text-center transition-colors duration-500 ${
-                    theme === 'dark' ? 'bg-zinc-900/40 border-white/5' : 'bg-zinc-50 border-black/5'
-                  }`}>
-                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
-                      theme === 'dark' ? 'bg-white/5 text-white' : 'bg-black/5 text-black'
+                  {/* Right Column: Controls */}
+                  <div className="w-full md:w-[400px] order-2 md:order-2 flex flex-col gap-6">
+                    <div className={`backdrop-blur-md border rounded-[32px] md:rounded-[40px] p-8 text-center transition-colors duration-500 ${
+                      theme === 'dark' ? 'bg-zinc-900/40 border-white/5 shadow-2xl' : 'bg-zinc-50 border-black/5'
                     }`}>
-                      <Upload size={28} />
+                      <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-6 ${
+                        theme === 'dark' ? 'bg-white/5 text-white' : 'bg-black/5 text-black'
+                      }`}>
+                        <Upload size={28} />
+                      </div>
+                      <h3 className={`text-xl font-bold mb-3 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>이미지 업로드</h3>
+                      <p className={`text-[15px] leading-relaxed mb-8 break-keep ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                        고해상도 이미지일수록 알루미늄의 광택이<br className="hidden md:block"/> 더 선명하게 살아납니다.
+                      </p>
+                      <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                        className={`w-full py-5 font-bold rounded-2xl transition-all flex items-center justify-center gap-3 disabled:opacity-50 active:scale-[0.98] ${
+                          theme === 'dark' 
+                            ? 'bg-white text-black hover:bg-zinc-200 shadow-lg shadow-white/5' 
+                            : 'bg-black text-white hover:bg-zinc-800 shadow-lg shadow-black/10'
+                        }`}
+                      >
+                        {isUploading ? (
+                          <div className={`w-5 h-5 border-2 border-t-transparent rounded-full animate-spin ${theme === 'dark' ? 'border-black' : 'border-white'}`} />
+                        ) : (
+                          <ImageIcon size={20} />
+                        )}
+                        {isUploading ? '업로드 중...' : uploadedImage ? '다른 사진 선택' : '사진 등록하기'}
+                      </button>
+                      <p className={`text-[14px] mt-4 text-center font-medium leading-tight break-keep ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>
+                        ※ 타인의 저작권을 침해하는 이미지는 삼가주세요.
+                      </p>
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleImageUpload} 
+                        accept="image/*" 
+                        className="hidden" 
+                      />
+
+                      {/* AI Premium Options Integrated */}
+                      <div className={`mt-10 pt-8 border-t ${theme === 'dark' ? 'border-white/5' : 'border-black/5'}`}>
+                        <div className="flex items-center justify-center gap-2 mb-6">
+                          <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+                          <h4 className={`text-[12px] font-black tracking-[0.2em] uppercase ${theme === 'dark' ? 'text-purple-400' : 'text-purple-700'}`}>AI Premium Solutions</h4>
+                        </div>
+                        <div className="space-y-3">
+                          <button
+                            onClick={() => setAiUpscale(!aiUpscale)}
+                            className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center gap-4 group active:scale-[0.98] ${
+                              aiUpscale 
+                                ? theme === 'dark' 
+                                  ? 'bg-purple-500/10 border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.1)]' 
+                                  : 'bg-purple-50 border-purple-500/30 shadow-[0_10px_20px_rgba(168,85,247,0.05)]'
+                                : theme === 'dark'
+                                  ? 'bg-zinc-900/20 border-white/5 hover:border-white/10'
+                                  : 'bg-zinc-100 border-black/5 hover:border-black/10'
+                            }`}
+                          >
+                            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                              aiUpscale ? 'bg-purple-500 border-purple-500' : (theme === 'dark' ? 'border-zinc-700' : 'border-zinc-300')
+                            }`}>
+                              {aiUpscale && <Check size={14} className="text-white" />}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-bold text-[15px] ${theme === 'dark' ? 'text-white' : 'text-black'}`}>AI 울트라 디테일 최적화</span>
+                                <span className="text-[12px] px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded font-black uppercase">Free</span>
+                              </div>
+                              <p className={`text-[14px] mt-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>노이즈를 제거하고 4K급 고해상도로 변환합니다.</p>
+                            </div>
+                          </button>
+
+                          <button
+                            onClick={() => setAiOutpaint(!aiOutpaint)}
+                            className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center gap-4 group active:scale-[0.98] ${
+                              aiOutpaint 
+                                ? theme === 'dark' 
+                                  ? 'bg-purple-500/10 border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.1)]' 
+                                  : 'bg-purple-50 border-purple-500/30 shadow-[0_10px_20px_rgba(168,85,247,0.05)]'
+                                : theme === 'dark'
+                                  ? 'bg-zinc-900/20 border-white/5 hover:border-white/10'
+                                  : 'bg-zinc-100 border-black/5 hover:border-black/10'
+                            }`}
+                          >
+                            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                              aiOutpaint ? 'bg-purple-500 border-purple-500' : (theme === 'dark' ? 'border-zinc-700' : 'border-zinc-300')
+                            }`}>
+                              {aiOutpaint && <Check size={14} className="text-white" />}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-bold text-[15px] ${theme === 'dark' ? 'text-white' : 'text-black'}`}>AI 스페이스 익스텐션</span>
+                                <span className="text-[12px] px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded font-black uppercase">Free</span>
+                              </div>
+                              <p className={`text-[14px] mt-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>잘려나가는 부분을 AI가 자연스럽게 채워드립니다.</p>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <h3 className={`text-lg font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>고객님의 이미지를 업로드하세요.</h3>
-                    <p className={`text-sm leading-relaxed mb-6 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                      고해상도 이미지일수록 알루미늄의 광택이<br/>더 선명하게 살아납니다.
-                    </p>
-                    <button 
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploading}
-                      className={`w-full py-4 font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 ${
-                        theme === 'dark' 
-                          ? 'bg-zinc-800/80 text-zinc-300 border border-zinc-700/50 hover:bg-zinc-700/80' 
-                          : 'bg-zinc-100 text-zinc-700 border border-zinc-200 hover:bg-zinc-200'
-                      }`}
-                    >
-                      {isUploading ? (
-                        <div className={`w-5 h-5 border-2 border-t-transparent rounded-full animate-spin ${theme === 'dark' ? 'border-white' : 'border-black'}`} />
-                      ) : (
-                        <ImageIcon size={20} />
-                      )}
-                      {isUploading ? '업로드 중...' : uploadedImage ? '사진 변경하기' : '사진 등록하기'}
-                    </button>
-                    <p className={`text-[10px] mt-4 text-center leading-tight break-keep ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`}>
-                      ※ 타인의 저작권, 초상권, 개인정보를 침해할 경우 모든 책임은 이용자에게 있습니다.
-                    </p>
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      onChange={handleImageUpload} 
-                      accept="image/*" 
-                      className="hidden" 
-                    />
                   </div>
                 </div>
               )}
               {/* --- STEP 3: Finalize --- */}
               {currentStep === 3 && (
-                <div className="flex flex-col items-center pt-4">
-                  <motion.div 
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className={`w-full aspect-[3/4] max-w-[280px] rounded-2xl overflow-hidden border shadow-2xl mb-10 transition-colors duration-500 ${
-                      theme === 'dark' ? 'bg-black border-white/10' : 'bg-zinc-50 border-black/5'
-                    }`}
-                  >
-                    <ErrorBoundary fallback={
-                      <div className="w-full h-full flex items-center justify-center p-8">
-                        {uploadedImage && <img src={uploadedImage} alt="Preview" className="max-w-full max-h-full object-contain" />}
-                      </div>
-                    }>
-                      <Canvas shadows camera={{ position: [0, 0, 2.5], fov: 45 }}>
-                        <Suspense fallback={null}>
-                          <WorkshopPoster3D 
-                            imageUrl={uploadedImage} 
-                            materialType={materialType} 
-                            interactive={false}
-                            size={size}
-                            autoRotate={true}
-                          />
-                        </Suspense>
-                        <ContactShadows position={[0, -1, 0]} opacity={theme === 'dark' ? 0.5 : 0.2} scale={5} blur={2} far={2} color={theme === 'dark' ? "#000000" : "#666666"} />
-                      </Canvas>
-                    </ErrorBoundary>
-                  </motion.div>
+                <div className="flex flex-col md:flex-row md:items-center gap-12 md:gap-20 pt-4">
+                  {/* Left Column: Result Preview */}
+                  <div className="flex-1 flex justify-center order-1 md:order-1">
+                    <motion.div 
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className={`w-full aspect-[3/4] max-w-[320px] md:max-w-[420px] rounded-[32px] md:rounded-[48px] overflow-hidden border shadow-[0_30px_60px_rgba(0,0,0,0.3)] transition-colors duration-500 ${
+                        theme === 'dark' ? 'bg-black border-white/10' : 'bg-zinc-50 border-black/5'
+                      }`}
+                    >
+                      <ErrorBoundary fallback={
+                        <div className="w-full h-full flex items-center justify-center p-8">
+                          {uploadedImage && <img src={uploadedImage} alt="Preview" className="max-w-full max-h-full object-contain" />}
+                        </div>
+                      }>
+                        <Canvas shadows camera={{ position: [0, 0, 2.5], fov: 45 }}>
+                          <Suspense fallback={null}>
+                            <WorkshopPoster3D 
+                              key={`final-${orientation}`}
+                              imageUrl={uploadedImage} 
+                              materialType={materialType} 
+                              interactive={false}
+                              size={size}
+                              orientation={orientation}
+                              autoRotate={true}
+                            />
+                          </Suspense>
+                          <ContactShadows position={[0, -1, 0]} opacity={theme === 'dark' ? 0.5 : 0.2} scale={5} blur={2} far={2} color={theme === 'dark' ? "#000000" : "#666666"} />
+                        </Canvas>
+                      </ErrorBoundary>
+                    </motion.div>
+                  </div>
 
-                  <div className="w-full space-y-6">
-                    <div className={`rounded-3xl p-8 border transition-colors duration-500 ${
-                      theme === 'dark' ? 'bg-zinc-900/40 border-white/5' : 'bg-zinc-50 border-black/5'
+                  {/* Right Column: Order Summary */}
+                  <div className="w-full md:w-[400px] order-2 md:order-2 space-y-6">
+                    <div className={`rounded-[32px] p-10 border transition-colors duration-500 ${
+                      theme === 'dark' ? 'bg-zinc-900/40 border-white/5 shadow-2xl' : 'bg-zinc-50 border-black/5'
                     }`}>
-                      <h3 className={`text-xs font-bold tracking-widest uppercase mb-6 ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>Order Summary</h3>
+                      <h3 className={`text-[13px] font-black tracking-[0.2em] uppercase mb-8 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>Studio Order Summary</h3>
                       <div className="space-y-5">
                         <div className="flex justify-between items-center">
                           <span className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>제작 방식</span>
                           <span className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>커스텀 제작</span>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>재질</span>
-                          <span className={`font-bold ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>메탈릭 알루미늄</span>
+                        <div className="flex justify-between items-center text-sm font-medium">
+                          <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}>재질</span>
+                          <span className={theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}>메탈릭 알루미늄</span>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>사이즈</span>
-                          <span className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{size} (210x297mm)</span>
+                        <div className="flex justify-between items-center text-sm font-medium">
+                          <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}>사이즈</span>
+                          <span className={theme === 'dark' ? 'text-white' : 'text-black'}>{size} ({orientation === 'landscape' ? '297x210mm' : '210x297mm'})</span>
                         </div>
-                        <div className={`h-[1px] my-2 ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'}`} />
-                        <div className="flex justify-between items-center">
-                          <span className={`text-sm ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>결제 예정 금액</span>
-                          <div className={`text-xl font-black ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+                        <div className="flex justify-between items-center text-sm font-medium">
+                          <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}>방향</span>
+                          <span className={theme === 'dark' ? 'text-white' : 'text-black'}>{orientation === 'landscape' ? '가로형' : '세로형'}</span>
+                        </div>
+                        {(aiUpscale || aiOutpaint) && (
+                          <div className={`pt-4 border-t ${theme === 'dark' ? 'border-white/5' : 'border-black/5'}`}>
+                            <p className={`text-[14px] font-black uppercase tracking-widest mb-3 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`}>적용된 AI 솔루션</p>
+                            <div className="space-y-2">
+                              {aiUpscale && (
+                                <div className={`flex items-center gap-2 text-[14px] font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+                                  <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                                  <span>AI 울트라 디테일 최적화</span>
+                                </div>
+                              )}
+                              {aiOutpaint && (
+                                <div className={`flex items-center gap-2 text-[14px] font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+                                  <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                                  <span>AI 스페이스 익스텐션</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className={`pt-6 border-t flex justify-between items-center ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}>
+                          <span className={`font-bold ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>결제 예정 금액</span>
+                          <div className={`text-2xl font-black ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
                             <AnimatedPrice value={49000} />
                             <span className="text-sm ml-1 font-bold">원</span>
                           </div>
@@ -946,7 +1143,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                     <div className={`p-6 border rounded-2xl transition-colors duration-500 ${
                       theme === 'dark' ? 'bg-purple-500/5 border-purple-500/20' : 'bg-purple-50 border-purple-200'
                     }`}>
-                      <p className={`text-[11px] leading-relaxed text-center ${theme === 'dark' ? 'text-purple-300/80' : 'text-purple-600'}`}>
+                      <p className={`text-[12px] leading-relaxed text-center ${theme === 'dark' ? 'text-purple-300' : 'text-purple-700'}`}>
                         ※ 커스텀 상품은 제작이 시작된 이후 취소 및 환불이 불가합니다.<br/>
                         최종 시안을 다시 한번 확인해 주세요.
                       </p>
@@ -963,7 +1160,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
       <div className={`absolute bottom-0 left-0 w-full pt-12 pb-[max(2rem,env(safe-area-inset-bottom))] px-6 z-20 pointer-events-none transition-colors duration-500 ${
         theme === 'dark' ? 'bg-gradient-to-t from-black via-black/90 to-transparent' : 'bg-gradient-to-t from-white via-white/90 to-transparent'
       }`}>
-        <div className="max-w-xl mx-auto w-full pointer-events-auto">
+        <div className="max-w-xl md:max-w-7xl mx-auto w-full pointer-events-auto">
           <button
             onClick={handleActionClick}
             disabled={isButtonDisabled}
@@ -1014,7 +1211,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
           >
             <div className="absolute top-0 left-0 w-full h-20 flex items-center justify-between px-6 z-20">
               <div className="flex flex-col">
-                <span className={`text-[10px] font-bold tracking-[0.3em] uppercase mb-1 ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>Interactive</span>
+                <span className={`text-[11px] font-bold tracking-[0.3em] uppercase mb-1 ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`}>Interactive</span>
                 <h3 className={`font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>3D 프리뷰</h3>
               </div>
               <button 
@@ -1035,6 +1232,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                     materialType={materialType} 
                     interactive={true}
                     size={size}
+                    orientation={orientation}
                   />
                   <OrbitControls 
                     enablePan={false}
@@ -1046,12 +1244,12 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                 <ContactShadows position={[0, -1.2, 0]} opacity={theme === 'dark' ? 0.4 : 0.15} scale={6} blur={2.5} far={2} color={theme === 'dark' ? "#000000" : "#444444"} />
               </Canvas>
 
-              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-none flex flex-col items-center gap-3">
-                <div className={`px-4 py-2 backdrop-blur-md rounded-full border flex items-center gap-3 ${
+              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-none flex flex-col items-center gap-3 w-full px-6">
+                <div className={`px-6 py-3 backdrop-blur-md rounded-full border flex items-center gap-3 whitespace-nowrap ${
                   theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'
                 }`}>
                   <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                  <span className={`text-[11px] font-medium tracking-wider ${theme === 'dark' ? 'text-white/70' : 'text-black/70'}`}>손가락으로 자유롭게 돌려보세요</span>
+                  <span className={`text-[13px] font-bold tracking-wider ${theme === 'dark' ? 'text-white' : 'text-black'}`}>이리저리 자유롭게 돌려보세요</span>
                 </div>
               </div>
             </div>

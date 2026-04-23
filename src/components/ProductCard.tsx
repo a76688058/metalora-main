@@ -39,7 +39,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         {/* Hover Info */}
         <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col items-center justify-end text-center z-30">
           <h3 className="text-white font-bold text-sm md:text-base mb-1 tracking-tight">{product.title}</h3>
-          <p className="text-zinc-400 text-[10px] md:text-xs font-medium uppercase tracking-widest">{product.subtitle || product.artist}</p>
+          <p className="text-zinc-200 text-[12px] md:text-sm font-medium uppercase tracking-widest">{product.subtitle || product.artist}</p>
         </div>
       </div>
     </Link>

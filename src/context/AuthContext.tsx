@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await client
         .from('profiles')
-        .select('*, address_detail')
+        .select('*')
         .eq('id', userId)
         .single();
         

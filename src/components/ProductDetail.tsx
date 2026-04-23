@@ -31,7 +31,7 @@ function CanvasLoader() {
     <div className="absolute inset-0 flex items-center justify-center bg-transparent z-10">
       <div className="flex flex-col items-center gap-4">
         <Loader2 className="text-white/20 animate-spin" size={32} />
-        <span className="text-white/40 text-[10px] font-bold uppercase tracking-[0.2em]">Loading 3D Model...</span>
+        <span className="text-white/80 text-[12px] font-bold uppercase tracking-[0.2em]">Loading 3D Model...</span>
       </div>
     </div>
   );
@@ -57,7 +57,7 @@ class CanvasErrorBoundary extends React.Component<{ children: React.ReactNode, f
         <div className="absolute inset-0 flex items-center justify-center bg-transparent p-8 text-center">
           <div className="flex flex-col items-center gap-4">
             <AlertCircle className="text-red-500/50" size={32} />
-            <p className="text-white/60 text-xs font-light leading-relaxed">
+            <p className="text-white/80 text-[13px] font-light leading-relaxed">
               3D 모델을 불러올 수 없습니다.
             </p>
           </div>
@@ -108,6 +108,7 @@ export default function ProductDetail() {
   const navigate = useNavigate();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
+  const [selectedOrientation, setSelectedOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
@@ -124,11 +125,16 @@ export default function ProductDetail() {
     }
   };
 
-  // Set initial selected option
+  // Set initial selected option and orientation
   useEffect(() => {
     if (product?.options && product.options.length > 0) {
       const firstAvailable = product.options.find(opt => opt.isActive && opt.stock > 0) || product.options[0];
       setSelectedOptionId(firstAvailable.id);
+    }
+    if (product?.supported_orientations && product.supported_orientations.length > 0) {
+      setSelectedOrientation(product.supported_orientations.includes('portrait') ? 'portrait' : 'landscape');
+    } else {
+      setSelectedOrientation('portrait');
     }
   }, [product]);
 
@@ -191,14 +197,14 @@ export default function ProductDetail() {
     try {
       setIsAddingToCart(true);
       
-      await addToCart(product.id, selectedOptionId, 1);
+      await addToCart(product.id, selectedOptionId, 1, undefined, undefined, selectedOrientation);
 
       // 파티클 애니메이션 실행
       if (canvasContainerRef.current) {
         const rect = canvasContainerRef.current.getBoundingClientRect();
         const startX = rect.left + rect.width / 2;
         const startY = rect.top + rect.height / 2;
-        const newParticle = { id: Date.now(), x: startX, y: startY, img: product.front_image || product.image };
+        const newParticle = { id: Date.now(), x: startX, y: startY, img: selectedOrientation === 'landscape' && product.landscape_image ? product.landscape_image : (product.front_image || product.image) };
         
         setCartParticles(prev => [...prev, newParticle]);
         
@@ -242,7 +248,7 @@ export default function ProductDetail() {
           >
             <div className="absolute top-0 left-0 w-full h-20 flex items-center justify-center px-6 z-20">
               <div className="absolute left-6 flex flex-col">
-                <span className="text-[10px] text-cyan-400 font-bold tracking-[0.3em] uppercase mb-1">Interactive</span>
+                <span className="text-[12px] text-cyan-400 font-bold tracking-[0.3em] uppercase mb-1">Interactive</span>
                 <h3 className={`font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>3D 프리뷰</h3>
               </div>
               <button 
@@ -258,7 +264,7 @@ export default function ProductDetail() {
             <div className="flex-1 relative">
               <CanvasErrorBoundary fallback={
                 <div className="w-full h-full flex items-center justify-center p-8">
-                  <img src={getFullImageUrl(product?.front_image || product?.image) || undefined} alt="Preview" className="max-w-full max-h-full object-contain" />
+                  <img src={getFullImageUrl(selectedOrientation === 'landscape' && product?.landscape_image ? product.landscape_image : (product?.front_image || product?.image)) || undefined} alt="Preview" className="max-w-full max-h-full object-contain" />
                 </div>
               }>
                 <Canvas shadows camera={{ position: [0, 0, 3], fov: 45 }}>
@@ -267,6 +273,7 @@ export default function ProductDetail() {
                       product={product}
                       interactive={true}
                       scale={1.2}
+                      orientation={selectedOrientation}
                     />
                     <OrbitControls 
                       enablePan={false}
@@ -301,7 +308,7 @@ export default function ProductDetail() {
               <motion.div className="group-hover:-translate-x-1 transition-transform duration-300 ease-out transform-gpu">
                 <ArrowLeft size={16} strokeWidth={1.5} />
               </motion.div>
-              <span className="text-[10px] font-light uppercase tracking-[0.2em]">SHOP</span>
+              <span className="text-[12px] font-light uppercase tracking-[0.2em]">SHOP</span>
             </button>
 
             <div className="py-0 -mx-4 sm:mx-0 transform-gpu"> {/* Safe Scroll Area */}
@@ -309,8 +316,8 @@ export default function ProductDetail() {
                 ref={canvasContainerRef}
                 className="relative aspect-square w-full lg:w-[110%] lg:-ml-[5%] overflow-visible bg-transparent transform-gpu"
               >
-                <div className={`absolute top-4 left-4 z-10 px-3 py-1 backdrop-blur-md rounded-full border text-[10px] tracking-widest font-bold uppercase flex items-center gap-2 ${
-                  theme === 'dark' ? 'bg-black/50 border-white/10 text-white' : 'bg-white/50 border-black/10 text-black'
+                <div className={`absolute top-4 left-4 z-10 px-3 py-1.5 backdrop-blur-md rounded-full border text-[12px] tracking-widest font-bold uppercase flex items-center gap-2.5 ${
+                  theme === 'dark' ? 'bg-black/60 border-white/20 text-white' : 'bg-white/80 border-black/10 text-black'
                 }`}>
                   <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                   Live 3D Preview
@@ -329,9 +336,9 @@ export default function ProductDetail() {
 
                 <CanvasErrorBoundary fallback={
                   <div className="w-full h-full flex items-center justify-center p-8">
-                    {getFullImageUrl(product.front_image || product.image) ? (
+                    {getFullImageUrl(selectedOrientation === 'landscape' && product.landscape_image ? product.landscape_image : (product.front_image || product.image)) ? (
                       <img 
-                        src={getFullImageUrl(product.front_image || product.image) || undefined} 
+                        src={getFullImageUrl(selectedOrientation === 'landscape' && product.landscape_image ? product.landscape_image : (product.front_image || product.image)) || undefined} 
                         alt={product.title} 
                         onError={handleImageError}
                         className="w-full h-full object-contain drop-shadow-2xl" 
@@ -362,6 +369,7 @@ export default function ProductDetail() {
                       interactive={false} 
                       autoRotate={true}
                       scale={1.8}
+                      orientation={selectedOrientation}
                     />
                   </Canvas>
                 </CanvasErrorBoundary>
@@ -377,19 +385,19 @@ export default function ProductDetail() {
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center border ${theme === 'dark' ? 'bg-zinc-900 border-white/5' : 'bg-zinc-100 border-black/5'}`}>
                   <span className="text-sm font-bold text-zinc-400">1.15</span>
                 </div>
-                <span className="text-[10px] font-medium tracking-wider">1.15mm 두께</span>
+                <span className="text-[12px] font-medium tracking-wider">1.15mm 두께</span>
               </div>
               <div className="flex flex-col items-center gap-2">
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center border ${theme === 'dark' ? 'bg-zinc-900 border-white/5' : 'bg-zinc-100 border-black/5'}`}>
                   <Box size={18} className="text-zinc-400" />
                 </div>
-                <span className="text-[10px] font-medium tracking-wider">마그네틱 마운트</span>
+                <span className="text-[12px] font-medium tracking-wider">마그네틱 마운트</span>
               </div>
               <div className="flex flex-col items-center gap-2">
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center border ${theme === 'dark' ? 'bg-zinc-900 border-white/5' : 'bg-zinc-100 border-black/5'}`}>
                   <ShieldCheck size={18} className="text-zinc-400" />
                 </div>
-                <span className="text-[10px] font-medium tracking-wider">양면 승화전사</span>
+                <span className="text-[12px] font-medium tracking-wider">양면 승화전사</span>
               </div>
             </div>
           </div>
@@ -424,8 +432,8 @@ export default function ProductDetail() {
                   <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-sm leading-relaxed`}>
                     {product.description}
                     <br /><br />
-                    METALORA의 모든 작품은 1.15mm 두께의 프리미엄 알루미늄 패널에 200℃ 이상의 고온에서 승화전사 방식으로 제작됩니다. 
-                    변색 없이 영원히 지속되는 8K 해상도의 선명함을 경험하세요.
+                    METALORA의 모든 작품은 1.15mm 두께의 프리미엄 알루미늄 패널에 180℃ 이상의 고온에서 승화전사 방식으로 제작됩니다. 
+                    변색 없이 영원히 지속되는 4K 해상도의 선명함을 경험하세요.
                   </p>
                 </div>
 
@@ -451,14 +459,31 @@ export default function ProductDetail() {
                           >
                             <div className="flex flex-col items-start">
                               <span>{option.name}</span>
-                              <span className={`text-[10px] ${selectedOptionId === option.id ? 'text-zinc-600' : 'text-zinc-500'}`}>
-                                {option.dimension}
+                              <span className={`text-[12px] mt-0.5 ${selectedOptionId === option.id ? (theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700') : (theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500')}`}>
+                                {(() => {
+                                  if (selectedOrientation === 'landscape' && option.dimension.toLowerCase().includes('x')) {
+                                    const parts = option.dimension.toLowerCase().split('x');
+                                    if (parts.length === 2) {
+                                      const cleanH = parts[0].replace(/cm/g, '').trim();
+                                      const cleanW = parts[1].replace(/cm/g, '').trim();
+                                      return `${cleanW}cm (가로) x ${cleanH}cm (세로)`;
+                                    }
+                                  } else {
+                                    const parts = option.dimension.toLowerCase().split('x');
+                                    if (parts.length === 2) {
+                                      const cleanW = parts[0].replace(/cm/g, '').trim();
+                                      const cleanH = parts[1].replace(/cm/g, '').trim();
+                                      return `${cleanW}cm (가로) x ${cleanH}cm (세로)`;
+                                    }
+                                  }
+                                  return option.dimension;
+                                })()}
                               </span>
                             </div>
                             <div className="flex items-center gap-3">
                               <span>₩{option.price.toLocaleString()}</span>
                               {isOptionSoldOut && (
-                                <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">품절</span>
+                                <span className="bg-red-500 text-white text-[12px] px-1.5 py-0.5 rounded-full">품절</span>
                               )}
                             </div>
                           </button>
@@ -469,6 +494,46 @@ export default function ProductDetail() {
                     )}
                   </div>
                 </div>
+
+                {/* 제작 지원 방향 선택 */}
+                {(() => {
+                  const supportedOrientations = product?.supported_orientations?.length ? product.supported_orientations : ['portrait'];
+                  return (
+                  <div>
+                    <h3 className={`text-sm font-bold uppercase tracking-wider mb-3 mt-8 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>제품 방향 (Orientation)</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setSelectedOrientation('portrait')}
+                        disabled={!supportedOrientations.includes('portrait')}
+                        className={`flex justify-center items-center gap-2 px-4 py-3 rounded-lg border text-sm transition-all focus:outline-none ${
+                          selectedOrientation === 'portrait'
+                            ? theme === 'dark' ? 'border-white bg-white text-black font-bold' : 'border-black bg-black text-white font-bold'
+                            : !supportedOrientations.includes('portrait')
+                              ? theme === 'dark' ? 'border-white/10 text-zinc-600 cursor-not-allowed bg-zinc-900/50' : 'border-black/10 text-zinc-400 cursor-not-allowed bg-zinc-100/50'
+                              : theme === 'dark' ? 'border-white/20 text-zinc-400 hover:border-white/50 hover:text-white' : 'border-black/20 text-zinc-600 hover:border-black/50 hover:text-black'
+                        }`}
+                      >
+                        <div className={`w-3 h-4 border-2 rounded-[2px] ${selectedOrientation === 'portrait' ? (theme === 'dark' ? 'border-black' : 'border-white') : 'border-current'}`} />
+                        <span>세로형</span>
+                      </button>
+                      <button
+                        onClick={() => setSelectedOrientation('landscape')}
+                        disabled={!supportedOrientations.includes('landscape')}
+                        className={`flex justify-center items-center gap-2 px-4 py-3 rounded-lg border text-sm transition-all focus:outline-none ${
+                          selectedOrientation === 'landscape'
+                            ? theme === 'dark' ? 'border-white bg-white text-black font-bold' : 'border-black bg-black text-white font-bold'
+                            : !supportedOrientations.includes('landscape')
+                              ? theme === 'dark' ? 'border-white/10 text-zinc-600 cursor-not-allowed bg-zinc-900/50' : 'border-black/10 text-zinc-400 cursor-not-allowed bg-zinc-100/50'
+                              : theme === 'dark' ? 'border-white/20 text-zinc-400 hover:border-white/50 hover:text-white' : 'border-black/20 text-zinc-600 hover:border-black/50 hover:text-black'
+                        }`}
+                      >
+                        <div className={`w-4 h-3 border-2 rounded-[2px] ${selectedOrientation === 'landscape' ? (theme === 'dark' ? 'border-black' : 'border-white') : 'border-current'}`} />
+                        <span>가로형</span>
+                      </button>
+                    </div>
+                  </div>
+                  );
+                })()}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className={`flex items-start gap-3 p-4 rounded-xl border ${theme === 'dark' ? 'bg-white/5 border-white/5' : 'bg-black/5 border-black/5'}`}>
@@ -541,7 +606,7 @@ export default function ProductDetail() {
                     )}
                   </div>
                   
-                  <p className={`text-center text-[11px] font-medium mt-6 flex items-center justify-center gap-2 tracking-tight opacity-80 ${theme === 'dark' ? 'text-[#CCCCCC]' : 'text-[#333333]'}`}>
+                  <p className={`text-center text-[13px] font-bold mt-6 flex items-center justify-center gap-2 tracking-tight ${theme === 'dark' ? 'text-[#FFFFFF]' : 'text-[#111111]'}`}>
                     <Truck size={14} strokeWidth={1.5} />
                     전 작품 안전 패키징 & 전 지역 무료 배송
                   </p>

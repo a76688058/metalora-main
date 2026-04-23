@@ -16,6 +16,9 @@ export interface Product {
   options: ProductOption[];
   front_image: string;
   back_image?: string;
+  landscape_image?: string;
+  landscape_back_image?: string;
+  supported_orientations?: ('portrait' | 'landscape')[];
   is_new: boolean;
   is_limited: boolean;
   is_sale: boolean;
@@ -33,6 +36,7 @@ export interface OrderItem {
   quantity: number;
   price: number;
   option: string;
+  orientation?: 'portrait' | 'landscape';
   user_image_url?: string; // 공방 제품 이미지
   products?: Product; // 기성 제품 정보 (Join 결과)
 }

@@ -20,26 +20,16 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
 
   useEffect(() => {
     if (isOpen) {
-      const scrollY = window.scrollY;
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
-      document.body.style.overflowY = 'scroll'; // Keep scrollbar space to prevent jump
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = 'hidden';
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
     } else {
-      const scrollY = document.body.style.top;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflowY = '';
-      if (scrollY) {
-        window.scrollTo(0, parseInt(scrollY || '0') * -1);
-      }
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
     }
     return () => {
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflowY = '';
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
     };
   }, [isOpen]);
 
@@ -102,10 +92,10 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
       <motion.div
         initial={{ x: '100%' }}
         animate={{ x: 0 }}
-        exit={{ x: '100%' }}
+        exit={{ opacity: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden pointer-events-auto transition-colors duration-500 ${
-          theme === 'dark' ? 'bg-[#0F0F11]' : 'bg-white'
+        className={`relative w-full h-full flex flex-col shadow-2xl overflow-hidden pointer-events-auto transition-colors duration-500 border-l will-change-transform transform-gpu ${
+          theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'
         }`}
       >
         <AnimatePresence mode="wait">
