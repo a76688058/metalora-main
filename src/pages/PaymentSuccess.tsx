@@ -78,21 +78,7 @@ export default function PaymentSuccess() {
   const totalAmount = searchParams.get('amount') || searchParams.get('totalAmount');
   const method = searchParams.get('method') || searchParams.get('paymentType');
 
-  const WEBHOOK_URL = 'https://discord.com/api/webhooks/1483955729206611998/qaeJdohMjb4nVgTpcsbwRQwjhWwPAYWBct2N8Cwvyub61qfdaJ5hcmvv6vufjWH9U1cA';
-
   const isProcessing = React.useRef(false);
-
-  const sendDiscordNotification = async (payload: any) => {
-    try {
-      await fetch(WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-    } catch (error) {
-      console.error('Discord notification error:', error);
-    }
-  };
 
   useEffect(() => {
     const confirmPayment = async () => {
@@ -124,124 +110,26 @@ export default function PaymentSuccess() {
         const pendingOrderData = JSON.parse(pendingOrderStr);
         const { order: pendingOrder, items: pendingItems } = pendingOrderData;
 
-        // 2. 무결성 검증 (Integrity Check)
-        if (pendingOrder.total_price !== Number(totalAmount)) {
-          const mismatchError = new Error(`[SECURITY_ALERT] Amount mismatch detected. Order: ${orderId}`);
-          console.error(mismatchError);
-          
-          const alertPayload = {
-            content: `🚨 **[SECURITY_ALERT] 결제 금액 불일치 감지!**\n주문번호: ${orderId}\n요청 금액: ${pendingOrder.total_price}원\n실제 결제 금액: ${totalAmount}원`,
-            embeds: [{
-              color: 0xff0000,
-              fields: [
-                { name: "주문자", value: MaskingUtil.name(pendingOrder.shipping_name || '알수없음'), inline: true },
-                { name: "연락처", value: MaskingUtil.phone(pendingOrder.shipping_phone || '알수없음'), inline: true },
-                { name: "상태", value: "결제 중단 및 리포트 생성 완료" }
-              ]
-            }]
-          };
-          await sendDiscordNotification(alertPayload);
-          
-          setErrorMessage("결제 금액이 일치하지 않아 결제가 중단되었습니다. (보안 위반 감지)");
-          setIsConfirming(false);
-          return;
+        // 2. 서버에 결제 승인 요청 (보안 강화: Server-side Verification)
+        const response = await fetch('/api/payment/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paymentKey,
+            orderId,
+            amount: totalAmount,
+            pendingOrder,
+            pendingItems
+          })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || '결제 승인 중 오류가 발생했습니다.');
         }
 
-        // 3. DB 업데이트 (결제 성공 시 주문 데이터 생성)
-        const shippingAddress = searchParams.get('shipping_address') || pendingOrder.shipping_address;
-        
-        const newOrderData = { 
-          ...pendingOrder,
-          status: 'PAID',
-          paymentKey,
-          method: method || '정보 확인 중',
-          total_price: Number(totalAmount),
-          shipping_address: shippingAddress
-        };
-
-        const { data: insertedOrder, error: insertError } = await supabase
-          .from('orders')
-          .insert([newOrderData])
-          .select()
-          .single();
-            
-        if (insertError) throw insertError;
-
-        // 주문 상품 데이터 생성
-        if (insertedOrder && pendingItems && pendingItems.length > 0) {
-          const orderItemsToInsert = pendingItems.map((item: any) => ({
-            ...item,
-            order_id: insertedOrder.id
-          }));
-
-          const { error: itemsError } = await supabase
-            .from('order_items')
-            .insert(orderItemsToInsert);
-
-          if (itemsError) {
-            console.error('Failed to insert order items:', itemsError);
-          }
-        }
-        
-        // 3.1. [추가] 회원 총 결제 금액(total_spent) 업데이트
-        if (insertedOrder && insertedOrder.user_id) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('total_spent')
-            .eq('id', insertedOrder.user_id)
-            .single();
-          
-          if (profile) {
-            await supabase
-              .from('profiles')
-              .update({ total_spent: (profile.total_spent || 0) + Number(totalAmount) })
-              .eq('id', insertedOrder.user_id);
-          }
-        }
-        
-        // 3.2. 디스코드 알림 발송
-        console.log("디스코드 알림 시도 중...");
-        
-        const firstItemTitle = pendingItems?.[0]?.product_title || '상품';
-        const product_name_summary = pendingItems && pendingItems.length > 1 
-          ? `${firstItemTitle} 외 ${pendingItems.length - 1}건` 
-          : firstItemTitle;
-
-        const options_summary = pendingItems?.map((item: any) => `${item.option}(${item.quantity}개)`).join(', ') || '기본';
-
-        const finalMethod = method || '정보 확인 중';
-        const customer_name = pendingOrder.shipping_name || '고객';
-        const customer_phone = pendingOrder.shipping_phone || '연락처 없음';
-        const shipping_address_full = pendingOrder.address || '주소 없음';
-        const detail_address = pendingOrder.address_detail || '';
-        
-        const discordContent = `💰 어이 강사장! 돈 들어오는 소리 들린다! 노 저어라!! 🚣‍♂️
-
-━━━ 🚀 **[METALORA] 새로운 주문 발생!** ━━━
-
-📌 **주문 요약**
-• **결제금액:** **${Number(totalAmount).toLocaleString()}원** (입금 완료)
-• **주문번호:** \`${orderId}\`
-• **결제수단:** ${finalMethod}
-
-🛒 **주문 품목**
-• **${product_name_summary}**
-*(상세 옵션: ${options_summary})*
-
-👤 **주문자 정보**
-• **성함:** ${customer_name} 님
-• **연락처:** ${customer_phone}
-• **배송지:** ${shipping_address_full} ${detail_address}
-
-━━━━━━━━━━━━━━━━━━━━━━━━`;
-
-        const discordPayload = {
-          content: discordContent
-        };
-
-        await sendDiscordNotification(discordPayload);
-        
-        // 4. 장바구기 비우기 (결제된 품목만)
+        // 3. 장바구니 비우기 (결제된 품목만)
         if (pendingItems && pendingItems.length > 0) {
           const { data: userAuth } = await supabase.auth.getUser();
           const userId = userAuth.user?.id;
@@ -273,7 +161,7 @@ export default function PaymentSuccess() {
                 .eq('product_id', 'workshop-single');
             }
             
-            // 5. 장바구니 상태 즉시 갱신
+            // 4. 장바구니 상태 즉시 갱신
             await refreshCart();
           }
         }
@@ -282,13 +170,14 @@ export default function PaymentSuccess() {
         setIsConfirming(false);
       } catch (error: any) {
         console.error('Payment confirmation error:', error);
-        setErrorMessage("결제 처리 중 오류가 발생했습니다. 관리자에게 문의하세요.");
+        setErrorMessage(error.message || "결제 처리 중 오류가 발생했습니다. 관리자에게 문의하세요.");
         setIsConfirming(false);
       }
     };
 
     confirmPayment();
   }, [paymentKey, orderId, totalAmount, method, searchParams]);
+
 
   const handleCopy = () => {
     if (!orderId) return;

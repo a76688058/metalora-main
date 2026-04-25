@@ -32,6 +32,29 @@ export default function AdminOrders() {
   const [trackingData, setTrackingData] = useState({ courier: '', tracking_number: '' });
   const [pendingStatusUpdate, setPendingStatusUpdate] = useState<{orderId: string, status: string} | null>(null);
   const { showToast } = useToast();
+  const [isCheckingSecurity, setIsCheckingSecurity] = useState(false);
+
+  const checkSecurity = async () => {
+    try {
+      setIsCheckingSecurity(true);
+      const response = await fetch('/api/admin/security-test');
+      const result = await response.json();
+
+      if (result.status === 'PASS') {
+        showToast("보안 설정이 완벽합니다! (Toss, Supabase, Discord 연결됨)", "success");
+      } else {
+        let errorMsg = "설정이 불완전합니다: ";
+        if (!result.details.toss) errorMsg += "Toss ";
+        if (!result.details.dbConnection) errorMsg += "Supabase ";
+        if (!result.details.discordSent) errorMsg += "Discord ";
+        showToast(errorMsg + "확인 필요", "error");
+      }
+    } catch (error) {
+      showToast("보안 테스트 중 서버 오류가 발생했습니다.", "error");
+    } finally {
+      setIsCheckingSecurity(false);
+    }
+  };
 
   const fetchOrders = async () => {
     try {
@@ -122,7 +145,21 @@ export default function AdminOrders() {
     <AdminLayout>
       <div className="p-4 md:p-8 space-y-6 max-w-4xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <h2 className="text-2xl font-black text-white tracking-tighter">주문 관리</h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-2xl font-black text-white tracking-tighter">주문 관리</h2>
+            <button 
+              onClick={checkSecurity}
+              disabled={isCheckingSecurity}
+              className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded-xl text-[10px] font-black transition-all active:scale-95 border border-white/5"
+            >
+              {isCheckingSecurity ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <AlertCircle size={12} />
+              )}
+              {isCheckingSecurity ? "보안 확인 중..." : "보안 설정 테스트"}
+            </button>
+          </div>
           <div className="relative w-full md:w-80">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
             <input

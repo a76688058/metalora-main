@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "npm run clean && vite build --outDir dist/client && esbuild server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --external:vite --external:path --external:url --external:express --external:fs",
-    "start": "node dist/server.js",
+    "build": "npm run clean && vite build --outDir dist/client",
+    "start": "node server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"

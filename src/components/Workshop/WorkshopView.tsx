@@ -46,36 +46,37 @@ function WorkshopCanvasLoadTracker() {
   return null;
 }
 
-function WorkshopPoster3DWithFallback({ imageUrl, materialType, interactive, size, orientation, autoRotate, theme }: { imageUrl: string | null, materialType: string, interactive?: boolean, size?: SizeType, orientation?: 'portrait' | 'landscape', autoRotate?: boolean, theme: string }) {
-  const [showFallback, setShowFallback] = useState(false);
+function WorkshopPoster3DWithFallback({ imageUrl, materialType, interactive, size, orientation, autoRotate, theme, layoutMode, aiOutpaint }: { imageUrl: string | null, materialType: string, interactive?: boolean, size?: SizeType, orientation?: 'portrait' | 'landscape', autoRotate?: boolean, theme: string, layoutMode?: 'cover' | 'contain', aiOutpaint?: boolean }) {
   const [hasError, setHasError] = useState(false);
   const [isRendered, setIsRendered] = useState(false);
+
+  // AI Outpaint 활성 시: 다크모드(진보라), 라이트모드(연보라)
+  const emptySpaceColor = aiOutpaint 
+    ? (theme === 'dark' ? 'bg-[#1a1033]' : 'bg-[#f5f3ff]')
+    : (theme === 'dark' ? 'bg-white' : 'bg-black');
 
   useEffect(() => {
     const handleRendered = () => setIsRendered(true);
     window.addEventListener('workshop-3d-poster-rendered', handleRendered);
-
-    const timer = setTimeout(() => {
-      // If the 3D model hasn't fired the rendered event after 1.5s, fallback
-      setShowFallback(true);
-    }, 1500);
-
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('workshop-3d-poster-rendered', handleRendered);
-    };
+    return () => window.removeEventListener('workshop-3d-poster-rendered', handleRendered);
   }, []);
 
-  const shouldShowFallback = hasError || (showFallback && !isRendered);
+  const shouldShowFallback = hasError;
 
   if (shouldShowFallback) {
     return (
        <Html center className="flex items-center justify-center pointer-events-none">
-        <div className={`relative transition-all duration-500 ${orientation === 'landscape' ? 'w-[280px] h-[200px]' : 'w-[200px] h-[280px]'}`}>
+        <div className={`relative transition-all duration-500 overflow-hidden ${orientation === 'landscape' ? 'w-[280px] h-[200px]' : 'w-[200px] h-[280px]'} ${layoutMode === 'contain' ? emptySpaceColor : ''}`}>
+          {layoutMode === 'contain' && aiOutpaint && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-full h-full opacity-80" style={{ backgroundImage: `linear-gradient(${theme === 'dark' ? '#c084fc' : '#6366f1'} 1px, transparent 1px), linear-gradient(90deg, ${theme === 'dark' ? '#c084fc' : '#6366f1'} 1px, transparent 1px)`, backgroundSize: '12px 12px' }} />
+              <div className={`absolute text-[10px] font-black uppercase tracking-[0.25em] animate-pulse ${theme === 'dark' ? 'text-purple-400' : 'text-indigo-600'}`}>AI Extension Space</div>
+            </div>
+          )}
           <img 
             src={imageUrl || DEFAULT_IMAGE} 
             alt="Poster" 
-            className="w-full h-full object-contain"
+            className={`relative z-10 w-full h-full ${layoutMode === 'contain' ? 'object-contain' : 'object-cover'}`}
             onError={() => setHasError(true)}
           />
         </div>
@@ -86,11 +87,17 @@ function WorkshopPoster3DWithFallback({ imageUrl, materialType, interactive, siz
   return (
     <ErrorBoundary fallback={
        <Html center className="pointer-events-none">
-        <div className={`relative transition-all duration-500 ${orientation === 'landscape' ? 'w-[280px] h-[200px]' : 'w-[200px] h-[280px]'}`}>
+        <div className={`relative transition-all duration-500 overflow-hidden ${orientation === 'landscape' ? 'w-[280px] h-[200px]' : 'w-[200px] h-[280px]'} ${layoutMode === 'contain' ? emptySpaceColor : ''}`}>
+          {layoutMode === 'contain' && aiOutpaint && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-full h-full opacity-80" style={{ backgroundImage: `linear-gradient(${theme === 'dark' ? '#c084fc' : '#6366f1'} 1px, transparent 1px), linear-gradient(90deg, ${theme === 'dark' ? '#c084fc' : '#6366f1'} 1px, transparent 1px)`, backgroundSize: '12px 12px' }} />
+              <div className={`absolute text-[10px] font-black uppercase tracking-[0.25em] animate-pulse ${theme === 'dark' ? 'text-purple-400' : 'text-indigo-600'}`}>AI Extension Space</div>
+            </div>
+          )}
           <img 
             src={imageUrl || DEFAULT_IMAGE} 
             alt="Poster" 
-            className="w-full h-full object-contain"
+            className={`relative z-10 w-full h-full ${layoutMode === 'contain' ? 'object-contain' : 'object-cover'}`}
           />
         </div>
       </Html>
@@ -104,6 +111,9 @@ function WorkshopPoster3DWithFallback({ imageUrl, materialType, interactive, siz
           size={size}
           orientation={orientation}
           autoRotate={autoRotate}
+          layoutMode={layoutMode}
+          theme={theme}
+          aiOutpaint={aiOutpaint}
         />
       </Suspense>
     </ErrorBoundary>
@@ -117,14 +127,20 @@ function WorkshopPoster3D({
   interactive = false, 
   size = 'A4',
   orientation = 'portrait',
-  autoRotate = false 
+  autoRotate = false,
+  layoutMode = 'cover',
+  theme,
+  aiOutpaint = false
 }: { 
   imageUrl: string | null, 
   materialType: string, 
   interactive?: boolean, 
   size?: SizeType,
   orientation?: 'portrait' | 'landscape',
-  autoRotate?: boolean
+  autoRotate?: boolean,
+  layoutMode?: 'cover' | 'contain',
+  theme: string,
+  aiOutpaint?: boolean
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
@@ -145,12 +161,22 @@ function WorkshopPoster3D({
     const img = texture.image as HTMLImageElement;
     const imageAspect = img.width / img.height;
     
-    if (imageAspect > targetAspect) {
-      texture.repeat.set(targetAspect / imageAspect, 1);
-      texture.offset.set((1 - targetAspect / imageAspect) / 2, 0);
+    // Reset wrapping to ensure clean containment
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+
+    if (layoutMode === 'cover') {
+      if (imageAspect > targetAspect) {
+        texture.repeat.set(targetAspect / imageAspect, 1);
+        texture.offset.set((1 - targetAspect / imageAspect) / 2, 0);
+      } else {
+        texture.repeat.set(1, imageAspect / targetAspect);
+        texture.offset.set(0, (1 - imageAspect / targetAspect) / 2);
+      }
     } else {
-      texture.repeat.set(1, imageAspect / targetAspect);
-      texture.offset.set(0, (1 - imageAspect / targetAspect) / 2);
+      // Contain mode - Use full texture, calculated size instead of UV mapping
+      texture.repeat.set(1, 1);
+      texture.offset.set(0, 0);
     }
     
     texture.anisotropy = 16;
@@ -158,7 +184,7 @@ function WorkshopPoster3D({
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
     texture.needsUpdate = true;
-  }, [texture, targetAspect]);
+  }, [texture, targetAspect, layoutMode]);
 
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
@@ -216,33 +242,27 @@ function WorkshopPoster3D({
     const roughness = isAluminum ? 0.3 : 0.85;
     const metalness = isAluminum ? 0.7 : 0.1;
 
-    const fallbackMaterialProps = {
-      color: '#1a1a1a',
+    // 빈 공간 배경색: 화이트 모드(라이트테마)에서는 블랙, 블랙 모드(다크테마)에서는 화이트
+    // AI Outpaint 활성 시에는 보라색 톤 적용
+    const bgHex = aiOutpaint
+      ? (theme === 'dark' ? '#1a1033' : '#f5f3ff')
+      : (theme === 'dark' ? '#ffffff' : '#000000');
+
+    const baseProps = {
       roughness,
       metalness,
+      toneMapped: false
     };
 
     return [
-      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }),
-      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }),
-      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }),
-      new THREE.MeshStandardMaterial({ ...fallbackMaterialProps }),
-      new THREE.MeshStandardMaterial({ 
-        ...fallbackMaterialProps,
-        map: texture, 
-        emissiveMap: texture,
-        emissive: new THREE.Color('#ffffff'),
-        emissiveIntensity: isAluminum ? 1.0 : 0.05,
-        color: '#ffffff',
-        toneMapped: false
-      }), 
-      new THREE.MeshStandardMaterial({ 
-        ...fallbackMaterialProps,
-        color: '#1a1a1a',
-        toneMapped: false
-      }), 
+      new THREE.MeshStandardMaterial({ ...baseProps, color: '#1a1a1a' }), // side
+      new THREE.MeshStandardMaterial({ ...baseProps, color: '#1a1a1a' }), // side
+      new THREE.MeshStandardMaterial({ ...baseProps, color: '#1a1a1a' }), // side
+      new THREE.MeshStandardMaterial({ ...baseProps, color: '#1a1a1a' }), // side
+      new THREE.MeshStandardMaterial({ ...baseProps, color: bgHex }), // front (background for photo)
+      new THREE.MeshStandardMaterial({ ...baseProps, color: '#1a1a1a' }), // back
     ];
-  }, [texture, materialType, orientation]); // Added orientation to force material refresh
+  }, [materialType, theme, layoutMode, aiOutpaint]);
 
   const isAluminum = materialType === 'aluminum';
   const depth = isAluminum ? 0.008 : 0.04;
@@ -252,6 +272,36 @@ function WorkshopPoster3D({
     const height = orientation === 'landscape' ? 1 : 1.414;
     return [width, height, depth] as [number, number, number];
   }, [size, depth, orientation]);
+
+  // 사진 전 전용 재질 (Box 위에 부착)
+  const photoMaterial = useMemo(() => {
+    const isAluminum = materialType === 'aluminum';
+    return new THREE.MeshStandardMaterial({
+      map: texture,
+      emissiveMap: texture,
+      emissive: new THREE.Color('#ffffff'),
+      emissiveIntensity: isAluminum ? 1.0 : 0.05,
+      color: '#ffffff',
+      transparent: true,
+      toneMapped: false
+    });
+  }, [texture, materialType]);
+
+  // 사진 평면 사이즈 계산 (Contain 모드용)
+  const photoScale = useMemo(() => {
+    if (!texture || !texture.image || layoutMode === 'cover') return [1, 1, 1] as [number, number, number];
+    
+    const img = texture.image as HTMLImageElement;
+    const imageAspect = img.width / img.height;
+    
+    if (imageAspect > targetAspect) {
+      // 이미지가 가로로 더 김 -> 가로는 꽉 채우고 세로를 줄임
+      return [1, targetAspect / imageAspect, 1] as [number, number, number];
+    } else {
+      // 이미지가 세로로 더 김 -> 세로는 꽉 채우고 가로를 줄임
+      return [imageAspect / targetAspect, 1, 1] as [number, number, number];
+    }
+  }, [texture, layoutMode, targetAspect, orientation]);
 
   return (
     <>
@@ -280,6 +330,28 @@ function WorkshopPoster3D({
           receiveShadow
         >
           <boxGeometry args={geometryArgs} /> 
+          
+          {/* AI Extension Grid (Only in Contain mode) */}
+          {layoutMode === 'contain' && aiOutpaint && (
+            <mesh position={[0, 0, depth / 2 + 0.0005]}>
+              <planeGeometry args={[geometryArgs[0], geometryArgs[1]]} />
+              <meshStandardMaterial 
+                transparent 
+                opacity={0.4} 
+                color={theme === 'dark' ? '#c084fc' : '#6366f1'}
+                wireframe
+              />
+            </mesh>
+          )}
+
+          {/* 사진 레이어 (Z축으로 살짝 앞으로) */}
+          <mesh 
+            position={[0, 0, depth / 2 + 0.001]} 
+            scale={photoScale}
+            material={photoMaterial}
+          >
+            <planeGeometry args={[geometryArgs[0], geometryArgs[1]]} />
+          </mesh>
         </mesh>
       </group>
     </>
@@ -307,6 +379,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [aiUpscale, setAiUpscale] = useState(false);
   const [aiOutpaint, setAiOutpaint] = useState(false);
+  const [aiAutoFill, setAiAutoFill] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -590,6 +663,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
             orientation: orientation,
             ai_upscale: aiUpscale,
             ai_outpaint: aiOutpaint,
+            ai_autofill: aiAutoFill,
             price: 49000,
             serial_number: `WS-${Date.now()}`
           }
@@ -940,6 +1014,8 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                               orientation={orientation}
                               autoRotate={true}
                               theme={theme}
+                              layoutMode={aiAutoFill ? 'cover' : 'contain'}
+                              aiOutpaint={aiOutpaint}
                             />
                           <ContactShadows position={[0, -1.2, 0]} opacity={theme === 'dark' ? 0.6 : 0.2} scale={6} blur={2.5} far={2} color={theme === 'dark' ? "#000000" : "#666666"} />
                         </Canvas>
@@ -995,6 +1071,67 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                           <h4 className={`text-[12px] font-black tracking-[0.2em] uppercase ${theme === 'dark' ? 'text-purple-400' : 'text-purple-700'}`}>AI Premium Solutions</h4>
                         </div>
                         <div className="space-y-3">
+                          {/* 1. 자동확대 프리뷰 레이아웃 */}
+                          <button
+                            onClick={() => {
+                              setAiAutoFill(!aiAutoFill);
+                              if (!aiAutoFill) setAiOutpaint(false); // If enabling auto-fill, disable outpaint
+                            }}
+                            className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center gap-4 group active:scale-[0.98] ${
+                              aiAutoFill 
+                                ? theme === 'dark' 
+                                  ? 'bg-cyan-500/10 border-cyan-500/50 shadow-[0_0_20px_rgba(34,211,238,0.1)]' 
+                                  : 'bg-cyan-50 border-cyan-500/30 shadow-[0_10px_20px_rgba(34,211,238,0.05)]'
+                                : theme === 'dark'
+                                  ? 'bg-zinc-900/20 border-white/5 hover:border-white/10'
+                                  : 'bg-zinc-100 border-black/5 hover:border-black/10'
+                            }`}
+                          >
+                            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                              aiAutoFill ? 'bg-cyan-500 border-cyan-500' : (theme === 'dark' ? 'border-zinc-700' : 'border-zinc-300')
+                            }`}>
+                              {aiAutoFill && <Check size={14} className="text-white" />}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-bold text-[15px] ${theme === 'dark' ? 'text-white' : 'text-black'}`}>자동확대 프리뷰 레이아웃</span>
+                                <span className={`text-[12px] px-1.5 py-0.5 rounded font-black uppercase ${theme === 'dark' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-700'}`}>Free</span>
+                              </div>
+                              <p className={`text-[14px] mt-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>프레임 규격에 맞춰 이미지를 자동으로 확대합니다.</p>
+                            </div>
+                          </button>
+
+                          {/* 2. AI 스페이스 익스텐션 */}
+                          <button
+                            onClick={() => {
+                              setAiOutpaint(!aiOutpaint);
+                              if (!aiOutpaint) setAiAutoFill(false); // If enabling outpaint, disable auto-fill (zoom)
+                            }}
+                            className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center gap-4 group active:scale-[0.98] ${
+                              aiOutpaint 
+                                ? theme === 'dark' 
+                                  ? 'bg-purple-500/10 border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.1)]' 
+                                  : 'bg-purple-50 border-purple-500/30 shadow-[0_10px_20px_rgba(168,85,247,0.05)]'
+                                : theme === 'dark'
+                                  ? 'bg-zinc-900/20 border-white/5 hover:border-white/10'
+                                  : 'bg-zinc-100 border-black/5 hover:border-black/10'
+                            }`}
+                          >
+                            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                              aiOutpaint ? 'bg-purple-500 border-purple-500' : (theme === 'dark' ? 'border-zinc-700' : 'border-zinc-300')
+                            }`}>
+                              {aiOutpaint && <Check size={14} className="text-white" />}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-bold text-[15px] ${theme === 'dark' ? 'text-white' : 'text-black'}`}>AI 스페이스 익스텐션</span>
+                                <span className="text-[12px] px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded font-black uppercase">Free</span>
+                              </div>
+                              <p className={`text-[14px] mt-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>확대 없이 비율을 유지하며 잘린 공간을 AI가 채웁니다.</p>
+                            </div>
+                          </button>
+
+                          {/* 3. AI 울트라 디테일 최적화 */}
                           <button
                             onClick={() => setAiUpscale(!aiUpscale)}
                             className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center gap-4 group active:scale-[0.98] ${
@@ -1018,32 +1155,6 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                                 <span className="text-[12px] px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded font-black uppercase">Free</span>
                               </div>
                               <p className={`text-[14px] mt-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>노이즈를 제거하고 4K급 고해상도로 변환합니다.</p>
-                            </div>
-                          </button>
-
-                          <button
-                            onClick={() => setAiOutpaint(!aiOutpaint)}
-                            className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center gap-4 group active:scale-[0.98] ${
-                              aiOutpaint 
-                                ? theme === 'dark' 
-                                  ? 'bg-purple-500/10 border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.1)]' 
-                                  : 'bg-purple-50 border-purple-500/30 shadow-[0_10px_20px_rgba(168,85,247,0.05)]'
-                                : theme === 'dark'
-                                  ? 'bg-zinc-900/20 border-white/5 hover:border-white/10'
-                                  : 'bg-zinc-100 border-black/5 hover:border-black/10'
-                            }`}
-                          >
-                            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
-                              aiOutpaint ? 'bg-purple-500 border-purple-500' : (theme === 'dark' ? 'border-zinc-700' : 'border-zinc-300')
-                            }`}>
-                              {aiOutpaint && <Check size={14} className="text-white" />}
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className={`font-bold text-[15px] ${theme === 'dark' ? 'text-white' : 'text-black'}`}>AI 스페이스 익스텐션</span>
-                                <span className="text-[12px] px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded font-black uppercase">Free</span>
-                              </div>
-                              <p className={`text-[14px] mt-1 ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>잘려나가는 부분을 AI가 자연스럽게 채워드립니다.</p>
                             </div>
                           </button>
                         </div>
@@ -1079,6 +1190,9 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                               size={size}
                               orientation={orientation}
                               autoRotate={true}
+                              layoutMode={aiAutoFill ? 'cover' : 'contain'}
+                              theme={theme}
+                              aiOutpaint={aiOutpaint}
                             />
                           </Suspense>
                           <ContactShadows position={[0, -1, 0]} opacity={theme === 'dark' ? 0.5 : 0.2} scale={5} blur={2} far={2} color={theme === 'dark' ? "#000000" : "#666666"} />
@@ -1110,20 +1224,26 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                           <span className={theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}>방향</span>
                           <span className={theme === 'dark' ? 'text-white' : 'text-black'}>{orientation === 'landscape' ? '가로형' : '세로형'}</span>
                         </div>
-                        {(aiUpscale || aiOutpaint) && (
+                        {(aiUpscale || aiOutpaint || aiAutoFill) && (
                           <div className={`pt-4 border-t ${theme === 'dark' ? 'border-white/5' : 'border-black/5'}`}>
                             <p className={`text-[14px] font-black uppercase tracking-widest mb-3 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`}>적용된 AI 솔루션</p>
                             <div className="space-y-2">
-                              {aiUpscale && (
+                              {aiAutoFill && (
                                 <div className={`flex items-center gap-2 text-[14px] font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                                  <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                                  <span>AI 울트라 디테일 최적화</span>
+                                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+                                  <span>자동확대 프리뷰 레이아웃</span>
                                 </div>
                               )}
                               {aiOutpaint && (
                                 <div className={`flex items-center gap-2 text-[14px] font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
                                   <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
                                   <span>AI 스페이스 익스텐션</span>
+                                </div>
+                              )}
+                              {aiUpscale && (
+                                <div className={`flex items-center gap-2 text-[14px] font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+                                  <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                                  <span>AI 울트라 디테일 최적화</span>
                                 </div>
                               )}
                             </div>
@@ -1233,6 +1353,9 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                     interactive={true}
                     size={size}
                     orientation={orientation}
+                    layoutMode={aiAutoFill ? 'cover' : 'contain'}
+                    theme={theme}
+                    aiOutpaint={aiOutpaint}
                   />
                   <OrbitControls 
                     enablePan={false}
