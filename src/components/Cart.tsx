@@ -280,7 +280,7 @@ export default function Cart() {
         }))
       };
 
-      // 2. Prepare Order Items Data
+      // 2. Prepare Order Items Data for normalized table
       const pendingOrderItems = selectedItems.map(item => {
         // Calculate price based on item type
         let price = 0;
@@ -301,9 +301,15 @@ export default function Cart() {
         return {
           product_id: item.product_id === 'workshop-single' ? null : item.product_id,
           product_title: title,
+          title: title, // title 필드 중복 추가 (호환성)
           option: optionName,
           quantity: item.quantity,
           price: price,
+          image: item.custom_image || item.product?.front_image || item.product?.image || null,
+          user_image_url: item.custom_image || null,
+          front_image: item.product?.front_image || item.product?.image || null,
+          orientation: item.orientation || null,
+          custom_config: item.custom_config || null
         };
       });
 

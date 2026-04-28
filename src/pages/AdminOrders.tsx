@@ -32,29 +32,6 @@ export default function AdminOrders() {
   const [trackingData, setTrackingData] = useState({ courier: '', tracking_number: '' });
   const [pendingStatusUpdate, setPendingStatusUpdate] = useState<{orderId: string, status: string} | null>(null);
   const { showToast } = useToast();
-  const [isCheckingSecurity, setIsCheckingSecurity] = useState(false);
-
-  const checkSecurity = async () => {
-    try {
-      setIsCheckingSecurity(true);
-      const response = await fetch('/api/admin/security-test');
-      const result = await response.json();
-
-      if (result.status === 'PASS') {
-        showToast("보안 설정이 완벽합니다! (Toss, Supabase, Discord 연결됨)", "success");
-      } else {
-        let errorMsg = "설정이 불완전합니다: ";
-        if (!result.details.toss) errorMsg += "Toss ";
-        if (!result.details.dbConnection) errorMsg += "Supabase ";
-        if (!result.details.discordSent) errorMsg += "Discord ";
-        showToast(errorMsg + "확인 필요", "error");
-      }
-    } catch (error) {
-      showToast("보안 테스트 중 서버 오류가 발생했습니다.", "error");
-    } finally {
-      setIsCheckingSecurity(false);
-    }
-  };
 
   const fetchOrders = async () => {
     try {
@@ -78,7 +55,10 @@ export default function AdminOrders() {
 
   const handleDownload = async (url: string, filename: string) => {
     try {
-      const response = await fetch(url);
+      showToast("다운로드 준비 중...", "info");
+      const response = await fetch(url, { mode: 'cors' });
+      if (!response.ok) throw new Error('Download failed');
+      
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -89,8 +69,11 @@ export default function AdminOrders() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
       showToast("다운로드를 시작합니다.", "success");
-    } catch {
-      showToast("다운로드에 실패했습니다.", "error");
+    } catch (error) {
+      console.error('Download error:', error);
+      // Fallback: Open in new tab if direct download fails
+      window.open(url, '_blank', 'noopener,noreferrer');
+      showToast("보안 정책으로 인해 새 창에서 이미지를 열었습니다. 우클릭하여 '이미지를 다른 이름으로 저장' 해주세요.", "info");
     }
   };
 
@@ -147,18 +130,6 @@ export default function AdminOrders() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <h2 className="text-2xl font-black text-white tracking-tighter">주문 관리</h2>
-            <button 
-              onClick={checkSecurity}
-              disabled={isCheckingSecurity}
-              className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white rounded-xl text-[10px] font-black transition-all active:scale-95 border border-white/5"
-            >
-              {isCheckingSecurity ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <AlertCircle size={12} />
-              )}
-              {isCheckingSecurity ? "보안 확인 중..." : "보안 설정 테스트"}
-            </button>
           </div>
           <div className="relative w-full md:w-80">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
@@ -191,8 +162,10 @@ export default function AdminOrders() {
                     const firstItem = (order.ordered_items as any[])?.[0];
                     if (!firstItem) return <Image className="w-full h-full p-4 text-zinc-700" />;
                     
-                    const isWorkshop = firstItem.product_id === 'workshop-single';
-                    const displayImageUrl = getFullImageUrl(firstItem.user_image_url || firstItem.front_image, isWorkshop);
+                    const isWorkshop = firstItem.product_id === 'workshop-single' || firstItem.product_id === null;
+                    // 다양한 이미지 필드 대응
+                    const imageUrl = firstItem.image || firstItem.user_image_url || firstItem.front_image || firstItem.custom_image || firstItem.preview_url;
+                    const displayImageUrl = getFullImageUrl(imageUrl, isWorkshop);
                     
                     return displayImageUrl ? (
                       <img 
@@ -304,8 +277,10 @@ export default function AdminOrders() {
                   <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4 ml-1">주문 상품 목록 ({(selectedOrder.ordered_items as any[])?.length || 0})</p>
                   <div className="space-y-3">
                     {(selectedOrder.ordered_items as any[])?.map((ji: any, index: number) => {
-                      const isWorkshop = ji.product_id === 'workshop-single';
-                      const displayImageUrl = getFullImageUrl(ji.user_image_url || ji.front_image, isWorkshop);
+                      const isWorkshop = ji.product_id === 'workshop-single' || ji.product_id === null;
+                      const imageUrl = ji.image || ji.user_image_url || ji.front_image || ji.custom_image || ji.preview_url;
+                      const displayImageUrl = getFullImageUrl(imageUrl, isWorkshop);
+                      const itemTitle = ji.title || ji.product_title || ji.name || '제품';
 
                       return (
                         <div key={index} className="flex items-center gap-4 bg-zinc-900/30 p-4 rounded-2xl border border-zinc-800/30 group/item">
@@ -320,7 +295,7 @@ export default function AdminOrders() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <p className="font-bold text-white text-sm truncate">{ji.title}</p>
+                              <p className="font-bold text-white text-sm truncate">{itemTitle}</p>
                               {isWorkshop && (
                                 <span className="bg-[#8B5CF6]/20 text-[#8B5CF6] text-[8px] font-black px-1.5 py-0.5 rounded">CUSTOM</span>
                               )}
@@ -341,7 +316,7 @@ export default function AdminOrders() {
                             <div className="flex gap-2">
                               <button 
                                 onClick={() => {
-                                  if (displayImageUrl) handleDownload(displayImageUrl, `order_${selectedOrder.order_number}_${ji.title}.png`);
+                                  if (displayImageUrl) handleDownload(displayImageUrl, `order_${selectedOrder.order_number}_${itemTitle}.png`);
                                 }}
                                 className="flex items-center gap-2 px-3 py-1.5 bg-white text-black rounded-lg text-[10px] font-black hover:bg-zinc-200 transition-all active:scale-95"
                               >

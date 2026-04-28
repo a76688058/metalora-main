@@ -1023,6 +1023,8 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
+        
+        {/* Bottom Section: Calendar & Analysis */}
       </div>
 
       <AnimatePresence mode="sync">

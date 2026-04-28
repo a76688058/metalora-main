@@ -173,12 +173,10 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
       if (error) throw error;
 
       await refreshProfile();
-      showToast('배송지가 저장되었습니다.', 'success'); // 성공 시에만 모달 닫기
       onClose(); 
       onSuccess(); // 결제 단계로 전환
     } catch (error: any) {
       console.error('Error updating shipping info:', error);
-      showToast("배송지 저장 실패: " + error.message, 'error');
       setErrorMsg(error.message || '배송지 정보 저장 중 오류가 발생했습니다.');
     } finally {
       setIsLoading(false);

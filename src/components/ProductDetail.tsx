@@ -183,6 +183,53 @@ export default function ProductDetail() {
   const isSoldOut = !selectedOption || selectedOption.stock <= 0 || !selectedOption.isActive;
   const currentPrice = selectedOption ? selectedOption.price : 0;
 
+  // JSON-LD Product Schema for SEO
+  useEffect(() => {
+    if (!product) return;
+    
+    // Product Schema
+    const productSchema = {
+      "@context": "https://schema.org/",
+      "@type": "Product",
+      "name": product.title,
+      "image": [getFullImageUrl(product.front_image || product.image)],
+      "description": "변하지 않는 가치, 프리미엄 커스텀 메탈 액자 페널",
+      "sku": product.id,
+      "brand": {
+        "@type": "Brand",
+        "name": "METALORA"
+      },
+      "offers": {
+        "@type": "Offer",
+        "url": `https://metalora.art/product/${product.id}`,
+        "priceCurrency": "KRW",
+        "price": currentPrice.toString(),
+        "itemCondition": "https://schema.org/NewCondition",
+        "availability": "https://schema.org/InStock",
+        "seller": {
+          "@type": "Organization",
+          "name": "METALORA"
+        }
+      }
+    };
+    
+    const scriptId = 'product-json-ld';
+    let script = document.getElementById(scriptId) as HTMLScriptElement;
+    
+    if (!script) {
+      script = document.createElement('script');
+      script.id = scriptId;
+      script.type = 'application/ld+json';
+      document.head.appendChild(script);
+    }
+    script.textContent = JSON.stringify(productSchema);
+    
+    return () => {
+      const existingScript = document.getElementById(scriptId);
+      if (existingScript) existingScript.remove();
+    };
+  }, [product, currentPrice]);
+
   const handleAddToCart = async () => {
     if (!currentUser) {
       setIsLoginModalOpen(true);
@@ -339,7 +386,7 @@ export default function ProductDetail() {
                     {getFullImageUrl(selectedOrientation === 'landscape' && product.landscape_image ? product.landscape_image : (product.front_image || product.image)) ? (
                       <img 
                         src={getFullImageUrl(selectedOrientation === 'landscape' && product.landscape_image ? product.landscape_image : (product.front_image || product.image)) || undefined} 
-                        alt={product.title} 
+                        alt={`${product.title} - 프리미엄 커스텀 메탈 액자 상세 이미지`} 
                         onError={handleImageError}
                         className="w-full h-full object-contain drop-shadow-2xl" 
                       />
@@ -428,7 +475,7 @@ export default function ProductDetail() {
 
               <div className="space-y-8 mb-10">
                 <div>
-                  <h3 className={`text-sm font-bold uppercase tracking-wider mb-3 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>작품 설명</h3>
+                  <h2 className={`text-sm font-bold uppercase tracking-wider mb-3 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>작품 설명</h2>
                   <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-sm leading-relaxed`}>
                     {product.description}
                     <br /><br />
@@ -438,7 +485,7 @@ export default function ProductDetail() {
                 </div>
 
                 <div>
-                  <h3 className={`text-sm font-bold uppercase tracking-wider mb-3 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>옵션 선택</h3>
+                  <h2 className={`text-sm font-bold uppercase tracking-wider mb-3 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>옵션 선택</h2>
                   <div className="flex flex-col gap-3">
                     {product.options && product.options.length > 0 ? (
                       product.options.filter(opt => opt.isActive).map((option) => {
@@ -500,7 +547,7 @@ export default function ProductDetail() {
                   const supportedOrientations = product?.supported_orientations?.length ? product.supported_orientations : ['portrait'];
                   return (
                   <div>
-                    <h3 className={`text-sm font-bold uppercase tracking-wider mb-3 mt-8 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>제품 방향 (Orientation)</h3>
+                    <h2 className={`text-sm font-bold uppercase tracking-wider mb-3 mt-8 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>제품 방향 (Orientation)</h2>
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         onClick={() => setSelectedOrientation('portrait')}
@@ -539,14 +586,14 @@ export default function ProductDetail() {
                   <div className={`flex items-start gap-3 p-4 rounded-xl border ${theme === 'dark' ? 'bg-white/5 border-white/5' : 'bg-black/5 border-black/5'}`}>
                     <ShieldCheck className="text-zinc-400 shrink-0" size={20} />
                     <div>
-                      <h4 className={`text-sm font-bold mb-1 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>프리미엄 품질</h4>
+                      <h3 className={`text-sm font-bold mb-1 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>프리미엄 품질</h3>
                       <p className="text-xs text-zinc-400">1.15mm 알루미늄, 8K 초고해상도</p>
                     </div>
                   </div>
                   <div className={`flex items-start gap-3 p-4 rounded-xl border ${theme === 'dark' ? 'bg-white/5 border-white/5' : 'bg-black/5 border-black/5'}`}>
                     <Box className="text-zinc-400 shrink-0" size={20} />
                     <div>
-                      <h4 className={`text-sm font-bold mb-1 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>마그네틱 마운트</h4>
+                      <h3 className={`text-sm font-bold mb-1 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>마그네틱 마운트</h3>
                       <p className="text-xs text-zinc-400">못 없이 간편한 설치, 벽면 손상 없음</p>
                     </div>
                   </div>

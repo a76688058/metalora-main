@@ -138,10 +138,9 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
       if (error) throw error;
       
       await refreshProfile();
-      showToast("정보가 성공적으로 수정되었습니다.", 'success');
       // onClose(); // Removed to keep the modal open after saving
     } catch (error: any) {
-      showToast("수정 실패: " + error.message, 'error');
+      // Error handling without toast
     } finally {
       setIsLoading(false);
     }

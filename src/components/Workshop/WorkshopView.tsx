@@ -639,7 +639,6 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
 
           if (uploadError) {
             console.error('Storage upload error during checkout:', uploadError);
-            showToast("이미지 업로드에 실패했습니다. 다시 시도해주세요.", "error");
             setIsUploading(false);
             return;
           }
@@ -690,8 +689,6 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
         setTimeout(() => openCart(), 100);
       } catch (err: any) {
         console.error('Failed to save to collection:', err);
-        const errorMsg = err.message || err.details || JSON.stringify(err);
-        showToast(`컬렉션 저장 중 오류가 발생했습니다: ${errorMsg}`, "error");
         setIsUploading(false);
       }
     } else {

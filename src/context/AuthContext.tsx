@@ -288,7 +288,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAdminSession(null);
         setAdminUser(null);
         setAdminProfile(null);
-        showToast('관리자 세션이 종료되었습니다.', 'success');
       } else {
         // Sign out both safely
         await supabase.auth.signOut().catch(() => {});
@@ -319,7 +318,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         showToast('모든 세션이 종료되었습니다.', 'success');
       }
     } catch (error) {
-      showToast('로그아웃 중 에러가 발생했습니다.', 'error');
+      // Error handling without toast
     } finally {
       setIsLoggingOut(false);
       setIsLoading(false);

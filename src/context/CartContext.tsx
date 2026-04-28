@@ -235,10 +235,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
 
       await refreshCart();
-      showToast('내 컬렉션에 안전하게 담겼습니다', 'success');
     } catch (error: any) {
       console.error('Final AddToCart Error:', error);
-      showToast(`컬렉션 담기에 실패했습니다: ${error.message || '알 수 없는 오류'}`, 'error');
     } finally {
       setIsLoading(false);
       console.log('--- ADD TO CART DEBUG END ---');
@@ -268,10 +266,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       
       await refreshCart();
-      showToast('상품이 삭제되었습니다.', 'success');
     } catch (error) {
       console.error('Error removing from cart:', error);
-      showToast('삭제에 실패했습니다.', 'error');
     }
   };
 
