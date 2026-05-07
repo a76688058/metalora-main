@@ -1,6 +1,6 @@
 import React, { useState, useRef, Suspense, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion';
-import { Upload, Image as ImageIcon, Check, ChevronLeft, Maximize, X, User, Loader2, ShoppingBag } from 'lucide-react';
+import { Upload, Image as ImageIcon, Check, ChevronLeft, Maximize, X, User, Loader2, ShoppingBag, Clock, Truck } from 'lucide-react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows, useTexture, Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -1257,10 +1257,23 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
                       </div>
                     </div>
 
-                    <div className={`p-6 border rounded-2xl transition-colors duration-500 ${
+                    <div className={`p-6 border rounded-2xl transition-colors duration-500 space-y-4 ${
                       theme === 'dark' ? 'bg-purple-500/5 border-purple-500/20' : 'bg-purple-50 border-purple-200'
                     }`}>
-                      <p className={`text-[12px] leading-relaxed text-center ${theme === 'dark' ? 'text-purple-300' : 'text-purple-700'}`}>
+                      <div className={`text-[12px] leading-relaxed text-center ${theme === 'dark' ? 'text-purple-300' : 'text-purple-700'}`}>
+                        <p className="font-bold flex items-center justify-center gap-1.5 mb-3">
+                          <Clock size={12} />
+                          제작/배송 및 서비스 안내
+                        </p>
+                        <div className="space-y-1 text-center">
+                          <p className="text-[13px] font-medium text-purple-600 dark:text-purple-400 mb-2 italic">"메탈로라는 타협하지 않는 퀄리티를 위해 정교한 제작 공정을 준수합니다."</p>
+                          <p>• <span className="font-semibold">제작 및 검수:</span> 결제 완료 후 프리미엄 알루미늄 패널 제작 및 정밀 검수에 <span className="font-semibold">3~5 영업일</span>이 소요됩니다.</p>
+                          <p>• <span className="font-semibold">배송 안내:</span> 출고 후 평일 기준 <span className="font-semibold">2~3일 이내</span>에 안전하게 배송됩니다 (도서산간 제외).</p>
+                          <p>• <span className="font-semibold">커스텀 안내:</span> 주문 제작 및 AI 최적화 공정 특성상, 작업량에 따라 <span className="font-semibold">최대 14일 이내</span>에 모든 서비스 제공이 완료됩니다.</p>
+                        </div>
+                      </div>
+                      <div className="h-[1px] w-full bg-current opacity-10" />
+                      <p className={`text-[12px] leading-relaxed text-center ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`}>
                         ※ 커스텀 상품은 제작이 시작된 이후 취소 및 환불이 불가합니다.<br/>
                         최종 시안을 다시 한번 확인해 주세요.
                       </p>

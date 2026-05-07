@@ -12,22 +12,201 @@ const __dirname = path.dirname(__filename);
 // Supabase Configuration
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://qifloweuwyhvukabgnoa.supabase.co';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 
 // Use Service Role Client for secure operations if key is available
 const supabaseAdmin = supabaseServiceKey 
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
 
+const supabasePublic = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
+
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
+
+  // Trust Proxy for GCP environment
+  app.set("trust proxy", true);
 
   // Middleware
-  app.use(express.json());
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
   // API routes FIRST
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // RSS Feed for Naver Search Advisor
+  app.get("/rss.xml", async (req, res) => {
+    try {
+      const client = supabasePublic || supabaseAdmin;
+      if (!client) {
+        throw new Error("Supabase is not configured.");
+      }
+
+      const { data: products, error } = await client
+        .from('products')
+        .select('*')
+        .eq('is_visible', true)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) {
+        throw error;
+      }
+
+      // Use BASE_URL from env or dynamically from request
+      const protocol = req.headers['x-forwarded-proto'] || 'http';
+      const host = process.env.BASE_URL || req.headers.host || 'metalora.art';
+      const baseUrl = host.startsWith('http') ? host : `${protocol}://${host}`;
+
+      const rssItems = (products || []).map(product => {
+        const productUrl = `${baseUrl}/product/${product.id}`;
+        const pubDate = new Date(product.created_at || Date.now()).toUTCString();
+        const rawImageUrl = product.front_image || product.image || '';
+        const imageUrl = rawImageUrl.startsWith('http') ? rawImageUrl : (rawImageUrl.startsWith('/') ? `${baseUrl}${rawImageUrl}` : rawImageUrl);
+        
+        const imageHtml = imageUrl ? `<br/><img src="${imageUrl}" alt="${product.title}" />` : '';
+
+        return `
+    <item>
+      <title><![CDATA[${product.title} - 프리미엄 메탈 액자]]></title>
+      <link>${productUrl}</link>
+      <description><![CDATA[${product.description || '최고급 커스텀 메탈 액자를 경험해보세요.'}${imageHtml}]]></description>
+      <pubDate>${pubDate}</pubDate>
+      <guid>${productUrl}</guid>
+    </item>`;
+      }).join('');
+
+      const rssFeed = `<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>메탈로라 | 프리미엄 커스텀 메탈 액자</title>
+    <link>${baseUrl}</link>
+    <description>메탈로라의 신규 메탈 액자 컬렉션 및 제품 소식입니다.</description>
+    <language>ko-kr</language>
+    <atom:link href="${baseUrl}/rss.xml" rel="self" type="application/rss+xml" />
+${rssItems}
+  </channel>
+</rss>`;
+
+      res.header('Content-Type', 'application/xml');
+      res.send(rssFeed);
+    } catch (error) {
+      console.error("[RSS Feed Error]", error);
+      res.status(500).send("Feed Generation Error");
+    }
+  });
+
+  // Dynamic Sitemap
+  app.get("/sitemap.xml", async (req, res) => {
+    try {
+      const client = supabasePublic || supabaseAdmin;
+      
+      const protocol = req.headers['x-forwarded-proto'] || 'http';
+      const host = process.env.BASE_URL || req.headers.host || 'metalora.art';
+      const baseUrl = host.startsWith('http') ? host : `${protocol}://${host}`;
+
+      let productUrls = "";
+      
+      if (client) {
+        const { data: products, error } = await client
+          .from('products')
+          .select('id, created_at')
+          .eq('is_visible', true);
+          
+        if (!error && products) {
+          productUrls = products.map(product => {
+            const date = new Date(product.created_at || Date.now()).toISOString().split('T')[0];
+            return `
+  <url>
+    <loc>${baseUrl}/product/${product.id}</loc>
+    <lastmod>${date}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>`;
+          }).join('');
+        }
+      }
+
+      const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${baseUrl}/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>${productUrls}
+</urlset>`;
+
+      res.header('Content-Type', 'application/xml');
+      res.send(sitemap);
+    } catch (error) {
+      console.error("[Sitemap Generation Error]", error);
+      res.status(500).send("Sitemap Generation Error");
+    }
+  });
+
+  /**
+   * 토스 페이먼츠 웹훅 (비동기 결제 완료 처리)
+   * @description 클라이언트가 창을 닫아도 결제 완료 처리를 보장합니다.
+   */
+  app.post("/api/payment/webhook", async (req, res) => {
+    const { eventType, data } = req.body;
+    
+    console.log(`[PAYMENT_WEBHOOK] Received ${eventType} event.`);
+
+    // 결제 성공(완료) 이벤트인 경우에만 처리
+    if (eventType !== 'PAYMENT_STATUS_CHANGED' && eventType !== 'DONE') {
+      return res.json({ received: true });
+    }
+
+    // Toss Webhook data structure might vary depending on version/event
+    const payment = data || req.body;
+    const { orderId, paymentKey, totalAmount, status } = payment;
+
+    if (status === 'DONE' || status === 'PAID') {
+      try {
+        // 이미 처리된 주문인지 확인
+        const { data: existingOrder } = await supabaseAdmin!
+          .from('orders')
+          .select('id, status')
+          .eq('order_number', orderId)
+          .maybeSingle();
+
+        if (existingOrder && existingOrder.status === 'PAID') {
+          return res.json({ success: true, message: "이미 처리됨" });
+        }
+
+        // 주의: 웹훅에서는 pendingOrder/pendingItems가 없을 수 있음.
+        // 이 경우 orders 테이블에 이미 'PENDING' 상태로 데이터가 존재해야 함.
+        // 현재 로직은 /api/payment/confirm에서 한꺼번에 처리하므로, 
+        // 만약 confirm 호출 전에 웹훅이 올 경우를 위해 최소한의 업데이트 수행.
+        
+        const { error: updateError } = await supabaseAdmin!
+          .from('orders')
+          .update({ 
+            status: 'PAID',
+            shipping_info: {
+              payment_key: paymentKey,
+              confirmed_via: 'webhook',
+              confirmed_at: new Date().toISOString()
+            }
+          })
+          .eq('order_number', orderId);
+
+        if (updateError) console.error('[WEBHOOK_DB_ERROR]', updateError);
+        
+        return res.json({ success: true });
+      } catch (err) {
+        console.error('[WEBHOOK_EXCEPTION]', err);
+        return res.status(500).json({ error: "Internal Server Error" });
+      }
+    }
+
+    return res.json({ received: true });
   });
 
   /**
@@ -289,16 +468,54 @@ ${itemsList}
       appType: "spa",
     });
     app.use(vite.middlewares);
+    
+    // Development SPA fallback
+    app.get('*', async (req, res, next) => {
+      // API 경로는 넘김
+      if (req.originalUrl.startsWith('/api/') || req.originalUrl.includes('.')) {
+        return next();
+      }
+      try {
+        const url = req.originalUrl;
+        const fs = await import('fs');
+        let template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e) {
+        vite.ssrFixStacktrace(e as Error);
+        next(e);
+      }
+    });
   } else {
-    const distPath = path.join(process.cwd(), 'dist', 'client');
-    app.use(express.static(distPath));
+    // Production path setup
+    const distPath = path.resolve(__dirname, "dist", "client");
+    
+    // 1. Static files - Root 기준 서빙
+    app.use(express.static(distPath, {
+      maxAge: '1y',
+      immutable: true,
+      index: false, // index.html은 아래에서 수동 서빙
+      setHeaders: (res, path) => {
+        if (path.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      }
+    }));
+
+    // 2. Catch-all: 모든 경로에 대해 index.html 서빙 (SPA 필수)
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      // API 경로는 여기서 처리하지 않음 (위에서 이미 처리됨)
+      res.sendFile(path.join(distPath, 'index.html'), (err) => {
+        if (err) {
+          console.error("Error sending index.html:", err);
+          res.status(500).send("Server Error");
+        }
+      });
     });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server started on port ${PORT}`);
   });
 }
 

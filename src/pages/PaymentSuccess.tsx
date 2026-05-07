@@ -91,24 +91,30 @@ export default function PaymentSuccess() {
 
       try {
         // 1. 세션 스토리지에서 대기 중인 주문 정보 가져오기
-        const pendingOrderStr = sessionStorage.getItem('pendingOrder');
+        let pendingOrderStr = sessionStorage.getItem('pendingOrder');
+        let pendingOrder = null;
+        let pendingItems = null;
+
         if (!pendingOrderStr) {
           // 세션 스토리지에 없으면 이미 처리된 주문인지 DB 확인
           const { data: existingOrder } = await supabase
             .from('orders')
             .select('id, status')
             .eq('order_number', orderId)
-            .single();
+            .maybeSingle();
             
           if (existingOrder && existingOrder.status === 'PAID') {
             setIsConfirming(false);
             return;
           }
-          throw new Error('결제 대기 중인 주문 정보를 찾을 수 없습니다.');
+          
+          // 웹훅이 처리 중일 수 있으므로 잠시 대기 후 한 번 더 확인 (Optional)
+          throw new Error('결제 정보를 확인할 수 없습니다. 세션이 만료되었거나 주문 정보가 유실되었습니다.');
+        } else {
+          const pendingOrderData = JSON.parse(pendingOrderStr);
+          pendingOrder = pendingOrderData.order;
+          pendingItems = pendingOrderData.items;
         }
-        
-        const pendingOrderData = JSON.parse(pendingOrderStr);
-        const { order: pendingOrder, items: pendingItems } = pendingOrderData;
 
         // 2. 서버에 결제 승인 요청 (보안 강화: Server-side Verification)
         const response = await fetch('/api/payment/confirm', {

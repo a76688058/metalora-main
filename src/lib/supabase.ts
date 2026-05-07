@@ -18,10 +18,9 @@ const aggressiveFetch = async (url: RequestInfo | URL, options?: RequestInit) =>
   let attempt = 0;
 
   while (attempt <= maxRetries) {
-    // Very short timeouts to quickly kill stale TCP connections
-    // 2.5s for first attempt, 4s for subsequent attempts
-    // For non-GET requests, give it a bit more time (5s) to avoid aborting valid mutations
-    const timeoutMs = isGet ? (attempt === 0 ? 2500 : 4000) : 5000;
+    // Slightly more relaxed timeouts to handle busy Supabase instances
+    // 5s for first attempt, 8s for subsequent attempts
+    const timeoutMs = isGet ? (attempt === 0 ? 5000 : 8000) : 10000;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 

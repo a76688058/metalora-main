@@ -11,13 +11,13 @@ import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
 import Poster3D, { Poster3DWithFallback } from './Poster3D';
 import LoginModal from './LoginModal';
-import { Box, Check, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, RotateCw, Frame, RefreshCw, Package, Maximize, X } from 'lucide-react';
+import { Box, Check, Clock, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, RotateCw, Frame, RefreshCw, Package, Maximize, X } from 'lucide-react';
 import Skeleton from './Skeleton';
 import { getFullImageUrl } from '../lib/utils';
 import BrandStorySection from './BrandStorySection';
 import ProductExperience from './ProductExperience';
 import { useTheme } from '../context/ThemeContext';
-
+import { Product } from '../data/products';
 import LoadingScreen from './LoadingScreen';
 
 declare global {
@@ -71,16 +71,40 @@ class CanvasErrorBoundary extends React.Component<{ children: React.ReactNode, f
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const location = useLocation();
   const cartItemFromState = location.state?.cartItem;
+  
   const { products, fetchProducts, isLoading, isError } = useProducts();
   const { user, adminUser, profile } = useAuth();
   const { showToast } = useToast();
   const { addToCart, openCart } = useCart();
   const { theme } = useTheme();
   
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [selectedOptionId, setSelectedOptionId] = useState<string>('');
+  const [selectedOrientation, setSelectedOrientation] = useState<'portrait' | 'landscape'>('portrait');
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAdded, setIsAdded] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [isFetchingSingle, setIsFetchingSingle] = useState(false);
+  const [localProduct, setLocalProduct] = useState<Product | null>(null);
+  const [hasInteracted, setHasInteracted] = useState(false);
+  const [cartParticles, setCartParticles] = useState<{ id: number; x: number; y: number; img: string }[]>([]);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleBack = () => {
+    if (window.history.state && window.history.state.idx > 0) {
+      navigate(-1);
+    } else {
+      navigate('/');
+    }
+  };
+
   const currentUser = user || adminUser;
-  let product = products.find((p) => p.id === id);
+  // Prefer local product if we fetched it specifically, otherwise find in global list
+  let product = localProduct || products.find((p) => p.id === id);
 
   // Handle workshop-single from cart state
   if (!product && id === 'workshop-single' && cartItemFromState) {
@@ -88,8 +112,8 @@ export default function ProductDetail() {
       id: 'workshop-single',
       title: '커스텀 작품',
       artist: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'METALORA Artist',
-      image: cartItemFromState.custom_image || '',
-      front_image: cartItemFromState.custom_image || '',
+      image: cartItemFromState.custom_image || cartItemFromState.image || '',
+      front_image: cartItemFromState.custom_image || cartItemFromState.image || '',
       description: 'METALORA 워크숍에서 제작된 세상에 단 하나뿐인 커스텀 작품입니다.',
       limited: true,
       options: [
@@ -105,25 +129,38 @@ export default function ProductDetail() {
     };
   }
 
-  const navigate = useNavigate();
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [selectedOptionId, setSelectedOptionId] = useState<string>('');
-  const [selectedOrientation, setSelectedOrientation] = useState<'portrait' | 'landscape'>('portrait');
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isAdded, setIsAdded] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [hasInteracted, setHasInteracted] = useState(false);
-  const [cartParticles, setCartParticles] = useState<{ id: number; x: number; y: number; img: string }[]>([]);
-  const canvasContainerRef = useRef<HTMLDivElement>(null);
-
-  const handleBack = () => {
-    if (window.history.state && window.history.state.idx > 0) {
-      navigate(-1);
-    } else {
-      navigate('/');
+  // Fallback: If product not found in global list but list isn't empty, 
+  // it might be a product outside the initial fetch limit.
+  useEffect(() => {
+    async function getSingleProduct() {
+      if (!product && id && id !== 'workshop-single' && !isFetchingSingle) {
+        try {
+          setIsFetchingSingle(true);
+          const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .eq('id', id)
+            .single();
+          
+          if (!error && data) {
+            const mappedProduct: Product = {
+              ...data,
+              artist: data.subtitle || 'Unknown Artist',
+              price: data.options?.[0]?.price || 0,
+              image: data.front_image || '',
+              limited: data.is_limited || false,
+            };
+            setLocalProduct(mappedProduct);
+          }
+        } catch (e) {
+          console.error("Error fetching single product:", e);
+        } finally {
+          setIsFetchingSingle(false);
+        }
+      }
     }
-  };
+    getSingleProduct();
+  }, [id, product, isFetchingSingle]);
 
   // Set initial selected option and orientation
   useEffect(() => {
@@ -138,12 +175,87 @@ export default function ProductDetail() {
     }
   }, [product]);
 
+  // JSON-LD Product Schema for SEO
+  useEffect(() => {
+    if (!product) return;
+    
+    // Product Schema
+    const productSchema = {
+      "@context": "https://schema.org/",
+      "@type": "Product",
+      "name": product.title,
+      "image": [getFullImageUrl(product.front_image || product.image)],
+      "description": "변하지 않는 가치, 프리미엄 커스텀 메탈 액자 페널",
+      "sku": product.id,
+      "brand": {
+        "@type": "Brand",
+        "name": "METALORA"
+      },
+      "offers": {
+        "@type": "Offer",
+        "url": `https://metalora.art/product/${product.id}`,
+        "priceCurrency": "KRW",
+        "price": product.price,
+        "availability": product.options && product.options.some((opt: any) => opt.stock > 0 && opt.isActive) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        "shippingDetails": {
+          "@type": "OfferShippingDetails",
+          "shippingRate": {
+            "@type": "MonetaryAmount",
+            "value": 0,
+            "currency": "KRW"
+          },
+          "shippingDestination": {
+            "@type": "DefinedRegion",
+            "addressCountry": "KR"
+          }
+        }
+      }
+    };
+
+    // Breadcrumb Schema
+    const breadcrumbSchema = {
+      "@context": "https://schema.org/",
+      "@type": "BreadcrumbList",
+      "itemListElement": [{
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://metalora.art"
+      },{
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Collection",
+        "item": "https://metalora.art/collection"
+      },{
+        "@type": "ListItem",
+        "position": 3,
+        "name": product.title,
+        "item": `https://metalora.art/product/${product.id}`
+      }]
+    };
+
+    const script1 = document.createElement('script');
+    script1.type = 'application/ld+json';
+    script1.innerHTML = JSON.stringify(productSchema);
+    document.head.appendChild(script1);
+
+    const script2 = document.createElement('script');
+    script2.type = 'application/ld+json';
+    script2.innerHTML = JSON.stringify(breadcrumbSchema);
+    document.head.appendChild(script2);
+
+    return () => {
+      document.head.removeChild(script1);
+      document.head.removeChild(script2);
+    };
+  }, [product]);
+
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     e.currentTarget.src = 'https://picsum.photos/seed/metalora_fallback/210/297';
     e.currentTarget.onerror = null;
   };
 
-  if (isLoading && products.length === 0) {
+  if ((isLoading || isFetchingSingle) && products.length === 0) {
     return <LoadingScreen />;
   }
 
@@ -176,59 +288,26 @@ export default function ProductDetail() {
   }
 
   if (!product) {
-    return <div className={`text-center py-20 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>상품을 찾을 수 없습니다</div>;
+    return (
+      <div className={`min-h-screen flex flex-col items-center justify-center py-20 px-6 text-center ${theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'}`}>
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <Loader2 className="animate-spin text-zinc-500" size={32} />
+          <p className="text-zinc-500 tracking-widest text-sm uppercase">잠시만 기다려주세요...</p>
+        </div>
+        {/* Fallback button if it stays too long */}
+        <button 
+          onClick={() => navigate('/')}
+          className="mt-8 text-xs underline opacity-50 hover:opacity-100"
+        >
+          홈으로 돌아가기
+        </button>
+      </div>
+    );
   }
 
   const selectedOption = product.options?.find(opt => opt.id === selectedOptionId);
   const isSoldOut = !selectedOption || selectedOption.stock <= 0 || !selectedOption.isActive;
   const currentPrice = selectedOption ? selectedOption.price : 0;
-
-  // JSON-LD Product Schema for SEO
-  useEffect(() => {
-    if (!product) return;
-    
-    // Product Schema
-    const productSchema = {
-      "@context": "https://schema.org/",
-      "@type": "Product",
-      "name": product.title,
-      "image": [getFullImageUrl(product.front_image || product.image)],
-      "description": "변하지 않는 가치, 프리미엄 커스텀 메탈 액자 페널",
-      "sku": product.id,
-      "brand": {
-        "@type": "Brand",
-        "name": "METALORA"
-      },
-      "offers": {
-        "@type": "Offer",
-        "url": `https://metalora.art/product/${product.id}`,
-        "priceCurrency": "KRW",
-        "price": currentPrice.toString(),
-        "itemCondition": "https://schema.org/NewCondition",
-        "availability": "https://schema.org/InStock",
-        "seller": {
-          "@type": "Organization",
-          "name": "METALORA"
-        }
-      }
-    };
-    
-    const scriptId = 'product-json-ld';
-    let script = document.getElementById(scriptId) as HTMLScriptElement;
-    
-    if (!script) {
-      script = document.createElement('script');
-      script.id = scriptId;
-      script.type = 'application/ld+json';
-      document.head.appendChild(script);
-    }
-    script.textContent = JSON.stringify(productSchema);
-    
-    return () => {
-      const existingScript = document.getElementById(scriptId);
-      if (existingScript) existingScript.remove();
-    };
-  }, [product, currentPrice]);
 
   const handleAddToCart = async () => {
     if (!currentUser) {
@@ -274,7 +353,14 @@ export default function ProductDetail() {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col relative transition-colors duration-500 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5 }}
+      style={{ willChange: 'opacity' }}
+      className={`min-h-screen flex flex-col relative transition-colors duration-500 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}
+    >
       {/* Login Modal */}
       <LoginModal
         isOpen={isLoginModalOpen}
@@ -506,29 +592,36 @@ export default function ProductDetail() {
                           >
                             <div className="flex flex-col items-start">
                               <span>{option.name}</span>
-                              <span className={`text-[12px] mt-0.5 ${selectedOptionId === option.id ? (theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700') : (theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500')}`}>
+                              <span className={`text-[12px] mt-0.5 font-medium ${
+                                selectedOptionId === option.id 
+                                  ? (theme === 'dark' ? 'text-zinc-700' : 'text-zinc-300') 
+                                  : (theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500')
+                              }`}>
                                 {(() => {
-                                  if (selectedOrientation === 'landscape' && option.dimension.toLowerCase().includes('x')) {
-                                    const parts = option.dimension.toLowerCase().split('x');
+                                  const dim = option.dimension || '';
+                                  if (!dim) return '';
+                                  
+                                  if (selectedOrientation === 'landscape' && dim.toLowerCase().includes('x')) {
+                                    const parts = dim.toLowerCase().split('x');
                                     if (parts.length === 2) {
                                       const cleanH = parts[0].replace(/cm/g, '').trim();
                                       const cleanW = parts[1].replace(/cm/g, '').trim();
                                       return `${cleanW}cm (가로) x ${cleanH}cm (세로)`;
                                     }
-                                  } else {
-                                    const parts = option.dimension.toLowerCase().split('x');
+                                  } else if (dim.toLowerCase().includes('x')) {
+                                    const parts = dim.toLowerCase().split('x');
                                     if (parts.length === 2) {
                                       const cleanW = parts[0].replace(/cm/g, '').trim();
                                       const cleanH = parts[1].replace(/cm/g, '').trim();
                                       return `${cleanW}cm (가로) x ${cleanH}cm (세로)`;
                                     }
                                   }
-                                  return option.dimension;
+                                  return dim;
                                 })()}
                               </span>
                             </div>
                             <div className="flex items-center gap-3">
-                              <span>₩{option.price.toLocaleString()}</span>
+                              <span className="font-bold">₩{option.price.toLocaleString()}</span>
                               {isOptionSoldOut && (
                                 <span className="bg-red-500 text-white text-[12px] px-1.5 py-0.5 rounded-full">품절</span>
                               )}
@@ -657,6 +750,20 @@ export default function ProductDetail() {
                     <Truck size={14} strokeWidth={1.5} />
                     전 작품 안전 패키징 & 전 지역 무료 배송
                   </p>
+                  <div className={`mt-2 p-4 rounded-xl border text-[12px] leading-relaxed ${
+                    theme === 'dark' ? 'bg-white/5 border-white/5 text-zinc-300' : 'bg-black/5 border-black/5 text-[#111111]'
+                  }`}>
+                    <p className="font-bold mb-1 flex items-center gap-1.5">
+                      <Clock size={12} className="text-cyan-500" />
+                      배송/서비스 제공 기간 안내
+                    </p>
+                    <div className="space-y-1 mt-1">
+                      <p className="text-[13px] font-medium text-purple-600 dark:text-purple-400 mb-2 italic">"메탈로라는 타협하지 않는 퀄리티를 위해 정교한 제작 공정을 준수합니다."</p>
+                      <p>• <span className="font-semibold">제작 및 검수:</span> 결제 완료 후 프리미엄 알루미늄 패널 제작 및 정밀 검수에 <span className="font-semibold">3~5 영업일</span>이 소요됩니다.</p>
+                      <p>• <span className="font-semibold">배송 안내:</span> 출고 후 평일 기준 <span className="font-semibold">2~3일 이내</span>에 안전하게 배송됩니다 (도서산간 제외).</p>
+                      <p>• <span className="font-semibold">커스텀 안내:</span> 주문 제작 및 AI 최적화 공정 특성상, 작업량에 따라 <span className="font-semibold">최대 14일 이내</span>에 모든 서비스 제공이 완료됩니다.</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -688,6 +795,6 @@ export default function ProductDetail() {
           <Frame size={20} className="text-black" />
         </motion.div>
       ))}
-    </div>
+    </motion.div>
   );
 }

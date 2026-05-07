@@ -135,11 +135,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user, adminUser]);
 
   useEffect(() => {
     refreshCart();
-  }, [refreshCart]);
+  }, [user, adminUser, refreshCart]);
 
   const addToCart = async (
     productId: string, 

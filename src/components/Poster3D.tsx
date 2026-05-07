@@ -4,6 +4,7 @@ import { Environment, useTexture, Html } from '@react-three/drei';
 import ErrorBoundary from './ErrorBoundary';
 import * as THREE from 'three';
 import { Product } from '../data/products';
+import { getFullImageUrl } from '../lib/utils';
 
 // 3D Loaded Event Emitter Component
 function CanvasLoadTracker({ onLoaded }: { onLoaded: () => void }) {
@@ -39,19 +40,23 @@ export function Poster3DWithFallback({ product, imageUrl, backImageUrl, width, h
     return () => clearTimeout(timer);
   }, []);
 
-  const imageSrc = fallbackImageUrl || imageUrl || (orientation === 'landscape' && product?.landscape_image ? product.landscape_image : (product?.front_image || product?.image));
+  const rawImageSrc = fallbackImageUrl || imageUrl || (orientation === 'landscape' && product?.landscape_image ? product.landscape_image : (product?.front_image || product?.image));
+  const imageSrc = getFullImageUrl(rawImageSrc) || 'https://picsum.photos/seed/metalora_fallback/210/297';
 
   // if explicitly hasError, or if timer triggered AND it never rendered
   const shouldShowFallback = hasError || (showFallback && !isRendered);
 
   if (shouldShowFallback) {
     return (
-      <Html center className="w-full h-full pointer-events-none"> 
+      <Html center className="w-full h-full pointer-events-none flex items-center justify-center"> 
          <img 
-          src={imageSrc || 'https://picsum.photos/seed/metalora_fallback/210/297'} 
+          src={imageSrc} 
           alt="Poster" 
-          className="w-full h-full object-contain drop-shadow-2xl"
-          onError={() => setHasError(true)}
+          className="max-w-full max-h-[80vh] object-contain drop-shadow-2xl"
+          onError={(e) => {
+            setHasError(true);
+            e.currentTarget.src = 'https://picsum.photos/seed/metalora_fallback/210/297';
+          }}
         />
       </Html>
     );
@@ -59,11 +64,14 @@ export function Poster3DWithFallback({ product, imageUrl, backImageUrl, width, h
 
   return (
     <ErrorBoundary fallback={
-       <Html center className="w-full h-full pointer-events-none">
+       <Html center className="w-full h-full pointer-events-none flex items-center justify-center">
         <img 
-          src={imageSrc || 'https://picsum.photos/seed/metalora_fallback/210/297'} 
+          src={imageSrc} 
           alt="Poster" 
-          className="w-full h-full object-contain drop-shadow-2xl"
+          className="max-w-full max-h-[80vh] object-contain drop-shadow-2xl"
+          onError={(e) => {
+            e.currentTarget.src = 'https://picsum.photos/seed/metalora_fallback/210/297';
+          }}
         />
       </Html>
     }>
@@ -104,8 +112,11 @@ export default function Poster3D({
   const finalWidth = orientation === 'landscape' ? height : width;
   const finalHeight = orientation === 'landscape' ? width : height;
   
-  const imageUrl = propImageUrl || (orientation === 'landscape' && product?.landscape_image ? product.landscape_image : (product?.front_image || product?.image || ''));
-  const backImageUrl = propBackImageUrl || (orientation === 'landscape' && product?.landscape_back_image ? product.landscape_back_image : (product?.back_image || product?.backImage || ''));
+  const rawImageUrl = propImageUrl || (orientation === 'landscape' && product?.landscape_image ? product.landscape_image : (product?.front_image || product?.image || ''));
+  const rawBackImageUrl = propBackImageUrl || (orientation === 'landscape' && product?.landscape_back_image ? product.landscape_back_image : (product?.back_image || product?.backImage || ''));
+  
+  const imageUrl = getFullImageUrl(rawImageUrl);
+  const backImageUrl = getFullImageUrl(rawBackImageUrl);
 
   // Use useTexture for better caching and Suspense support
   const textures = useTexture(

@@ -8,6 +8,8 @@ import { useToast } from '../context/ToastContext';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { loadTossPayments } from '@tosspayments/payment-sdk';
+import PolicyModal from './PolicyModal';
+import { policies } from '../constants/policies';
 
 interface CartProps {
   isOpen: boolean;
@@ -104,6 +106,10 @@ export default function Cart() {
     refund: false,
     terms: false,
   });
+  const [policyModal, setPolicyModal] = useState<{ isOpen: boolean; key: keyof typeof policies | null }>({
+    isOpen: false,
+    key: null,
+  });
   const [consentModal, setConsentModal] = useState<{ isOpen: boolean; type: 'content' | 'refund' | 'terms' | null }>({
     isOpen: false,
     type: null,
@@ -133,12 +139,12 @@ export default function Cart() {
       ]
     },
     refund: {
-      title: '환불 정책 동의',
+      title: '환불 및 교환 정책 동의',
       items: [
-        '본 상품은 <strong class="text-fuchsia-500">주문 제작 상품</strong>으로, 단순 변심에 의한 취소 및 환불이 제한됩니다.',
-        '주문 접수 후 제작이 시작된 경우에는 <strong class="text-fuchsia-500">취소가 불가능</strong>합니다.',
-        '제품의 <strong class="text-fuchsia-500">명백한 하자 또는 오배송</strong>의 경우에 한하여 재제작 또는 환불이 가능합니다.',
-        '모니터와 실제 출력물 간 <strong class="text-fuchsia-500">색상 차이, 이미지 해상도 및 원본 파일 품질 문제</strong>는 환불/재제작 사유에 해당하지 않습니다.'
+        '본 상품은 <strong class="text-fuchsia-500">1:1 주문 제작 상품</strong>으로, 제작이 시작된 이후에는 단순 변심에 의한 취소 및 환불이 불가함을 확인하였습니다.',
+        '결제 완료 후 <strong class="text-fuchsia-500">제작 시작 전(결제완료)</strong> 단계에서만 취소가 가능함에 동의합니다.',
+        '상품의 <strong class="text-fuchsia-500">명백한 하자 또는 오배송</strong>의 경우 수령 후 7일 이내에 교환/반품 신청이 가능합니다.',
+        '모니터 사양에 따른 <strong class="text-fuchsia-500">색상 차이, 원본 파일의 저화질 및 노이즈</strong>는 환불 사유에 해당하지 않음을 인지하였습니다.'
       ]
     },
     terms: {
@@ -764,7 +770,15 @@ export default function Cart() {
         </div>
       </motion.div>
 
-      {/* Consent Detail Modal */}
+      {/* Policy Modal for full details */}
+      <PolicyModal
+        isOpen={policyModal.isOpen}
+        onClose={() => setPolicyModal({ isOpen: false, key: null })}
+        title={policyModal.key ? policies[policyModal.key].title : ''}
+        content={policyModal.key ? policies[policyModal.key].content : null}
+      />
+
+      {/* Consent Detail Modal - Summary version */}
       <AnimatePresence>
         {consentModal.isOpen && consentModal.type && (
           <div className="fixed inset-0 z-[100003] flex items-center justify-center p-6">
@@ -872,12 +886,12 @@ export default function Cart() {
                         </span>
                       </label>
                       <button 
-                        onClick={() => setConsentModal({ isOpen: true, type: 'content' })}
+                        onClick={() => setPolicyModal({ isOpen: true, key: 'agreement' })}
                         className={`text-sm underline underline-offset-4 px-3 py-2 transition-colors ${
                           theme === 'dark' ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600'
                         }`}
                       >
-                        보기
+                        자세히 보기
                       </button>
                     </div>
                   )}
@@ -898,12 +912,12 @@ export default function Cart() {
                       </span>
                     </label>
                     <button 
-                      onClick={() => setConsentModal({ isOpen: true, type: 'refund' })}
+                      onClick={() => setPolicyModal({ isOpen: true, key: 'refund' })}
                       className={`text-sm underline underline-offset-4 px-3 py-2 transition-colors ${
                         theme === 'dark' ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600'
                       }`}
                     >
-                      보기
+                      자세히 보기
                     </button>
                   </div>
 
@@ -923,12 +937,12 @@ export default function Cart() {
                       </span>
                     </label>
                     <button 
-                      onClick={() => setConsentModal({ isOpen: true, type: 'terms' })}
+                      onClick={() => setPolicyModal({ isOpen: true, key: 'terms' })}
                       className={`text-sm underline underline-offset-4 px-3 py-2 transition-colors ${
                         theme === 'dark' ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600'
                       }`}
                     >
-                      보기
+                      자세히 보기
                     </button>
                   </div>
                 </div>

@@ -20,6 +20,7 @@ import BrandStory from './pages/BrandStory';
 import Collection from './pages/Collection';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFail from './pages/PaymentFail';
+import PolicyPage from './pages/PolicyPage';
 import LoadingScreen from './components/LoadingScreen';
 import AdminBanner from './components/AdminBanner';
 import PresenceTracker from './components/PresenceTracker';
@@ -112,6 +113,7 @@ function AnimatedRoutes() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/brand-story" element={<BrandStory />} />
         <Route path="/collection" element={<Collection />} />
+        <Route path="/policy/:type" element={<PolicyPage />} />
         
         {/* Profile Complete - Skip for Admins */}
         <Route 
