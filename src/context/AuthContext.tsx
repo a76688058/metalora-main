@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { useToast } from './ToastContext';
@@ -88,6 +88,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const openInquiry = () => setIsInquiryOpen(true);
   const closeInquiry = () => setIsInquiryOpen(false);
 
+  // Dedupe same-user profile reads across initializeSessions + SIGNED_IN races / tab return.
+  const loadedProfileUserIdRef = useRef<string | null>(null);
+  const profileFetchInFlightUserIdRef = useRef<string | null>(null);
+
   // Optimistic load from local storage
   useEffect(() => {
     try {
@@ -106,9 +110,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const fetchProfile = async (userId: string, isAdmin = false, retryCount = 0) => {
+  // Single DB read — same profiles row feeds both profile and adminProfile state.
+  const fetchProfile = async (
+    userId: string,
+    options: { force?: boolean } = {},
+    retryCount = 0,
+  ) => {
+    const force = options.force === true;
     const client = supabase;
-    const setter = isAdmin ? setAdminProfile : setProfile;
+
+    // Same-user in-flight: never start a parallel query (even force).
+    if (profileFetchInFlightUserIdRef.current === userId) return;
+    // Same-user already loaded: skip unless explicit force refresh.
+    if (!force && loadedProfileUserIdRef.current === userId) return;
+
+    profileFetchInFlightUserIdRef.current = userId;
 
     try {
       const { data, error } = await client
@@ -119,22 +135,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
       if (error) {
         if (error.code === 'PGRST116') {
-          setter(null);
+          setProfile(null);
+          setAdminProfile(null);
+          loadedProfileUserIdRef.current = null;
           return;
         }
         throw error;
       }
       
       if (data) {
-        setter(data);
+        setProfile(data);
+        setAdminProfile(data);
+        loadedProfileUserIdRef.current = userId;
       }
     } catch (error: any) {
       if (retryCount < 3) {
         // Exponential backoff for profile fetch: 1s, 2s, 4s
         const backoffDelay = Math.pow(2, retryCount) * 1000;
-        setTimeout(() => fetchProfile(userId, isAdmin, retryCount + 1), backoffDelay);
+        // Clear in-flight so the scheduled retry can start.
+        if (profileFetchInFlightUserIdRef.current === userId) {
+          profileFetchInFlightUserIdRef.current = null;
+        }
+        setTimeout(() => fetchProfile(userId, options, retryCount + 1), backoffDelay);
+        return;
       } else {
         console.warn('Profile fetch failed after retries, keeping session active.', error);
+        // Do not mark this user as successfully loaded.
+        if (loadedProfileUserIdRef.current === userId) {
+          loadedProfileUserIdRef.current = null;
+        }
+      }
+    } finally {
+      if (profileFetchInFlightUserIdRef.current === userId) {
+        profileFetchInFlightUserIdRef.current = null;
       }
     }
   };
@@ -161,8 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setAdminSession(sess);
           setAdminUser(sess.user);
           
-          fetchProfile(sess.user.id, false);
-          fetchProfile(sess.user.id, true);
+          fetchProfile(sess.user.id);
         }
       } catch (error: any) {
         // DO NOT clear user/session here. If network is down, keep optimistic state.
@@ -195,21 +227,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setAdminSession(null);
           setAdminUser(null);
           setAdminProfile(null);
+          loadedProfileUserIdRef.current = null;
+          profileFetchInFlightUserIdRef.current = null;
           setIsLoading(false);
           window.dispatchEvent(new CustomEvent('refresh-products'));
           window.location.replace('/');
           return;
         } 
         
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        if (event === 'TOKEN_REFRESHED') {
+          // Token refresh is not a profiles-row change — update session only.
           if (sess) {
             setSession(sess);
             setUser(sess.user);
             setAdminSession(sess);
             setAdminUser(sess.user);
-            
-            fetchProfile(sess.user.id, false);
-            fetchProfile(sess.user.id, true);
+          }
+        } else if (event === 'SIGNED_IN') {
+          if (sess) {
+            setSession(sess);
+            setUser(sess.user);
+            setAdminSession(sess);
+            setAdminUser(sess.user);
+            // Same user already loaded / in-flight → skip; new user → fetch once.
+            fetchProfile(sess.user.id);
+          }
+        } else if (event === 'USER_UPDATED') {
+          if (sess) {
+            setSession(sess);
+            setUser(sess.user);
+            setAdminSession(sess);
+            setAdminUser(sess.user);
+            fetchProfile(sess.user.id, { force: true });
           }
         }
         // Ignore other events or null sessions to prevent accidental logouts on network drops
@@ -308,6 +357,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAdminSession(null);
         setAdminUser(null);
         setAdminProfile(null);
+        loadedProfileUserIdRef.current = null;
+        profileFetchInFlightUserIdRef.current = null;
         window.dispatchEvent(new CustomEvent('refresh-products'));
         
         // Notify other tabs
@@ -350,7 +401,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = async (isAdmin = false) => {
     const u = isAdmin ? adminUser : user;
-    if (u) await fetchProfile(u.id, isAdmin);
+    if (u) await fetchProfile(u.id, { force: true });
   };
 
   const refreshSession = async () => {
@@ -364,7 +415,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (sess) {
         setSession(sess);
         setUser(sess.user);
-        await fetchProfile(sess.user.id, false);
+        await fetchProfile(sess.user.id);
       }
     } catch (err) {
       console.warn('refreshSession failed, keeping optimistic state:', err);
