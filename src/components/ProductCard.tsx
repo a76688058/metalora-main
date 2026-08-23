@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Product } from '../data/products';
-import { getOptimizedImageUrl } from '../lib/utils';
+import { useListImageSrc } from '../hooks/useListImageSrc';
 
 interface ProductCardProps {
   product: Product;
@@ -9,11 +9,8 @@ interface ProductCardProps {
 
 export default function ProductCard({ product }: ProductCardProps) {
   const [isLoaded, setIsLoaded] = React.useState(false);
-
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    e.currentTarget.src = 'https://picsum.photos/seed/metalora_fallback/210/297';
-    e.currentTarget.onerror = null; // Prevent infinite loop
-  };
+  const originalImage = product.front_image || product.image;
+  const { src, onError } = useListImageSrc(originalImage, 320);
 
   return (
     <Link 
@@ -23,11 +20,11 @@ export default function ProductCard({ product }: ProductCardProps) {
     >
       <div className="relative w-full aspect-[210/297] rounded-none bg-transparent overflow-hidden cursor-pointer group border-none transform-gpu">
         <img
-          src={getOptimizedImageUrl(product.front_image || product.image, 200) || undefined}
+          src={src}
           alt={product.title}
           loading="lazy"
           onLoad={() => setIsLoaded(true)}
-          onError={handleImageError}
+          onError={onError}
           className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${
             isLoaded ? 'blur-0 opacity-100' : 'blur-xl opacity-50'
           }`}

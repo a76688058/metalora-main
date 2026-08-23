@@ -1,6 +1,7 @@
-import { STORAGE_BASE_URL } from './utils';
-
 export type ImageDerivativeVariant = 'thumb' | 'medium';
+
+/** Same public Storage base as utils.ts — kept local to avoid circular imports. */
+const STORAGE_BASE_URL = 'https://qifloweuwyhvukabgnoa.supabase.co/storage/v1/object/public';
 
 export interface ResizeImageVariantOptions {
   maxWidth: number;

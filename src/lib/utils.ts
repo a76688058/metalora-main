@@ -1,4 +1,8 @@
+import { deriveVariantUrl, type ImageDerivativeVariant } from './imageDerivatives';
+
 export const STORAGE_BASE_URL = 'https://qifloweuwyhvukabgnoa.supabase.co/storage/v1/object/public';
+
+export const BROKEN_IMAGE_FALLBACK = 'https://picsum.photos/seed/metalora_fallback/210/297';
 
 export const getFullImageUrl = (path: string | null | undefined, isWorkshop: boolean = false) => {
   if (!path) return null;
@@ -22,6 +26,13 @@ export const getFullImageUrl = (path: string | null | undefined, isWorkshop: boo
   return `${STORAGE_BASE_URL}/${bucket}/${encodedPath}`;
 };
 
+/**
+ * List/grid image helper: prefers Storage WebP derivatives when available.
+ * - width <= 320 → __thumb.webp
+ * - width > 320 → __medium.webp
+ * External / blob / data URLs pass through unchanged.
+ * ProductDetail / 3D should keep using getFullImageUrl (original).
+ */
 export const getOptimizedImageUrl = (url: string | null | undefined, width: number = 400) => {
   if (!url) return undefined;
   
@@ -36,7 +47,6 @@ export const getOptimizedImageUrl = (url: string | null | undefined, width: numb
   const fullUrl = getFullImageUrl(cleanUrl);
   if (!fullUrl) return undefined;
 
-  // 브라우저 캐시된 403 오류를 회피하기 위해 타임스탬프를 아주 드물게 추가하거나 
-  // 필요한 경우에만 최적화 파라미터를 붙일 수 있음. 현재는 원본 로딩을 우선함.
-  return fullUrl;
+  const variant: ImageDerivativeVariant = width <= 320 ? 'thumb' : 'medium';
+  return deriveVariantUrl(fullUrl, variant) ?? fullUrl;
 };

@@ -4,10 +4,36 @@ import { useProducts } from '../context/ProductContext';
 import { Link, useSearchParams, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { Clock, Shuffle } from 'lucide-react';
-import { getOptimizedImageUrl } from '../lib/utils';
+import { useListImageSrc } from '../hooks/useListImageSrc';
 import ProductGrid from '../components/ProductGrid';
 import HeroCinematic from '../components/HeroCinematic';
 import { useTheme } from '../context/ThemeContext';
+
+function ArtworkImage({
+  originalUrl,
+  alt,
+  index,
+  className,
+}: {
+  originalUrl: string | null | undefined;
+  alt: string;
+  index: number;
+  className: string;
+}) {
+  const { src, onError } = useListImageSrc(originalUrl, 720);
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      onError={onError}
+      className={className}
+      loading={index < 4 ? 'eager' : 'lazy'}
+      decoding="async"
+      fetchPriority={index < 4 ? 'high' : 'auto'}
+    />
+  );
+}
 
 export default function Home() {
   const { products, isLoading, isError, fetchProducts } = useProducts();
@@ -116,11 +142,6 @@ export default function Home() {
       isNew: p.created_at ? (new Date().getTime() - new Date(p.created_at).getTime()) < (14 * 24 * 60 * 60 * 1000) : false
     }));
   }, [products, searchQuery, sortBy, randomSeed]);
-
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    e.currentTarget.src = 'https://picsum.photos/seed/metalora_fallback/210/297';
-    e.currentTarget.onerror = null; // Prevent infinite loop
-  };
 
   const skeletonTone = theme === 'dark' ? 'bg-zinc-900 border-white/5 shadow-black/50' : 'bg-zinc-100 border-black/5 shadow-black/10';
   const textMuted = theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200';
@@ -231,14 +252,11 @@ export default function Home() {
                       <div className={`block overflow-hidden aspect-[210/297] relative border shadow-2xl ${
                         theme === 'dark' ? 'bg-zinc-900 border-white/5 shadow-black/50' : 'bg-zinc-100 border-black/5 shadow-black/10'
                       }`}>
-                        <img 
-                          src={getOptimizedImageUrl(product.image || product.front_image, 400)} 
+                        <ArtworkImage
+                          originalUrl={product.image || product.front_image}
                           alt={product.title}
-                          onError={handleImageError}
+                          index={index}
                           className="w-full h-full object-cover rounded-none transition-transform duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-110"
-                          loading={index < 4 ? "eager" : "lazy"}
-                          decoding="async"
-                          fetchPriority={index < 4 ? "high" : "auto"}
                         />
                         
                         {/* Badges */}
