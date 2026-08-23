@@ -11,7 +11,7 @@ import LoadingScreen from './components/LoadingScreen';
 import AdminBanner from './components/AdminBanner';
 import ProfileOverlay from './components/ProfileOverlay';
 const ProfileEditModal = lazy(() => import('./components/ProfileEditModal'));
-import OrdersModal from './components/OrdersModal';
+const OrdersModal = lazy(() => import('./components/OrdersModal'));
 import InquiryModal from './components/InquiryModal';
 import { ProductProvider } from './context/ProductContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -185,7 +185,11 @@ function Layout() {
             <ProfileEditModal key="profile-edit-modal" isOpen={isProfileEditOpen} onClose={closeProfileEdit} />
           </Suspense>
         )}
-        {isOrdersOpen && <OrdersModal key="orders-modal" isOpen={isOrdersOpen} onClose={closeOrders} />}
+        {isOrdersOpen && (
+          <Suspense fallback={null}>
+            <OrdersModal key="orders-modal" isOpen={isOrdersOpen} onClose={closeOrders} />
+          </Suspense>
+        )}
         {isInquiryOpen && <InquiryModal key="inquiry-modal" isOpen={isInquiryOpen} onClose={closeInquiry} />}
         {isWorkshopOpen && (
           <Suspense fallback={null}>
