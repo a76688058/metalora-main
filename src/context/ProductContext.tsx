@@ -24,12 +24,43 @@ export const useProducts = () => {
   return context;
 };
 
+// Shared across StrictMode remounts so overlapping fetchProducts calls reuse one HTTP chain.
+let inFlightProductQuery: Promise<{ data: any[] | null; error: any }> | null = null;
+
+function queryProductList() {
+  if (!supabasePublic) {
+    return Promise.resolve({ data: null, error: new Error('Supabase is not configured.') });
+  }
+
+  if (!inFlightProductQuery) {
+    inFlightProductQuery = Promise.resolve(
+      supabasePublic
+        .from('products')
+        .select('id, title, subtitle, front_image, back_image, landscape_image, landscape_back_image, supported_orientations, description, is_limited, is_visible, options, created_at, display_order')
+        .order('display_order', { ascending: true })
+        .limit(20)
+    ).finally(() => {
+      inFlightProductQuery = null;
+    });
+  }
+
+  return inFlightProductQuery;
+}
+
 export const ProductProvider = ({ children }: { children: ReactNode }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const hasLoadedRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const fetchProducts = useCallback(async () => {
     if (!supabasePublic) return;
@@ -42,57 +73,34 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(true);
     }
     setIsError(false);
-    
-    let attempt = 0;
-    const maxRetries = 3;
-    let success = false;
 
-    while (attempt < maxRetries && !success) {
-      try {
-        // Query Optimization: Select only necessary columns and limit results
-        const fetchPromise = supabasePublic
-          .from('products')
-          .select('id, title, subtitle, front_image, back_image, landscape_image, landscape_back_image, supported_orientations, description, is_limited, is_visible, options, created_at, display_order')
-          .order('display_order', { ascending: true })
-          .limit(20);
-          
-        // Timeout Extension: 10 seconds (reduced from 25s to prevent long hangs)
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 10000)
-        );
+    try {
+      const { data, error } = await queryProductList();
+
+      if (!mountedRef.current) return;
+      if (error) throw error;
         
-        const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
-        
-        if (error) throw error;
-        
-        if (data) {
-          const mappedData = data.map((item: any) => ({
-            ...item,
-            artist: item.subtitle || 'Unknown Artist',
-            price: item.options?.[0]?.price || 0,
-            image: item.front_image || '',
-            limited: item.is_limited || false,
-          }));
-          setProducts(mappedData as Product[]);
-          hasLoadedRef.current = true;
-          success = true;
-        }
-      } catch (error: any) {
-        attempt++;
-        if (attempt >= maxRetries) {
-          console.error("Failed to fetch products after 3 attempts:", error);
-          if (!hasLoadedRef.current) {
-            setIsError(true);
-          }
-        } else {
-          console.warn(`Product fetch attempt ${attempt} failed. Retrying in ${attempt}s...`);
-          // Exponential Backoff: 1s, then 2s
-          await new Promise(resolve => setTimeout(resolve, attempt * 1000));
-        }
+      if (data) {
+        const mappedData = data.map((item: any) => ({
+          ...item,
+          artist: item.subtitle || 'Unknown Artist',
+          price: item.options?.[0]?.price || 0,
+          image: item.front_image || '',
+          limited: item.is_limited || false,
+        }));
+        setProducts(mappedData as Product[]);
+        hasLoadedRef.current = true;
+      }
+    } catch (error: any) {
+      console.error("Failed to fetch products:", error);
+      if (mountedRef.current && !hasLoadedRef.current) {
+        setIsError(true);
+      }
+    } finally {
+      if (mountedRef.current) {
+        setIsLoading(false);
       }
     }
-    
-    setIsLoading(false);
   }, []);
 
   useEffect(() => {
