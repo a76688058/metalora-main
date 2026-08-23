@@ -16,7 +16,7 @@ import { useTheme } from '../context/ThemeContext';
  * - Standard lighting & materials from Poster3D.tsx
  */
 
-const AURORA_IMAGE_URL = "https://images.unsplash.com/photo-1593378026483-2a1fd46a35bd?q=80&w=1287&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
+const AURORA_IMAGE_URL = "/hero/aurora.avif";
 
 function CinematicPoster({ progress, theme }: { progress: any, theme: string }) {
   const meshRef = useRef<THREE.Mesh>(null);
