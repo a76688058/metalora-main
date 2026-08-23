@@ -132,7 +132,7 @@ function CinematicPoster({ progress, theme }: { progress: any, theme: string }) 
   );
 }
 
-export default function HeroCinematic() {
+function HeroCinematic() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
   
@@ -195,3 +195,5 @@ export default function HeroCinematic() {
     </div>
   );
 }
+
+export default React.memo(HeroCinematic);
