@@ -12,7 +12,7 @@ import AdminBanner from './components/AdminBanner';
 import ProfileOverlay from './components/ProfileOverlay';
 const ProfileEditModal = lazy(() => import('./components/ProfileEditModal'));
 const OrdersModal = lazy(() => import('./components/OrdersModal'));
-import InquiryModal from './components/InquiryModal';
+const InquiryModal = lazy(() => import('./components/InquiryModal'));
 import { ProductProvider } from './context/ProductContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider, useToast } from './context/ToastContext';
@@ -190,7 +190,11 @@ function Layout() {
             <OrdersModal key="orders-modal" isOpen={isOrdersOpen} onClose={closeOrders} />
           </Suspense>
         )}
-        {isInquiryOpen && <InquiryModal key="inquiry-modal" isOpen={isInquiryOpen} onClose={closeInquiry} />}
+        {isInquiryOpen && (
+          <Suspense fallback={null}>
+            <InquiryModal key="inquiry-modal" isOpen={isInquiryOpen} onClose={closeInquiry} />
+          </Suspense>
+        )}
         {isWorkshopOpen && (
           <Suspense fallback={null}>
             <WorkshopOverlay key="workshop-overlay" isOpen={isWorkshopOpen} onClose={closeWorkshop} />
