@@ -163,7 +163,7 @@ export default function HeroCinematic() {
             <directionalLight position={[5, 5, 5]} intensity={0.4} castShadow={false} />
             <directionalLight position={[-5, -5, -5]} intensity={0.2} />
             <pointLight position={[2, 2, 2]} intensity={0.3} color="#ffffff" />
-            <Environment files="/env/studio_small_03_1k.hdr" environmentIntensity={theme === 'dark' ? 0.2 : 0.3} />
+            <Environment files="/env/studio_small_03_512.hdr" environmentIntensity={theme === 'dark' ? 0.2 : 0.3} />
             
             <React.Suspense fallback={null}>
               <CinematicPoster progress={smoothProgress} theme={theme} />
