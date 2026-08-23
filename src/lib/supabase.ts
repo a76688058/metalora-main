@@ -3,54 +3,118 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = 'https://qifloweuwyhvukabgnoa.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpZmxvd2V1d3lodnVrYWJnbm9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxOTYwMTIsImV4cCI6MjA4ODc3MjAxMn0.OtYeV7UatathlEP4wTlTeUHSRFnK5ndrXw7Er8Eutpo';
 
-// Aggressive fetch to bypass the 21-second OS TCP timeout on stale connections
+const REQUEST_TIMEOUT_MS = 15000;
+
+const isAbortError = (error: unknown) => {
+  if (!error || typeof error !== 'object') return false;
+  const name = (error as { name?: string }).name;
+  return name === 'AbortError' || name === 'TimeoutError';
+};
+
+const isCallerAborted = (signal?: AbortSignal) => !!signal?.aborted;
+
+/** Merge caller abort with an internal timeout abort without leaking listeners/timers. */
+const fetchWithTimeout = async (
+  url: RequestInfo | URL,
+  options: RequestInit | undefined,
+  timeoutMs: number,
+): Promise<Response> => {
+  const callerSignal = options?.signal ?? undefined;
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
+
+  let mergedSignal: AbortSignal = timeoutController.signal;
+  let removeCallerListener: (() => void) | undefined;
+  let anyAbortHandler: (() => void) | undefined;
+
+  try {
+    if (callerSignal) {
+      if (callerSignal.aborted) {
+        throw callerSignal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
+      }
+
+      const AbortSignalAny = (AbortSignal as typeof AbortSignal & {
+        any?: (signals: AbortSignal[]) => AbortSignal;
+      }).any;
+
+      if (typeof AbortSignalAny === 'function') {
+        mergedSignal = AbortSignalAny([callerSignal, timeoutController.signal]);
+      } else {
+        const mergedController = new AbortController();
+        mergedSignal = mergedController.signal;
+
+        const abortFromCaller = () => {
+          mergedController.abort(callerSignal.reason);
+        };
+        const abortFromTimeout = () => {
+          mergedController.abort(timeoutController.signal.reason);
+        };
+
+        callerSignal.addEventListener('abort', abortFromCaller);
+        timeoutController.signal.addEventListener('abort', abortFromTimeout);
+        removeCallerListener = () => callerSignal.removeEventListener('abort', abortFromCaller);
+        anyAbortHandler = () => timeoutController.signal.removeEventListener('abort', abortFromTimeout);
+
+        if (timeoutController.signal.aborted) {
+          abortFromTimeout();
+        }
+      }
+    }
+
+    return await fetch(url, {
+      ...options,
+      signal: mergedSignal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+    removeCallerListener?.();
+    anyAbortHandler?.();
+  }
+};
+
+/**
+ * Supabase REST fetch policy:
+ * - Storage: no timeout/retry (uploads can be slow)
+ * - GET: up to 1 retry on network failure or internal timeout only (max 2 HTTP)
+ * - non-GET: no automatic retry
+ * - never rewrite URLs / never force cache-busters
+ * - HTTP Responses (including 4xx/5xx) are never retried
+ */
 const aggressiveFetch = async (url: RequestInfo | URL, options?: RequestInit) => {
   const urlString = typeof url === 'string' ? url : url.toString();
-  
+
   // Storage operations (especially uploads) can take a long time.
-  // We bypass the aggressive timeout and retry logic for them.
   if (urlString.includes('/storage/')) {
     return fetch(url, options);
   }
 
   const isGet = !options?.method || options.method.toUpperCase() === 'GET';
-  const maxRetries = isGet ? 3 : 1;
-  let attempt = 0;
+  const callerSignal = options?.signal;
 
-  while (attempt <= maxRetries) {
-    // Slightly more relaxed timeouts to handle busy Supabase instances
-    // 5s for first attempt, 8s for subsequent attempts
-    const timeoutMs = isGet ? (attempt === 0 ? 5000 : 8000) : 10000;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      // Cache-buster to force browser to re-evaluate connection
-      const fetchUrl = attempt > 0 && isGet
-        ? `${urlString}${urlString.includes('?') ? '&' : '?'}t=${Date.now()}_${attempt}` 
-        : url;
-
-      const response = await fetch(fetchUrl, {
-        ...options,
-        signal: controller.signal,
-        // Disable keepalive on retries to force a fresh TCP connection if possible
-        keepalive: attempt === 0 ? options?.keepalive : false,
-        cache: attempt > 0 && isGet ? 'no-store' : options?.cache,
-      });
-      clearTimeout(timeoutId);
-      return response;
-    } catch (error: any) {
-      clearTimeout(timeoutId);
-      attempt++;
-      
-      if (attempt > maxRetries) {
-        console.error(`Fetch failed after ${maxRetries} retries for ${url}:`, error);
-        throw error;
-      }
-      console.warn(`Fetch attempt ${attempt} failed (likely stale connection). Retrying aggressively...`);
+  try {
+    return await fetchWithTimeout(url, options, REQUEST_TIMEOUT_MS);
+  } catch (error) {
+    // Writes: never auto-retry (duplicate insert/update risk)
+    if (!isGet) {
+      throw error;
     }
+
+    // Caller cancelled the request — do not retry
+    if (isCallerAborted(callerSignal)) {
+      throw error;
+    }
+
+    // Network failures typically throw TypeError; internal timeouts throw AbortError
+    const isNetworkFailure = error instanceof TypeError;
+    const isInternalTimeout = isAbortError(error);
+
+    if (!isNetworkFailure && !isInternalTimeout) {
+      throw error;
+    }
+
+    // One GET retry only; same URL, no cache-buster
+    return await fetchWithTimeout(url, options, REQUEST_TIMEOUT_MS);
   }
-  throw new Error('Fetch failed');
 };
 
 // Standard client for regular users
