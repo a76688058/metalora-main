@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate, useNavigationType } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
@@ -10,7 +10,7 @@ import PolicyPage from './pages/PolicyPage';
 import LoadingScreen from './components/LoadingScreen';
 import AdminBanner from './components/AdminBanner';
 import ProfileOverlay from './components/ProfileOverlay';
-import ProfileEditModal from './components/ProfileEditModal';
+const ProfileEditModal = lazy(() => import('./components/ProfileEditModal'));
 import OrdersModal from './components/OrdersModal';
 import InquiryModal from './components/InquiryModal';
 import { ProductProvider } from './context/ProductContext';
@@ -156,8 +156,15 @@ function Layout() {
   const { isProfileOpen, closeProfile, isWorkshopOpen, closeWorkshop, isProfileEditOpen, closeProfileEdit, isOrdersOpen, closeOrders, isInquiryOpen, closeInquiry } = useAuth();
   const { isCartOpen, closeCart } = useCart();
   const { theme } = useTheme();
+  const [hasOpenedProfileEdit, setHasOpenedProfileEdit] = useState(false);
   const isAdminPage = location.pathname.startsWith('/admin');
   const isAuthPage = location.pathname === '/login' || location.pathname === '/profile/complete' || location.pathname === '/auth/callback';
+
+  useEffect(() => {
+    if (isProfileEditOpen) setHasOpenedProfileEdit(true);
+  }, [isProfileEditOpen]);
+
+  const shouldRenderProfileEdit = hasOpenedProfileEdit || isProfileEditOpen;
 
   // Force dark mode for admin pages
   const currentTheme = isAdminPage ? 'dark' : theme;
@@ -173,7 +180,11 @@ function Layout() {
           </Suspense>
         )}
         {isProfileOpen && <ProfileOverlay key="profile-overlay" isOpen={isProfileOpen} onClose={closeProfile} />}
-        {isProfileEditOpen && <ProfileEditModal key="profile-edit-modal" isOpen={isProfileEditOpen} onClose={closeProfileEdit} />}
+        {shouldRenderProfileEdit && (
+          <Suspense fallback={null}>
+            <ProfileEditModal key="profile-edit-modal" isOpen={isProfileEditOpen} onClose={closeProfileEdit} />
+          </Suspense>
+        )}
         {isOrdersOpen && <OrdersModal key="orders-modal" isOpen={isOrdersOpen} onClose={closeOrders} />}
         {isInquiryOpen && <InquiryModal key="inquiry-modal" isOpen={isInquiryOpen} onClose={closeInquiry} />}
         {isWorkshopOpen && (
