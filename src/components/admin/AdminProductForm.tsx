@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Product, ProductOption } from '../../data/products';
 import { X, Upload, Image as ImageIcon, Save, Loader2, RefreshCw, Plus, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
+import { resizeImageVariant, VARIANT_RESIZE_PRESETS } from '../../lib/imageDerivatives';
 
 interface AdminProductFormProps {
   product?: Product | null;
@@ -19,6 +20,7 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
   const [isLandscapeUploading, setIsLandscapeUploading] = useState(false);
   const [isLandscapeBackUploading, setIsLandscapeBackUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const frontUploadIdRef = useRef(0);
   const [formData, setFormData] = useState<Partial<Product>>({
     title: '',
     artist: '',
@@ -117,6 +119,8 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
     setUploading(true);
     setError(null);
 
+    const uploadId = field === 'image' ? ++frontUploadIdRef.current : 0;
+
     // ★ 방어막: 업로드 무한 대기 방지 (15분 타임아웃 - 50MB 초고화질 원본 대응)
     const uploadTimeout = setTimeout(() => {
       setUploading(false);
@@ -127,8 +131,74 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}_${field}.${fileExt}`;
-      
-      // Direct upload to storage bucket
+
+      // Front image only: generate thumb/medium WebP before original upload (non-fatal on resize failure)
+      let thumbBlob: Blob | null = null;
+      let mediumBlob: Blob | null = null;
+      const derivativeFailures: string[] = [];
+
+      if (field === 'image') {
+        const stem = fileName.replace(/\.[^.]+$/, '');
+
+        try {
+          thumbBlob = await resizeImageVariant(file, VARIANT_RESIZE_PRESETS.thumb);
+        } catch (resizeErr) {
+          console.warn('Front thumb resize failed:', resizeErr);
+          derivativeFailures.push('thumb');
+          thumbBlob = null;
+        }
+
+        try {
+          mediumBlob = await resizeImageVariant(file, VARIANT_RESIZE_PRESETS.medium);
+        } catch (resizeErr) {
+          console.warn('Front medium resize failed:', resizeErr);
+          derivativeFailures.push('medium');
+          mediumBlob = null;
+        }
+
+        // Direct upload of original (source of truth)
+        const { error: uploadError } = await supabase.storage
+          .from('products')
+          .upload(fileName, file);
+
+        if (uploadError) throw new Error("이미지 업로드 실패: " + uploadError.message);
+
+        if (thumbBlob) {
+          const thumbName = `${stem}__thumb.webp`;
+          const { error: thumbUploadError } = await supabase.storage
+            .from('products')
+            .upload(thumbName, thumbBlob, { contentType: 'image/webp' });
+          if (thumbUploadError) {
+            console.warn('Front thumb upload failed:', thumbUploadError);
+            derivativeFailures.push('thumb');
+          }
+        }
+
+        if (mediumBlob) {
+          const mediumName = `${stem}__medium.webp`;
+          const { error: mediumUploadError } = await supabase.storage
+            .from('products')
+            .upload(mediumName, mediumBlob, { contentType: 'image/webp' });
+          if (mediumUploadError) {
+            console.warn('Front medium upload failed:', mediumUploadError);
+            derivativeFailures.push('medium');
+          }
+        }
+
+        if (uploadId !== frontUploadIdRef.current) return;
+
+        const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName);
+        setFormData((prev) => ({ ...prev, image: publicUrl }));
+        showToast('앞면 이미지가 성공적으로 업로드되었습니다.', 'success');
+
+        const uniqueFailures = [...new Set(derivativeFailures)];
+        if (uniqueFailures.length > 0) {
+          showToast('원본은 업로드됐지만 최적화 이미지 일부 생성에 실패했습니다.', 'info');
+        }
+        return;
+      }
+
+      // back / landscape / landscape_back — unchanged original upload path
       const { error: uploadError } = await supabase.storage
         .from('products')
         .upload(fileName, file);
@@ -138,14 +208,17 @@ export default function AdminProductForm({ product, onSave, onClose }: AdminProd
       const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName);
       
       setFormData((prev) => ({ ...prev, [field]: publicUrl }));
-      showToast(`${field === 'image' ? '앞면' : field === 'backImage' ? '뒷면' : field === 'landscape_image' ? '가로형 앞면' : '가로형 뒷면'} 이미지가 성공적으로 업로드되었습니다.`, 'success');
+      showToast(`${field === 'backImage' ? '뒷면' : field === 'landscape_image' ? '가로형 앞면' : '가로형 뒷면'} 이미지가 성공적으로 업로드되었습니다.`, 'success');
     } catch (err) {
       console.error(`Error uploading ${field}:`, err);
+      if (field === 'image' && uploadId !== frontUploadIdRef.current) return;
       setError(err instanceof Error ? err.message : '이미지 업로드 중 오류가 발생했습니다.');
       showToast("업로드 실패: " + (err instanceof Error ? err.message : '알 수 없는 오류'), 'error');
     } finally {
       clearTimeout(uploadTimeout);
-      setUploading(false);
+      if (field !== 'image' || uploadId === frontUploadIdRef.current) {
+        setUploading(false);
+      }
     }
   };
 
