@@ -2,10 +2,7 @@ import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useProducts } from '../context/ProductContext';
 import ProductCard from './ProductCard';
 import { motion, useMotionValue, useAnimationFrame } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-
-import LoadingScreen from './LoadingScreen';
 
 // Custom wrap function
 const wrap = (min: number, max: number, v: number) => {
@@ -98,15 +95,51 @@ export default function ProductGrid() {
   });
 
   if (isLoading) {
-    return <LoadingScreen />;
+    const skeletonTone = theme === 'dark' ? 'bg-zinc-900 border-white/5' : 'bg-zinc-100 border-black/5';
+    return (
+      <section
+        id="product-grid"
+        aria-busy="true"
+        className={`relative w-full py-0 overflow-x-hidden overflow-y-visible flex items-center transition-colors duration-500 ${
+          theme === 'dark' ? 'bg-black' : 'bg-white'
+        }`}
+      >
+        <div className={`absolute left-0 top-0 bottom-0 w-16 md:w-32 z-20 pointer-events-none ${
+          theme === 'dark' ? 'bg-gradient-to-r from-black to-transparent' : 'bg-gradient-to-r from-white to-transparent'
+        }`} />
+        <div className={`absolute right-0 top-0 bottom-0 w-16 md:w-32 z-20 pointer-events-none ${
+          theme === 'dark' ? 'bg-gradient-to-l from-black to-transparent' : 'bg-gradient-to-l from-white to-transparent'
+        }`} />
+        <div className="flex w-full items-center overflow-hidden">
+          {Array.from({ length: 12 }).map((_, index) => (
+            <div
+              key={index}
+              className="w-[85px] md:w-[109px] flex-shrink-0 mx-2 md:mx-4"
+            >
+              <div className={`w-full aspect-[210/297] border animate-pulse ${skeletonTone}`} />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
   }
 
   if (isError) {
     return (
-      <div className="py-24 flex flex-col items-center justify-center gap-4">
+      <section
+        id="product-grid"
+        className={`relative w-full py-16 flex flex-col items-center justify-center gap-4 transition-colors duration-500 ${
+          theme === 'dark' ? 'bg-black' : 'bg-white'
+        }`}
+      >
         <div className="text-red-400">Failed to load products.</div>
-        <button onClick={fetchProducts} className="px-4 py-2 bg-white text-black rounded-lg">Retry</button>
-      </div>
+        <button
+          onClick={fetchProducts}
+          className={`px-4 py-2 rounded-lg ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}
+        >
+          Retry
+        </button>
+      </section>
     );
   }
 

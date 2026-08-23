@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useProducts } from '../context/ProductContext';
 import { Link, useSearchParams, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
-import LoadingScreen from '../components/LoadingScreen';
 import { Clock, Shuffle } from 'lucide-react';
 import { getOptimizedImageUrl } from '../lib/utils';
 import ProductGrid from '../components/ProductGrid';
@@ -123,18 +122,8 @@ export default function Home() {
     e.currentTarget.onerror = null; // Prevent infinite loop
   };
 
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
-
-  if (isError) {
-    return (
-      <div className={`min-h-screen pt-24 flex flex-col items-center justify-center gap-4 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
-        <div className="text-red-400">Failed to load products.</div>
-        <button onClick={fetchProducts} className={`px-4 py-2 rounded-lg ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}>Retry</button>
-      </div>
-    );
-  }
+  const skeletonTone = theme === 'dark' ? 'bg-zinc-900 border-white/5 shadow-black/50' : 'bg-zinc-100 border-black/5 shadow-black/10';
+  const textMuted = theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200';
 
   return (
     <motion.div 
@@ -162,29 +151,31 @@ export default function Home() {
               All Artworks
             </h2>
             <p className="text-[12px] md:text-sm font-medium tracking-[0.3em] text-zinc-950 dark:text-zinc-300 uppercase">
-              {visibleProducts.length} Pieces Available
+              {isLoading ? 'Loading pieces…' : isError ? 'Unavailable' : `${visibleProducts.length} Pieces Available`}
             </p>
           </div>
 
           <div className={`flex items-center backdrop-blur-md p-1 rounded-full border shadow-xl ${theme === 'dark' ? 'bg-zinc-900/80 border-white/10' : 'bg-zinc-100/80 border-black/10'}`}>
             <button
               onClick={() => handleSortChange('latest')}
+              disabled={isLoading || isError}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[12px] font-bold tracking-widest uppercase transition-all ${
                 sortBy === 'latest' 
                   ? theme === 'dark' ? 'bg-white text-black shadow-md' : 'bg-black text-white shadow-md'
                   : 'text-zinc-500 hover:text-zinc-700'
-              }`}
+              } ${(isLoading || isError) ? 'opacity-50 pointer-events-none' : ''}`}
             >
               <Clock size={14} strokeWidth={2.5} />
               최신순
             </button>
             <button
               onClick={() => handleSortChange('random')}
+              disabled={isLoading || isError}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[12px] font-bold tracking-widest uppercase transition-all ${
                 sortBy === 'random'
                   ? theme === 'dark' ? 'bg-white text-black shadow-md' : 'bg-black text-white shadow-md'
                   : 'text-zinc-500 hover:text-zinc-700'
-              }`}
+              } ${(isLoading || isError) ? 'opacity-50 pointer-events-none' : ''}`}
             >
               <Shuffle size={14} strokeWidth={2.5} />
               랜덤순
@@ -193,93 +184,117 @@ export default function Home() {
         </div>
         
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-12 md:gap-x-6 md:gap-y-16">
-          <AnimatePresence mode="popLayout">
-            {visibleProducts.length > 0 ? (
-              visibleProducts.map((product, index) => (
-                <motion.div
-                  key={product.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ 
-                    layout: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
-                    opacity: { duration: 0.4 },
-                    scale: { duration: 0.4 }
-                  }}
-                  className="group flex flex-col transform-gpu will-change-transform"
-                >
-                  <Link 
-                    to={`/product/${product.id}`} 
-                    onClick={() => sessionStorage.setItem('homeScrollPosition', window.scrollY.toString())}
-                    className="flex flex-col w-full relative"
-                  >
-                    <div className={`block overflow-hidden aspect-[210/297] relative border shadow-2xl ${
-                      theme === 'dark' ? 'bg-zinc-900 border-white/5 shadow-black/50' : 'bg-zinc-100 border-black/5 shadow-black/10'
-                    }`}>
-                      <img 
-                        src={getOptimizedImageUrl(product.image || product.front_image, 400)} 
-                        alt={product.title}
-                        onError={handleImageError}
-                        className="w-full h-full object-cover rounded-none transition-transform duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-110"
-                        loading={index < 4 ? "eager" : "lazy"}
-                        decoding="async"
-                        fetchPriority={index < 4 ? "high" : "auto"}
-                      />
-                      
-                      {/* Badges */}
-                      <div className="absolute top-3 left-3 flex flex-col gap-2 z-10">
-                        {product.limited && (
-                          <span className="bg-white/90 backdrop-blur-md text-black text-[11px] font-black px-2 py-1 tracking-[0.2em] uppercase shadow-lg">
-                            Limited
-                          </span>
-                        )}
-                        {product.isNew && (
-                          <span className="bg-purple-600/90 backdrop-blur-md text-white text-[11px] font-black px-2 py-1 tracking-[0.2em] uppercase shadow-lg">
-                            New
-                          </span>
-                        )}
-                      </div>
-  
-                      {/* Subtle overlay on hover */}
-                      <div className="absolute inset-0 bg-black/0 transition-all duration-700 group-hover:bg-black/30 pointer-events-none flex items-center justify-center">
-                        <span className="text-[12px] font-black tracking-[0.4em] uppercase text-white opacity-0 group-hover:opacity-100 transition-all duration-700 translate-y-4 group-hover:translate-y-0">
-                          View Details
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-6 flex flex-col items-center space-y-2">
-                      <div className="flex flex-col items-center">
-                        <p className="text-[11px] font-medium tracking-[0.3em] text-zinc-950 dark:text-zinc-300 uppercase mb-1">
-                          {product.artist}
-                        </p>
-                        <h3 className={`text-[12px] md:text-[14px] font-sans font-light tracking-[0.1em] uppercase truncate w-full text-center group-hover:text-purple-400 transition-colors duration-500 ${
-                          theme === 'dark' ? 'text-white' : 'text-black'
-                        }`}>
-                          {product.title}
-                        </h3>
-                      </div>
-                      <div className={`h-[1px] w-4 group-hover:w-8 transition-all duration-700 ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
-                      <p className={`text-[12px] md:text-[13px] font-sans font-medium tracking-widest ${theme === 'dark' ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                        ₩{product.options?.[0]?.price?.toLocaleString() || '0'}
-                      </p>
-                    </div>
-                  </Link>
-                </motion.div>
-              ))
-            ) : (
-              <motion.div 
-                layout
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="col-span-full flex flex-col items-center justify-center py-32 text-white/50"
+          {isLoading ? (
+            Array.from({ length: 10 }).map((_, index) => (
+              <div key={`artwork-skeleton-${index}`} className="flex flex-col" aria-hidden="true">
+                <div className={`aspect-[210/297] border shadow-2xl animate-pulse ${skeletonTone}`} />
+                <div className="mt-6 flex flex-col items-center space-y-2">
+                  <div className={`h-3 w-16 rounded-sm animate-pulse ${textMuted}`} />
+                  <div className={`h-3 w-24 rounded-sm animate-pulse ${textMuted}`} />
+                  <div className={`h-[1px] w-4 ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
+                  <div className={`h-3 w-14 rounded-sm animate-pulse ${textMuted}`} />
+                </div>
+              </div>
+            ))
+          ) : isError ? (
+            <div className="col-span-full flex flex-col items-center justify-center py-32 gap-4">
+              <div className="text-red-400">Failed to load products.</div>
+              <button
+                onClick={fetchProducts}
+                className={`px-4 py-2 rounded-lg ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}
               >
-                <p className="text-lg font-light tracking-wider">검색 결과가 없습니다.</p>
-                <p className="text-sm mt-2">다른 검색어를 입력해 보세요.</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                Retry
+              </button>
+            </div>
+          ) : (
+            <AnimatePresence mode="popLayout">
+              {visibleProducts.length > 0 ? (
+                visibleProducts.map((product, index) => (
+                  <motion.div
+                    key={product.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ 
+                      layout: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
+                      opacity: { duration: 0.4 },
+                      scale: { duration: 0.4 }
+                    }}
+                    className="group flex flex-col transform-gpu will-change-transform"
+                  >
+                    <Link 
+                      to={`/product/${product.id}`} 
+                      onClick={() => sessionStorage.setItem('homeScrollPosition', window.scrollY.toString())}
+                      className="flex flex-col w-full relative"
+                    >
+                      <div className={`block overflow-hidden aspect-[210/297] relative border shadow-2xl ${
+                        theme === 'dark' ? 'bg-zinc-900 border-white/5 shadow-black/50' : 'bg-zinc-100 border-black/5 shadow-black/10'
+                      }`}>
+                        <img 
+                          src={getOptimizedImageUrl(product.image || product.front_image, 400)} 
+                          alt={product.title}
+                          onError={handleImageError}
+                          className="w-full h-full object-cover rounded-none transition-transform duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-110"
+                          loading={index < 4 ? "eager" : "lazy"}
+                          decoding="async"
+                          fetchPriority={index < 4 ? "high" : "auto"}
+                        />
+                        
+                        {/* Badges */}
+                        <div className="absolute top-3 left-3 flex flex-col gap-2 z-10">
+                          {product.limited && (
+                            <span className="bg-white/90 backdrop-blur-md text-black text-[11px] font-black px-2 py-1 tracking-[0.2em] uppercase shadow-lg">
+                              Limited
+                            </span>
+                          )}
+                          {product.isNew && (
+                            <span className="bg-purple-600/90 backdrop-blur-md text-white text-[11px] font-black px-2 py-1 tracking-[0.2em] uppercase shadow-lg">
+                              New
+                            </span>
+                          )}
+                        </div>
+    
+                        {/* Subtle overlay on hover */}
+                        <div className="absolute inset-0 bg-black/0 transition-all duration-700 group-hover:bg-black/30 pointer-events-none flex items-center justify-center">
+                          <span className="text-[12px] font-black tracking-[0.4em] uppercase text-white opacity-0 group-hover:opacity-100 transition-all duration-700 translate-y-4 group-hover:translate-y-0">
+                            View Details
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-6 flex flex-col items-center space-y-2">
+                        <div className="flex flex-col items-center">
+                          <p className="text-[11px] font-medium tracking-[0.3em] text-zinc-950 dark:text-zinc-300 uppercase mb-1">
+                            {product.artist}
+                          </p>
+                          <h3 className={`text-[12px] md:text-[14px] font-sans font-light tracking-[0.1em] uppercase truncate w-full text-center group-hover:text-purple-400 transition-colors duration-500 ${
+                            theme === 'dark' ? 'text-white' : 'text-black'
+                          }`}>
+                            {product.title}
+                          </h3>
+                        </div>
+                        <div className={`h-[1px] w-4 group-hover:w-8 transition-all duration-700 ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
+                        <p className={`text-[12px] md:text-[13px] font-sans font-medium tracking-widest ${theme === 'dark' ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                          ₩{product.options?.[0]?.price?.toLocaleString() || '0'}
+                        </p>
+                      </div>
+                    </Link>
+                  </motion.div>
+                ))
+              ) : (
+                <motion.div 
+                  layout
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="col-span-full flex flex-col items-center justify-center py-32 text-white/50"
+                >
+                  <p className="text-lg font-light tracking-wider">검색 결과가 없습니다.</p>
+                  <p className="text-sm mt-2">다른 검색어를 입력해 보세요.</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          )}
         </div>
       </div>
     </motion.div>
