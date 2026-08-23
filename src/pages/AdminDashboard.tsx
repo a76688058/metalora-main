@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import AdminLayout from '../components/admin/AdminLayout';
 import { useProducts } from '../context/ProductContext';
-import { Package, DollarSign, ShoppingBag, Users, Globe, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Calendar as CalendarIcon, Info, BarChart3, PieChart as PieChartIcon, Activity } from 'lucide-react';
+import { Package, DollarSign, ShoppingBag, Globe, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Calendar as CalendarIcon, Info, BarChart3, PieChart as PieChartIcon, Activity } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { motion, useMotionValue, useTransform, animate, AnimatePresence } from 'framer-motion';
 import LoadingScreen from '../components/LoadingScreen';
@@ -549,12 +549,6 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  // Real-time Presence State
-  const [presenceCount, setPresenceCount] = useState({
-    members: 0,
-    guests: 0
-  });
-
   const fetchStats = useCallback(async (targetRange: RangeType, forceRefresh = false) => {
     if (!supabase) return;
     
@@ -716,32 +710,6 @@ export default function AdminDashboard() {
     return () => { isMounted = false; };
   }, [calendarMonth, fetchCalendarData, fetchTrendData]);
 
-  useEffect(() => {
-    // Real-time Presence Subscription
-    const channel = supabase.channel('online-users');
-    
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        let members = 0;
-        let guests = 0;
-
-        Object.values(state).forEach((presences: any) => {
-          presences.forEach((p: any) => {
-            if (p.is_member) members++;
-            else guests++;
-          });
-        });
-
-        setPresenceCount({ members, guests });
-      })
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
-  }, []);
-
   const [totalProducts, setTotalProducts] = useState(0);
 
   useEffect(() => {
@@ -769,22 +737,6 @@ export default function AdminDashboard() {
           <div>
             <h2 className="text-4xl font-black text-white tracking-tighter mb-2">대시보드 v2.0</h2>
             <p className="text-zinc-500 font-bold tracking-tight">실시간 비즈니스 현황 및 매출 분석 리포트</p>
-          </div>
-          
-          {/* Real-time Presence Indicators */}
-          <div className="flex flex-wrap gap-4">
-            <div className="bg-zinc-900/80 border border-white/5 px-6 py-3.5 rounded-2xl flex items-center gap-3 backdrop-blur-xl shadow-2xl">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.6)]" />
-              <span className="text-sm font-black text-zinc-400">
-                현재 갤러리 감상 중: <span className="text-white ml-1">{presenceCount.guests}명</span>
-              </span>
-            </div>
-            <div className="bg-zinc-900/80 border border-white/5 px-6 py-3.5 rounded-2xl flex items-center gap-3 backdrop-blur-xl shadow-2xl">
-              <div className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse shadow-[0_0_15px_rgba(168,85,247,0.6)]" />
-              <span className="text-sm font-black text-zinc-400">
-                로그인 중인 작가: <span className="text-white ml-1">{presenceCount.members}명</span>
-              </span>
-            </div>
           </div>
         </div>
 
@@ -959,61 +911,6 @@ export default function AdminDashboard() {
           </div>
 
           <div className="flex flex-col gap-6">
-            <div className="bg-[#0A0A0A] border border-white/5 p-10 rounded-[40px] shadow-2xl flex-1 flex flex-col">
-              <h3 className="text-xl font-black text-white mb-10 flex items-center gap-3 tracking-tight">
-                <Users size={22} className="text-purple-500" />
-                실시간 접속자 분석
-              </h3>
-              <div className="space-y-10">
-                <div className="flex justify-between items-end">
-                  <div>
-                    <span className="text-zinc-500 text-[10px] font-black uppercase tracking-widest block mb-1">Active Sessions</span>
-                    <span className="text-white font-black text-4xl tracking-tighter">{presenceCount.members + presenceCount.guests}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-emerald-500 text-[10px] font-black uppercase tracking-widest block mb-1">Status</span>
-                    <span className="text-emerald-500 font-black text-sm flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      LIVE
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="w-full bg-zinc-900 h-4 rounded-full overflow-hidden border border-white/5 p-1">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(presenceCount.members / (presenceCount.members + presenceCount.guests || 1)) * 100}%` }}
-                      transition={{ duration: 1, ease: "easeOut" }}
-                      className="bg-purple-500 h-full rounded-full shadow-[0_0_20px_rgba(168,85,247,0.6)]" 
-                    />
-                  </div>
-                  <div className="flex justify-between text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">
-                    <span className="flex items-center gap-2.5">
-                      <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.4)]" />
-                      Members ({presenceCount.members})
-                    </span>
-                    <span className="flex items-center gap-2.5">
-                      <div className="w-2 h-2 rounded-full bg-zinc-800" />
-                      Guests ({presenceCount.guests})
-                    </span>
-                  </div>
-                </div>
-
-                <div className="pt-6 border-t border-white/5">
-                  <div className="bg-zinc-900/50 rounded-2xl p-4 flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-500">
-                      <TrendingUp size={18} />
-                    </div>
-                    <p className="text-xs text-zinc-400 font-bold leading-relaxed">
-                      현재 접속자의 <span className="text-white font-black">{Math.round((presenceCount.members / (presenceCount.members + presenceCount.guests || 1)) * 100)}%</span>가 <br />
-                      회원 작가로 식별되었습니다.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
             <div className="bg-[#0A0A0A] border border-white/5 p-10 rounded-[40px] shadow-2xl flex items-center justify-center text-center relative overflow-hidden group">
               <div className="absolute inset-0 bg-gradient-to-br from-purple-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
               <p className="text-zinc-500 text-sm font-bold italic leading-relaxed relative z-10">

@@ -9,7 +9,6 @@ import AuthCallback from './pages/AuthCallback';
 import PolicyPage from './pages/PolicyPage';
 import LoadingScreen from './components/LoadingScreen';
 import AdminBanner from './components/AdminBanner';
-import PresenceTracker from './components/PresenceTracker';
 import Cart from './components/Cart';
 import ProfileOverlay from './components/ProfileOverlay';
 import ProfileEditModal from './components/ProfileEditModal';
@@ -200,7 +199,6 @@ export default function App() {
           <CartProvider>
             <ThemeProvider>
               <GlobalSplash />
-              <PresenceTracker />
               <Router>
                 <Layout />
               </Router>
