@@ -1,25 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate, useNavigationType } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import Home from './pages/Home';
-import ProductDetail from './components/ProductDetail';
-import AdminLogin from './pages/AdminLogin';
-import AdminDashboard from './pages/AdminDashboard';
-import AdminProducts from './pages/AdminProducts';
-import AdminOrders from './pages/AdminOrders';
-import AdminCS from './pages/AdminCS';
-import AdminUsers from './pages/AdminUsers';
-import AdminBestSellers from './pages/AdminBestSellers';
-import AdminBanners from './pages/AdminBanners';
-import Login from './pages/Login';
 import ProfileComplete from './pages/ProfileComplete';
 import AuthCallback from './pages/AuthCallback';
-import BrandStory from './pages/BrandStory';
-import Collection from './pages/Collection';
-import PaymentSuccess from './pages/PaymentSuccess';
-import PaymentFail from './pages/PaymentFail';
 import PolicyPage from './pages/PolicyPage';
 import LoadingScreen from './components/LoadingScreen';
 import AdminBanner from './components/AdminBanner';
@@ -29,7 +15,6 @@ import ProfileOverlay from './components/ProfileOverlay';
 import ProfileEditModal from './components/ProfileEditModal';
 import OrdersModal from './components/OrdersModal';
 import InquiryModal from './components/InquiryModal';
-import WorkshopOverlay from './components/WorkshopOverlay';
 import { ProductProvider } from './context/ProductContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider, useToast } from './context/ToastContext';
@@ -38,6 +23,30 @@ import { ThemeProvider, useTheme } from './context/ThemeContext';
 
 import GlobalSplash from './components/GlobalSplash';
 import CookieBanner from './components/CookieBanner';
+
+const ProductDetail = lazy(() => import('./components/ProductDetail'));
+const Collection = lazy(() => import('./pages/Collection'));
+const BrandStory = lazy(() => import('./pages/BrandStory'));
+const Login = lazy(() => import('./pages/Login'));
+const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'));
+const PaymentFail = lazy(() => import('./pages/PaymentFail'));
+const AdminLogin = lazy(() => import('./pages/AdminLogin'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const AdminProducts = lazy(() => import('./pages/AdminProducts'));
+const AdminOrders = lazy(() => import('./pages/AdminOrders'));
+const AdminCS = lazy(() => import('./pages/AdminCS'));
+const AdminUsers = lazy(() => import('./pages/AdminUsers'));
+const AdminBestSellers = lazy(() => import('./pages/AdminBestSellers'));
+const AdminBanners = lazy(() => import('./pages/AdminBanners'));
+const WorkshopOverlay = lazy(() => import('./components/WorkshopOverlay'));
+
+function LazyRoute({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<div className="min-h-screen" aria-busy="true" />}>
+      {children}
+    </Suspense>
+  );
+}
 
 // Scroll to top on route change
 function ScrollToTop() {
@@ -108,11 +117,11 @@ function AnimatedRoutes() {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Home />} />
-        <Route path="/product/:id" element={<ProductDetail />} />
-        <Route path="/login" element={<Login />} />
+        <Route path="/product/:id" element={<LazyRoute><ProductDetail /></LazyRoute>} />
+        <Route path="/login" element={<LazyRoute><Login /></LazyRoute>} />
         <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/brand-story" element={<BrandStory />} />
-        <Route path="/collection" element={<Collection />} />
+        <Route path="/brand-story" element={<LazyRoute><BrandStory /></LazyRoute>} />
+        <Route path="/collection" element={<LazyRoute><Collection /></LazyRoute>} />
         <Route path="/policy/:type" element={<PolicyPage />} />
         
         {/* Profile Complete - Skip for Admins */}
@@ -126,18 +135,18 @@ function AnimatedRoutes() {
         />
         
         {/* Member Only Routes */}
-        <Route path="/payment/success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
-        <Route path="/payment/fail" element={<ProtectedRoute><PaymentFail /></ProtectedRoute>} />
+        <Route path="/payment/success" element={<ProtectedRoute><LazyRoute><PaymentSuccess /></LazyRoute></ProtectedRoute>} />
+        <Route path="/payment/fail" element={<ProtectedRoute><LazyRoute><PaymentFail /></LazyRoute></ProtectedRoute>} />
         
         {/* Admin Routes - Protected */}
-        <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><AdminDashboard /></ProtectedRoute>} />
-        <Route path="/admin/products" element={<ProtectedRoute requireAdmin={true}><AdminProducts /></ProtectedRoute>} />
-        <Route path="/admin/orders" element={<ProtectedRoute requireAdmin={true}><AdminOrders /></ProtectedRoute>} />
-        <Route path="/admin/cs" element={<ProtectedRoute requireAdmin={true}><AdminCS /></ProtectedRoute>} />
-        <Route path="/admin/users" element={<ProtectedRoute requireAdmin={true}><AdminUsers /></ProtectedRoute>} />
-        <Route path="/admin/best-sellers" element={<ProtectedRoute requireAdmin={true}><AdminBestSellers /></ProtectedRoute>} />
-        <Route path="/admin/banners" element={<ProtectedRoute requireAdmin={true}><AdminBanners /></ProtectedRoute>} />
+        <Route path="/admin/login" element={<LazyRoute><AdminLogin /></LazyRoute>} />
+        <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><LazyRoute><AdminDashboard /></LazyRoute></ProtectedRoute>} />
+        <Route path="/admin/products" element={<ProtectedRoute requireAdmin={true}><LazyRoute><AdminProducts /></LazyRoute></ProtectedRoute>} />
+        <Route path="/admin/orders" element={<ProtectedRoute requireAdmin={true}><LazyRoute><AdminOrders /></LazyRoute></ProtectedRoute>} />
+        <Route path="/admin/cs" element={<ProtectedRoute requireAdmin={true}><LazyRoute><AdminCS /></LazyRoute></ProtectedRoute>} />
+        <Route path="/admin/users" element={<ProtectedRoute requireAdmin={true}><LazyRoute><AdminUsers /></LazyRoute></ProtectedRoute>} />
+        <Route path="/admin/best-sellers" element={<ProtectedRoute requireAdmin={true}><LazyRoute><AdminBestSellers /></LazyRoute></ProtectedRoute>} />
+        <Route path="/admin/banners" element={<ProtectedRoute requireAdmin={true}><LazyRoute><AdminBanners /></LazyRoute></ProtectedRoute>} />
       </Routes>
     </AnimatePresence>
   );
@@ -164,7 +173,11 @@ function Layout() {
         {isProfileEditOpen && <ProfileEditModal key="profile-edit-modal" isOpen={isProfileEditOpen} onClose={closeProfileEdit} />}
         {isOrdersOpen && <OrdersModal key="orders-modal" isOpen={isOrdersOpen} onClose={closeOrders} />}
         {isInquiryOpen && <InquiryModal key="inquiry-modal" isOpen={isInquiryOpen} onClose={closeInquiry} />}
-        {isWorkshopOpen && <WorkshopOverlay key="workshop-overlay" isOpen={isWorkshopOpen} onClose={closeWorkshop} />}
+        {isWorkshopOpen && (
+          <Suspense fallback={null}>
+            <WorkshopOverlay key="workshop-overlay" isOpen={isWorkshopOpen} onClose={closeWorkshop} />
+          </Suspense>
+        )}
       </AnimatePresence>
       <ScrollToTop />
       <AdminBanner />
