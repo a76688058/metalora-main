@@ -69,7 +69,10 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
   }, []);
 
   const handleOpenPostcode = () => {
-    if (!(window as any).daum || !(window as any).daum.Postcode) return;
+    if (!(window as any).daum || !(window as any).daum.Postcode) {
+      showToast('주소 서비스 로딩 중입니다. 잠시 후 다시 시도해주세요.', 'error');
+      return;
+    }
     setIsPostcodeOpen(true);
 
     setTimeout(() => {
