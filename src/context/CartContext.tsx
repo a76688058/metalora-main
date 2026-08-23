@@ -48,6 +48,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const { user, adminUser } = useAuth();
   const { showToast } = useToast();
 
+  // Primitive id only — same user with a new object reference (e.g. tab focus SIGNED_IN)
+  // must NOT retrigger cart fetch.
+  const activeUserId = user?.id || adminUser?.id || null;
+
   const openCart = () => setIsCartOpen(true);
   const closeCart = () => setIsCartOpen(false);
 
@@ -57,7 +61,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshCart = useCallback(async () => {
-    const currentUserId = user?.id || adminUser?.id;
+    const currentUserId = activeUserId;
     if (!currentUserId) {
       setCartItems([]);
       return;
@@ -135,11 +139,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user, adminUser]);
+  }, [activeUserId]);
 
   useEffect(() => {
     refreshCart();
-  }, [user, adminUser, refreshCart]);
+  }, [activeUserId, refreshCart]);
 
   const addToCart = async (
     productId: string, 
