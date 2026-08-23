@@ -9,7 +9,6 @@ import AuthCallback from './pages/AuthCallback';
 import PolicyPage from './pages/PolicyPage';
 import LoadingScreen from './components/LoadingScreen';
 import AdminBanner from './components/AdminBanner';
-import Cart from './components/Cart';
 import ProfileOverlay from './components/ProfileOverlay';
 import ProfileEditModal from './components/ProfileEditModal';
 import OrdersModal from './components/OrdersModal';
@@ -38,6 +37,7 @@ const AdminUsers = lazy(() => import('./pages/AdminUsers'));
 const AdminBestSellers = lazy(() => import('./pages/AdminBestSellers'));
 const AdminBanners = lazy(() => import('./pages/AdminBanners'));
 const WorkshopOverlay = lazy(() => import('./components/WorkshopOverlay'));
+const Cart = lazy(() => import('./components/Cart'));
 
 function LazyRoute({ children }: { children: React.ReactNode }) {
   return (
@@ -167,7 +167,11 @@ function Layout() {
       currentTheme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'
     }`}>
       <AnimatePresence>
-        {isCartOpen && <Cart key="cart-overlay" />}
+        {isCartOpen && (
+          <Suspense fallback={null}>
+            <Cart key="cart-overlay" />
+          </Suspense>
+        )}
         {isProfileOpen && <ProfileOverlay key="profile-overlay" isOpen={isProfileOpen} onClose={closeProfile} />}
         {isProfileEditOpen && <ProfileEditModal key="profile-edit-modal" isOpen={isProfileEditOpen} onClose={closeProfileEdit} />}
         {isOrdersOpen && <OrdersModal key="orders-modal" isOpen={isOrdersOpen} onClose={closeOrders} />}
