@@ -1,17 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { Link, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { Search, User, Frame, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useTheme } from '../context/ThemeContext';
-import LoginModal from './LoginModal';
 import AnnouncementBar from './AnnouncementBar';
+
+const LoginModal = lazy(() => import('./LoginModal'));
 
 const LOGO_URL = "https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840";
 
 export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [hasOpenedLoginModal, setHasOpenedLoginModal] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const { 
@@ -97,6 +99,11 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
 
   const isTransparent = isHome && !isScrolled && !isSearchOpen;
 
+  const openLoginModal = () => {
+    setHasOpenedLoginModal(true);
+    setIsLoginModalOpen(true);
+  };
+
   return (
     <>
       <header
@@ -181,7 +188,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 <button 
                   onClick={() => {
                     if (isWorkshopOpen) closeWorkshop();
-                    setIsLoginModalOpen(true);
+                    openLoginModal();
                   }} 
                   className={`${theme === 'dark' ? 'text-white' : 'text-black'} opacity-60 hover:opacity-100 transition-all duration-300`}
                   title="Login"
@@ -195,7 +202,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                   if (!currentUser) {
                     e.preventDefault();
                     if (isWorkshopOpen) closeWorkshop();
-                    setIsLoginModalOpen(true);
+                    openLoginModal();
                     return;
                   }
                   if (isCartOpen) {
@@ -250,11 +257,15 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
         </motion.div>
       </header>
 
-      <LoginModal 
-        isOpen={isLoginModalOpen} 
-        onClose={() => setIsLoginModalOpen(false)} 
-        onSuccess={() => setIsLoginModalOpen(false)}
-      />
+      {hasOpenedLoginModal && (
+        <Suspense fallback={null}>
+          <LoginModal
+            isOpen={isLoginModalOpen}
+            onClose={() => setIsLoginModalOpen(false)}
+            onSuccess={() => setIsLoginModalOpen(false)}
+          />
+        </Suspense>
+      )}
     </>
   );
 }
