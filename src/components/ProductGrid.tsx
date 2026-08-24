@@ -10,7 +10,7 @@ const wrap = (min: number, max: number, v: number) => {
   return ((((v - min) % rangeSize) + rangeSize) % rangeSize) + min;
 };
 
-export default function ProductGrid() {
+function ProductGrid() {
   const { products: allProducts, isLoading, isError, fetchProducts } = useProducts();
   const { theme } = useTheme();
   const [isDragging, setIsDragging] = useState(false);
@@ -184,3 +184,5 @@ export default function ProductGrid() {
     </section>
   );
 }
+
+export default React.memo(ProductGrid);
