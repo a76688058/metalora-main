@@ -464,6 +464,9 @@ ${itemsList}
     app.use(express.static(distPath, {
       index: false, // index.html은 아래에서 수동 서빙
       setHeaders: (res, filePath) => {
+        if (filePath.toLowerCase().endsWith(".avif")) {
+          res.setHeader("Content-Type", "image/avif");
+        }
         if (filePath.endsWith(".html")) {
           res.setHeader("Cache-Control", "no-cache");
           return;
