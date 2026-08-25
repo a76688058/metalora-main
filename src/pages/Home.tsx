@@ -12,6 +12,9 @@ import { useTheme } from '../context/ThemeContext';
 // Document-lifetime: first Home mount vs later SPA remounts (e.g. Product → Back).
 let hasMountedHomeInThisDocument = false;
 
+const ARTWORK_IMAGE_SIZES =
+  '(max-width: 767px) calc((100vw - 48px) / 2), (max-width: 1023px) calc((100vw - 112px) / 3), (max-width: 1279px) calc((100vw - 168px) / 4), 218px';
+
 function ArtworkImage({
   originalUrl,
   alt,
@@ -21,11 +24,13 @@ function ArtworkImage({
   alt: string;
   className: string;
 }) {
-  const { src, onError } = useListImageSrc(originalUrl, 720);
+  const { src, srcSet, onError } = useListImageSrc(originalUrl, 720, { responsive: true });
 
   return (
     <img
       src={src}
+      srcSet={srcSet}
+      sizes={srcSet ? ARTWORK_IMAGE_SIZES : undefined}
       alt={alt}
       onError={onError}
       className={className}
