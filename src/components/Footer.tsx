@@ -42,8 +42,10 @@ export default function Footer() {
         <div className="text-center md:text-left text-zinc-900 dark:text-zinc-200 text-[14px] leading-relaxed">
           <div className="mb-6 flex justify-center">
             <img 
-              src="https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840" 
+              src="/logo/metalora-wordmark.webp" 
               alt="METALORA" 
+              width={384}
+              height={124}
               className={`h-6 w-auto object-contain opacity-80 hover:opacity-100 transition-all ${theme === 'dark' ? 'filter invert' : ''}`} 
               referrerPolicy="no-referrer"
             />

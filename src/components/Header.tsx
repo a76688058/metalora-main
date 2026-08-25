@@ -9,7 +9,7 @@ import AnnouncementBar from './AnnouncementBar';
 
 const LoginModal = lazy(() => import('./LoginModal'));
 
-const LOGO_URL = "https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840";
+const LOGO_URL = "/logo/metalora-wordmark.webp";
 
 export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -160,6 +160,8 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 <img 
                   src={LOGO_URL} 
                   alt="메탈 액자의 기준, 메탈로라 | METALORA" 
+                  width={384}
+                  height={124}
                   className={`h-9 md:h-11 object-contain transition-all duration-500 ${theme === 'dark' ? 'filter invert' : ''}`} 
                   referrerPolicy="no-referrer"
                 />
