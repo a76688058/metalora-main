@@ -9,6 +9,9 @@ import ProductGrid from '../components/ProductGrid';
 import HeroCinematic from '../components/HeroCinematic';
 import { useTheme } from '../context/ThemeContext';
 
+// Document-lifetime: first Home mount vs later SPA remounts (e.g. Product → Back).
+let hasMountedHomeInThisDocument = false;
+
 function ArtworkImage({
   originalUrl,
   alt,
@@ -86,8 +89,27 @@ export default function Home() {
     }
   }, [location.state, location.hash, openCart, navigate]);
 
-  // Restore scroll position
+  // Restore scroll position (SPA Back only — not refresh / direct entry)
   useEffect(() => {
+    if (!hasMountedHomeInThisDocument) {
+      hasMountedHomeInThisDocument = true;
+
+      const navigationEntry = performance.getEntriesByType(
+        'navigation',
+      )[0] as PerformanceNavigationTiming | undefined;
+      const loadType = navigationEntry?.type;
+
+      // First Home in this document after navigate/reload (or unknown): never restore stale Y.
+      // React Router also reports these as POP, which previously restored sessionStorage.
+      if (loadType !== 'back_forward') {
+        sessionStorage.removeItem('homeScrollPosition');
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        hasRestoredScroll.current = true;
+        return;
+      }
+      // First Home + document back_forward: allow saved-position restore below.
+    }
+
     if (navType === 'POP' && !isLoading && products.length > 0 && !hasRestoredScroll.current) {
       const savedScroll = sessionStorage.getItem('homeScrollPosition');
       if (savedScroll) {

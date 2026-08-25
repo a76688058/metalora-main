@@ -19,7 +19,6 @@ import { ToastProvider, useToast } from './context/ToastContext';
 import { CartProvider, useCart } from './context/CartContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 
-import GlobalSplash from './components/GlobalSplash';
 import CookieBanner from './components/CookieBanner';
 
 const ProductDetail = lazy(() => import('./components/ProductDetail'));
@@ -221,7 +220,6 @@ export default function App() {
         <ProductProvider>
           <CartProvider>
             <ThemeProvider>
-              <GlobalSplash />
               <Router>
                 <Layout />
               </Router>
