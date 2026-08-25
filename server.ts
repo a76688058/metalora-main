@@ -150,63 +150,12 @@ ${rssItems}
   });
 
   /**
-   * 토스 페이먼츠 웹훅 (비동기 결제 완료 처리)
-   * @description 클라이언트가 창을 닫아도 결제 완료 처리를 보장합니다.
+   * Toss payment webhook — acknowledgement only.
+   * Card payment state is authoritative via /api/payment/confirm.
+   * Do not mutate DB from unverified webhook payloads; add a verified flow if async methods are introduced.
    */
-  app.post("/api/payment/webhook", async (req, res) => {
-    const { eventType, data } = req.body;
-    
-    console.log(`[PAYMENT_WEBHOOK] Received ${eventType} event.`);
-
-    // 결제 성공(완료) 이벤트인 경우에만 처리
-    if (eventType !== 'PAYMENT_STATUS_CHANGED' && eventType !== 'DONE') {
-      return res.json({ received: true });
-    }
-
-    // Toss Webhook data structure might vary depending on version/event
-    const payment = data || req.body;
-    const { orderId, paymentKey, totalAmount, status } = payment;
-
-    if (status === 'DONE' || status === 'PAID') {
-      try {
-        // 이미 처리된 주문인지 확인
-        const { data: existingOrder } = await supabaseAdmin!
-          .from('orders')
-          .select('id, status')
-          .eq('order_number', orderId)
-          .maybeSingle();
-
-        if (existingOrder && existingOrder.status === 'PAID') {
-          return res.json({ success: true, message: "이미 처리됨" });
-        }
-
-        // 주의: 웹훅에서는 pendingOrder/pendingItems가 없을 수 있음.
-        // 이 경우 orders 테이블에 이미 'PENDING' 상태로 데이터가 존재해야 함.
-        // 현재 로직은 /api/payment/confirm에서 한꺼번에 처리하므로, 
-        // 만약 confirm 호출 전에 웹훅이 올 경우를 위해 최소한의 업데이트 수행.
-        
-        const { error: updateError } = await supabaseAdmin!
-          .from('orders')
-          .update({ 
-            status: 'PAID',
-            shipping_info: {
-              payment_key: paymentKey,
-              confirmed_via: 'webhook',
-              confirmed_at: new Date().toISOString()
-            }
-          })
-          .eq('order_number', orderId);
-
-        if (updateError) console.error('[WEBHOOK_DB_ERROR]', updateError);
-        
-        return res.json({ success: true });
-      } catch (err) {
-        console.error('[WEBHOOK_EXCEPTION]', err);
-        return res.status(500).json({ error: "Internal Server Error" });
-      }
-    }
-
-    return res.json({ received: true });
+  app.post("/api/payment/webhook", (_req, res) => {
+    return res.status(200).json({ received: true });
   });
 
   /**
