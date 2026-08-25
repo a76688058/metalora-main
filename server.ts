@@ -421,6 +421,11 @@ ${itemsList}
     }
   });
 
+  // Unregistered /api/* → JSON 404 (before Vite/static/SPA)
+  app.use("/api", (_req, res) => {
+    return res.status(404).json({ error: "API endpoint not found" });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
