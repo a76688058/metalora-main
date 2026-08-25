@@ -255,7 +255,7 @@ export default function Cart() {
       }
       
       // 1. Prepare Order Data
-      const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const orderNumber = `ORD-${crypto.randomUUID()}`;
       
       const pendingOrderData = {
         order_number: orderNumber,
