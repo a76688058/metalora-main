@@ -10,32 +10,53 @@ export default function GlobalSplash() {
 
   useEffect(() => {
     const minTimePromise = new Promise(resolve => setTimeout(resolve, 1500));
-    
-    const loadPromise = new Promise(resolve => {
+
+    let handleLoad: (() => void) | undefined;
+    const loadPromise = new Promise<boolean>(resolve => {
       if (document.readyState === 'complete') {
         resolve(true);
       } else {
-        window.addEventListener('load', resolve);
+        handleLoad = () => resolve(true);
+        window.addEventListener('load', handleLoad);
       }
     });
 
-    const posterPromise = new Promise(resolve => {
-      const handlePosterLoaded = () => {
-        resolve(true);
-        window.removeEventListener('3d-poster-loaded', handlePosterLoaded);
-      };
-      window.addEventListener('3d-poster-loaded', handlePosterLoaded);
-      // Fallback timeout in case there's no 3D poster on the current page
-      setTimeout(handlePosterLoaded, 3000);
-    });
+    // Home uses HeroCinematic, which never dispatches `3d-poster-loaded`.
+    // Skip dead 3000ms poster wait on `/` only; other routes keep event + fallback.
+    const isHome = window.location.pathname === '/';
+    let handlePosterLoaded: (() => void) | undefined;
+    let posterTimeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const posterPromise = isHome
+      ? Promise.resolve()
+      : new Promise<void>(resolve => {
+          handlePosterLoaded = () => {
+            resolve();
+            if (handlePosterLoaded) {
+              window.removeEventListener('3d-poster-loaded', handlePosterLoaded);
+            }
+            if (posterTimeoutId !== undefined) {
+              clearTimeout(posterTimeoutId);
+            }
+          };
+          window.addEventListener('3d-poster-loaded', handlePosterLoaded);
+          posterTimeoutId = setTimeout(handlePosterLoaded, 3000);
+        });
 
     Promise.all([minTimePromise, loadPromise, posterPromise]).then(() => {
       setIsLoading(false);
     });
 
     return () => {
-      window.removeEventListener('load', () => {});
-      window.removeEventListener('3d-poster-loaded', () => {});
+      if (handleLoad) {
+        window.removeEventListener('load', handleLoad);
+      }
+      if (handlePosterLoaded) {
+        window.removeEventListener('3d-poster-loaded', handlePosterLoaded);
+      }
+      if (posterTimeoutId !== undefined) {
+        clearTimeout(posterTimeoutId);
+      }
     };
   }, []);
 

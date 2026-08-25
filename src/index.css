@@ -34,6 +34,10 @@
   padding-top: env(safe-area-inset-top);
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
