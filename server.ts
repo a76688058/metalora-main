@@ -451,22 +451,36 @@ ${itemsList}
   } else {
     // Production path setup
     const distPath = path.resolve(__dirname, "dist", "client");
+
+    // Vite hashed build assets: assets/<name>-<hash>.<ext> (e.g. index-COl1YASV.js)
+    const isHashedViteAsset = (filePath: string) => {
+      const normalized = filePath.replace(/\\/g, "/");
+      if (!normalized.includes("/assets/")) return false;
+      const basename = path.basename(normalized);
+      return /^.+-[A-Za-z0-9_-]{6,}\.[A-Za-z0-9]+$/.test(basename);
+    };
     
-    // 1. Static files - Root 기준 서빙
+    // 1. Static files — Cache-Control decided per file (no global 1y immutable)
     app.use(express.static(distPath, {
-      maxAge: '1y',
-      immutable: true,
       index: false, // index.html은 아래에서 수동 서빙
-      setHeaders: (res, path) => {
-        if (path.endsWith('.html')) {
-          res.setHeader('Cache-Control', 'no-cache');
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache");
+          return;
         }
-      }
+        if (isHashedViteAsset(filePath)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          return;
+        }
+        // Fixed-name public assets (hero, env, logo, manifest, robots, …)
+        res.setHeader("Cache-Control", "public, max-age=3600");
+      },
     }));
 
     // 2. Catch-all: 모든 경로에 대해 index.html 서빙 (SPA 필수)
     app.get('*', (req, res) => {
       // API 경로는 여기서 처리하지 않음 (위에서 이미 처리됨)
+      res.setHeader("Cache-Control", "no-cache");
       res.sendFile(path.join(distPath, 'index.html'), (err) => {
         if (err) {
           console.error("Error sending index.html:", err);
