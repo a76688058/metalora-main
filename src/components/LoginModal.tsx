@@ -448,8 +448,10 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
             <div className="w-full flex flex-col items-center -mt-16 md:-mt-24">
             <div className="flex flex-col items-center mb-10">
               <img 
-                src="https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840" 
+                src="/logo/metalora-wordmark.webp" 
                 alt="METALORA" 
+                width={384}
+                height={124}
                 className={`w-36 md:w-44 object-contain mb-6 ${theme === 'dark' ? 'filter invert' : ''}`} 
                 referrerPolicy="no-referrer"
               />

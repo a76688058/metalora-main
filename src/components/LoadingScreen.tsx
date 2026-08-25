@@ -4,7 +4,7 @@ import { useTheme } from '../context/ThemeContext';
 
 export default function LoadingScreen() {
   const { theme } = useTheme();
-  const LOGO_URL = "https://postfiles.pstatic.net/MjAyNjAzMzFfMTE2/MDAxNzc0OTQzMjQwMzI1.x_oF4Rn3jx1adpueuXOwP2XnNoym4vphKH-tVom_jE0g.2GiYCl0zR7EoUoU3WVtvErE0UK5Jef4b7otun81kHZAg.PNG/BLACK_V_(1).png?type=w3840";
+  const LOGO_URL = "/logo/metalora-wordmark.webp";
 
   return (
     <div className={`fixed inset-0 z-[9999] flex items-center justify-center transition-colors duration-500 ${
@@ -25,6 +25,8 @@ export default function LoadingScreen() {
           <img
             src={LOGO_URL}
             alt="METALORA"
+            width={384}
+            height={124}
             className={`h-12 md:h-16 object-contain transition-all duration-500 ${
               theme === 'dark' ? 'filter invert opacity-30' : 'opacity-100'
             }`}
