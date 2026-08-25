@@ -29,6 +29,19 @@ async function startServer() {
 
   // Trust Proxy for GCP environment
   app.set("trust proxy", true);
+  app.disable("x-powered-by");
+
+  // Baseline security response headers (no CSP/HSTS yet)
+  app.use((_req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=()",
+    );
+    next();
+  });
 
   // Middleware
   app.use(express.json({ limit: "50mb" }));
