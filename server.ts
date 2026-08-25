@@ -303,8 +303,7 @@ ${rssItems}
       if (insertError) {
         console.error("[DB_INSERT_ERROR] Details:", insertError);
         return res.status(500).json({ 
-          error: `주문 정보 저장 중 오류가 발생했습니다: ${insertError.message}`, 
-          details: insertError
+          error: "주문 정보 저장 중 오류가 발생했습니다."
         });
       }
 
