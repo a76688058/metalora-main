@@ -15,12 +15,10 @@ let hasMountedHomeInThisDocument = false;
 function ArtworkImage({
   originalUrl,
   alt,
-  index,
   className,
 }: {
   originalUrl: string | null | undefined;
   alt: string;
-  index: number;
   className: string;
 }) {
   const { src, onError } = useListImageSrc(originalUrl, 720);
@@ -31,9 +29,9 @@ function ArtworkImage({
       alt={alt}
       onError={onError}
       className={className}
-      loading={index < 4 ? 'eager' : 'lazy'}
+      loading="lazy"
       decoding="async"
-      fetchPriority={index < 4 ? 'high' : 'auto'}
+      fetchPriority="auto"
     />
   );
 }
@@ -277,7 +275,6 @@ export default function Home() {
                         <ArtworkImage
                           originalUrl={product.image || product.front_image}
                           alt={product.title}
-                          index={index}
                           className="w-full h-full object-cover rounded-none transition-transform duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-110"
                         />
                         
