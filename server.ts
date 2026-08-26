@@ -23,6 +23,24 @@ const supabasePublic = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
+/** Workshop unit price — authoritative; never trust client custom_config.price */
+const SERVER_WORKSHOP_UNIT_PRICE = 49000;
+
+function isWorkshopPendingItem(item: any): boolean {
+  if (!item || typeof item !== 'object') return false;
+  // Cart workshop: product_id null + option_id null + shaderType marker (all required)
+  if (item.product_id != null || item.option_id != null) return false;
+  const cfg = item.custom_config;
+  if (!cfg || typeof cfg !== 'object') return false;
+  return cfg.shaderType === '커스텀 제작';
+}
+
+function parsePositiveIntQuantity(value: unknown): number | null {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) return null;
+  return n;
+}
+
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
@@ -194,16 +212,184 @@ ${rssItems}
       return res.status(500).json({ error: "서버 구성 오류가 발생했습니다." });
     }
 
-    const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY;
-    if (!TOSS_SECRET_KEY) {
-      console.error("[CRITICAL] TOSS_SECRET_KEY is missing in server environment.");
-      return res.status(500).json({ error: "서버 구성 오류가 발생했습니다." });
-    }
-
     try {
-      // 2. 토스 페이먼츠 승인 요청 (Server-to-Server)
+      // 1b. Idempotent early return for already-PAID (skip catalog + Toss)
+      const { data: existingPaidOrder } = await supabaseAdmin
+        .from('orders')
+        .select('id, status')
+        .eq('order_number', orderId)
+        .maybeSingle();
+
+      if (existingPaidOrder && existingPaidOrder.status === 'PAID') {
+        console.log(`[PAYMENT_SKIP] Order ${orderId} already processed.`);
+        return res.json({ success: true, message: "이미 처리된 주문입니다.", orderId: existingPaidOrder.id });
+      }
+
+      const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY;
+      if (!TOSS_SECRET_KEY) {
+        console.error("[CRITICAL] TOSS_SECRET_KEY is missing in server environment.");
+        return res.status(500).json({ error: "서버 구성 오류가 발생했습니다." });
+      }
+
+      // 2. Server-authoritative cart validation (BEFORE Toss confirm; non-PAID only)
+      if (!Array.isArray(pendingItems) || pendingItems.length === 0) {
+        console.error("[PAYMENT_ITEM_FAIL] pendingItems missing or empty:", { orderId });
+        return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
+      }
+
+      type ValidatedSnapshot = {
+        product_id: string | null;
+        product_title: string;
+        title: string;
+        option: string;
+        quantity: number;
+        price: number;
+        image: string | null;
+        user_image_url: string | null;
+        orientation: string | null;
+        custom_config: any | null;
+        is_custom: boolean;
+      };
+
+      const validatedSnapshots: ValidatedSnapshot[] = [];
+      let serverExpectedTotal = 0;
+
+      const standardProductIds = [
+        ...new Set(
+          pendingItems
+            .filter((item: any) => !isWorkshopPendingItem(item))
+            .map((item: any) => (typeof item?.product_id === 'string' ? item.product_id.trim() : ''))
+            .filter((id: string) => id && id !== 'workshop-single'),
+        ),
+      ];
+
+      let productMap = new Map<string, any>();
+      if (standardProductIds.length > 0) {
+        const { data: products, error: productsError } = await supabaseAdmin
+          .from('products')
+          .select('id, title, front_image, is_visible, options')
+          .in('id', standardProductIds);
+
+        if (productsError) {
+          console.error("[PAYMENT_ITEM_FAIL] Products lookup error:", productsError);
+          return res.status(500).json({ error: "주문 상품 정보를 확인할 수 없습니다." });
+        }
+
+        productMap = new Map((products || []).map((p: any) => [p.id, p]));
+      }
+
+      for (const item of pendingItems) {
+        const quantity = parsePositiveIntQuantity(item?.quantity);
+        if (quantity === null) {
+          console.error("[PAYMENT_ITEM_FAIL] Invalid quantity:", { orderId });
+          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
+        }
+
+        if (isWorkshopPendingItem(item)) {
+          const unit = SERVER_WORKSHOP_UNIT_PRICE;
+          serverExpectedTotal += unit * quantity;
+          const customImage =
+            (typeof item.user_image_url === 'string' && item.user_image_url) ||
+            (typeof item.image === 'string' && item.image) ||
+            null;
+          const sizeLabel =
+            (typeof item.custom_config?.size === 'string' && item.custom_config.size) ||
+            (typeof item.option === 'string' && item.option) ||
+            '커스텀';
+          validatedSnapshots.push({
+            product_id: 'workshop-single',
+            product_title: '커스텀 포스터',
+            title: '커스텀 포스터',
+            option: sizeLabel,
+            quantity,
+            price: unit,
+            image: customImage,
+            user_image_url: customImage,
+            orientation: item.orientation || item.custom_config?.orientation || null,
+            custom_config: {
+              shaderType: item.custom_config?.shaderType,
+              material: item.custom_config?.material,
+              size: item.custom_config?.size,
+              orientation: item.custom_config?.orientation,
+              ai_upscale: !!item.custom_config?.ai_upscale,
+              ai_outpaint: !!item.custom_config?.ai_outpaint,
+              ai_autofill: !!item.custom_config?.ai_autofill,
+              serial_number: item.custom_config?.serial_number ?? null,
+            },
+            is_custom: true,
+          });
+          continue;
+        }
+
+        const productId = typeof item.product_id === 'string' ? item.product_id.trim() : '';
+        const optionId = typeof item.option_id === 'string' ? item.option_id.trim() : '';
+        if (!productId || productId === 'workshop-single' || !optionId) {
+          console.error("[PAYMENT_ITEM_FAIL] Invalid standard item identity:", { orderId });
+          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
+        }
+
+        const product = productMap.get(productId);
+        if (!product) {
+          console.error("[PAYMENT_ITEM_FAIL] Unknown product:", { orderId, productId });
+          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
+        }
+        if (product.is_visible === false) {
+          console.error("[PAYMENT_ITEM_FAIL] Product not visible:", { orderId, productId });
+          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
+        }
+
+        const options = Array.isArray(product.options) ? product.options : [];
+        const matchedOption = options.find((opt: any) => opt && String(opt.id) === optionId);
+        if (!matchedOption) {
+          console.error("[PAYMENT_ITEM_FAIL] Unknown option:", { orderId, productId });
+          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
+        }
+        if (matchedOption.isActive === false) {
+          console.error("[PAYMENT_ITEM_FAIL] Option inactive:", { orderId, productId });
+          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
+        }
+        const unitPrice = Number(matchedOption.price);
+        if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+          console.error("[PAYMENT_ITEM_FAIL] Invalid option price:", { orderId, productId });
+          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
+        }
+        const stock = Number(matchedOption.stock);
+        if (Number.isFinite(stock) && stock <= 0) {
+          console.error("[PAYMENT_ITEM_FAIL] Option sold out:", { orderId, productId });
+          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
+        }
+
+        serverExpectedTotal += unitPrice * quantity;
+        const image =
+          (typeof product.front_image === 'string' && product.front_image) || null;
+
+        validatedSnapshots.push({
+          product_id: product.id,
+          product_title: product.title || '제품',
+          title: product.title || '제품',
+          option: matchedOption.name || '기본',
+          quantity,
+          price: unitPrice,
+          image,
+          user_image_url: null,
+          orientation: item.orientation || null,
+          custom_config: null,
+          is_custom: false,
+        });
+      }
+
+      if (serverExpectedTotal !== Number(amount)) {
+        console.error("[PAYMENT_ITEM_FAIL] Pre-confirm total mismatch:", {
+          orderId,
+          expected: serverExpectedTotal,
+          amount: Number(amount),
+        });
+        return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
+      }
+
+      // 3. 토스 페이먼츠 승인 요청 (Server-to-Server) — only after item/amount validation
       const encodedKey = Buffer.from(TOSS_SECRET_KEY + ":").toString("base64");
-      
+
       console.log(`[PAYMENT_START] Confirming amount ${amount} for order ${orderId}`);
 
       const tossResponse = await fetch("https://api.tosspayments.com/v1/payments/confirm", {
@@ -223,21 +409,30 @@ ${rssItems}
 
       if (!tossResponse.ok) {
         console.error("[PAYMENT_TOSS_ERROR]", tossData);
-        return res.status(tossResponse.status).json({ 
-          error: "결제 대행사 승인 실패", 
+        return res.status(tossResponse.status).json({
+          error: "결제 대행사 승인 실패",
           details: tossData.message || "토스 API 응답 오류",
           code: tossData.code
         });
       }
 
-      // 3. 결제 금액 무결성 검증
+      // 4. Post-confirm amount integrity (client amount === server expected === Toss)
       if (tossData.totalAmount !== Number(amount)) {
         console.error("[PAYMENT_FRAUD_DETECTED] Amount mismatch:", { toss: tossData.totalAmount, req: amount });
         return res.status(400).json({ error: "결제 금액 불일치가 감지되었습니다." });
       }
 
-      // 4. DB 업데이트
-      // 4.1. 중복 확인 (.maybeSingle()을 사용하여 데이터가 없어도 에러가 발생하지 않도록 수정)
+      if (serverExpectedTotal !== Number(tossData.totalAmount)) {
+        console.error("[PAYMENT_ITEM_FAIL] Post-confirm total mismatch:", {
+          orderId,
+          expected: serverExpectedTotal,
+          toss: tossData.totalAmount,
+        });
+        return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
+      }
+
+      // 5. DB 업데이트
+      // 5.1. Race re-check: concurrent confirms may both pass pre-confirm PAID miss
       const { data: existingOrder } = await supabaseAdmin
         .from('orders')
         .select('id, status')
@@ -245,25 +440,28 @@ ${rssItems}
         .maybeSingle();
 
       if (existingOrder && existingOrder.status === 'PAID') {
-        console.log(`[PAYMENT_SKIP] Order ${orderId} already processed.`);
+        console.log(`[PAYMENT_SKIP] Order ${orderId} already processed (post-confirm race).`);
         return res.json({ success: true, message: "이미 처리된 주문입니다.", orderId: existingOrder.id });
       }
 
-      // 4.2. 주문 데이터 정제 및 생성
+      // 5.2. 주문 데이터 정제 및 생성
       // DB 스키마(supabase-schema.sql)에 정의된 컬럼만 정확히 매칭
       const isUUID = (uuid: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
       const userId = pendingOrder?.user_id;
 
-      // JSONB용 데이터 정제
-      // pendingOrder.ordered_items가 클라이언트에서 더 풍부한 정보를 담고 있을 수 있으므로 우선 사용
-      const rawItems = pendingOrder?.ordered_items || pendingItems || [];
-      const sanitizedOrderedItems = rawItems.map((item: any) => ({
-        ...item,
-        title: item.product_title || item.title || '제품',
-        product_title: item.product_title || item.title || '제품',
-        image: item.image || item.user_image_url || item.front_image || item.custom_image || null,
-        user_image_url: item.user_image_url || item.custom_image || item.image || null,
-        product_id: (item.product_id === 'workshop-single' || !item.product_id) ? null : item.product_id,
+      const sanitizedOrderedItems = validatedSnapshots.map((snap) => ({
+        product_id: snap.is_custom ? 'workshop-single' : snap.product_id,
+        title: snap.title,
+        product_title: snap.product_title,
+        option: snap.option,
+        quantity: snap.quantity,
+        price: snap.price,
+        image: snap.image,
+        user_image_url: snap.user_image_url,
+        front_image: snap.is_custom ? null : snap.image,
+        orientation: snap.orientation,
+        custom_config: snap.custom_config,
+        is_custom: snap.is_custom,
       }));
 
       const saveOrderData: any = {
@@ -271,13 +469,13 @@ ${rssItems}
         user_id: (userId && isUUID(userId)) ? userId : null,
         user_custom_id: pendingOrder?.user_custom_id || null,
         status: 'PAID',
-        total_price: Number(amount),
+        total_price: Number(tossData.totalAmount),
         shipping_name: pendingOrder?.shipping_name || '고객',
         shipping_phone: pendingOrder?.shipping_phone || '',
         zip_code: pendingOrder?.zip_code || '',
         address: pendingOrder?.address || '',
         address_detail: pendingOrder?.address_detail || '',
-        ordered_items: sanitizedOrderedItems, // 정제된 리스트 저장
+        ordered_items: sanitizedOrderedItems,
         shipping_info: {
           ...(pendingOrder?.shipping_info || {}),
           payment_key: paymentKey,
@@ -307,22 +505,21 @@ ${rssItems}
         });
       }
 
-      // 4.3. 개별 주문 상품 세부 저장 (order_items 테이블)
-      if (insertedOrder && (pendingItems || pendingOrder?.ordered_items)) {
+      // 5.3. 개별 주문 상품 세부 저장 (order_items 테이블)
+      if (insertedOrder && validatedSnapshots.length > 0) {
         try {
           // 기존 상품 삭제 (order_number 기준)
           await supabaseAdmin.from('order_items').delete().eq('order_number', orderId);
 
-          const itemsToProcess = pendingItems || pendingOrder?.ordered_items || [];
-          const orderItemsToInsert = itemsToProcess.map((item: any) => ({
-            order_number: orderId, // order_id가 아니라 order_number를 참조함 (Schema line 71)
-            product_id: (item.product_id === 'workshop-single' || !item.product_id) ? null : item.product_id,
-            product_title: item.product_title || item.title || '제품',
-            option: item.option || '기본',
-            orientation: item.orientation || null,
-            quantity: Number(item.quantity) || 1,
-            price: Number(item.price) || 0,
-            image: item.image || item.user_image_url || item.front_image || item.custom_image || null,
+          const orderItemsToInsert = validatedSnapshots.map((snap) => ({
+            order_number: orderId,
+            product_id: snap.is_custom ? null : snap.product_id,
+            product_title: snap.product_title,
+            option: snap.option,
+            orientation: snap.orientation || null,
+            quantity: snap.quantity,
+            price: snap.price,
+            image: snap.image,
             created_at: new Date().toISOString()
           }));
 
@@ -336,7 +533,7 @@ ${rssItems}
         }
       }
 
-      // 4.4. 유저 결제 통계 업데이트
+      // 5.4. 유저 결제 통계 업데이트
       if (insertedOrder && insertedOrder.user_id) {
         const { data: profile } = await supabaseAdmin
           .from('profiles')
@@ -347,19 +544,18 @@ ${rssItems}
         if (profile) {
           await supabaseAdmin
             .from('profiles')
-            .update({ total_spent: (profile.total_spent || 0) + Number(amount) })
+            .update({ total_spent: (profile.total_spent || 0) + Number(tossData.totalAmount) })
             .eq('id', insertedOrder.user_id);
         }
       }
 
-      // 5. 디스코드 알림 발송 (서버에서 수행하여 Webhook 숨김)
+      // 6. 디스코드 알림 발송 (서버에서 수행하여 Webhook 숨김)
       const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
       if (WEBHOOK_URL) {
-        // pendingOrder.ordered_items가 더 상세한 정보를 포함하고 있음 (custom_config 등)
-        const displayItems = pendingOrder.ordered_items || pendingItems;
+        const displayItems = validatedSnapshots;
         
-        const itemsList = displayItems?.map((item: any) => {
-          const isCustom = item.is_custom || item.product_id === 'workshop-single' || item.product_title?.includes('커스텀') || item.title?.includes('커스텀');
+        const itemsList = displayItems.map((item) => {
+          const isCustom = item.is_custom || item.product_id === 'workshop-single';
           const typeTag = isCustom ? '[커스텀]' : '[기성]';
           const title = item.product_title || item.title || '제품';
           const option = item.option || '기본';
@@ -367,7 +563,6 @@ ${rssItems}
           
           let itemString = `• **${typeTag} ${title}** (${option} | ${quantity}개)`;
           
-          // 커스텀 옵션 상세 추가 (AI 기능 등)
           if (isCustom && item.custom_config) {
             const aiOps = [];
             if (item.custom_config.ai_upscale) aiOps.push('AI 고화질');
@@ -385,7 +580,7 @@ ${rssItems}
         const discordContent = `💰💰💰💰💰💰💰💰💰💰
 \n🚀 **[METALORA] 새로운 주문 발생! (서버 승인 완료)**
 \n📌 **주문 요약**
-• **결제금액:** **${Number(amount).toLocaleString()}원** (입금 완료)
+• **결제금액:** **${Number(tossData.totalAmount).toLocaleString()}원** (입금 완료)
 • **주문번호:** \`${orderId}\`
 • **결제수단:** ${tossData.method || '카드'}
 \n🛒 **주문 품목**
