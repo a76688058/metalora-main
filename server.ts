@@ -191,13 +191,13 @@ ${rssItems}
 
     if (!supabaseAdmin) {
       console.error("[CRITICAL] SUPABASE_SERVICE_ROLE_KEY is missing in server environment.");
-      return res.status(500).json({ error: "서버 구성 오류: Supabase 관리자 키가 설정되지 않았습니다." });
+      return res.status(500).json({ error: "서버 구성 오류가 발생했습니다." });
     }
 
     const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY;
     if (!TOSS_SECRET_KEY) {
       console.error("[CRITICAL] TOSS_SECRET_KEY is missing in server environment.");
-      return res.status(500).json({ error: "서버 구성 오류: 토스 결제 비밀키가 설정되지 않았습니다." });
+      return res.status(500).json({ error: "서버 구성 오류가 발생했습니다." });
     }
 
     try {
