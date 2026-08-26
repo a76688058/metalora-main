@@ -506,21 +506,20 @@ ${rssItems}
       }
 
       // 5.3. 개별 주문 상품 세부 저장 (order_items 테이블)
-      if (insertedOrder && validatedSnapshots.length > 0) {
+      // Schema: order_id → orders.id (FK); no order_number / image columns
+      if (insertedOrder?.id && validatedSnapshots.length > 0) {
         try {
-          // 기존 상품 삭제 (order_number 기준)
-          await supabaseAdmin.from('order_items').delete().eq('order_number', orderId);
+          await supabaseAdmin.from('order_items').delete().eq('order_id', insertedOrder.id);
 
           const orderItemsToInsert = validatedSnapshots.map((snap) => ({
-            order_number: orderId,
+            order_id: insertedOrder.id,
             product_id: snap.is_custom ? null : snap.product_id,
             product_title: snap.product_title,
-            option: snap.option,
-            orientation: snap.orientation || null,
             quantity: snap.quantity,
             price: snap.price,
-            image: snap.image,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            option: snap.option,
+            orientation: snap.orientation || null,
           }));
 
           const { error: itemsError } = await supabaseAdmin
