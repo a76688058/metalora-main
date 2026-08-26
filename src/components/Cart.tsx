@@ -292,22 +292,26 @@ export default function Cart() {
         let price = 0;
         let title = '';
         let optionName = '';
+        let optionId: string | null = null;
 
         if (item.product_id === 'workshop-single') {
           price = item.custom_config?.price || 0;
           title = item.product?.title || '커스텀 포스터';
           optionName = item.custom_config?.size || '커스텀';
+          optionId = null;
         } else {
           const option = item.product?.options?.find(opt => opt.id === item.selected_option);
           price = option ? option.price : 0;
           title = item.product?.title || '제품';
           optionName = option ? option.name : (item.selected_option || '');
+          optionId = option?.id ?? item.selected_option ?? null;
         }
         
         return {
           product_id: item.product_id === 'workshop-single' ? null : item.product_id,
           product_title: title,
           title: title, // title 필드 중복 추가 (호환성)
+          option_id: optionId,
           option: optionName,
           quantity: item.quantity,
           price: price,
