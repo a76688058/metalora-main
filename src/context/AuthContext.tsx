@@ -32,6 +32,8 @@ interface AuthContextType {
   adminProfile: Profile | null;
   
   isLoading: boolean;
+  /** true once profile fetch settled for current session (or no session). */
+  isProfileResolved: boolean;
   isLoggingOut: boolean;
   isProfileOpen: boolean;
   isWorkshopOpen: boolean;
@@ -90,9 +92,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Dedupe same-user profile reads across initializeSessions + SIGNED_IN races / tab return.
   const loadedProfileUserIdRef = useRef<string | null>(null);
-  const profileFetchInFlightUserIdRef = useRef<string | null>(null);
+  /** In-flight profile fetch promise (same user shares one; always settles isProfileResolved). */
+  const profileFetchPromiseRef = useRef<Promise<void> | null>(null);
+  const profileFetchUserIdRef = useRef<string | null>(null);
+  /** false until we know profile state for the current session (loaded / missing / failed). */
+  const [isProfileResolved, setIsProfileResolved] = useState(false);
 
-  // Optimistic load from local storage
+  // Optimistic load from local storage (session/user only — never is_admin)
   useEffect(() => {
     try {
       const stored = localStorage.getItem('metalora-auth-token');
@@ -111,116 +117,137 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Single DB read — same profiles row feeds both profile and adminProfile state.
+  // Always settles isProfileResolved (success / no row / error). Safe to await outside auth callbacks.
   const fetchProfile = async (
     userId: string,
     options: { force?: boolean } = {},
-    retryCount = 0,
-  ) => {
+  ): Promise<void> => {
     const force = options.force === true;
-    const client = supabase;
 
-    // Same-user in-flight: never start a parallel query (even force).
-    if (profileFetchInFlightUserIdRef.current === userId) return;
-    // Same-user already loaded: skip unless explicit force refresh.
-    if (!force && loadedProfileUserIdRef.current === userId) return;
+    if (!force && loadedProfileUserIdRef.current === userId) {
+      setIsProfileResolved(true);
+      return;
+    }
 
-    profileFetchInFlightUserIdRef.current = userId;
+    if (
+      !force &&
+      profileFetchPromiseRef.current &&
+      profileFetchUserIdRef.current === userId
+    ) {
+      return profileFetchPromiseRef.current;
+    }
 
-    try {
-      const { data, error } = await client
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-        
-      if (error) {
-        if (error.code === 'PGRST116') {
-          setProfile(null);
-          setAdminProfile(null);
-          loadedProfileUserIdRef.current = null;
-          return;
+    setIsProfileResolved(false);
+    profileFetchUserIdRef.current = userId;
+
+    const run = async () => {
+      try {
+        let lastError: any = null;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          if (attempt > 0) {
+            await new Promise((r) => setTimeout(r, Math.pow(2, attempt - 1) * 1000));
+          }
+          try {
+            const { data, error } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', userId)
+              .single();
+
+            if (error) {
+              if (error.code === 'PGRST116') {
+                setProfile(null);
+                setAdminProfile(null);
+                loadedProfileUserIdRef.current = null;
+                return;
+              }
+              throw error;
+            }
+
+            if (data) {
+              setProfile(data);
+              setAdminProfile(data);
+              loadedProfileUserIdRef.current = userId;
+            } else {
+              setProfile(null);
+              setAdminProfile(null);
+              loadedProfileUserIdRef.current = null;
+            }
+            return;
+          } catch (error: any) {
+            lastError = error;
+          }
         }
-        throw error;
-      }
-      
-      if (data) {
-        setProfile(data);
-        setAdminProfile(data);
-        loadedProfileUserIdRef.current = userId;
-      }
-    } catch (error: any) {
-      if (retryCount < 3) {
-        // Exponential backoff for profile fetch: 1s, 2s, 4s
-        const backoffDelay = Math.pow(2, retryCount) * 1000;
-        // Clear in-flight so the scheduled retry can start.
-        if (profileFetchInFlightUserIdRef.current === userId) {
-          profileFetchInFlightUserIdRef.current = null;
-        }
-        setTimeout(() => fetchProfile(userId, options, retryCount + 1), backoffDelay);
-        return;
-      } else {
-        console.warn('Profile fetch failed after retries, keeping session active.', error);
-        // Do not mark this user as successfully loaded.
+        console.warn('Profile fetch failed after retries, keeping session active.', lastError);
         if (loadedProfileUserIdRef.current === userId) {
           loadedProfileUserIdRef.current = null;
         }
+      } finally {
+        // Invariant: authenticated profile attempt always resolves (admin / non-admin / missing / error).
+        setIsProfileResolved(true);
+        if (profileFetchUserIdRef.current === userId) {
+          profileFetchPromiseRef.current = null;
+          profileFetchUserIdRef.current = null;
+        }
       }
-    } finally {
-      if (profileFetchInFlightUserIdRef.current === userId) {
-        profileFetchInFlightUserIdRef.current = null;
-      }
-    }
+    };
+
+    const promise = run();
+    profileFetchPromiseRef.current = promise;
+    return promise;
   };
 
   useEffect(() => {
     let mounted = true;
 
-    // Loading Timeout: 인증 확인이 2초 이상 걸리면 무조건 로딩 상태 해제
-    const authTimeout = setTimeout(() => {
-      if (mounted) setIsLoading(false);
-    }, 2000);
-
     const initializeSessions = async () => {
       try {
+        // Do not await profile (or other long work) inside onAuthStateChange — that deadlocks getSession.
         const { data: { session: sess }, error: sessErr } = await supabase.auth.getSession();
-        
+
         if (sessErr) {
           throw sessErr;
-        } 
-        
-        if (sess && mounted) {
+        }
+
+        if (!mounted) return;
+
+        if (sess) {
           setSession(sess);
           setUser(sess.user);
           setAdminSession(sess);
           setAdminUser(sess.user);
-          
-          fetchProfile(sess.user.id);
+          await fetchProfile(sess.user.id);
+        } else {
+          setIsProfileResolved(true);
         }
       } catch (error: any) {
-        // DO NOT clear user/session here. If network is down, keep optimistic state.
         console.warn("Session validation failed, keeping optimistic state:", error.message || error);
+        if (mounted) setIsProfileResolved(true);
       } finally {
-        if (mounted) {
-          setIsLoading(false);
-          clearTimeout(authTimeout);
-        }
+        if (mounted) setIsLoading(false);
       }
     };
 
     initializeSessions();
 
     // Subscribe to Auth Changes (Unified)
-    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, sess) => {
+    // IMPORTANT: callback must stay sync and must NOT start Supabase async I/O.
+    // Even `void fetchProfile()` inside the callback can deadlock auth locks —
+    // defer profile fetch to a macrotask after the callback returns (setTimeout 0).
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event, sess) => {
       if (!mounted) return;
 
       try {
-        if (event === 'INITIAL_SESSION' && !sess) {
-          setIsLoading(false);
+        if (event === 'INITIAL_SESSION') {
+          if (!sess) {
+            setIsProfileResolved(true);
+            setIsLoading(false);
+          }
+          // Session present: initializeSessions owns getSession + fetchProfile.
           return;
         }
-        
+
         if (event === 'SIGNED_OUT') {
-          // Only clear session on explicit SIGNED_OUT event
           setSession(null);
           setUser(null);
           setProfile(null);
@@ -228,44 +255,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setAdminUser(null);
           setAdminProfile(null);
           loadedProfileUserIdRef.current = null;
-          profileFetchInFlightUserIdRef.current = null;
+          profileFetchPromiseRef.current = null;
+          profileFetchUserIdRef.current = null;
+          setIsProfileResolved(true);
           setIsLoading(false);
           window.dispatchEvent(new CustomEvent('refresh-products'));
           window.location.replace('/');
           return;
-        } 
-        
-        if (event === 'TOKEN_REFRESHED') {
-          // Token refresh is not a profiles-row change — update session only.
-          if (sess) {
-            setSession(sess);
-            setUser(sess.user);
-            setAdminSession(sess);
-            setAdminUser(sess.user);
-          }
-        } else if (event === 'SIGNED_IN') {
-          if (sess) {
-            setSession(sess);
-            setUser(sess.user);
-            setAdminSession(sess);
-            setAdminUser(sess.user);
-            // Same user already loaded / in-flight → skip; new user → fetch once.
-            fetchProfile(sess.user.id);
-          }
-        } else if (event === 'USER_UPDATED') {
-          if (sess) {
-            setSession(sess);
-            setUser(sess.user);
-            setAdminSession(sess);
-            setAdminUser(sess.user);
-            fetchProfile(sess.user.id, { force: true });
-          }
         }
-        // Ignore other events or null sessions to prevent accidental logouts on network drops
+
+        if (event === 'TOKEN_REFRESHED') {
+          if (sess) {
+            setSession(sess);
+            setUser(sess.user);
+            setAdminSession(sess);
+            setAdminUser(sess.user);
+          }
+          return;
+        }
+
+        if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+          if (sess) {
+            setSession(sess);
+            setUser(sess.user);
+            setAdminSession(sess);
+            setAdminUser(sess.user);
+            // Mark unresolved immediately; start Supabase I/O only after callback returns.
+            setIsProfileResolved(false);
+            const userId = sess.user.id;
+            const force = event === 'USER_UPDATED';
+            setTimeout(() => {
+              if (!mounted) return;
+              void fetchProfile(userId, { force }).finally(() => {
+                if (mounted) setIsLoading(false);
+              });
+            }, 0);
+          }
+          return;
+        }
       } catch (error: any) {
         console.warn("Auth state change error, keeping optimistic state:", error.message || error);
-      } finally {
-        if (mounted) setIsLoading(false);
+        setIsProfileResolved(true);
+        setIsLoading(false);
       }
     });
 
@@ -279,6 +310,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(sess.user);
             setAdminSession(sess);
             setAdminUser(sess.user);
+            void fetchProfile(sess.user.id);
           }
         });
       }
@@ -295,7 +327,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
-      clearTimeout(authTimeout);
       authSub.unsubscribe();
       channel.close();
       window.removeEventListener('focus', handleFocus);
@@ -358,7 +389,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAdminUser(null);
         setAdminProfile(null);
         loadedProfileUserIdRef.current = null;
-        profileFetchInFlightUserIdRef.current = null;
+        profileFetchPromiseRef.current = null;
+        profileFetchUserIdRef.current = null;
+        setIsProfileResolved(true);
         window.dispatchEvent(new CustomEvent('refresh-products'));
         
         // Notify other tabs
@@ -426,7 +459,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{ 
       session, user, profile, 
       adminSession, adminUser, adminProfile,
-      isLoading, isLoggingOut, isProfileOpen, isWorkshopOpen, isProfileEditOpen, isOrdersOpen, isInquiryOpen,
+      isLoading, isProfileResolved, isLoggingOut, isProfileOpen, isWorkshopOpen, isProfileEditOpen, isOrdersOpen, isInquiryOpen,
       signOut, refreshProfile, refreshSession,
       openProfile, closeProfile, openWorkshop, closeWorkshop,
       openProfileEdit, closeProfileEdit, openOrders, closeOrders,

@@ -76,10 +76,15 @@ function ScrollToTop() {
 
 // Middleware Protected Route Component
 function ProtectedRoute({ children, requireAdmin = false }: { children: React.ReactNode, requireAdmin?: boolean }) {
-  const { user, profile, adminUser, adminProfile, isLoading } = useAuth();
+  const { user, profile, adminUser, adminProfile, isLoading, isProfileResolved } = useAuth();
   const { showToast } = useToast();
 
   if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  // Session present but profiles.is_admin not hydrated yet — do not treat as non-admin.
+  if (requireAdmin && (user || adminUser) && !isProfileResolved) {
     return <LoadingScreen />;
   }
   
