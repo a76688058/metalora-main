@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { Product } from '../data/products';
 import { supabase, supabasePublic } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 
 interface ProductContextType {
   products: Product[];
@@ -24,36 +25,60 @@ export const useProducts = () => {
   return context;
 };
 
-// Shared across StrictMode remounts so overlapping fetchProducts calls reuse one HTTP chain.
-let inFlightProductQuery: Promise<{ data: any[] | null; error: any }> | null = null;
+const PRODUCT_LIST_SELECT =
+  'id, title, subtitle, front_image, back_image, landscape_image, landscape_back_image, supported_orientations, description, is_limited, is_visible, options, created_at, display_order';
 
-function queryProductList() {
-  if (!supabasePublic) {
+// Separate in-flight chains so storefront (anon) and admin (JWT) never share a response.
+let inFlightPublicQuery: Promise<{ data: any[] | null; error: any }> | null = null;
+let inFlightAdminQuery: Promise<{ data: any[] | null; error: any }> | null = null;
+
+function queryProductList(asAdmin: boolean) {
+  const client = asAdmin ? supabase : supabasePublic;
+  if (!client) {
     return Promise.resolve({ data: null, error: new Error('Supabase is not configured.') });
   }
 
-  if (!inFlightProductQuery) {
-    inFlightProductQuery = Promise.resolve(
-      supabasePublic
+  if (asAdmin) {
+    if (!inFlightAdminQuery) {
+      inFlightAdminQuery = Promise.resolve(
+        client
+          .from('products')
+          .select(PRODUCT_LIST_SELECT)
+          .order('display_order', { ascending: true })
+          .limit(20)
+      ).finally(() => {
+        inFlightAdminQuery = null;
+      });
+    }
+    return inFlightAdminQuery;
+  }
+
+  if (!inFlightPublicQuery) {
+    inFlightPublicQuery = Promise.resolve(
+      client
         .from('products')
-        .select('id, title, subtitle, front_image, back_image, landscape_image, landscape_back_image, supported_orientations, description, is_limited, is_visible, options, created_at, display_order')
+        .select(PRODUCT_LIST_SELECT)
         .order('display_order', { ascending: true })
         .limit(20)
     ).finally(() => {
-      inFlightProductQuery = null;
+      inFlightPublicQuery = null;
     });
   }
-
-  return inFlightProductQuery;
+  return inFlightPublicQuery;
 }
 
 export const ProductProvider = ({ children }: { children: ReactNode }) => {
+  const { profile, adminProfile } = useAuth();
+  // FE routing/UX only — DB RLS remains authoritative after #16A-2
+  const isAdmin = !!(adminProfile?.is_admin || profile?.is_admin);
+
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const hasLoadedRef = useRef(false);
   const mountedRef = useRef(true);
+  const wasAdminRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -63,8 +88,9 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const fetchProducts = useCallback(async () => {
-    if (!supabasePublic) return;
-    
+    const asAdmin = !!(adminProfile?.is_admin || profile?.is_admin);
+    if (asAdmin ? !supabase : !supabasePublic) return;
+
     // Check global flag to prevent fetching during signout
     if ((window as any).isLoggingOutFlag) return;
 
@@ -75,7 +101,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
     setIsError(false);
 
     try {
-      const { data, error } = await queryProductList();
+      const { data, error } = await queryProductList(asAdmin);
 
       if (!mountedRef.current) return;
       if (error) throw error;
@@ -101,7 +127,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(false);
       }
     }
-  }, []);
+  }, [adminProfile?.is_admin, profile?.is_admin]);
 
   useEffect(() => {
     // Only fetch if not already loaded to prevent unnecessary re-renders
@@ -119,6 +145,14 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
       window.removeEventListener('refresh-products', handleRefresh);
     };
   }, [fetchProducts, products.length]);
+
+  // After admin session/profile resolves, refetch so hidden products are included.
+  useEffect(() => {
+    if (isAdmin && !wasAdminRef.current && hasLoadedRef.current) {
+      fetchProducts();
+    }
+    wasAdminRef.current = isAdmin;
+  }, [isAdmin, fetchProducts]);
 
   const addProduct = async (product: Product) => {
     if (!supabase) return;

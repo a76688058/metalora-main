@@ -22,6 +22,11 @@ export default function AdminProducts() {
   const [orderedProducts, setOrderedProducts] = useState<Product[]>([]);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
 
+  // Ensure JWT admin list fetch (incl. hidden) when entering admin products.
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
   useEffect(() => {
     setOrderedProducts(products);
   }, [products]);
