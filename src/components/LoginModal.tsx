@@ -160,13 +160,12 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
 
     try {
       if (isLoginMode) {
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('user_custom_id')
-          .eq('user_custom_id', formData.username)
-          .maybeSingle();
+        const { data: usernameExists, error: profileError } = await supabase.rpc(
+          'profiles_username_exists',
+          { username: formData.username },
+        );
 
-        if (profileError || !profileData) {
+        if (profileError || !usernameExists) {
           throw new Error('존재하지 않는 아이디입니다.');
         }
 
@@ -199,13 +198,17 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           throw new Error('필수 정보가 누락되었습니다.');
         }
 
-        // Check profiles table first
-        const { count, error: countError } = await supabase
-          .from('profiles')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_custom_id', formData.username);
+        // Check username availability via RPC (no direct profiles SELECT)
+        const { data: usernameExists, error: usernameCheckError } = await supabase.rpc(
+          'profiles_username_exists',
+          { username: formData.username },
+        );
 
-        if (count && count > 0) {
+        if (usernameCheckError) {
+          throw new Error('아이디 확인 중 오류가 발생했습니다.');
+        }
+
+        if (usernameExists) {
           throw new Error('이미 사용 중인 아이디입니다.');
         }
 
