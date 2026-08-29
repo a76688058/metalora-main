@@ -258,22 +258,28 @@ ${rssItems}
     }
 
     try {
-      // 1b. Idempotent early return for already-PAID (skip catalog + Toss)
-      const { data: existingPaidOrder } = await supabaseAdmin
+      // 1b. Pre-Toss idempotency (payment_finalized_at — not status alone)
+      const { data: existingOrder } = await supabaseAdmin
         .from('orders')
-        .select('id, status, user_id')
+        .select('id, user_id, total_price, payment_finalized_at')
         .eq('order_number', orderId)
         .maybeSingle();
 
-      if (existingPaidOrder) {
-        if (existingPaidOrder.user_id && existingPaidOrder.user_id !== verifiedUserId) {
+      if (existingOrder) {
+        if (existingOrder.user_id && existingOrder.user_id !== verifiedUserId) {
           console.error("[PAYMENT_OWNERSHIP_FAIL] Existing order belongs to another user.");
           return res.status(403).json({ error: "주문 정보가 일치하지 않습니다." });
         }
-        if (existingPaidOrder.status === 'PAID') {
-          console.log(`[PAYMENT_SKIP] Order ${orderId} already processed.`);
-          return res.json({ success: true, message: "이미 처리된 주문입니다.", orderId: existingPaidOrder.id });
+        if (existingOrder.payment_finalized_at != null) {
+          if (Number(existingOrder.total_price) !== Number(amount)) {
+            console.error("[PAYMENT_FINALIZE_FAIL] Finalized order amount mismatch:", { orderId });
+            return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
+          }
+          console.log(`[PAYMENT_SKIP] Order ${orderId} already finalized.`);
+          return res.json({ success: true, message: "이미 처리된 주문입니다.", orderId: existingOrder.id });
         }
+        console.error("[PAYMENT_RECOVERY_REQUIRED] Unfinalized existing order:", { orderId });
+        return res.status(409).json({ error: "주문 처리에 문제가 발생했습니다. 고객센터에 문의해 주세요." });
       }
 
       const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY;
@@ -467,42 +473,13 @@ ${rssItems}
         });
       }
 
-      // 4. Post-confirm amount integrity (client amount === server expected === Toss)
-      if (tossData.totalAmount !== Number(amount)) {
-        console.error("[PAYMENT_FRAUD_DETECTED] Amount mismatch:", { toss: tossData.totalAmount, req: amount });
+      // 4. Post-confirm amount integrity (Toss total must match pre-validated request amount)
+      const confirmedAmount = Number(tossData.totalAmount);
+      if (confirmedAmount !== Number(amount)) {
+        console.error("[PAYMENT_FRAUD_DETECTED] Amount mismatch:", { toss: confirmedAmount, req: amount });
         return res.status(400).json({ error: "결제 금액 불일치가 감지되었습니다." });
       }
 
-      if (serverExpectedTotal !== Number(tossData.totalAmount)) {
-        console.error("[PAYMENT_ITEM_FAIL] Post-confirm total mismatch:", {
-          orderId,
-          expected: serverExpectedTotal,
-          toss: tossData.totalAmount,
-        });
-        return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
-      }
-
-      // 5. DB 업데이트
-      // 5.1. Race re-check: concurrent confirms may both pass pre-confirm PAID miss
-      const { data: existingOrder } = await supabaseAdmin
-        .from('orders')
-        .select('id, status, user_id')
-        .eq('order_number', orderId)
-        .maybeSingle();
-
-      if (existingOrder) {
-        if (existingOrder.user_id && existingOrder.user_id !== verifiedUserId) {
-          console.error("[PAYMENT_OWNERSHIP_FAIL] Existing order belongs to another user (post-confirm race).");
-          return res.status(403).json({ error: "주문 정보가 일치하지 않습니다." });
-        }
-        if (existingOrder.status === 'PAID') {
-          console.log(`[PAYMENT_SKIP] Order ${orderId} already processed (post-confirm race).`);
-          return res.json({ success: true, message: "이미 처리된 주문입니다.", orderId: existingOrder.id });
-        }
-      }
-
-      // 5.2. 주문 데이터 정제 및 생성
-      // DB 스키마(supabase-schema.sql)에 정의된 컬럼만 정확히 매칭
       const sanitizedOrderedItems = validatedSnapshots.map((snap) => ({
         product_id: snap.is_custom ? 'workshop-single' : snap.product_id,
         title: snap.title,
@@ -518,91 +495,78 @@ ${rssItems}
         is_custom: snap.is_custom,
       }));
 
-      const saveOrderData: any = {
-        order_number: orderId,
-        user_id: verifiedUserId,
-        user_custom_id: verifiedUserCustomId,
-        status: 'PAID',
-        total_price: Number(tossData.totalAmount),
-        shipping_name: pendingOrder?.shipping_name || '고객',
-        shipping_phone: pendingOrder?.shipping_phone || '',
-        zip_code: pendingOrder?.zip_code || '',
-        address: pendingOrder?.address || '',
-        address_detail: pendingOrder?.address_detail || '',
-        ordered_items: sanitizedOrderedItems,
-        shipping_info: {
-          ...(pendingOrder?.shipping_info || {}),
-          payment_key: paymentKey,
-          payment_method: tossData.method || '카드',
-          confirmed_at: new Date().toISOString(),
-          toss_data: {
-            mId: tossData.mId,
-            transactionKey: tossData.transactionKey,
-            lastTransactionKey: tossData.lastTransactionKey
-          }
+      const shippingInfo = {
+        ...(pendingOrder?.shipping_info || {}),
+        payment_key: paymentKey,
+        payment_method: tossData.method || '카드',
+        confirmed_at: new Date().toISOString(),
+        toss_data: {
+          mId: tossData.mId,
+          transactionKey: tossData.transactionKey,
+          lastTransactionKey: tossData.lastTransactionKey
         }
       };
 
-      console.log(`[DB_UPSERT] Saving order ${orderId} to Supabase... Content keys:`, Object.keys(saveOrderData));
+      const rpcOrderItems = validatedSnapshots.map((snap) => ({
+        product_id: snap.is_custom ? null : snap.product_id,
+        product_title: snap.product_title,
+        quantity: snap.quantity,
+        price: snap.price,
+        option: snap.option,
+        orientation: snap.orientation || null,
+      }));
 
-      // 중복 방지를 위한 upsert (order_number 기준)
-      const { data: insertedOrder, error: insertError } = await supabaseAdmin
-        .from('orders')
-        .upsert(saveOrderData, { onConflict: 'order_number' })
-        .select()
-        .single();
-          
-      if (insertError) {
-        console.error("[DB_INSERT_ERROR] Details:", insertError);
-        return res.status(500).json({ 
-          error: "주문 정보 저장 중 오류가 발생했습니다."
+      console.log(`[DB_FINALIZE] Finalizing order ${orderId} via RPC...`);
+
+      const { data: finalizeRows, error: finalizeError } = await supabaseAdmin.rpc('finalize_paid_order', {
+        p_verified_user_id: verifiedUserId,
+        p_user_custom_id: verifiedUserCustomId,
+        p_order_number: orderId,
+        p_total_price: confirmedAmount,
+        p_paid_amount: confirmedAmount,
+        p_shipping_name: pendingOrder?.shipping_name || '고객',
+        p_shipping_phone: pendingOrder?.shipping_phone || '',
+        p_zip_code: pendingOrder?.zip_code || '',
+        p_address: pendingOrder?.address || '',
+        p_address_detail: pendingOrder?.address_detail || '',
+        p_ordered_items: sanitizedOrderedItems,
+        p_shipping_info: shippingInfo,
+        p_order_items: rpcOrderItems,
+      });
+
+      if (finalizeError) {
+        console.error("[DB_FINALIZE_ERROR]", finalizeError);
+        return res.status(500).json({
+          error: "주문 정보 저장 중 오류가 발생했습니다.",
         });
       }
 
-      // 5.3. 개별 주문 상품 세부 저장 (order_items 테이블)
-      // Schema: order_id → orders.id (FK); no order_number / image columns
-      if (insertedOrder?.id && validatedSnapshots.length > 0) {
-        try {
-          await supabaseAdmin.from('order_items').delete().eq('order_id', insertedOrder.id);
-
-          const orderItemsToInsert = validatedSnapshots.map((snap) => ({
-            order_id: insertedOrder.id,
-            product_id: snap.is_custom ? null : snap.product_id,
-            product_title: snap.product_title,
-            quantity: snap.quantity,
-            price: snap.price,
-            created_at: new Date().toISOString(),
-            option: snap.option,
-            orientation: snap.orientation || null,
-          }));
-
-          const { error: itemsError } = await supabaseAdmin
-            .from('order_items')
-            .insert(orderItemsToInsert);
-
-          if (itemsError) console.error('[DB_ITEMS_ERROR] Order items insert failed:', itemsError);
-        } catch (itemErr) {
-          console.error('[DB_ITEMS_EXCEPTION] Failed to process order items:', itemErr);
-        }
+      if (!Array.isArray(finalizeRows) || finalizeRows.length !== 1) {
+        console.error("[DB_FINALIZE_ERROR] Unexpected RPC result row count:", {
+          orderId,
+          count: Array.isArray(finalizeRows) ? finalizeRows.length : null,
+        });
+        return res.status(500).json({
+          error: "주문 정보 저장 중 오류가 발생했습니다.",
+        });
       }
 
-      // 5.4. 유저 결제 통계 업데이트
-      const { data: spentProfile } = await supabaseAdmin
-        .from('profiles')
-        .select('total_spent')
-        .eq('id', verifiedUserId)
-        .single();
+      const finalizeResult = finalizeRows[0] as {
+        order_id: string;
+        order_number: string;
+        already_finalized: boolean;
+      };
 
-      if (spentProfile) {
-        await supabaseAdmin
-          .from('profiles')
-          .update({ total_spent: (spentProfile.total_spent || 0) + Number(tossData.totalAmount) })
-          .eq('id', verifiedUserId);
+      if (!finalizeResult?.order_id) {
+        console.error("[DB_FINALIZE_ERROR] RPC result missing order_id:", { orderId });
+        return res.status(500).json({
+          error: "주문 정보 저장 중 오류가 발생했습니다.",
+        });
       }
 
       // 6. 디스코드 알림 발송 (서버에서 수행하여 Webhook 숨김)
       const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
-      if (WEBHOOK_URL) {
+      if (WEBHOOK_URL && !finalizeResult.already_finalized) {
         const displayItems = validatedSnapshots;
         
         const itemsList = displayItems.map((item) => {
@@ -647,7 +611,7 @@ ${itemsList}
         }).catch(e => console.error("Discord send error:", e));
       }
 
-      return res.json({ success: true, orderId: insertedOrder.id });
+      return res.json({ success: true, orderId: finalizeResult.order_id });
 
     } catch (error: any) {
       console.error("Payment Confirmation API Error:", error);
