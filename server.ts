@@ -182,7 +182,7 @@ function homeSeoPayload(): SeoPayload {
     ogType: "website",
     ogImage: DEFAULT_OG_IMAGE,
     jsonLd: [organizationJsonLd(), websiteJsonLd()],
-    rootHtml: `<main>
+    rootHtml: `<main class="seo-shell">
   <header>
     <p>METALORA</p>
     <h1>${escapeHtml(title)}</h1>
@@ -297,7 +297,7 @@ function productSeoPayload(product: PublicProductRow): SeoPayload {
     ogType: "product",
     ogImage: imageUrl,
     jsonLd: [organizationJsonLd(), productLd, breadcrumbLd],
-    rootHtml: `<main>
+    rootHtml: `<main class="seo-shell">
   <article>
     <h1>${escapeHtml(product.title)}</h1>
     ${priceBlock}
@@ -320,7 +320,7 @@ function missingProductSeoPayload(productId: string): SeoPayload {
     ogImage: DEFAULT_OG_IMAGE,
     robots: "noindex, nofollow",
     jsonLd: [organizationJsonLd()],
-    rootHtml: `<main>
+    rootHtml: `<main class="seo-shell">
   <h1>상품을 찾을 수 없습니다</h1>
   <p>요청하신 상품을 찾을 수 없거나 현재 공개되지 않습니다.</p>
   <p><a href="/">홈으로 돌아가기</a></p>
@@ -339,7 +339,7 @@ function productLookupUnavailableSeoPayload(productId: string): SeoPayload {
     ogType: "website",
     ogImage: DEFAULT_OG_IMAGE,
     jsonLd: [organizationJsonLd()],
-    rootHtml: `<main>
+    rootHtml: `<main class="seo-shell">
   <h1>일시적으로 상품 정보를 불러올 수 없습니다</h1>
   <p>잠시 후 다시 시도해 주세요.</p>
   <p><a href="/">홈으로 돌아가기</a></p>
@@ -360,7 +360,7 @@ function removedPublicRouteSeoPayload(pathname: string): SeoPayload {
     ogImage: DEFAULT_OG_IMAGE,
     robots: "noindex, nofollow",
     jsonLd: [organizationJsonLd()],
-    rootHtml: `<main>
+    rootHtml: `<main class="seo-shell">
   <h1>페이지를 찾을 수 없습니다</h1>
   <p>요청하신 페이지를 찾을 수 없습니다.</p>
   <p><a href="/">홈으로 돌아가기</a></p>
@@ -385,7 +385,7 @@ function staticRouteSeoPayload(
     jsonLd: [organizationJsonLd()],
     rootHtml:
       rootHtml ||
-      `<main>
+      `<main class="seo-shell">
   <h1>${escapeHtml(title)}</h1>
   <p>${escapeHtml(description)}</p>
 </main>`,
@@ -584,7 +584,7 @@ async function resolveSeoForPath(pathname: string): Promise<SeoPayload> {
     ogType: "website",
     ogImage: DEFAULT_OG_IMAGE,
     jsonLd: [organizationJsonLd()],
-    rootHtml: `<main><h1>메탈로라</h1></main>`,
+    rootHtml: `<main class="seo-shell"><h1>메탈로라</h1></main>`,
   };
 }
 

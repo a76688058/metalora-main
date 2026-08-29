@@ -73,10 +73,96 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-title" content="메탈로라">
     <meta name="theme-color" content="#0F0F11">
+
+    <!-- Critical shell styles: paint before Vite/JS CSS so SEO HTML is not raw FOUC -->
+    <style>
+      html, body {
+        margin: 0;
+        background-color: #0F0F11;
+        color: #F2F2F7;
+        font-family: "IBM Plex Sans KR", "Noto Sans KR", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      #root > .seo-shell {
+        box-sizing: border-box;
+        min-height: 100vh;
+        min-height: 100dvh;
+        max-width: 72rem;
+        margin: 0 auto;
+        padding: 4.5rem 1.5rem 3rem;
+        background-color: #0F0F11;
+        color: #F2F2F7;
+        line-height: 1.5;
+      }
+      #root > .seo-shell header > p:first-child {
+        margin: 0 0 1rem;
+        font-size: 0.75rem;
+        font-weight: 300;
+        letter-spacing: 0.35em;
+        text-transform: uppercase;
+        color: rgba(242, 242, 247, 0.55);
+      }
+      #root > .seo-shell h1 {
+        margin: 0 0 1rem;
+        font-size: clamp(1.75rem, 4.5vw, 3rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+        color: #F2F2F7;
+      }
+      #root > .seo-shell h2 {
+        margin: 0 0 0.5rem;
+        font-size: clamp(1.35rem, 3.5vw, 2.5rem);
+        font-weight: 300;
+        letter-spacing: 0.12em;
+        line-height: 1.15;
+        text-transform: uppercase;
+        color: rgba(242, 242, 247, 0.9);
+      }
+      #root > .seo-shell p {
+        margin: 0 0 1rem;
+        font-size: 1rem;
+        font-weight: 300;
+        color: rgba(242, 242, 247, 0.65);
+      }
+      #root > .seo-shell section {
+        margin-top: 3.5rem;
+      }
+      #root > .seo-shell article h1 {
+        font-size: clamp(2rem, 5vw, 3.25rem);
+        font-weight: 800;
+        letter-spacing: -0.025em;
+      }
+      #root > .seo-shell article > p:first-of-type {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #F2F2F7;
+      }
+      #root > .seo-shell article h2 {
+        margin-top: 2rem;
+        font-size: 0.875rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #F2F2F7;
+      }
+      #root > .seo-shell img {
+        display: block;
+        max-width: min(100%, 28rem);
+        margin-top: 1.5rem;
+        border-radius: 0.5rem;
+      }
+      #root > .seo-shell a {
+        color: rgba(242, 242, 247, 0.85);
+        text-decoration: underline;
+        text-underline-offset: 0.2em;
+      }
+    </style>
   </head>
   <body>
     <div id="root">
-      <main>
+      <main class="seo-shell">
         <header>
           <p>METALORA</p>
           <h1>메탈로라 | 프리미엄 커스텀 메탈 액자</h1>
