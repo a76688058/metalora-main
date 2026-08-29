@@ -1022,7 +1022,9 @@ ${itemsList}
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ content: discordContent }),
-        }).catch(e => console.error("Discord send error:", e));
+        }).catch((e) =>
+          console.error(`[DISCORD_ERROR] orderId=${orderId}`, e instanceof Error ? e.message : 'unknown'),
+        );
       }
 
       return res.json({ success: true, orderId: finalizeResult.order_id });
@@ -1121,6 +1123,11 @@ ${itemsList}
   }
 
   app.listen(PORT, "0.0.0.0", () => {
+    const deploySha =
+      typeof process.env.DEPLOY_SHA === "string" && process.env.DEPLOY_SHA.trim()
+        ? process.env.DEPLOY_SHA.trim()
+        : "unknown";
+    console.log(`[STARTUP] deploy_sha=${deploySha}`);
     console.log(`Server started on port ${PORT}`);
   });
 }
