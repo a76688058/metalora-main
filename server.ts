@@ -24,6 +24,33 @@ const supabasePublic = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
+/**
+ * Production-only: refuse to listen if payment/auth runtime secrets are blank.
+ * Logs variable NAMES only — never values.
+ */
+function assertProductionEnvironment(): void {
+  if (process.env.NODE_ENV !== "production") {
+    return;
+  }
+
+  const requiredNames = [
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "TOSS_SECRET_KEY",
+    "VITE_SUPABASE_ANON_KEY",
+  ] as const;
+
+  const missing = requiredNames.filter((name) => {
+    const value = process.env[name];
+    return typeof value !== "string" || value.trim() === "";
+  });
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Production startup aborted: missing required environment variable(s): ${missing.join(", ")}`,
+    );
+  }
+}
+
 /** Workshop unit price — authoritative; never trust client custom_config.price */
 const SERVER_WORKSHOP_UNIT_PRICE = 49000;
 
@@ -496,6 +523,8 @@ async function validateCheckoutItems(
 }
 
 async function startServer() {
+  assertProductionEnvironment();
+
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
@@ -503,7 +532,7 @@ async function startServer() {
   app.set("trust proxy", true);
   app.disable("x-powered-by");
 
-  // Baseline security response headers (no CSP/HSTS yet)
+  // Baseline security response headers (no CSP)
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -512,6 +541,9 @@ async function startServer() {
       "Permissions-Policy",
       "camera=(), microphone=(), geolocation=()",
     );
+    if (process.env.NODE_ENV === "production") {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000");
+    }
     next();
   });
 
