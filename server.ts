@@ -1,4 +1,5 @@
 import express from "express";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "node:crypto";
@@ -49,6 +50,547 @@ function assertProductionEnvironment(): void {
       `Production startup aborted: missing required environment variable(s): ${missing.join(", ")}`,
     );
   }
+}
+
+/** Authoritative public SEO origin — never derive from request Host / *.run.app */
+const CANONICAL_PUBLIC_ORIGIN = "https://metalora.art";
+const DEFAULT_OG_IMAGE =
+  "https://postfiles.pstatic.net/MjAyNjA0MjNfMjkx/MDAxNzc2OTMwMjQ2MTE5.UFl10atOBM5XVpMDDx2TKIb_0KMZda8VbKvbqrldr20g.xboRY7lXJwS-i6KDuIpCB44DJbbikiOOHXoaOHvjPgcg.PNG/thumbnail.og2.png?type=w966";
+const ORG_LOGO_URL = `${CANONICAL_PUBLIC_ORIGIN}/logo/metalora-wordmark.webp`;
+const STORAGE_PUBLIC_BASE =
+  "https://qifloweuwyhvukabgnoa.supabase.co/storage/v1/object/public";
+const PRODUCT_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const POLICY_SITEMAP_PATHS = [
+  "/policy/terms",
+  "/policy/refund",
+  "/policy/privacy",
+  "/policy/cookie",
+  "/policy/agreement",
+] as const;
+
+/**
+ * Public SEO origin. BASE_URL is honored only when it is explicitly the apex
+ * canonical host; otherwise always https://metalora.art.
+ */
+function getSeoOrigin(): string {
+  const raw = typeof process.env.BASE_URL === "string" ? process.env.BASE_URL.trim() : "";
+  if (!raw) return CANONICAL_PUBLIC_ORIGIN;
+  try {
+    const normalized = raw.startsWith("http") ? raw : `https://${raw}`;
+    const url = new URL(normalized);
+    if (url.protocol === "https:" && url.hostname === "metalora.art") {
+      return CANONICAL_PUBLIC_ORIGIN;
+    }
+  } catch {
+    // ignore invalid BASE_URL
+  }
+  return CANONICAL_PUBLIC_ORIGIN;
+}
+
+function requestHostname(req: express.Request): string {
+  const xf = req.headers["x-forwarded-host"];
+  const fromXf = typeof xf === "string" ? xf.split(",")[0]?.trim() : "";
+  const hostHeader = fromXf || (typeof req.headers.host === "string" ? req.headers.host : "");
+  return hostHeader.split(":")[0].trim().toLowerCase();
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function escapeJsonForScript(value: unknown): string {
+  // Prevent </script> (and related) breakout from JSON-LD script bodies.
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
+/** Resolve product image paths the same way the client storefront does. */
+function resolvePublicImageUrl(pathOrUrl: string | null | undefined): string | null {
+  if (!pathOrUrl || typeof pathOrUrl !== "string") return null;
+  const trimmed = pathOrUrl.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
+  const cleanPath = trimmed.split("?")[0];
+  const encodedPath = cleanPath
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  if (cleanPath.includes("workshop/") || cleanPath.includes("products/")) {
+    return `${STORAGE_PUBLIC_BASE}/${encodedPath}`;
+  }
+  return `${STORAGE_PUBLIC_BASE}/products/${encodedPath}`;
+}
+
+type SeoPageKind = "home" | "product" | "product_missing" | "static" | "generic";
+
+type SeoPayload = {
+  kind: SeoPageKind;
+  title: string;
+  description: string;
+  canonicalPath: string;
+  ogType: string;
+  ogImage: string;
+  robots?: string;
+  jsonLd: Record<string, unknown>[];
+  rootHtml: string;
+  status?: number;
+};
+
+function organizationJsonLd(): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "METALORA",
+    url: getSeoOrigin(),
+    logo: ORG_LOGO_URL,
+    sameAs: [
+      "https://www.instagram.com/metalora_official",
+      "https://www.facebook.com/metalora",
+    ],
+  };
+}
+
+function websiteJsonLd(): Record<string, unknown> {
+  const origin = getSeoOrigin();
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "METALORA",
+    url: `${origin}/`,
+  };
+}
+
+function homeSeoPayload(): SeoPayload {
+  const title = "메탈로라 | 프리미엄 커스텀 메탈 액자";
+  const description =
+    "클릭 한 번으로 당신의 소중한 순간을 영원히 빛나는 프리미엄 커스텀 메탈 액자로 만드세요. 변하지 않는 가치, 메탈로라.";
+  return {
+    kind: "home",
+    title,
+    description,
+    canonicalPath: "/",
+    ogType: "website",
+    ogImage: DEFAULT_OG_IMAGE,
+    jsonLd: [organizationJsonLd(), websiteJsonLd()],
+    rootHtml: `<main>
+  <header>
+    <p>METALORA</p>
+    <h1>${escapeHtml(title)}</h1>
+    <p>${escapeHtml(description)}</p>
+  </header>
+  <section>
+    <h2>NOT A POSTER.</h2>
+    <h2>ENGINEERED ART.</h2>
+    <p>포스터가 아닙니다.<br/>엔지니어링 된 작품입니다.</p>
+  </section>
+  <section>
+    <h2>벽에 상처를 남기지 마세요.</h2>
+    <h2>오직 예술만 남기세요.</h2>
+  </section>
+</main>`,
+  };
+}
+
+type PublicProductRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  front_image: string | null;
+  options: Array<{
+    id?: string;
+    name?: string;
+    price?: number;
+    stock?: number;
+    isActive?: boolean;
+  }> | null;
+};
+
+function productOfferPriceAndAvailability(product: PublicProductRow): {
+  price: number | null;
+  availability: string;
+} {
+  const options = Array.isArray(product.options) ? product.options : [];
+  const inStock = options.some(
+    (opt) => opt && opt.isActive && typeof opt.stock === "number" && opt.stock > 0,
+  );
+  const priced =
+    options.find((opt) => opt && opt.isActive && typeof opt.stock === "number" && opt.stock > 0) ||
+    options.find((opt) => opt && typeof opt.price === "number") ||
+    options[0];
+  const price =
+    priced && typeof priced.price === "number" && Number.isFinite(priced.price)
+      ? priced.price
+      : null;
+  return {
+    price,
+    availability: inStock
+      ? "https://schema.org/InStock"
+      : "https://schema.org/OutOfStock",
+  };
+}
+
+function productSeoPayload(product: PublicProductRow): SeoPayload {
+  const origin = getSeoOrigin();
+  const canonicalPath = `/product/${product.id}`;
+  const canonicalUrl = `${origin}${canonicalPath}`;
+  const title = `${product.title} | 메탈로라`;
+  const description =
+    (product.description && product.description.trim()) || product.title;
+  const imageUrl = resolvePublicImageUrl(product.front_image) || DEFAULT_OG_IMAGE;
+  const { price, availability } = productOfferPriceAndAvailability(product);
+
+  const productLd: Record<string, unknown> = {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    name: product.title,
+    image: [imageUrl],
+    description,
+    url: canonicalUrl,
+    offers: {
+      "@type": "Offer",
+      url: canonicalUrl,
+      priceCurrency: "KRW",
+      ...(price != null ? { price } : {}),
+      availability,
+    },
+  };
+
+  const breadcrumbLd: Record<string, unknown> = {
+    "@context": "https://schema.org/",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: `${origin}/` },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Collection",
+        item: `${origin}/collection`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: product.title,
+        item: canonicalUrl,
+      },
+    ],
+  };
+
+  const priceBlock =
+    price != null
+      ? `<p>₩${escapeHtml(price.toLocaleString("ko-KR"))}</p>`
+      : "";
+  const availabilityLabel = availability.includes("InStock") ? "구매 가능" : "품절";
+  const imgBlock =
+    imageUrl && imageUrl !== DEFAULT_OG_IMAGE
+      ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.title)}" />`
+      : "";
+
+  return {
+    kind: "product",
+    title,
+    description,
+    canonicalPath,
+    ogType: "product",
+    ogImage: imageUrl,
+    jsonLd: [organizationJsonLd(), productLd, breadcrumbLd],
+    rootHtml: `<main>
+  <article>
+    <h1>${escapeHtml(product.title)}</h1>
+    ${priceBlock}
+    <p>${escapeHtml(availabilityLabel)}</p>
+    <h2>작품 설명</h2>
+    <p>${escapeHtml(description)}</p>
+    ${imgBlock}
+  </article>
+</main>`,
+  };
+}
+
+function missingProductSeoPayload(productId: string): SeoPayload {
+  return {
+    kind: "product_missing",
+    title: "상품을 찾을 수 없습니다 | 메탈로라",
+    description: "요청하신 상품을 찾을 수 없거나 현재 공개되지 않습니다.",
+    canonicalPath: `/product/${productId}`,
+    ogType: "website",
+    ogImage: DEFAULT_OG_IMAGE,
+    robots: "noindex, nofollow",
+    jsonLd: [organizationJsonLd()],
+    rootHtml: `<main>
+  <h1>상품을 찾을 수 없습니다</h1>
+  <p>요청하신 상품을 찾을 수 없거나 현재 공개되지 않습니다.</p>
+  <p><a href="/">홈으로 돌아가기</a></p>
+</main>`,
+    status: 404,
+  };
+}
+
+/** Temporary infra failure — must not signal permanent absence to crawlers. */
+function productLookupUnavailableSeoPayload(productId: string): SeoPayload {
+  return {
+    kind: "generic",
+    title: "메탈로라 | 프리미엄 커스텀 메탈 액자",
+    description: "상품 정보를 일시적으로 불러올 수 없습니다.",
+    canonicalPath: `/product/${productId}`,
+    ogType: "website",
+    ogImage: DEFAULT_OG_IMAGE,
+    jsonLd: [organizationJsonLd()],
+    rootHtml: `<main>
+  <h1>일시적으로 상품 정보를 불러올 수 없습니다</h1>
+  <p>잠시 후 다시 시도해 주세요.</p>
+  <p><a href="/">홈으로 돌아가기</a></p>
+</main>`,
+    status: 503,
+  };
+}
+
+function staticRouteSeoPayload(
+  canonicalPath: string,
+  title: string,
+  description: string,
+  rootHtml?: string,
+): SeoPayload {
+  return {
+    kind: "static",
+    title,
+    description,
+    canonicalPath,
+    ogType: "website",
+    ogImage: DEFAULT_OG_IMAGE,
+    jsonLd: [organizationJsonLd()],
+    rootHtml:
+      rootHtml ||
+      `<main>
+  <h1>${escapeHtml(title)}</h1>
+  <p>${escapeHtml(description)}</p>
+</main>`,
+  };
+}
+
+function replaceMetaByName(html: string, name: string, content: string): string {
+  const re = new RegExp(
+    `<meta\\s+name="${name}"\\s+content="[^"]*"\\s*/?>`,
+    "gi",
+  );
+  const tag = `<meta name="${name}" content="${escapeHtml(content)}" />`;
+  const stripped = html.replace(re, "");
+  return stripped.replace("</head>", `    ${tag}\n  </head>`);
+}
+
+function replaceMetaByProperty(html: string, property: string, content: string): string {
+  const re = new RegExp(
+    `<meta\\s+property="${property}"\\s+content="[^"]*"\\s*/?>`,
+    "gi",
+  );
+  const tag = `<meta property="${property}" content="${escapeHtml(content)}" />`;
+  const stripped = html.replace(re, "");
+  return stripped.replace("</head>", `    ${tag}\n  </head>`);
+}
+
+function replaceRootInnerHtml(html: string, inner: string): string {
+  const startMatch = html.match(/<div id="root"(?:\s[^>]*)?>/i);
+  if (!startMatch || startMatch.index == null) {
+    return html;
+  }
+  const openTagEnd = startMatch.index + startMatch[0].length;
+  let depth = 1;
+  let i = openTagEnd;
+  while (i < html.length && depth > 0) {
+    const nextOpen = html.toLowerCase().indexOf("<div", i);
+    const nextClose = html.toLowerCase().indexOf("</div>", i);
+    if (nextClose === -1) break;
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      depth += 1;
+      i = nextOpen + 4;
+      continue;
+    }
+    depth -= 1;
+    if (depth === 0) {
+      return (
+        html.slice(0, startMatch.index) +
+        `<div id="root">\n${inner}\n    </div>` +
+        html.slice(nextClose + "</div>".length)
+      );
+    }
+    i = nextClose + "</div>".length;
+  }
+  return html;
+}
+
+function applySeoToHtml(template: string, seo: SeoPayload): string {
+  const origin = getSeoOrigin();
+  const canonicalUrl = `${origin}${seo.canonicalPath === "/" ? "/" : seo.canonicalPath}`;
+  let html = template;
+
+  html = html.replace(/<title>[^<]*<\/title>/gi, "");
+  html = html.replace("</head>", `    <title>${escapeHtml(seo.title)}</title>\n  </head>`);
+  html = replaceMetaByName(html, "description", seo.description);
+  html = html.replace(/<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/gi, "");
+  html = html.replace(
+    "</head>",
+    `    <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />\n  </head>`,
+  );
+
+  html = replaceMetaByProperty(html, "og:title", seo.title);
+  html = replaceMetaByProperty(html, "og:description", seo.description);
+  html = replaceMetaByProperty(html, "og:image", seo.ogImage);
+  html = replaceMetaByProperty(html, "og:url", canonicalUrl);
+  html = replaceMetaByProperty(html, "og:type", seo.ogType);
+
+  html = replaceMetaByName(html, "twitter:title", seo.title);
+  html = replaceMetaByName(html, "twitter:description", seo.description);
+  html = replaceMetaByName(html, "twitter:image", seo.ogImage);
+
+  if (seo.robots) {
+    html = replaceMetaByName(html, "robots", seo.robots);
+  }
+
+  const jsonLdBlock = seo.jsonLd
+    .map(
+      (block) =>
+        `    <script type="application/ld+json">\n${escapeJsonForScript(block)}\n    </script>`,
+    )
+    .join("\n");
+
+  // Replace existing JSON-LD script tags with route-specific blocks
+  html = html.replace(
+    /(?:\s*<!--\s*JSON-LD:[^>]*-->)?\s*<script\s+type="application\/ld\+json">[\s\S]*?<\/script>/gi,
+    "",
+  );
+  html = html.replace("</head>", `${jsonLdBlock}\n  </head>`);
+
+  html = replaceRootInnerHtml(html, seo.rootHtml);
+
+  return html;
+}
+
+type ProductSeoLookup =
+  | { status: "found"; product: PublicProductRow }
+  | { status: "not_found" }
+  | { status: "unavailable" };
+
+/**
+ * Public storefront product for SEO only.
+ * Visibility filter is mandatory even if service_role client is used as fallback.
+ */
+async function loadVisibleProductForSeo(
+  productId: string,
+): Promise<ProductSeoLookup> {
+  const client = supabasePublic || supabaseAdmin;
+  if (!client) {
+    return { status: "unavailable" };
+  }
+
+  try {
+    const { data, error } = await client
+      .from("products")
+      .select("id, title, description, front_image, options, is_visible")
+      .eq("id", productId)
+      .eq("is_visible", true)
+      .maybeSingle();
+
+    if (error) {
+      console.error("[SEO product lookup] query failed");
+      return { status: "unavailable" };
+    }
+    if (!data) {
+      return { status: "not_found" };
+    }
+    return { status: "found", product: data as PublicProductRow };
+  } catch {
+    console.error("[SEO product lookup] unexpected failure");
+    return { status: "unavailable" };
+  }
+}
+
+async function resolveSeoForPath(pathname: string): Promise<SeoPayload> {
+  if (pathname === "/" || pathname === "") {
+    return homeSeoPayload();
+  }
+
+  const productMatch = pathname.match(/^\/product\/([^/]+)\/?$/);
+  if (productMatch) {
+    const productId = decodeURIComponent(productMatch[1]);
+    if (!PRODUCT_ID_RE.test(productId)) {
+      return missingProductSeoPayload(productId);
+    }
+    const lookup = await loadVisibleProductForSeo(productId);
+    if (lookup.status === "unavailable") {
+      return productLookupUnavailableSeoPayload(productId);
+    }
+    if (lookup.status === "not_found") {
+      return missingProductSeoPayload(productId);
+    }
+    return productSeoPayload(lookup.product);
+  }
+
+  if (pathname === "/brand-story") {
+    return staticRouteSeoPayload(
+      "/brand-story",
+      "브랜드 스토리 | 메탈로라",
+      "빛의 연금술. 1.15mm의 완벽. 분자 속에 새겨진 이야기. 공간의 해방. 영원히 변치 않는 기록.",
+      `<main>
+  <h1>브랜드 스토리</h1>
+  <h2>빛의 연금술</h2>
+  <h2>1.15mm의 완벽</h2>
+  <h2>분자 속에 새겨진 이야기</h2>
+  <h2>공간의 해방</h2>
+  <p>무타공 마그네틱</p>
+  <h2>영원히 변치 않는 기록</h2>
+</main>`,
+    );
+  }
+
+  if (pathname === "/collection") {
+    return staticRouteSeoPayload(
+      "/collection",
+      "컬렉션 | 메탈로라",
+      "메탈로라 컬렉션.",
+    );
+  }
+
+  const policyMatch = pathname.match(/^\/policy\/([^/]+)\/?$/);
+  if (policyMatch) {
+    const type = policyMatch[1];
+    const allowed = POLICY_SITEMAP_PATHS.map((p) => p.replace("/policy/", ""));
+    if (allowed.includes(type)) {
+      const titles: Record<string, string> = {
+        terms: "이용약관 | 메탈로라",
+        refund: "환불정책 | 메탈로라",
+        privacy: "개인정보 처리방침 | 메탈로라",
+        cookie: "쿠키 정책 | 메탈로라",
+        agreement: "제작동의서 | 메탈로라",
+      };
+      return staticRouteSeoPayload(
+        `/policy/${type}`,
+        titles[type] || "정책 | 메탈로라",
+        "메탈로라 서비스 정책.",
+      );
+    }
+  }
+
+  // Other SPA routes: keep shell bootable, but do not claim homepage canonical
+  return {
+    kind: "generic",
+    title: "메탈로라 | 프리미엄 커스텀 메탈 액자",
+    description:
+      "클릭 한 번으로 당신의 소중한 순간을 영원히 빛나는 프리미엄 커스텀 메탈 액자로 만드세요. 변하지 않는 가치, 메탈로라.",
+    canonicalPath: pathname.startsWith("/") ? pathname : `/${pathname}`,
+    ogType: "website",
+    ogImage: DEFAULT_OG_IMAGE,
+    jsonLd: [organizationJsonLd()],
+    rootHtml: `<main><h1>메탈로라</h1></main>`,
+  };
 }
 
 /** Workshop unit price — authoritative; never trust client custom_config.price */
@@ -547,6 +1089,20 @@ async function startServer() {
     next();
   });
 
+  // www → apex (301). Method-preserving 308 is unnecessary for crawler GETs;
+  // 301 is the standard permanent host-canonicalization signal for search engines.
+  // *.run.app hosts: X-Robots-Tag only — never noindex metalora.art.
+  app.use((req, res, next) => {
+    const hostname = requestHostname(req);
+    if (hostname === "www.metalora.art") {
+      return res.redirect(301, `${CANONICAL_PUBLIC_ORIGIN}${req.originalUrl}`);
+    }
+    if (hostname.endsWith(".run.app")) {
+      res.setHeader("X-Robots-Tag", "noindex, nofollow");
+    }
+    next();
+  });
+
   // Middleware
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ limit: "1mb", extended: true }));
@@ -575,17 +1131,12 @@ async function startServer() {
         throw error;
       }
 
-      // Use BASE_URL from env or dynamically from request
-      const protocol = req.headers['x-forwarded-proto'] || 'http';
-      const host = process.env.BASE_URL || req.headers.host || 'metalora.art';
-      const baseUrl = host.startsWith('http') ? host : `${protocol}://${host}`;
+      const baseUrl = getSeoOrigin();
 
       const rssItems = (products || []).map(product => {
         const productUrl = `${baseUrl}/product/${product.id}`;
         const pubDate = new Date(product.created_at || Date.now()).toUTCString();
-        const rawImageUrl = product.front_image || product.image || '';
-        const imageUrl = rawImageUrl.startsWith('http') ? rawImageUrl : (rawImageUrl.startsWith('/') ? `${baseUrl}${rawImageUrl}` : rawImageUrl);
-        
+        const imageUrl = resolvePublicImageUrl(product.front_image || product.image) || '';
         const imageHtml = imageUrl ? `<br/><img src="${imageUrl}" alt="${product.title}" />` : '';
 
         return `
@@ -602,7 +1153,7 @@ async function startServer() {
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>메탈로라 | 프리미엄 커스텀 메탈 액자</title>
-    <link>${baseUrl}</link>
+    <link>${baseUrl}/</link>
     <description>메탈로라의 신규 메탈 액자 컬렉션 및 제품 소식입니다.</description>
     <language>ko-kr</language>
     <atom:link href="${baseUrl}/rss.xml" rel="self" type="application/rss+xml" />
@@ -618,47 +1169,64 @@ ${rssItems}
     }
   });
 
-  // Dynamic Sitemap
-  app.get("/sitemap.xml", async (req, res) => {
+  // Dynamic Sitemap — all <loc> pinned to canonical public origin
+  app.get("/sitemap.xml", async (_req, res) => {
     try {
       const client = supabasePublic || supabaseAdmin;
-      
-      const protocol = req.headers['x-forwarded-proto'] || 'http';
-      const host = process.env.BASE_URL || req.headers.host || 'metalora.art';
-      const baseUrl = host.startsWith('http') ? host : `${protocol}://${host}`;
+      const baseUrl = getSeoOrigin();
 
       let productUrls = "";
-      
+
       if (client) {
         const { data: products, error } = await client
-          .from('products')
-          .select('id, created_at')
-          .eq('is_visible', true);
-          
+          .from("products")
+          .select("id, created_at")
+          .eq("is_visible", true);
+
         if (!error && products) {
-          productUrls = products.map(product => {
-            const date = new Date(product.created_at || Date.now()).toISOString().split('T')[0];
-            return `
+          productUrls = products
+            .map((product) => {
+              const date = new Date(product.created_at || Date.now())
+                .toISOString()
+                .split("T")[0];
+              return `
   <url>
     <loc>${baseUrl}/product/${product.id}</loc>
     <lastmod>${date}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>`;
-          }).join('');
+            })
+            .join("");
         }
       }
 
+      const staticUrls = [
+        { path: "/", changefreq: "daily", priority: "1.0" },
+        { path: "/brand-story", changefreq: "monthly", priority: "0.7" },
+        { path: "/collection", changefreq: "daily", priority: "0.9" },
+        ...POLICY_SITEMAP_PATHS.map((policyPath) => ({
+          path: policyPath,
+          changefreq: "yearly",
+          priority: "0.3",
+        })),
+      ]
+        .map(
+          (entry) => `
+  <url>
+    <loc>${baseUrl}${entry.path === "/" ? "/" : entry.path}</loc>
+    <changefreq>${entry.changefreq}</changefreq>
+    <priority>${entry.priority}</priority>
+  </url>`,
+        )
+        .join("");
+
       const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>${baseUrl}/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>${productUrls}
+${staticUrls}${productUrls}
 </urlset>`;
 
-      res.header('Content-Type', 'application/xml');
+      res.header("Content-Type", "application/xml");
       res.send(sitemap);
     } catch (error) {
       console.error("[Sitemap Generation Error]", error);
@@ -1080,6 +1648,16 @@ ${itemsList}
   } else {
     // Production path setup
     const distPath = path.resolve(__dirname, "dist", "client");
+    const indexHtmlPath = path.join(distPath, "index.html");
+
+    // Read SPA shell once; mutate per-request for route-specific SEO (not React SSR)
+    let indexHtmlTemplate: string | null = null;
+    const getIndexHtmlTemplate = (): string => {
+      if (!indexHtmlTemplate) {
+        indexHtmlTemplate = fs.readFileSync(indexHtmlPath, "utf-8");
+      }
+      return indexHtmlTemplate;
+    };
 
     // Vite hashed build assets: assets/<name>-<hash>.<ext> (e.g. index-COl1YASV.js)
     const isHashedViteAsset = (filePath: string) => {
@@ -1088,7 +1666,7 @@ ${itemsList}
       const basename = path.basename(normalized);
       return /^.+-[A-Za-z0-9_-]{6,}\.[A-Za-z0-9]+$/.test(basename);
     };
-    
+
     // 1. Static files — Cache-Control decided per file (no global 1y immutable)
     app.use(express.static(distPath, {
       index: false, // index.html은 아래에서 수동 서빙
@@ -1109,16 +1687,29 @@ ${itemsList}
       },
     }));
 
-    // 2. Catch-all: 모든 경로에 대해 index.html 서빙 (SPA 필수)
-    app.get('*', (req, res) => {
-      // API 경로는 여기서 처리하지 않음 (위에서 이미 처리됨)
-      res.setHeader("Cache-Control", "no-cache");
-      res.sendFile(path.join(distPath, 'index.html'), (err) => {
-        if (err) {
-          console.error("Error sending index.html:", err);
-          res.status(500).send("Server Error");
-        }
-      });
+    // 2. Catch-all: route-aware SEO HTML shell, then React mounts client-side
+    app.get("*", async (req, res) => {
+      if (req.originalUrl.startsWith("/api/")) {
+        return res.status(404).json({ error: "Not found" });
+      }
+
+      try {
+        const pathname = (req.path || "/").split("?")[0] || "/";
+        const seo = await resolveSeoForPath(pathname);
+        const html = applySeoToHtml(getIndexHtmlTemplate(), seo);
+        res.status(seo.status ?? 200);
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.send(html);
+      } catch (err) {
+        console.error("Error generating SEO HTML:", err);
+        res.status(503);
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.send(
+          "<!doctype html><html lang=\"ko\"><head><meta charset=\"UTF-8\" /><title>Service Temporarily Unavailable</title></head><body><p>Service Temporarily Unavailable</p></body></html>",
+        );
+      }
     });
   }
 
