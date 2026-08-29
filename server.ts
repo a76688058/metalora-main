@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
+import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 
@@ -39,6 +40,354 @@ function parsePositiveIntQuantity(value: unknown): number | null {
   const n = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) return null;
   return n;
+}
+
+type ValidatedItemSnapshot = {
+  product_id: string | null;
+  product_title: string;
+  title: string;
+  option: string;
+  quantity: number;
+  price: number;
+  image: string | null;
+  user_image_url: string | null;
+  orientation: string | null;
+  custom_config: any | null;
+  is_custom: boolean;
+};
+
+type CheckoutShipping = {
+  name: string;
+  phone: string;
+  zip_code: string;
+  address: string;
+  address_detail: string;
+};
+
+type PaymentIntentSnapshot = {
+  schema_version: 1;
+  shipping: CheckoutShipping;
+  ordered_items: ReturnType<typeof buildSanitizedOrderedItems>;
+  order_items: ReturnType<typeof buildRpcOrderItems>;
+  consents?: Record<string, unknown>;
+};
+
+type VerifiedPaymentUser = {
+  verifiedUserId: string;
+  verifiedUserCustomId: string;
+};
+
+type CheckoutValidationResult = {
+  total: number;
+  validatedSnapshots: ValidatedItemSnapshot[];
+  sanitizedOrderedItems: ReturnType<typeof buildSanitizedOrderedItems>;
+  rpcOrderItems: ReturnType<typeof buildRpcOrderItems>;
+};
+
+function trimNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function generatePaymentOrderNumber(): string {
+  return `ORD-${randomUUID()}`;
+}
+
+function buildSanitizedOrderedItems(validatedSnapshots: ValidatedItemSnapshot[]) {
+  return validatedSnapshots.map((snap) => ({
+    product_id: snap.is_custom ? 'workshop-single' : snap.product_id,
+    title: snap.title,
+    product_title: snap.product_title,
+    option: snap.option,
+    quantity: snap.quantity,
+    price: snap.price,
+    image: snap.image,
+    user_image_url: snap.user_image_url,
+    front_image: snap.is_custom ? null : snap.image,
+    orientation: snap.orientation,
+    custom_config: snap.custom_config,
+    is_custom: snap.is_custom,
+  }));
+}
+
+function buildRpcOrderItems(validatedSnapshots: ValidatedItemSnapshot[]) {
+  return validatedSnapshots.map((snap) => ({
+    product_id: snap.is_custom ? null : snap.product_id,
+    product_title: snap.product_title,
+    quantity: snap.quantity,
+    price: snap.price,
+    option: snap.option,
+    orientation: snap.orientation || null,
+  }));
+}
+
+function validateShippingInput(shipping: unknown):
+  | { ok: true; shipping: CheckoutShipping }
+  | { ok: false; status: number; error: string } {
+  if (!shipping || typeof shipping !== 'object') {
+    return { ok: false, status: 400, error: '배송 정보를 모두 입력해 주세요.' };
+  }
+
+  const input = shipping as Record<string, unknown>;
+  const name = trimNonEmptyString(input.name);
+  const phone = trimNonEmptyString(input.phone);
+  const zip_code = trimNonEmptyString(input.zip_code);
+  const address = trimNonEmptyString(input.address);
+  const address_detail = trimNonEmptyString(input.address_detail);
+
+  if (!name || !phone || !zip_code || !address || !address_detail) {
+    return { ok: false, status: 400, error: '배송 정보를 모두 입력해 주세요.' };
+  }
+
+  return { ok: true, shipping: { name, phone, zip_code, address, address_detail } };
+}
+
+function parsePaymentIntentSnapshot(raw: unknown):
+  | { ok: true; snapshot: PaymentIntentSnapshot }
+  | { ok: false; status: number; error: string } {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ok: false, status: 500, error: '주문 정보를 확인할 수 없습니다.' };
+  }
+
+  const value = raw as Record<string, unknown>;
+  const shippingResult = validateShippingInput(value.shipping);
+  if (shippingResult.ok === false) {
+    return { ok: false, status: 500, error: '주문 정보를 확인할 수 없습니다.' };
+  }
+
+  if (!Array.isArray(value.ordered_items) || value.ordered_items.length === 0) {
+    return { ok: false, status: 500, error: '주문 정보를 확인할 수 없습니다.' };
+  }
+
+  if (!Array.isArray(value.order_items) || value.order_items.length === 0) {
+    return { ok: false, status: 500, error: '주문 정보를 확인할 수 없습니다.' };
+  }
+
+  const snapshot: PaymentIntentSnapshot = {
+    schema_version: 1,
+    shipping: shippingResult.shipping,
+    ordered_items: value.ordered_items,
+    order_items: value.order_items,
+  };
+
+  if (value.consents != null && typeof value.consents === 'object' && !Array.isArray(value.consents)) {
+    snapshot.consents = value.consents as Record<string, unknown>;
+  }
+
+  return { ok: true, snapshot };
+}
+
+async function verifyPaymentBearer(
+  authHeader: string | undefined,
+): Promise<
+  | { ok: true; user: VerifiedPaymentUser }
+  | { ok: false; status: number; error: string }
+> {
+  if (!supabaseAdmin || !supabasePublic) {
+    console.error("[CRITICAL] Supabase is not configured for payment endpoints.");
+    return { ok: false, status: 500, error: "서버 구성 오류가 발생했습니다." };
+  }
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return { ok: false, status: 401, error: "인증이 필요합니다." };
+  }
+
+  const accessToken = authHeader.slice(7).trim();
+  if (!accessToken) {
+    return { ok: false, status: 401, error: "인증이 필요합니다." };
+  }
+
+  const { data: authData, error: authError } = await supabasePublic.auth.getUser(accessToken);
+  if (authError || !authData.user) {
+    console.error("[PAYMENT_AUTH_FAIL] Invalid or expired token.");
+    return { ok: false, status: 401, error: "인증이 필요합니다." };
+  }
+
+  const { data: ownerProfile, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('user_custom_id')
+    .eq('id', authData.user.id)
+    .maybeSingle();
+
+  if (profileError || !ownerProfile) {
+    console.error("[PAYMENT_PROFILE_FAIL] Profile missing for verified user.");
+    return { ok: false, status: 400, error: "회원 정보를 확인할 수 없습니다." };
+  }
+
+  const verifiedUserCustomId =
+    typeof ownerProfile.user_custom_id === 'string' ? ownerProfile.user_custom_id.trim() : '';
+  if (!verifiedUserCustomId) {
+    console.error("[PAYMENT_PROFILE_FAIL] user_custom_id missing for verified user.");
+    return { ok: false, status: 400, error: "회원 정보를 확인할 수 없습니다." };
+  }
+
+  return {
+    ok: true,
+    user: {
+      verifiedUserId: authData.user.id,
+      verifiedUserCustomId,
+    },
+  };
+}
+
+async function validateCheckoutItems(
+  pendingItems: unknown,
+  orderIdForLog: string,
+): Promise<
+  | { ok: true; checkout: CheckoutValidationResult }
+  | { ok: false; status: number; error: string }
+> {
+  if (!supabaseAdmin) {
+    return { ok: false, status: 500, error: "서버 구성 오류가 발생했습니다." };
+  }
+
+  if (!Array.isArray(pendingItems) || pendingItems.length === 0) {
+    console.error("[PAYMENT_ITEM_FAIL] pendingItems missing or empty:", { orderId: orderIdForLog });
+    return { ok: false, status: 400, error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." };
+  }
+
+  const validatedSnapshots: ValidatedItemSnapshot[] = [];
+  let serverExpectedTotal = 0;
+
+  const standardProductIds = [
+    ...new Set(
+      pendingItems
+        .filter((item: any) => !isWorkshopPendingItem(item))
+        .map((item: any) => (typeof item?.product_id === 'string' ? item.product_id.trim() : ''))
+        .filter((id: string) => id && id !== 'workshop-single'),
+    ),
+  ];
+
+  let productMap = new Map<string, any>();
+  if (standardProductIds.length > 0) {
+    const { data: products, error: productsError } = await supabaseAdmin
+      .from('products')
+      .select('id, title, front_image, is_visible, options')
+      .in('id', standardProductIds);
+
+    if (productsError) {
+      console.error("[PAYMENT_ITEM_FAIL] Products lookup error:", productsError);
+      return { ok: false, status: 500, error: "주문 상품 정보를 확인할 수 없습니다." };
+    }
+
+    productMap = new Map((products || []).map((p: any) => [p.id, p]));
+  }
+
+  for (const item of pendingItems) {
+    const quantity = parsePositiveIntQuantity(item?.quantity);
+    if (quantity === null) {
+      console.error("[PAYMENT_ITEM_FAIL] Invalid quantity:", { orderId: orderIdForLog });
+      return { ok: false, status: 400, error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." };
+    }
+
+    if (isWorkshopPendingItem(item)) {
+      const unit = SERVER_WORKSHOP_UNIT_PRICE;
+      serverExpectedTotal += unit * quantity;
+      const customImage =
+        (typeof item.user_image_url === 'string' && item.user_image_url) ||
+        (typeof item.image === 'string' && item.image) ||
+        null;
+      const sizeLabel =
+        (typeof item.custom_config?.size === 'string' && item.custom_config.size) ||
+        (typeof item.option === 'string' && item.option) ||
+        '커스텀';
+      validatedSnapshots.push({
+        product_id: 'workshop-single',
+        product_title: '커스텀 포스터',
+        title: '커스텀 포스터',
+        option: sizeLabel,
+        quantity,
+        price: unit,
+        image: customImage,
+        user_image_url: customImage,
+        orientation: item.orientation || item.custom_config?.orientation || null,
+        custom_config: {
+          shaderType: item.custom_config?.shaderType,
+          material: item.custom_config?.material,
+          size: item.custom_config?.size,
+          orientation: item.custom_config?.orientation,
+          ai_upscale: !!item.custom_config?.ai_upscale,
+          ai_outpaint: !!item.custom_config?.ai_outpaint,
+          ai_autofill: !!item.custom_config?.ai_autofill,
+          serial_number: item.custom_config?.serial_number ?? null,
+        },
+        is_custom: true,
+      });
+      continue;
+    }
+
+    const productId = typeof item.product_id === 'string' ? item.product_id.trim() : '';
+    const optionId = typeof item.option_id === 'string' ? item.option_id.trim() : '';
+    if (!productId || productId === 'workshop-single' || !optionId) {
+      console.error("[PAYMENT_ITEM_FAIL] Invalid standard item identity:", { orderId: orderIdForLog });
+      return { ok: false, status: 400, error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." };
+    }
+
+    const product = productMap.get(productId);
+    if (!product) {
+      console.error("[PAYMENT_ITEM_FAIL] Unknown product:", { orderId: orderIdForLog, productId });
+      return { ok: false, status: 400, error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." };
+    }
+    if (product.is_visible === false) {
+      console.error("[PAYMENT_ITEM_FAIL] Product not visible:", { orderId: orderIdForLog, productId });
+      return { ok: false, status: 400, error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." };
+    }
+
+    const options = Array.isArray(product.options) ? product.options : [];
+    const matchedOption = options.find((opt: any) => opt && String(opt.id) === optionId);
+    if (!matchedOption) {
+      console.error("[PAYMENT_ITEM_FAIL] Unknown option:", { orderId: orderIdForLog, productId });
+      return { ok: false, status: 400, error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." };
+    }
+    if (matchedOption.isActive === false) {
+      console.error("[PAYMENT_ITEM_FAIL] Option inactive:", { orderId: orderIdForLog, productId });
+      return { ok: false, status: 400, error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." };
+    }
+    const unitPrice = Number(matchedOption.price);
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      console.error("[PAYMENT_ITEM_FAIL] Invalid option price:", { orderId: orderIdForLog, productId });
+      return { ok: false, status: 400, error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." };
+    }
+    const stock = Number(matchedOption.stock);
+    if (Number.isFinite(stock) && stock <= 0) {
+      console.error("[PAYMENT_ITEM_FAIL] Option sold out:", { orderId: orderIdForLog, productId });
+      return { ok: false, status: 400, error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." };
+    }
+
+    serverExpectedTotal += unitPrice * quantity;
+    const image =
+      (typeof product.front_image === 'string' && product.front_image) || null;
+
+    validatedSnapshots.push({
+      product_id: product.id,
+      product_title: product.title || '제품',
+      title: product.title || '제품',
+      option: matchedOption.name || '기본',
+      quantity,
+      price: unitPrice,
+      image,
+      user_image_url: null,
+      orientation: item.orientation || null,
+      custom_config: null,
+      is_custom: false,
+    });
+  }
+
+  if (serverExpectedTotal <= 0) {
+    console.error("[PAYMENT_ITEM_FAIL] Non-positive checkout total:", { orderId: orderIdForLog });
+    return { ok: false, status: 400, error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." };
+  }
+
+  return {
+    ok: true,
+    checkout: {
+      total: serverExpectedTotal,
+      validatedSnapshots,
+      sanitizedOrderedItems: buildSanitizedOrderedItems(validatedSnapshots),
+      rpcOrderItems: buildRpcOrderItems(validatedSnapshots),
+    },
+  };
 }
 
 async function startServer() {
@@ -190,76 +539,131 @@ ${rssItems}
   });
 
   /**
+   * 결제 준비 API — server-validated immutable payment_intents snapshot (#18B-2)
+   */
+  app.post("/api/payment/prepare", async (req, res) => {
+    const authResult = await verifyPaymentBearer(req.headers.authorization);
+    if (authResult.ok === false) {
+      return res.status(authResult.status).json({ error: authResult.error });
+    }
+    const { verifiedUserId, verifiedUserCustomId } = authResult.user;
+
+    const { items, shipping, consents } = req.body ?? {};
+
+    const shippingResult = validateShippingInput(shipping);
+    if (shippingResult.ok === false) {
+      return res.status(shippingResult.status).json({ error: shippingResult.error });
+    }
+
+    const orderNumber = generatePaymentOrderNumber();
+
+    try {
+      const checkoutResult = await validateCheckoutItems(items, orderNumber);
+      if (checkoutResult.ok === false) {
+        return res.status(checkoutResult.status).json({ error: checkoutResult.error });
+      }
+
+      const { total, sanitizedOrderedItems, rpcOrderItems } = checkoutResult.checkout;
+
+      const validatedSnapshot: PaymentIntentSnapshot = {
+        schema_version: 1,
+        shipping: shippingResult.shipping,
+        ordered_items: sanitizedOrderedItems,
+        order_items: rpcOrderItems,
+      };
+
+      if (consents != null && typeof consents === 'object' && !Array.isArray(consents)) {
+        validatedSnapshot.consents = consents as Record<string, unknown>;
+      }
+
+      const { error: insertError } = await supabaseAdmin!
+        .from('payment_intents')
+        .insert({
+          order_number: orderNumber,
+          user_id: verifiedUserId,
+          user_custom_id: verifiedUserCustomId,
+          total_price: total,
+          validated_snapshot: validatedSnapshot,
+        });
+
+      if (insertError) {
+        console.error("[PAYMENT_PREPARE_FAIL] payment_intents insert error:", insertError);
+        return res.status(500).json({ error: "결제 준비 중 오류가 발생했습니다." });
+      }
+
+      console.log(`[PAYMENT_PREPARE] Created intent ${orderNumber} for user ${verifiedUserId}`);
+      return res.json({ orderId: orderNumber, amount: total });
+    } catch (error) {
+      console.error("[PAYMENT_PREPARE_ERROR]", error);
+      return res.status(500).json({ error: "결제 준비 중 오류가 발생했습니다." });
+    }
+  });
+
+  /**
    * 결제 승인 API (Toss Payments 서버-대-서버 승인)
    * @description 클라이언트에서 받은 결제 정보를 토스 라이브 서버에서 최종 확인하고 DB를 업데이트합니다.
    */
   app.post("/api/payment/confirm", async (req, res) => {
-    const { paymentKey, orderId, amount, pendingOrder, pendingItems } = req.body;
+    const { paymentKey, orderId, amount } = req.body;
     
-    // 1. 기본 유효성 검사
     if (!paymentKey || !orderId || !amount) {
       console.error("[PAYMENT_FAIL] Missing required fields:", { paymentKey: !!paymentKey, orderId: !!orderId, amount: !!amount });
       return res.status(400).json({ error: "필수 결제 정보가 누락되었습니다." });
     }
 
-    if (!pendingOrder || !pendingItems) {
-      console.error("[PAYMENT_FAIL] Missing pending order data in request body.");
-      return res.status(400).json({ error: "결제 대기 중인 주문 정보(pendingOrder/Items)가 누락되었습니다." });
+    const authResult = await verifyPaymentBearer(req.headers.authorization);
+    if (authResult.ok === false) {
+      return res.status(authResult.status).json({ error: authResult.error });
     }
-
-    if (!supabaseAdmin) {
-      console.error("[CRITICAL] SUPABASE_SERVICE_ROLE_KEY is missing in server environment.");
-      return res.status(500).json({ error: "서버 구성 오류가 발생했습니다." });
-    }
-
-    if (!supabasePublic) {
-      console.error("[CRITICAL] VITE_SUPABASE_ANON_KEY is missing in server environment.");
-      return res.status(500).json({ error: "서버 구성 오류가 발생했습니다." });
-    }
-
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "인증이 필요합니다." });
-    }
-    const accessToken = authHeader.slice(7).trim();
-    if (!accessToken) {
-      return res.status(401).json({ error: "인증이 필요합니다." });
-    }
-
-    const { data: authData, error: authError } = await supabasePublic.auth.getUser(accessToken);
-    if (authError || !authData.user) {
-      console.error("[PAYMENT_AUTH_FAIL] Invalid or expired token.");
-      return res.status(401).json({ error: "인증이 필요합니다." });
-    }
-    const verifiedUserId = authData.user.id;
-
-    const claimedUserId = pendingOrder?.user_id;
-    if (claimedUserId != null && claimedUserId !== verifiedUserId) {
-      console.error("[PAYMENT_OWNERSHIP_FAIL] Claimed user_id does not match verified auth user.");
-      return res.status(403).json({ error: "주문 정보가 일치하지 않습니다." });
-    }
-
-    const { data: ownerProfile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .select('user_custom_id')
-      .eq('id', verifiedUserId)
-      .maybeSingle();
-
-    if (profileError || !ownerProfile) {
-      console.error("[PAYMENT_PROFILE_FAIL] Profile missing for verified user.");
-      return res.status(400).json({ error: "회원 정보를 확인할 수 없습니다." });
-    }
-
-    const verifiedUserCustomId =
-      typeof ownerProfile.user_custom_id === 'string' ? ownerProfile.user_custom_id.trim() : '';
-    if (!verifiedUserCustomId) {
-      console.error("[PAYMENT_PROFILE_FAIL] user_custom_id missing for verified user.");
-      return res.status(400).json({ error: "회원 정보를 확인할 수 없습니다." });
-    }
+    const { verifiedUserId, verifiedUserCustomId } = authResult.user;
 
     try {
-      // 1b. Pre-Toss idempotency (payment_finalized_at — not status alone)
-      const { data: existingOrder } = await supabaseAdmin
+      const { data: paymentIntent, error: intentError } = await supabaseAdmin!
+        .from('payment_intents')
+        .select('order_number, user_id, user_custom_id, total_price, validated_snapshot')
+        .eq('order_number', orderId)
+        .eq('user_id', verifiedUserId)
+        .maybeSingle();
+
+      if (intentError) {
+        console.error("[PAYMENT_INTENT_FAIL] Lookup error:", intentError);
+        return res.status(500).json({ error: "주문 정보를 확인할 수 없습니다." });
+      }
+
+      if (!paymentIntent) {
+        console.error("[PAYMENT_INTENT_FAIL] No matching payment intent:", { orderId, verifiedUserId });
+        return res.status(409).json({ error: "결제 준비 정보를 찾을 수 없습니다." });
+      }
+
+      if (paymentIntent.user_custom_id !== verifiedUserCustomId) {
+        console.error("[PAYMENT_INTENT_FAIL] user_custom_id mismatch for payment intent:", { orderId });
+        return res.status(403).json({ error: "주문 정보가 일치하지 않습니다." });
+      }
+
+      const intentTotal = Number(paymentIntent.total_price);
+      if (!Number.isFinite(intentTotal) || intentTotal <= 0) {
+        console.error("[PAYMENT_INTENT_FAIL] Invalid intent total_price:", { orderId });
+        return res.status(500).json({ error: "주문 정보를 확인할 수 없습니다." });
+      }
+
+      if (Number(amount) !== intentTotal) {
+        console.error("[PAYMENT_INTENT_FAIL] Request amount mismatch:", {
+          orderId,
+          expected: intentTotal,
+          amount: Number(amount),
+        });
+        return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
+      }
+
+      const snapshotResult = parsePaymentIntentSnapshot(paymentIntent.validated_snapshot);
+      if (snapshotResult.ok === false) {
+        console.error("[PAYMENT_INTENT_FAIL] Malformed validated_snapshot:", { orderId });
+        return res.status(snapshotResult.status).json({ error: snapshotResult.error });
+      }
+      const snapshot = snapshotResult.snapshot;
+
+      // Pre-Toss idempotency (payment_finalized_at — not status alone)
+      const { data: existingOrder } = await supabaseAdmin!
         .from('orders')
         .select('id, user_id, total_price, payment_finalized_at')
         .eq('order_number', orderId)
@@ -271,7 +675,7 @@ ${rssItems}
           return res.status(403).json({ error: "주문 정보가 일치하지 않습니다." });
         }
         if (existingOrder.payment_finalized_at != null) {
-          if (Number(existingOrder.total_price) !== Number(amount)) {
+          if (Number(existingOrder.total_price) !== intentTotal) {
             console.error("[PAYMENT_FINALIZE_FAIL] Finalized order amount mismatch:", { orderId });
             return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
           }
@@ -288,166 +692,9 @@ ${rssItems}
         return res.status(500).json({ error: "서버 구성 오류가 발생했습니다." });
       }
 
-      // 2. Server-authoritative cart validation (BEFORE Toss confirm; non-PAID only)
-      if (!Array.isArray(pendingItems) || pendingItems.length === 0) {
-        console.error("[PAYMENT_ITEM_FAIL] pendingItems missing or empty:", { orderId });
-        return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
-      }
-
-      type ValidatedSnapshot = {
-        product_id: string | null;
-        product_title: string;
-        title: string;
-        option: string;
-        quantity: number;
-        price: number;
-        image: string | null;
-        user_image_url: string | null;
-        orientation: string | null;
-        custom_config: any | null;
-        is_custom: boolean;
-      };
-
-      const validatedSnapshots: ValidatedSnapshot[] = [];
-      let serverExpectedTotal = 0;
-
-      const standardProductIds = [
-        ...new Set(
-          pendingItems
-            .filter((item: any) => !isWorkshopPendingItem(item))
-            .map((item: any) => (typeof item?.product_id === 'string' ? item.product_id.trim() : ''))
-            .filter((id: string) => id && id !== 'workshop-single'),
-        ),
-      ];
-
-      let productMap = new Map<string, any>();
-      if (standardProductIds.length > 0) {
-        const { data: products, error: productsError } = await supabaseAdmin
-          .from('products')
-          .select('id, title, front_image, is_visible, options')
-          .in('id', standardProductIds);
-
-        if (productsError) {
-          console.error("[PAYMENT_ITEM_FAIL] Products lookup error:", productsError);
-          return res.status(500).json({ error: "주문 상품 정보를 확인할 수 없습니다." });
-        }
-
-        productMap = new Map((products || []).map((p: any) => [p.id, p]));
-      }
-
-      for (const item of pendingItems) {
-        const quantity = parsePositiveIntQuantity(item?.quantity);
-        if (quantity === null) {
-          console.error("[PAYMENT_ITEM_FAIL] Invalid quantity:", { orderId });
-          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
-        }
-
-        if (isWorkshopPendingItem(item)) {
-          const unit = SERVER_WORKSHOP_UNIT_PRICE;
-          serverExpectedTotal += unit * quantity;
-          const customImage =
-            (typeof item.user_image_url === 'string' && item.user_image_url) ||
-            (typeof item.image === 'string' && item.image) ||
-            null;
-          const sizeLabel =
-            (typeof item.custom_config?.size === 'string' && item.custom_config.size) ||
-            (typeof item.option === 'string' && item.option) ||
-            '커스텀';
-          validatedSnapshots.push({
-            product_id: 'workshop-single',
-            product_title: '커스텀 포스터',
-            title: '커스텀 포스터',
-            option: sizeLabel,
-            quantity,
-            price: unit,
-            image: customImage,
-            user_image_url: customImage,
-            orientation: item.orientation || item.custom_config?.orientation || null,
-            custom_config: {
-              shaderType: item.custom_config?.shaderType,
-              material: item.custom_config?.material,
-              size: item.custom_config?.size,
-              orientation: item.custom_config?.orientation,
-              ai_upscale: !!item.custom_config?.ai_upscale,
-              ai_outpaint: !!item.custom_config?.ai_outpaint,
-              ai_autofill: !!item.custom_config?.ai_autofill,
-              serial_number: item.custom_config?.serial_number ?? null,
-            },
-            is_custom: true,
-          });
-          continue;
-        }
-
-        const productId = typeof item.product_id === 'string' ? item.product_id.trim() : '';
-        const optionId = typeof item.option_id === 'string' ? item.option_id.trim() : '';
-        if (!productId || productId === 'workshop-single' || !optionId) {
-          console.error("[PAYMENT_ITEM_FAIL] Invalid standard item identity:", { orderId });
-          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
-        }
-
-        const product = productMap.get(productId);
-        if (!product) {
-          console.error("[PAYMENT_ITEM_FAIL] Unknown product:", { orderId, productId });
-          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
-        }
-        if (product.is_visible === false) {
-          console.error("[PAYMENT_ITEM_FAIL] Product not visible:", { orderId, productId });
-          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
-        }
-
-        const options = Array.isArray(product.options) ? product.options : [];
-        const matchedOption = options.find((opt: any) => opt && String(opt.id) === optionId);
-        if (!matchedOption) {
-          console.error("[PAYMENT_ITEM_FAIL] Unknown option:", { orderId, productId });
-          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
-        }
-        if (matchedOption.isActive === false) {
-          console.error("[PAYMENT_ITEM_FAIL] Option inactive:", { orderId, productId });
-          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
-        }
-        const unitPrice = Number(matchedOption.price);
-        if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-          console.error("[PAYMENT_ITEM_FAIL] Invalid option price:", { orderId, productId });
-          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
-        }
-        const stock = Number(matchedOption.stock);
-        if (Number.isFinite(stock) && stock <= 0) {
-          console.error("[PAYMENT_ITEM_FAIL] Option sold out:", { orderId, productId });
-          return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
-        }
-
-        serverExpectedTotal += unitPrice * quantity;
-        const image =
-          (typeof product.front_image === 'string' && product.front_image) || null;
-
-        validatedSnapshots.push({
-          product_id: product.id,
-          product_title: product.title || '제품',
-          title: product.title || '제품',
-          option: matchedOption.name || '기본',
-          quantity,
-          price: unitPrice,
-          image,
-          user_image_url: null,
-          orientation: item.orientation || null,
-          custom_config: null,
-          is_custom: false,
-        });
-      }
-
-      if (serverExpectedTotal !== Number(amount)) {
-        console.error("[PAYMENT_ITEM_FAIL] Pre-confirm total mismatch:", {
-          orderId,
-          expected: serverExpectedTotal,
-          amount: Number(amount),
-        });
-        return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
-      }
-
-      // 3. 토스 페이먼츠 승인 요청 (Server-to-Server) — only after item/amount validation
       const encodedKey = Buffer.from(TOSS_SECRET_KEY + ":").toString("base64");
 
-      console.log(`[PAYMENT_START] Confirming amount ${amount} for order ${orderId}`);
+      console.log(`[PAYMENT_START] Confirming amount ${intentTotal} for order ${orderId}`);
 
       const tossResponse = await fetch("https://api.tosspayments.com/v1/payments/confirm", {
         method: "POST",
@@ -458,7 +705,7 @@ ${rssItems}
         body: JSON.stringify({
           paymentKey,
           orderId,
-          amount,
+          amount: intentTotal,
         }),
       });
 
@@ -473,30 +720,14 @@ ${rssItems}
         });
       }
 
-      // 4. Post-confirm amount integrity (Toss total must match pre-validated request amount)
       const confirmedAmount = Number(tossData.totalAmount);
-      if (confirmedAmount !== Number(amount)) {
-        console.error("[PAYMENT_FRAUD_DETECTED] Amount mismatch:", { toss: confirmedAmount, req: amount });
+      if (confirmedAmount !== intentTotal) {
+        console.error("[PAYMENT_FRAUD_DETECTED] Amount mismatch:", { toss: confirmedAmount, intent: intentTotal });
         return res.status(400).json({ error: "결제 금액 불일치가 감지되었습니다." });
       }
 
-      const sanitizedOrderedItems = validatedSnapshots.map((snap) => ({
-        product_id: snap.is_custom ? 'workshop-single' : snap.product_id,
-        title: snap.title,
-        product_title: snap.product_title,
-        option: snap.option,
-        quantity: snap.quantity,
-        price: snap.price,
-        image: snap.image,
-        user_image_url: snap.user_image_url,
-        front_image: snap.is_custom ? null : snap.image,
-        orientation: snap.orientation,
-        custom_config: snap.custom_config,
-        is_custom: snap.is_custom,
-      }));
-
       const shippingInfo = {
-        ...(pendingOrder?.shipping_info || {}),
+        ...(snapshot.consents ? { consents: snapshot.consents } : {}),
         payment_key: paymentKey,
         payment_method: tossData.method || '카드',
         confirmed_at: new Date().toISOString(),
@@ -507,31 +738,22 @@ ${rssItems}
         }
       };
 
-      const rpcOrderItems = validatedSnapshots.map((snap) => ({
-        product_id: snap.is_custom ? null : snap.product_id,
-        product_title: snap.product_title,
-        quantity: snap.quantity,
-        price: snap.price,
-        option: snap.option,
-        orientation: snap.orientation || null,
-      }));
-
       console.log(`[DB_FINALIZE] Finalizing order ${orderId} via RPC...`);
 
-      const { data: finalizeRows, error: finalizeError } = await supabaseAdmin.rpc('finalize_paid_order', {
+      const { data: finalizeRows, error: finalizeError } = await supabaseAdmin!.rpc('finalize_paid_order', {
         p_verified_user_id: verifiedUserId,
-        p_user_custom_id: verifiedUserCustomId,
-        p_order_number: orderId,
-        p_total_price: confirmedAmount,
+        p_user_custom_id: paymentIntent.user_custom_id,
+        p_order_number: paymentIntent.order_number,
+        p_total_price: intentTotal,
         p_paid_amount: confirmedAmount,
-        p_shipping_name: pendingOrder?.shipping_name || '고객',
-        p_shipping_phone: pendingOrder?.shipping_phone || '',
-        p_zip_code: pendingOrder?.zip_code || '',
-        p_address: pendingOrder?.address || '',
-        p_address_detail: pendingOrder?.address_detail || '',
-        p_ordered_items: sanitizedOrderedItems,
+        p_shipping_name: snapshot.shipping.name,
+        p_shipping_phone: snapshot.shipping.phone,
+        p_zip_code: snapshot.shipping.zip_code,
+        p_address: snapshot.shipping.address,
+        p_address_detail: snapshot.shipping.address_detail,
+        p_ordered_items: snapshot.ordered_items,
         p_shipping_info: shippingInfo,
-        p_order_items: rpcOrderItems,
+        p_order_items: snapshot.order_items,
       });
 
       if (finalizeError) {
@@ -567,9 +789,9 @@ ${rssItems}
       // 6. 디스코드 알림 발송 (서버에서 수행하여 Webhook 숨김)
       const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
       if (WEBHOOK_URL && !finalizeResult.already_finalized) {
-        const displayItems = validatedSnapshots;
+        const displayItems = snapshot.ordered_items;
         
-        const itemsList = displayItems.map((item) => {
+        const itemsList = displayItems.map((item: any) => {
           const isCustom = item.is_custom || item.product_id === 'workshop-single';
           const typeTag = isCustom ? '[커스텀]' : '[기성]';
           const title = item.product_title || item.title || '제품';
@@ -601,8 +823,8 @@ ${rssItems}
 \n🛒 **주문 품목**
 ${itemsList}
 \n👤 **주문자 정보**
-• **성함:** ${pendingOrder.shipping_name || '고객'} 님
-• **배송지:** ${pendingOrder.address || '주소 없음'} ${pendingOrder.address_detail || ''}`;
+• **성함:** ${snapshot.shipping.name || '고객'} 님
+• **배송지:** ${snapshot.shipping.address || '주소 없음'} ${snapshot.shipping.address_detail || ''}`;
 
         await fetch(WEBHOOK_URL, {
           method: 'POST',

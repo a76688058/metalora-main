@@ -265,15 +265,81 @@ export default function Cart() {
         throw new Error('회원 프로필을 찾을 수 없습니다. 다시 로그인 후 시도해 주세요.');
       }
 
-      // 1. Prepare Order Data
-      const orderNumber = `ORD-${crypto.randomUUID()}`;
+      const prepareItems = selectedItems.map(item => {
+        let title = '';
+        let optionName = '';
+        let optionId: string | null = null;
+
+        if (item.product_id === 'workshop-single') {
+          title = item.product?.title || '커스텀 포스터';
+          optionName = item.custom_config?.size || '커스텀';
+          optionId = null;
+        } else {
+          const option = item.product?.options?.find(opt => opt.id === item.selected_option);
+          title = item.product?.title || '제품';
+          optionName = option ? option.name : (item.selected_option || '');
+          optionId = option?.id ?? item.selected_option ?? null;
+        }
+
+        return {
+          product_id: item.product_id === 'workshop-single' ? null : item.product_id,
+          product_title: title,
+          title,
+          option_id: optionId,
+          option: optionName,
+          quantity: item.quantity,
+          image: item.custom_image || item.product?.front_image || item.product?.image || null,
+          user_image_url: item.custom_image || null,
+          orientation: item.orientation || null,
+          custom_config: item.custom_config || null,
+        };
+      });
+
+      const { data: { session } } = await client.auth.getSession();
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        throw new Error('로그인 세션이 만료되었습니다. 다시 로그인 후 시도해 주세요.');
+      }
+
+      const prepareResponse = await fetch('/api/payment/prepare', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          items: prepareItems,
+          shipping: {
+            name: shippingData.name,
+            phone: shippingData.phone,
+            zip_code: shippingData.zipCode,
+            address: shippingData.address,
+            address_detail: shippingData.addressDetail,
+          },
+          consents: {
+            ...consents,
+            agreed_at: new Date().toISOString(),
+          },
+        }),
+      });
+
+      const prepareResult = await prepareResponse.json();
+      if (!prepareResponse.ok) {
+        throw new Error(prepareResult.error || '결제 준비 중 오류가 발생했습니다.');
+      }
+
+      const orderNumber = prepareResult.orderId as string;
+      const authoritativeAmount = Number(prepareResult.amount);
+      if (!orderNumber || !Number.isFinite(authoritativeAmount) || authoritativeAmount <= 0) {
+        throw new Error('결제 준비 응답이 올바르지 않습니다.');
+      }
 
       const pendingOrderData = {
         order_number: orderNumber,
         user_id: currentUser.id,
         user_custom_id: userCustomId,
-        total_price: selectedTotalPrice,
-        status: 'PAID', // Will be created as PAID upon success
+        total_price: authoritativeAmount,
+        status: 'PAID',
         shipping_name: shippingData.name,
         shipping_phone: shippingData.phone,
         zip_code: shippingData.zipCode,
@@ -297,9 +363,7 @@ export default function Cart() {
         }))
       };
 
-      // 2. Prepare Order Items Data for normalized table
       const pendingOrderItems = selectedItems.map(item => {
-        // Calculate price based on item type
         let price = 0;
         let title = '';
         let optionName = '';
@@ -317,20 +381,20 @@ export default function Cart() {
           optionName = option ? option.name : (item.selected_option || '');
           optionId = option?.id ?? item.selected_option ?? null;
         }
-        
+
         return {
           product_id: item.product_id === 'workshop-single' ? null : item.product_id,
           product_title: title,
-          title: title, // title 필드 중복 추가 (호환성)
+          title,
           option_id: optionId,
           option: optionName,
           quantity: item.quantity,
-          price: price,
+          price,
           image: item.custom_image || item.product?.front_image || item.product?.image || null,
           user_image_url: item.custom_image || null,
           front_image: item.product?.front_image || item.product?.image || null,
           orientation: item.orientation || null,
-          custom_config: item.custom_config || null
+          custom_config: item.custom_config || null,
         };
       });
 
@@ -347,7 +411,7 @@ export default function Cart() {
         : (selectedItems[0].product?.title || '커스텀 제품');
 
       await tossPayments.requestPayment('카드', {
-        amount: selectedTotalPrice,
+        amount: authoritativeAmount,
         orderId: orderNumber,
         orderName: orderName,
         customerName: shippingData.name,
