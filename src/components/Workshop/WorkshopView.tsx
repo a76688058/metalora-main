@@ -650,7 +650,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
           finalImageUrl = publicUrl;
         }
 
-        await addToCart(
+        const ok = await addToCart(
           'workshop-single', 
           size, 
           1, 
@@ -665,8 +665,19 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
             ai_autofill: aiAutoFill,
             price: 49000,
             serial_number: `WS-${Date.now()}`
-          }
+          },
+          orientation === 'landscape' || orientation === 'portrait' ? orientation : undefined,
+          {
+            item_name: '나만의 커스텀 포스터',
+            price: 49000,
+            item_variant: size,
+          },
         );
+
+        if (!ok) {
+          setIsUploading(false);
+          return;
+        }
 
         setIsFlashing(true);
         await clearProgress();

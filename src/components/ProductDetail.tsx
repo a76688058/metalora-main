@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
+import { track } from '../lib/analytics';
 import Poster3D, { Poster3DWithFallback } from './Poster3D';
 import LoginModal from './LoginModal';
 import { Box, Check, Clock, Truck, ShieldCheck, ArrowLeft, AlertCircle, Loader2, RotateCw, Frame, RefreshCw, Package, Maximize, X } from 'lucide-react';
@@ -19,6 +20,13 @@ import ProductExperience from './ProductExperience';
 import { useTheme } from '../context/ThemeContext';
 import { Product } from '../data/products';
 import LoadingScreen from './LoadingScreen';
+
+/**
+ * Short-lived StrictMode duplicate guard only (not session-wide suppression).
+ * Revisits after navigation remain eligible once this window elapses.
+ */
+let lastViewItemDedupe: { productId: string; at: number } | null = null;
+const VIEW_ITEM_STRICT_MODE_MS = 400;
 
 declare global {
   interface Window {
@@ -175,6 +183,55 @@ export default function ProductDetail() {
     }
   }, [product]);
 
+  // Analytics: view_item once per visit to a product id (not option/orientation churn).
+  // Ref resets on remount so Home → Product A again can fire; short module window blocks StrictMode only.
+  const viewItemFiredForIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!product?.id || product.id === 'workshop-single') return;
+    if (isLoading || isFetchingSingle) return;
+    if (product.is_visible === false) return;
+    if (viewItemFiredForIdRef.current === product.id) return;
+
+    const options = product.options || [];
+    const option = options.find((opt) => opt.id === selectedOptionId);
+    // Wait for option selection when options exist so price is real
+    if (options.length > 0 && !option) return;
+
+    const price =
+      option && typeof option.price === 'number'
+        ? option.price
+        : typeof product.price === 'number'
+          ? product.price
+          : NaN;
+    if (!Number.isFinite(price)) return;
+
+    const now = Date.now();
+    if (
+      lastViewItemDedupe &&
+      lastViewItemDedupe.productId === product.id &&
+      now - lastViewItemDedupe.at < VIEW_ITEM_STRICT_MODE_MS
+    ) {
+      viewItemFiredForIdRef.current = product.id;
+      return;
+    }
+
+    viewItemFiredForIdRef.current = product.id;
+    lastViewItemDedupe = { productId: product.id, at: now };
+    track('view_item', {
+      currency: 'KRW',
+      value: price,
+      items: [
+        {
+          item_id: product.id,
+          item_name: product.title,
+          ...(option?.name ? { item_variant: option.name } : {}),
+          price,
+          quantity: 1,
+        },
+      ],
+    });
+  }, [product, isLoading, isFetchingSingle, selectedOptionId]);
+
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     e.currentTarget.src = 'https://picsum.photos/seed/metalora_fallback/210/297';
     e.currentTarget.onerror = null;
@@ -247,8 +304,33 @@ export default function ProductDetail() {
 
     try {
       setIsAddingToCart(true);
+
+      const option = product.options?.find((opt) => opt.id === selectedOptionId);
+      const unitPrice = option ? option.price : 0;
+      const variantParts = [
+        option?.name,
+        selectedOrientation === 'landscape' ? 'landscape' : selectedOrientation === 'portrait' ? 'portrait' : undefined,
+      ].filter(Boolean);
       
-      await addToCart(product.id, selectedOptionId, 1, undefined, undefined, selectedOrientation);
+      const ok = await addToCart(
+        product.id,
+        selectedOptionId,
+        1,
+        undefined,
+        undefined,
+        selectedOrientation,
+        {
+          item_name: product.title,
+          price: unitPrice,
+          ...(variantParts.length > 0
+            ? { item_variant: variantParts.join(' / ') }
+            : {}),
+        },
+      );
+
+      if (!ok) {
+        return;
+      }
 
       // 파티클 애니메이션 실행
       if (canvasContainerRef.current) {

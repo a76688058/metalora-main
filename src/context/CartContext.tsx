@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { Product } from '../data/products';
+import { track } from '../lib/analytics';
 
 interface CartItem {
   id: string;
@@ -18,6 +19,13 @@ interface CartItem {
   product_type: 'stock' | 'workshop';
 }
 
+/** Optional ecommerce fields for a successful add_to_cart event (no PII). */
+export type AddToCartAnalytics = {
+  item_name: string;
+  price: number;
+  item_variant?: string;
+};
+
 interface CartContextType {
   cartItems: CartItem[];
   isLoading: boolean;
@@ -27,13 +35,14 @@ interface CartContextType {
     quantity: number, 
     customImage?: string, 
     customConfig?: any,
-    orientation?: 'portrait' | 'landscape'
-  ) => Promise<void>;
+    orientation?: 'portrait' | 'landscape',
+    analytics?: AddToCartAnalytics,
+  ) => Promise<boolean>;
   removeFromCart: (itemId: string) => Promise<void>;
   updateQuantity: (itemId: string, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
   totalPrice: number;
-  refreshCart: () => Promise<void>;
+  refreshCart: () => Promise<boolean>;
   isCartOpen: boolean;
   openCart: () => void;
   closeCart: () => void;
@@ -60,11 +69,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return supabase;
   }, []);
 
-  const refreshCart = useCallback(async () => {
+  const refreshCart = useCallback(async (): Promise<boolean> => {
     const currentUserId = activeUserId;
     if (!currentUserId) {
       setCartItems([]);
-      return;
+      return true;
     }
 
     try {
@@ -84,7 +93,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       
       if (!items || items.length === 0) {
         setCartItems([]);
-        return;
+        return true;
       }
 
       // 2. Identify standard products to fetch details for
@@ -134,15 +143,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       });
 
       setCartItems(hydratedData);
+      return true;
     } catch (error) {
       console.error('Error fetching cart:', error);
+      return false;
     } finally {
       setIsLoading(false);
     }
-  }, [activeUserId]);
+  }, [activeUserId, getClient]);
 
   useEffect(() => {
-    refreshCart();
+    void refreshCart();
   }, [activeUserId, refreshCart]);
 
   const addToCart = async (
@@ -151,8 +162,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     quantity: number, 
     customImage?: string, 
     customConfig?: any,
-    orientation?: 'portrait' | 'landscape'
-  ) => {
+    orientation?: 'portrait' | 'landscape',
+    analytics?: AddToCartAnalytics,
+  ): Promise<boolean> => {
     try {
       setIsLoading(true);
       console.log('--- ADD TO CART DEBUG START ---');
@@ -171,16 +183,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (!currentUserId) {
         console.error('Auth Error: No user session found in context or storage');
         showToast('로그인이 필요합니다.', 'error');
-        return;
+        return false;
+      }
+
+      if (!Number.isFinite(quantity) || quantity < 1) {
+        return false;
       }
 
       console.log('User ID:', currentUserId);
       console.log('Product ID:', productId);
 
       const client = getClient();
-
-      // Determine product type
-      const productType = productId === 'workshop-single' ? 'workshop' : 'stock';
 
       // 1. 기존 아이템 확인 (workshop-single은 항상 새로 추가)
       let existingItem = null;
@@ -238,9 +251,34 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         if (error) throw error;
       }
 
-      await refreshCart();
+      const refreshed = await refreshCart();
+      if (!refreshed) {
+        return false;
+      }
+
+      if (analytics && Number.isFinite(analytics.price)) {
+        const unitPrice = analytics.price;
+        track("add_to_cart", {
+          currency: "KRW",
+          value: unitPrice * quantity,
+          items: [
+            {
+              item_id: productId,
+              item_name: analytics.item_name,
+              ...(analytics.item_variant
+                ? { item_variant: analytics.item_variant }
+                : {}),
+              price: unitPrice,
+              quantity,
+            },
+          ],
+        });
+      }
+
+      return true;
     } catch (error: any) {
       console.error('Final AddToCart Error:', error);
+      return false;
     } finally {
       setIsLoading(false);
       console.log('--- ADD TO CART DEBUG END ---');

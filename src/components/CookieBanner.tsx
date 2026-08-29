@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
 import { X } from 'lucide-react';
+import { dispatchAnalyticsConsentChanged } from '../lib/analytics';
 
 export default function CookieBanner() {
   const { theme } = useTheme();
@@ -18,11 +19,13 @@ export default function CookieBanner() {
 
   const handleAccept = () => {
     localStorage.setItem('cookieConsent', 'accepted');
+    dispatchAnalyticsConsentChanged('accepted');
     setIsVisible(false);
   };
 
   const handleDecline = () => {
     localStorage.setItem('cookieConsent', 'essential_only');
+    dispatchAnalyticsConsentChanged('essential_only');
     setIsVisible(false);
   };
 

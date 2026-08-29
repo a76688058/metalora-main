@@ -20,6 +20,7 @@ import { CartProvider, useCart } from './context/CartContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 
 import CookieBanner from './components/CookieBanner';
+import AnalyticsRouteTracker from './components/AnalyticsRouteTracker';
 
 const ProductDetail = lazy(() => import('./components/ProductDetail'));
 const Login = lazy(() => import('./pages/Login'));
@@ -222,6 +223,7 @@ export default function App() {
           <CartProvider>
             <ThemeProvider>
               <Router>
+                <AnalyticsRouteTracker />
                 <Layout />
               </Router>
               <CookieBanner />
