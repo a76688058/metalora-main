@@ -1,0 +1,30 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies and build output (rebuilt in image)
+node_modules
+dist
+
+# Secrets — never in build context
+.env
+.env.*
+!.env.example
+
+# Logs and test artifacts
+*.log
+coverage
+
+# Editor / local tooling
+.cursor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Optional local artifacts
+agent-transcripts
+terminals
