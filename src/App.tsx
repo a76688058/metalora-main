@@ -21,6 +21,9 @@ import { ThemeProvider, useTheme } from './context/ThemeContext';
 
 import CookieBanner from './components/CookieBanner';
 import AnalyticsRouteTracker from './components/AnalyticsRouteTracker';
+import { initGa4Analytics } from './lib/ga4';
+
+initGa4Analytics();
 
 const ProductDetail = lazy(() => import('./components/ProductDetail'));
 const Login = lazy(() => import('./pages/Login'));
