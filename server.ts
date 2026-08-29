@@ -231,6 +231,111 @@ async function verifyPaymentBearer(
   };
 }
 
+function getTossBasicAuthHeader(secretKey: string): string {
+  return `Basic ${Buffer.from(secretKey + ":").toString("base64")}`;
+}
+
+type TossPaymentObject = {
+  paymentKey?: string;
+  orderId?: string;
+  status?: string;
+  totalAmount?: number;
+  method?: string;
+  mId?: string;
+  transactionKey?: string;
+  lastTransactionKey?: string;
+  [key: string]: unknown;
+};
+
+type TossLookupResult =
+  | { ok: true; payment: TossPaymentObject }
+  | { ok: false; reason: 'not_found' | 'api_error' | 'network' | 'invalid_body' };
+
+/**
+ * Toss GET /v1/payments/orders/{orderId} — recover already-approved payments.
+ * Does not approve; only looks up existing payment state.
+ */
+async function lookupTossPaymentByOrderId(
+  secretKey: string,
+  orderId: string,
+): Promise<TossLookupResult> {
+  try {
+    const encodedOrderId = encodeURIComponent(orderId);
+    const response = await fetch(
+      `https://api.tosspayments.com/v1/payments/orders/${encodedOrderId}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: getTossBasicAuthHeader(secretKey),
+        },
+      },
+    );
+
+    let body: any = null;
+    try {
+      body = await response.json();
+    } catch {
+      return { ok: false, reason: 'invalid_body' };
+    }
+
+    if (!response.ok) {
+      console.error("[PAYMENT_TOSS_LOOKUP] Non-OK lookup:", {
+        orderId,
+        status: response.status,
+        code: body?.code,
+      });
+      if (response.status === 404) {
+        return { ok: false, reason: 'not_found' };
+      }
+      return { ok: false, reason: 'api_error' };
+    }
+
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return { ok: false, reason: 'invalid_body' };
+    }
+
+    return { ok: true, payment: body as TossPaymentObject };
+  } catch (error) {
+    console.error("[PAYMENT_TOSS_LOOKUP] Network/lookup failure:", {
+      orderId,
+      message: error instanceof Error ? error.message : 'unknown',
+    });
+    return { ok: false, reason: 'network' };
+  }
+}
+
+/**
+ * Shared Toss Payment identity checks for both POST confirm and GET recovery.
+ * Only status === 'DONE' may proceed to finalize for this site's card flow.
+ */
+function validateTossDonePayment(
+  payment: TossPaymentObject,
+  expected: { orderNumber: string; totalPrice: number; paymentKey: string },
+): { ok: true } | { ok: false; reason: string } {
+  if (payment.status !== 'DONE') {
+    return { ok: false, reason: `status_not_done:${String(payment.status ?? 'missing')}` };
+  }
+
+  if (typeof payment.orderId !== 'string' || payment.orderId !== expected.orderNumber) {
+    return { ok: false, reason: 'order_id_mismatch' };
+  }
+
+  const totalAmount = Number(payment.totalAmount);
+  if (!Number.isFinite(totalAmount) || totalAmount !== expected.totalPrice) {
+    return { ok: false, reason: 'amount_mismatch' };
+  }
+
+  // paymentKey must be present on the Toss Payment and match the redirect key.
+  if (typeof payment.paymentKey !== 'string' || payment.paymentKey.length === 0) {
+    return { ok: false, reason: 'payment_key_missing' };
+  }
+  if (payment.paymentKey !== expected.paymentKey) {
+    return { ok: false, reason: 'payment_key_mismatch' };
+  }
+
+  return { ok: true };
+}
+
 async function validateCheckoutItems(
   pendingItems: unknown,
   orderIdForLog: string,
@@ -601,13 +706,18 @@ ${rssItems}
 
   /**
    * 결제 승인 API (Toss Payments 서버-대-서버 승인)
-   * @description 클라이언트에서 받은 결제 정보를 토스 라이브 서버에서 최종 확인하고 DB를 업데이트합니다.
+   * @description 클라이언트에서 받은 결제 정보를 토스에서 확인하고 DB를 업데이트합니다.
+   * Reentrant: POST confirm 실패 시 GET /orders/{orderId} 로 DONE 결제 복구 후 finalize.
    */
   app.post("/api/payment/confirm", async (req, res) => {
     const { paymentKey, orderId, amount } = req.body;
     
     if (!paymentKey || !orderId || !amount) {
       console.error("[PAYMENT_FAIL] Missing required fields:", { paymentKey: !!paymentKey, orderId: !!orderId, amount: !!amount });
+      return res.status(400).json({ error: "필수 결제 정보가 누락되었습니다." });
+    }
+
+    if (typeof paymentKey !== 'string' || typeof orderId !== 'string') {
       return res.status(400).json({ error: "필수 결제 정보가 누락되었습니다." });
     }
 
@@ -692,53 +802,104 @@ ${rssItems}
         return res.status(500).json({ error: "서버 구성 오류가 발생했습니다." });
       }
 
-      const encodedKey = Buffer.from(TOSS_SECRET_KEY + ":").toString("base64");
+      const expectedToss = {
+        orderNumber: paymentIntent.order_number as string,
+        totalPrice: intentTotal,
+        paymentKey,
+      };
 
-      console.log(`[PAYMENT_START] Confirming amount ${intentTotal} for order ${orderId}`);
+      let verifiedPayment: TossPaymentObject | null = null;
+      let establishSource: 'post_confirm' | 'get_recovery' | null = null;
 
-      const tossResponse = await fetch("https://api.tosspayments.com/v1/payments/confirm", {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${encodedKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          paymentKey,
+      // --- Establish Toss DONE: POST confirm, else GET recovery ---
+      try {
+        console.log(`[PAYMENT_START] Confirming amount ${intentTotal} for order ${orderId}`);
+
+        const tossResponse = await fetch("https://api.tosspayments.com/v1/payments/confirm", {
+          method: "POST",
+          headers: {
+            Authorization: getTossBasicAuthHeader(TOSS_SECRET_KEY),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            paymentKey,
+            orderId: paymentIntent.order_number,
+            amount: intentTotal,
+          }),
+        });
+
+        let tossData: any = null;
+        try {
+          tossData = await tossResponse.json();
+        } catch {
+          tossData = null;
+        }
+
+        if (tossResponse.ok && tossData && typeof tossData === 'object') {
+          const validation = validateTossDonePayment(tossData as TossPaymentObject, expectedToss);
+          if (validation.ok === false) {
+            console.error("[PAYMENT_TOSS_VALIDATE_FAIL] POST confirm payment invalid:", {
+              orderId,
+              reason: validation.reason,
+            });
+            return res.status(400).json({ error: "결제 금액 불일치가 감지되었습니다." });
+          }
+          verifiedPayment = tossData as TossPaymentObject;
+          establishSource = 'post_confirm';
+        } else {
+          console.error("[PAYMENT_TOSS_ERROR] POST confirm failed; attempting GET recovery:", {
+            orderId,
+            status: tossResponse.status,
+            code: tossData?.code,
+          });
+        }
+      } catch (postError) {
+        console.error("[PAYMENT_TOSS_ERROR] POST confirm network/error; attempting GET recovery:", {
           orderId,
-          amount: intentTotal,
-        }),
-      });
-
-      const tossData = await tossResponse.json();
-
-      if (!tossResponse.ok) {
-        console.error("[PAYMENT_TOSS_ERROR]", tossData);
-        return res.status(tossResponse.status).json({
-          error: "결제 대행사 승인 실패",
-          details: tossData.message || "토스 API 응답 오류",
-          code: tossData.code
+          message: postError instanceof Error ? postError.message : 'unknown',
         });
       }
 
-      const confirmedAmount = Number(tossData.totalAmount);
-      if (confirmedAmount !== intentTotal) {
-        console.error("[PAYMENT_FRAUD_DETECTED] Amount mismatch:", { toss: confirmedAmount, intent: intentTotal });
-        return res.status(400).json({ error: "결제 금액 불일치가 감지되었습니다." });
+      if (!verifiedPayment) {
+        const lookup = await lookupTossPaymentByOrderId(TOSS_SECRET_KEY, paymentIntent.order_number);
+        if (lookup.ok === false) {
+          console.error("[PAYMENT_TOSS_RECOVERY_FAIL] Lookup did not yield payment:", {
+            orderId,
+            reason: lookup.reason,
+          });
+          return res.status(400).json({ error: "결제 대행사 승인 실패" });
+        }
+
+        const validation = validateTossDonePayment(lookup.payment, expectedToss);
+        if (validation.ok === false) {
+          console.error("[PAYMENT_TOSS_RECOVERY_FAIL] Lookup payment not conclusively DONE:", {
+            orderId,
+            reason: validation.reason,
+            status: lookup.payment.status,
+          });
+          return res.status(400).json({ error: "결제 대행사 승인 실패" });
+        }
+
+        verifiedPayment = lookup.payment;
+        establishSource = 'get_recovery';
+        console.log(`[PAYMENT_TOSS_RECOVERY] Established DONE via GET for order ${orderId}`);
       }
 
+      const confirmedAmount = Number(verifiedPayment.totalAmount);
       const shippingInfo = {
         ...(snapshot.consents ? { consents: snapshot.consents } : {}),
         payment_key: paymentKey,
-        payment_method: tossData.method || '카드',
+        payment_method: (typeof verifiedPayment.method === 'string' && verifiedPayment.method) || '카드',
         confirmed_at: new Date().toISOString(),
+        recovery_source: establishSource,
         toss_data: {
-          mId: tossData.mId,
-          transactionKey: tossData.transactionKey,
-          lastTransactionKey: tossData.lastTransactionKey
-        }
+          mId: verifiedPayment.mId,
+          transactionKey: verifiedPayment.transactionKey,
+          lastTransactionKey: verifiedPayment.lastTransactionKey,
+        },
       };
 
-      console.log(`[DB_FINALIZE] Finalizing order ${orderId} via RPC...`);
+      console.log(`[DB_FINALIZE] Finalizing order ${orderId} via RPC (source=${establishSource})...`);
 
       const { data: finalizeRows, error: finalizeError } = await supabaseAdmin!.rpc('finalize_paid_order', {
         p_verified_user_id: verifiedUserId,
@@ -786,7 +947,6 @@ ${rssItems}
         });
       }
 
-      // 6. 디스코드 알림 발송 (서버에서 수행하여 Webhook 숨김)
       const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
       if (WEBHOOK_URL && !finalizeResult.already_finalized) {
         const displayItems = snapshot.ordered_items;
@@ -817,9 +977,9 @@ ${rssItems}
         const discordContent = `💰💰💰💰💰💰💰💰💰💰
 \n🚀 **[METALORA] 새로운 주문 발생! (서버 승인 완료)**
 \n📌 **주문 요약**
-• **결제금액:** **${Number(tossData.totalAmount).toLocaleString()}원** (입금 완료)
+• **결제금액:** **${confirmedAmount.toLocaleString()}원** (입금 완료)
 • **주문번호:** \`${orderId}\`
-• **결제수단:** ${tossData.method || '카드'}
+• **결제수단:** ${shippingInfo.payment_method}
 \n🛒 **주문 품목**
 ${itemsList}
 \n👤 **주문자 정보**
@@ -837,7 +997,6 @@ ${itemsList}
 
     } catch (error: any) {
       console.error("Payment Confirmation API Error:", error);
-      // 구체적인 에러 메시지 전달 (보안상 민감한 정보 제외)
       let errorMessage = "결제 처리 중 서버 오류가 발생했습니다.";
       
       if (error.message?.includes("fetch")) {

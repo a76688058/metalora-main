@@ -90,39 +90,26 @@ export default function PaymentSuccess() {
       setErrorMessage(null);
 
       try {
-        // 1. 세션 스토리지에서 대기 중인 주문 정보 가져오기
-        let pendingOrderStr = sessionStorage.getItem('pendingOrder');
-        let pendingOrder = null;
-        let pendingItems = null;
-
-        if (!pendingOrderStr) {
-          // 세션 스토리지에 없으면 이미 처리된 주문인지 DB 확인
-          const { data: existingOrder } = await supabase
-            .from('orders')
-            .select('id, status')
-            .eq('order_number', orderId)
-            .maybeSingle();
-            
-          if (existingOrder && existingOrder.status === 'PAID') {
-            setIsConfirming(false);
-            return;
-          }
-          
-          // 웹훅이 처리 중일 수 있으므로 잠시 대기 후 한 번 더 확인 (Optional)
-          throw new Error('결제 정보를 확인할 수 없습니다. 세션이 만료되었거나 주문 정보가 유실되었습니다.');
-        } else {
-          const pendingOrderData = JSON.parse(pendingOrderStr);
-          pendingOrder = pendingOrderData.order;
-          pendingItems = pendingOrderData.items;
-        }
-
         const { data: { session } } = await supabase.auth.getSession();
         const accessToken = session?.access_token;
         if (!accessToken) {
           throw new Error('로그인 세션이 만료되었습니다. 다시 로그인 후 주문 내역을 확인해 주세요.');
         }
 
-        // 2. 서버에 결제 승인 요청 (보안 강화: Server-side Verification)
+        // Optional UI/cart snapshot only — never required for server recovery
+        let pendingItems: any[] | null = null;
+        const pendingOrderStr = sessionStorage.getItem('pendingOrder');
+        if (pendingOrderStr) {
+          try {
+            const pendingOrderData = JSON.parse(pendingOrderStr);
+            if (Array.isArray(pendingOrderData?.items)) {
+              pendingItems = pendingOrderData.items;
+            }
+          } catch {
+            pendingItems = null;
+          }
+        }
+
         const response = await fetch('/api/payment/confirm', {
           method: 'POST',
           headers: {
@@ -133,9 +120,7 @@ export default function PaymentSuccess() {
             paymentKey,
             orderId,
             amount: totalAmount,
-            pendingOrder,
-            pendingItems
-          })
+          }),
         });
 
         const result = await response.json();
@@ -144,17 +129,16 @@ export default function PaymentSuccess() {
           throw new Error(result.error || '결제 승인 중 오류가 발생했습니다.');
         }
 
-        // 3. 장바구니 비우기 (결제된 품목만)
+        // Optional cart clear when session snapshot is still available
         if (pendingItems && pendingItems.length > 0) {
           const { data: userAuth } = await supabase.auth.getUser();
           const userId = userAuth.user?.id;
-          
+
           if (userId) {
-            // product_id가 있는 일반 상품들 (workshop-single 제외)
             const productIds = pendingItems
               .map((item: any) => item.product_id)
               .filter((id: any) => id && id !== 'workshop-single');
-              
+
             if (productIds.length > 0) {
               await supabase
                 .from('cart_items')
@@ -162,12 +146,11 @@ export default function PaymentSuccess() {
                 .eq('user_id', userId)
                 .in('product_id', productIds);
             }
-            
-            // 커스텀 작품 (workshop-single) 삭제
+
             const hasWorkshopItem = pendingItems.some(
               (item: any) => item.product_id === 'workshop-single' || item.product_title?.includes('커스텀') || item.product_id === null
             );
-            
+
             if (hasWorkshopItem) {
               await supabase
                 .from('cart_items')
@@ -175,18 +158,20 @@ export default function PaymentSuccess() {
                 .eq('user_id', userId)
                 .eq('product_id', 'workshop-single');
             }
-            
-            // 4. 장바구니 상태 즉시 갱신
+
             await refreshCart();
           }
         }
-        
+
         sessionStorage.removeItem('pendingOrder');
         setIsConfirming(false);
+        // Keep isProcessing.current = true to prevent duplicate success UI remounts
       } catch (error: any) {
         console.error('Payment confirmation error:', error);
         setErrorMessage(error.message || "결제 처리 중 오류가 발생했습니다. 관리자에게 문의하세요.");
         setIsConfirming(false);
+        // Allow same-page retry after failure
+        isProcessing.current = false;
       }
     };
 
