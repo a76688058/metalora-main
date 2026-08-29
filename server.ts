@@ -212,17 +212,68 @@ ${rssItems}
       return res.status(500).json({ error: "서버 구성 오류가 발생했습니다." });
     }
 
+    if (!supabasePublic) {
+      console.error("[CRITICAL] VITE_SUPABASE_ANON_KEY is missing in server environment.");
+      return res.status(500).json({ error: "서버 구성 오류가 발생했습니다." });
+    }
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "인증이 필요합니다." });
+    }
+    const accessToken = authHeader.slice(7).trim();
+    if (!accessToken) {
+      return res.status(401).json({ error: "인증이 필요합니다." });
+    }
+
+    const { data: authData, error: authError } = await supabasePublic.auth.getUser(accessToken);
+    if (authError || !authData.user) {
+      console.error("[PAYMENT_AUTH_FAIL] Invalid or expired token.");
+      return res.status(401).json({ error: "인증이 필요합니다." });
+    }
+    const verifiedUserId = authData.user.id;
+
+    const claimedUserId = pendingOrder?.user_id;
+    if (claimedUserId != null && claimedUserId !== verifiedUserId) {
+      console.error("[PAYMENT_OWNERSHIP_FAIL] Claimed user_id does not match verified auth user.");
+      return res.status(403).json({ error: "주문 정보가 일치하지 않습니다." });
+    }
+
+    const { data: ownerProfile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('user_custom_id')
+      .eq('id', verifiedUserId)
+      .maybeSingle();
+
+    if (profileError || !ownerProfile) {
+      console.error("[PAYMENT_PROFILE_FAIL] Profile missing for verified user.");
+      return res.status(400).json({ error: "회원 정보를 확인할 수 없습니다." });
+    }
+
+    const verifiedUserCustomId =
+      typeof ownerProfile.user_custom_id === 'string' ? ownerProfile.user_custom_id.trim() : '';
+    if (!verifiedUserCustomId) {
+      console.error("[PAYMENT_PROFILE_FAIL] user_custom_id missing for verified user.");
+      return res.status(400).json({ error: "회원 정보를 확인할 수 없습니다." });
+    }
+
     try {
       // 1b. Idempotent early return for already-PAID (skip catalog + Toss)
       const { data: existingPaidOrder } = await supabaseAdmin
         .from('orders')
-        .select('id, status')
+        .select('id, status, user_id')
         .eq('order_number', orderId)
         .maybeSingle();
 
-      if (existingPaidOrder && existingPaidOrder.status === 'PAID') {
-        console.log(`[PAYMENT_SKIP] Order ${orderId} already processed.`);
-        return res.json({ success: true, message: "이미 처리된 주문입니다.", orderId: existingPaidOrder.id });
+      if (existingPaidOrder) {
+        if (existingPaidOrder.user_id && existingPaidOrder.user_id !== verifiedUserId) {
+          console.error("[PAYMENT_OWNERSHIP_FAIL] Existing order belongs to another user.");
+          return res.status(403).json({ error: "주문 정보가 일치하지 않습니다." });
+        }
+        if (existingPaidOrder.status === 'PAID') {
+          console.log(`[PAYMENT_SKIP] Order ${orderId} already processed.`);
+          return res.json({ success: true, message: "이미 처리된 주문입니다.", orderId: existingPaidOrder.id });
+        }
       }
 
       const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY;
@@ -435,20 +486,23 @@ ${rssItems}
       // 5.1. Race re-check: concurrent confirms may both pass pre-confirm PAID miss
       const { data: existingOrder } = await supabaseAdmin
         .from('orders')
-        .select('id, status')
+        .select('id, status, user_id')
         .eq('order_number', orderId)
         .maybeSingle();
 
-      if (existingOrder && existingOrder.status === 'PAID') {
-        console.log(`[PAYMENT_SKIP] Order ${orderId} already processed (post-confirm race).`);
-        return res.json({ success: true, message: "이미 처리된 주문입니다.", orderId: existingOrder.id });
+      if (existingOrder) {
+        if (existingOrder.user_id && existingOrder.user_id !== verifiedUserId) {
+          console.error("[PAYMENT_OWNERSHIP_FAIL] Existing order belongs to another user (post-confirm race).");
+          return res.status(403).json({ error: "주문 정보가 일치하지 않습니다." });
+        }
+        if (existingOrder.status === 'PAID') {
+          console.log(`[PAYMENT_SKIP] Order ${orderId} already processed (post-confirm race).`);
+          return res.json({ success: true, message: "이미 처리된 주문입니다.", orderId: existingOrder.id });
+        }
       }
 
       // 5.2. 주문 데이터 정제 및 생성
       // DB 스키마(supabase-schema.sql)에 정의된 컬럼만 정확히 매칭
-      const isUUID = (uuid: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
-      const userId = pendingOrder?.user_id;
-
       const sanitizedOrderedItems = validatedSnapshots.map((snap) => ({
         product_id: snap.is_custom ? 'workshop-single' : snap.product_id,
         title: snap.title,
@@ -466,8 +520,8 @@ ${rssItems}
 
       const saveOrderData: any = {
         order_number: orderId,
-        user_id: (userId && isUUID(userId)) ? userId : null,
-        user_custom_id: pendingOrder?.user_custom_id || null,
+        user_id: verifiedUserId,
+        user_custom_id: verifiedUserCustomId,
         status: 'PAID',
         total_price: Number(tossData.totalAmount),
         shipping_name: pendingOrder?.shipping_name || '고객',
@@ -533,19 +587,17 @@ ${rssItems}
       }
 
       // 5.4. 유저 결제 통계 업데이트
-      if (insertedOrder && insertedOrder.user_id) {
-        const { data: profile } = await supabaseAdmin
+      const { data: spentProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('total_spent')
+        .eq('id', verifiedUserId)
+        .single();
+
+      if (spentProfile) {
+        await supabaseAdmin
           .from('profiles')
-          .select('total_spent')
-          .eq('id', insertedOrder.user_id)
-          .single();
-        
-        if (profile) {
-          await supabaseAdmin
-            .from('profiles')
-            .update({ total_spent: (profile.total_spent || 0) + Number(tossData.totalAmount) })
-            .eq('id', insertedOrder.user_id);
-        }
+          .update({ total_spent: (spentProfile.total_spent || 0) + Number(tossData.totalAmount) })
+          .eq('id', verifiedUserId);
       }
 
       // 6. 디스코드 알림 발송 (서버에서 수행하여 Webhook 숨김)

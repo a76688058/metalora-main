@@ -116,10 +116,19 @@ export default function PaymentSuccess() {
           pendingItems = pendingOrderData.items;
         }
 
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token;
+        if (!accessToken) {
+          throw new Error('로그인 세션이 만료되었습니다. 다시 로그인 후 주문 내역을 확인해 주세요.');
+        }
+
         // 2. 서버에 결제 승인 요청 (보안 강화: Server-side Verification)
         const response = await fetch('/api/payment/confirm', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
           body: JSON.stringify({
             paymentKey,
             orderId,
