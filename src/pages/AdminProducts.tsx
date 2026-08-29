@@ -88,16 +88,18 @@ export default function AdminProducts() {
   const handleSaveOrder = async () => {
     setIsSavingOrder(true);
     try {
-      const updates = orderedProducts.map((product, index) => ({
-        id: product.id,
-        display_order: index,
-      }));
+      const results = await Promise.all(
+        orderedProducts.map((product, index) =>
+          supabase
+            .from('products')
+            .update({ display_order: index })
+            .eq('id', product.id)
+        )
+      );
 
-      const { error } = await supabase
-        .from('products')
-        .upsert(updates, { onConflict: 'id' });
-
+      const error = results.find((result) => result.error)?.error;
       if (error) throw error;
+
       showToast('상품 순서가 저장되었습니다.', 'success');
       await fetchProducts();
     } catch (error) {
