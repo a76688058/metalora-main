@@ -22,8 +22,6 @@ import { ThemeProvider, useTheme } from './context/ThemeContext';
 import CookieBanner from './components/CookieBanner';
 
 const ProductDetail = lazy(() => import('./components/ProductDetail'));
-const Collection = lazy(() => import('./pages/Collection'));
-const BrandStory = lazy(() => import('./pages/BrandStory'));
 const Login = lazy(() => import('./pages/Login'));
 const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'));
 const PaymentFail = lazy(() => import('./pages/PaymentFail'));
@@ -123,8 +121,6 @@ function AnimatedRoutes() {
         <Route path="/product/:id" element={<LazyRoute><ProductDetail /></LazyRoute>} />
         <Route path="/login" element={<LazyRoute><Login /></LazyRoute>} />
         <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/brand-story" element={<LazyRoute><BrandStory /></LazyRoute>} />
-        <Route path="/collection" element={<LazyRoute><Collection /></LazyRoute>} />
         <Route path="/policy/:type" element={<PolicyPage />} />
         
         {/* Profile Complete - Skip for Admins */}

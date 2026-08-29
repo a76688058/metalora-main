@@ -121,7 +121,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between relative w-full">
             {/* Left: Search Icon (Conditional Visibility) */}
             <div className="flex-1 flex justify-start items-center gap-x-4">
-              {(location.pathname === '/' || location.pathname === '/collection') && (
+              {location.pathname === '/' && (
                 <button 
                   onClick={() => setIsSearchOpen(!isSearchOpen)}
                   className={`${theme === 'dark' ? 'text-white' : 'text-black'} opacity-60 hover:opacity-100 transition-all duration-300`}

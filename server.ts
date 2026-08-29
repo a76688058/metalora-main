@@ -273,12 +273,6 @@ function productSeoPayload(product: PublicProductRow): SeoPayload {
       {
         "@type": "ListItem",
         position: 2,
-        name: "Collection",
-        item: `${origin}/collection`,
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
         name: product.title,
         item: canonicalUrl,
       },
@@ -351,6 +345,27 @@ function productLookupUnavailableSeoPayload(productId: string): SeoPayload {
   <p><a href="/">홈으로 돌아가기</a></p>
 </main>`,
     status: 503,
+  };
+}
+
+/** Known removed dummy public URLs — hard 404, never indexable homepage shells. */
+function removedPublicRouteSeoPayload(pathname: string): SeoPayload {
+  const path = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  return {
+    kind: "generic",
+    title: "페이지를 찾을 수 없습니다 | 메탈로라",
+    description: "요청하신 페이지를 찾을 수 없습니다.",
+    canonicalPath: path,
+    ogType: "website",
+    ogImage: DEFAULT_OG_IMAGE,
+    robots: "noindex, nofollow",
+    jsonLd: [organizationJsonLd()],
+    rootHtml: `<main>
+  <h1>페이지를 찾을 수 없습니다</h1>
+  <p>요청하신 페이지를 찾을 수 없습니다.</p>
+  <p><a href="/">홈으로 돌아가기</a></p>
+</main>`,
+    status: 404,
   };
 }
 
@@ -534,31 +549,6 @@ async function resolveSeoForPath(pathname: string): Promise<SeoPayload> {
     return productSeoPayload(lookup.product);
   }
 
-  if (pathname === "/brand-story") {
-    return staticRouteSeoPayload(
-      "/brand-story",
-      "브랜드 스토리 | 메탈로라",
-      "빛의 연금술. 1.15mm의 완벽. 분자 속에 새겨진 이야기. 공간의 해방. 영원히 변치 않는 기록.",
-      `<main>
-  <h1>브랜드 스토리</h1>
-  <h2>빛의 연금술</h2>
-  <h2>1.15mm의 완벽</h2>
-  <h2>분자 속에 새겨진 이야기</h2>
-  <h2>공간의 해방</h2>
-  <p>무타공 마그네틱</p>
-  <h2>영원히 변치 않는 기록</h2>
-</main>`,
-    );
-  }
-
-  if (pathname === "/collection") {
-    return staticRouteSeoPayload(
-      "/collection",
-      "컬렉션 | 메탈로라",
-      "메탈로라 컬렉션.",
-    );
-  }
-
   const policyMatch = pathname.match(/^\/policy\/([^/]+)\/?$/);
   if (policyMatch) {
     const type = policyMatch[1];
@@ -577,6 +567,11 @@ async function resolveSeoForPath(pathname: string): Promise<SeoPayload> {
         "메탈로라 서비스 정책.",
       );
     }
+  }
+
+  // Known removed dummy public URLs (#21A-2) — 404 + noindex, not 200 SPA shells
+  if (pathname === "/brand-story" || pathname === "/collection") {
+    return removedPublicRouteSeoPayload(pathname);
   }
 
   // Other SPA routes: keep shell bootable, but do not claim homepage canonical
@@ -1203,8 +1198,6 @@ ${rssItems}
 
       const staticUrls = [
         { path: "/", changefreq: "daily", priority: "1.0" },
-        { path: "/brand-story", changefreq: "monthly", priority: "0.7" },
-        { path: "/collection", changefreq: "daily", priority: "0.9" },
         ...POLICY_SITEMAP_PATHS.map((policyPath) => ({
           path: policyPath,
           changefreq: "yearly",

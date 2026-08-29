@@ -150,7 +150,7 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
                     <button 
                       onClick={() => {
                         onClose();
-                        navigate('/collection');
+                        navigate('/');
                       }}
                       className={`px-6 py-3 font-medium rounded-2xl transition-colors ${
                         theme === 'dark' ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-black text-white hover:bg-zinc-800'

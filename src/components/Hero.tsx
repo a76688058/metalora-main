@@ -33,7 +33,7 @@ export default function Hero() {
   }, [products, targetProduct]);
 
   const handleMoreClick = () => {
-    navigate('/collection');
+    navigate('/');
   };
 
   const frontImage = targetProduct?.front_image || targetProduct?.image;
