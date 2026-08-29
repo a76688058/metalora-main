@@ -229,38 +229,49 @@ export default function Cart() {
       return;
     }
 
+    const resolvedProfile =
+      profile?.id === currentUser.id
+        ? profile
+        : adminProfile?.id === currentUser.id
+          ? adminProfile
+          : null;
+    const userCustomId = resolvedProfile?.user_custom_id?.trim() ?? '';
+    if (!resolvedProfile || !userCustomId) {
+      showToast('회원 프로필 정보가 없습니다. 다시 로그인하거나 고객센터에 문의해 주세요.', 'error');
+      return;
+    }
+
     try {
       setIsProcessing(true);
       const client = getClient();
-      
-      // 0. Sync Profile Address
-      try {
-        const { error: profileError } = await client
-          .from('profiles')
-          .upsert({
-            id: currentUser.id,
-            full_name: shippingData.name,
-            phone_number: shippingData.phone,
-            zip_code: shippingData.zipCode,
-            address: shippingData.address,
-            address_detail: shippingData.addressDetail,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'id' });
-          
-        if (profileError) {
-          console.error('Profile address sync error:', profileError);
-        }
-      } catch (syncError) {
-        console.error('Profile address sync exception:', syncError);
+
+      const { data: updatedProfiles, error: profileError } = await client
+        .from('profiles')
+        .update({
+          full_name: shippingData.name,
+          phone_number: shippingData.phone,
+          zip_code: shippingData.zipCode,
+          address: shippingData.address,
+          address_detail: shippingData.addressDetail,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', currentUser.id)
+        .select('id');
+
+      if (profileError) {
+        throw new Error('배송 정보 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
       }
-      
+      if (!updatedProfiles || updatedProfiles.length === 0) {
+        throw new Error('회원 프로필을 찾을 수 없습니다. 다시 로그인 후 시도해 주세요.');
+      }
+
       // 1. Prepare Order Data
       const orderNumber = `ORD-${crypto.randomUUID()}`;
-      
+
       const pendingOrderData = {
         order_number: orderNumber,
         user_id: currentUser.id,
-        user_custom_id: profile?.user_custom_id || null,
+        user_custom_id: userCustomId,
         total_price: selectedTotalPrice,
         status: 'PAID', // Will be created as PAID upon success
         shipping_name: shippingData.name,
