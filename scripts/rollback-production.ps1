@@ -56,7 +56,9 @@ function Get-TrafficEntryByTag {
 }
 
 $serviceBefore = Get-CloudRunService
-$stableEntries = Get-TrafficEntryByTag -Service $serviceBefore -Tag "stable"
+$stableEntries = @(
+    Get-TrafficEntryByTag -Service $serviceBefore -Tag "stable"
+)
 
 if ($stableEntries.Count -ne 1) {
     throw "Stable tag not found or ambiguous ($($stableEntries.Count) entries)."

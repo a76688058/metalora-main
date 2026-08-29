@@ -153,7 +153,9 @@ if ($productionAfter.revisionName -ne $productionRevision) {
     throw "Production revision changed during deploy. Expected $productionRevision, got $($productionAfter.revisionName)."
 }
 
-$candidateEntries = Get-TrafficEntryByTag -Service $serviceAfter -Tag "candidate"
+$candidateEntries = @(
+    Get-TrafficEntryByTag -Service $serviceAfter -Tag "candidate"
+)
 if ($candidateEntries.Count -ne 1) {
     throw "Expected exactly one candidate-tagged revision; found $($candidateEntries.Count)."
 }
@@ -165,7 +167,9 @@ if ($null -ne $candidateEntry.percent -and [int]$candidateEntry.percent -gt 0) {
     throw "Candidate revision must not receive production traffic; found $($candidateEntry.percent)%."
 }
 
-$stableEntries = Get-TrafficEntryByTag -Service $serviceAfter -Tag "stable"
+$stableEntries = @(
+    Get-TrafficEntryByTag -Service $serviceAfter -Tag "stable"
+)
 if ($stableEntries.Count -ne 1) {
     throw "Expected exactly one stable-tagged revision; found $($stableEntries.Count)."
 }

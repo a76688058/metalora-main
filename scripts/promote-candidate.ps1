@@ -59,7 +59,9 @@ $serviceBefore = Get-CloudRunService
 $productionBefore = Get-ProductionTrafficEntry -Service $serviceBefore
 $previousProductionRevision = $productionBefore.revisionName
 
-$candidateEntries = Get-TrafficEntryByTag -Service $serviceBefore -Tag "candidate"
+$candidateEntries = @(
+    Get-TrafficEntryByTag -Service $serviceBefore -Tag "candidate"
+)
 if ($candidateEntries.Count -ne 1) {
     throw "Candidate tag not found or ambiguous ($($candidateEntries.Count) entries). Deploy a candidate first."
 }
@@ -89,7 +91,9 @@ if ($productionAfter.revisionName -ne $candidateRevision) {
     throw "Promotion verification failed. Expected production revision $candidateRevision, got $($productionAfter.revisionName)."
 }
 
-$stableEntries = Get-TrafficEntryByTag -Service $serviceAfter -Tag "stable"
+$stableEntries = @(
+    Get-TrafficEntryByTag -Service $serviceAfter -Tag "stable"
+)
 if ($stableEntries.Count -ne 1) {
     throw "Expected exactly one stable-tagged revision after promotion; found $($stableEntries.Count)."
 }
