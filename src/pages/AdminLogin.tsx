@@ -26,6 +26,8 @@ export default function AdminLogin() {
     setIsLoading(true);
     setError('');
 
+    let authenticated = false;
+
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
@@ -33,25 +35,29 @@ export default function AdminLogin() {
       });
 
       if (authError) throw authError;
+      authenticated = true;
 
-      // Check if the user is an admin
       const { data: profileData, error: profileError } = await supabase
-        .from('users') // Changed to users to match AuthContext
+        .from('profiles')
         .select('is_admin')
         .eq('id', data.user.id)
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        throw new Error('회원 정보를 확인할 수 없습니다.');
+      }
 
       if (!profileData?.is_admin) {
-        await supabase.auth.signOut();
         throw new Error('관리자 권한이 없습니다.');
       }
 
-      await refreshProfile(); // Refresh profile
+      await refreshProfile();
       showToast('관리자 로그인 성공', 'success');
       navigate('/admin');
     } catch (err: any) {
+      if (authenticated) {
+        await supabase.auth.signOut();
+      }
       setError(err.message || '로그인 중 오류가 발생했습니다.');
     } finally {
       setIsLoading(false);

@@ -41,7 +41,7 @@ interface AuthContextType {
   isOrdersOpen: boolean;
   isInquiryOpen: boolean;
   
-  signOut: (options?: { adminOnly?: boolean }) => Promise<void>;
+  signOut: () => Promise<void>;
   refreshProfile: (isAdmin?: boolean) => Promise<void>;
   refreshSession: () => Promise<void>;
   openProfile: () => void;
@@ -342,8 +342,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (inactivityTimeout) clearTimeout(inactivityTimeout);
       if (adminUser && adminProfile?.is_admin) {
         inactivityTimeout = setTimeout(() => {
-          signOut({ adminOnly: true });
-          showToast("보안을 위해 장시간 미활동으로 관리자 세션이 만료되었습니다.", 'info');
+          signOut();
+          showToast("보안을 위해 장시간 미활동으로 세션이 만료되었습니다.", 'info');
         }, INACTIVITY_LIMIT);
       }
     };
@@ -360,74 +360,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [adminUser, adminProfile]);
 
-  const signOut = async (options?: { adminOnly?: boolean }) => {
+  const signOut = async () => {
     setIsLoggingOut(true);
     (window as any).isLoggingOutFlag = true; // Set global flag for ProductContext
     try {
-      if (options?.adminOnly) {
-        setAdminSession(null);
-        setAdminUser(null);
-        setAdminProfile(null);
-      } else {
-        // Sign out both safely
-        await supabase.auth.signOut().catch(() => {});
-        
-        // Hard Cleanup immediately after signOut
-        // Preserve theme and language preference
-        const savedTheme = localStorage.getItem('theme');
-        const savedLang = localStorage.getItem('language');
-        localStorage.clear();
-        if (savedTheme) localStorage.setItem('theme', savedTheme);
-        if (savedLang) localStorage.setItem('language', savedLang);
-        
-        sessionStorage.clear();
-        
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-        setAdminSession(null);
-        setAdminUser(null);
-        setAdminProfile(null);
-        loadedProfileUserIdRef.current = null;
-        profileFetchPromiseRef.current = null;
-        profileFetchUserIdRef.current = null;
-        setIsProfileResolved(true);
-        window.dispatchEvent(new CustomEvent('refresh-products'));
-        
-        // Notify other tabs
-        const channel = new BroadcastChannel('metalora-auth-sync');
-        channel.postMessage({ type: 'SYNC_SESSION' });
-        channel.close();
+      await supabase.auth.signOut().catch(() => {});
 
-        showToast('모든 세션이 종료되었습니다.', 'success');
-      }
+      const savedTheme = localStorage.getItem('theme');
+      const savedLang = localStorage.getItem('language');
+      localStorage.clear();
+      if (savedTheme) localStorage.setItem('theme', savedTheme);
+      if (savedLang) localStorage.setItem('language', savedLang);
+
+      sessionStorage.clear();
+
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      setAdminSession(null);
+      setAdminUser(null);
+      setAdminProfile(null);
+      loadedProfileUserIdRef.current = null;
+      profileFetchPromiseRef.current = null;
+      profileFetchUserIdRef.current = null;
+      setIsProfileResolved(true);
+      window.dispatchEvent(new CustomEvent('refresh-products'));
+
+      const channel = new BroadcastChannel('metalora-auth-sync');
+      channel.postMessage({ type: 'SYNC_SESSION' });
+      channel.close();
+
+      showToast('로그아웃되었습니다.', 'success');
     } catch (error) {
       // Error handling without toast
     } finally {
       setIsLoggingOut(false);
       setIsLoading(false);
-      if (!options?.adminOnly) {
-        // Force clear all browser storage but preserve theme and language
-        const savedTheme = localStorage.getItem('theme');
-        const savedLang = localStorage.getItem('language');
-        localStorage.clear();
-        if (savedTheme) localStorage.setItem('theme', savedTheme);
-        if (savedLang) localStorage.setItem('language', savedLang);
-        
-        sessionStorage.clear();
-        // Clear all cookies
-        document.cookie.split(";").forEach((c) => {
-          document.cookie = c
-            .replace(/^ +/, "")
-            .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-        });
-        
-        // Safe SignOut: Reload or redirect to root
-        if (window.location.pathname === '/') {
-          window.location.reload();
-        } else {
-          window.location.href = '/';
-        }
+
+      const savedTheme = localStorage.getItem('theme');
+      const savedLang = localStorage.getItem('language');
+      localStorage.clear();
+      if (savedTheme) localStorage.setItem('theme', savedTheme);
+      if (savedLang) localStorage.setItem('language', savedLang);
+
+      sessionStorage.clear();
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+
+      if (window.location.pathname === '/') {
+        window.location.reload();
+      } else {
+        window.location.href = '/';
       }
     }
   };

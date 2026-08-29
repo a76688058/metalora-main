@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Package, ShoppingCart, LogOut, Menu, X, Users, MessageSquare, Globe, Flame } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,17 +12,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
-  const { signOut, user } = useAuth();
+  const { signOut } = useAuth();
 
-  const handleLogout = async (adminOnly = true) => {
-    await signOut({ adminOnly });
+  const handleLogout = async () => {
     setShowLogoutModal(false);
-    if (adminOnly) {
-      navigate('/admin/login');
-    } else {
-      navigate('/');
-    }
+    await signOut();
   };
 
   const menuItems = [
@@ -48,23 +42,15 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               className="bg-[#0A0A0A] border border-white/10 rounded-[32px] p-8 w-full max-w-sm shadow-[0_0_50px_rgba(0,0,0,1)]"
             >
               <h3 className="text-2xl font-bold text-white mb-4 tracking-tight">로그아웃</h3>
-              <p className="text-zinc-500 text-sm mb-8 font-medium">종료할 세션을 선택해 주세요.</p>
+              <p className="text-zinc-500 text-sm mb-8 font-medium">로그아웃하시겠습니까?</p>
               
               <div className="space-y-4">
                 <button
-                  onClick={() => handleLogout(true)}
+                  onClick={handleLogout}
                   className="w-full py-4 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl transition-all font-bold border border-white/5"
                 >
-                  관리자 세션만 종료
+                  로그아웃
                 </button>
-                {user && (
-                  <button
-                    onClick={() => handleLogout(false)}
-                    className="w-full py-4 bg-red-600/10 hover:bg-red-600/20 text-red-500 rounded-2xl transition-all font-bold border border-red-500/20"
-                  >
-                    모든 세션 종료
-                  </button>
-                )}
                 <button
                   onClick={() => setShowLogoutModal(false)}
                   className="w-full py-4 text-zinc-600 hover:text-white transition-colors text-sm font-bold"
