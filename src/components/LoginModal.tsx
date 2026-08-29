@@ -234,7 +234,6 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
       let authUser = null;
       let authSession = null;
 
-      // 2. Try sign up
       const { data, error } = await supabase.auth.signUp({
         email,
         password: formData.password,
@@ -254,7 +253,6 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
         console.error('Supabase SignUp Error:', error);
         
         if (error.message?.includes('User already registered')) {
-          // 이미 가입된 경우 로그인을 시도하여 세션을 획득합니다.
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email,
             password: formData.password,
@@ -266,29 +264,6 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           
           authUser = signInData.user;
           authSession = signInData.session;
-          
-          // 로그인 성공 시 프로필이 있는지 확인하고 없으면 생성합니다.
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id, is_admin')
-            .eq('id', authUser.id)
-            .single();
-
-          if (!profile) {
-            console.log('Profile missing for existing user, creating with new schema...');
-            await supabase.from('profiles').insert({
-              id: authUser.id,
-              full_name: formData.full_name,
-              phone_number: formData.phone_number,
-              user_custom_id: formData.username,
-              is_admin: false,
-              total_spent: 0,
-              agreed_to_terms_at: new Date().toISOString(),
-              agreed_to_privacy_at: new Date().toISOString(),
-              agreed_to_cookie_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
-          }
         } else {
           let errMsg = error.message || "정보를 저장하는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요";
           if (error.message?.includes('Email address is invalid')) {
@@ -303,103 +278,48 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
         authSession = data?.session;
       }
 
-      if (authUser) {
-        // 데이터 무결성 보장: profiles 테이블에 즉시 업데이트 시도 (Retry 로직 포함)
-        let updateSuccess = false;
-        let retryCount = 0;
-        const maxRetries = 3;
+      if (!authUser) {
+        throw new Error('가입 중 오류가 발생했습니다.');
+      }
 
-        // 트리거가 실행될 시간을 1초 대기
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      if (authSession) {
+        await refreshSession();
+      } else {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password: formData.password,
+        });
 
-        // 1. Check if profile was created by trigger
-        const { data: existingProfile, error: checkError } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', authUser.id)
-          .maybeSingle();
-
-        if (existingProfile) {
-          updateSuccess = true;
-          await supabase
-            .from('profiles')
-            .update({
-              full_name: formData.full_name,
-              phone_number: formData.phone_number,
-              user_custom_id: formData.username,
-              is_admin: false,
-              total_spent: 0,
-              agreed_to_terms_at: new Date().toISOString(),
-              agreed_to_privacy_at: new Date().toISOString(),
-              agreed_to_cookie_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', authUser.id);
-        } else {
-          while (!updateSuccess && retryCount < maxRetries) {
-            try {
-              const { error: updateError } = await supabase
-                .from('profiles')
-                .upsert({
-                  id: authUser.id,
-                  full_name: formData.full_name,
-                  phone_number: formData.phone_number,
-                  user_custom_id: formData.username,
-                  is_admin: false,
-                  total_spent: 0,
-                  agreed_to_terms_at: new Date().toISOString(),
-                  agreed_to_privacy_at: new Date().toISOString(),
-                  agreed_to_cookie_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString()
-                });
-              
-              if (!updateError) {
-                updateSuccess = true;
-              } else {
-                console.warn(`[Profile Upsert Retry ${retryCount + 1}]:`, updateError);
-                await new Promise(resolve => setTimeout(resolve, 500 * (retryCount + 1)));
-                retryCount++;
-              }
-            } catch (err) {
-              console.error(`[Profile Upsert Exception Retry ${retryCount + 1}]:`, err);
-              retryCount++;
-            }
+        if (signInError) {
+          if (signInError.message.includes('Email not confirmed')) {
+            showToast('회원가입은 완료되었으나 이메일 인증이 필요합니다.', 'info');
+            setIsConsentOpen(false);
+            return;
           }
+          throw new Error('회원가입은 완료되었으나 자동 로그인에 실패했습니다.');
         }
 
-        if (!updateSuccess) {
-          throw new Error('계정 생성은 완료되었으나 추가 정보 저장에 실패했습니다. 관리자에게 문의해주세요.');
-        }
-
-        if (authSession) {
+        if (signInData.session) {
           await refreshSession();
-        } else {
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email,
-            password: formData.password,
-          });
-          
-          if (signInError) {
-            if (signInError.message.includes('Email not confirmed')) {
-              showToast('회원가입은 완료되었으나 이메일 인증이 필요합니다.', 'info');
-              setIsConsentOpen(false);
-              return;
-            }
-            throw new Error('회원가입은 완료되었으나 자동 로그인에 실패했습니다.');
-          }
+        }
+      }
 
-          if (signInData.session) {
-            await refreshSession();
-          }
-        }
-        
-        showToast('METALORA 멤버십 가입을 환영합니다!', 'purple');
-        setIsConsentOpen(false);
-        if (onSuccess) {
-          onSuccess();
-        } else {
-          onClose();
-        }
+      const { data: profileRow, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', authUser.id)
+        .maybeSingle();
+
+      if (profileError || !profileRow) {
+        throw new Error('계정 정보를 불러올 수 없습니다. 관리자에게 문의해주세요.');
+      }
+
+      showToast('METALORA 멤버십 가입을 환영합니다!', 'purple');
+      setIsConsentOpen(false);
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        onClose();
       }
     } catch (error: any) {
       setErrorMsg(error.message || '가입 중 오류가 발생했습니다.');
