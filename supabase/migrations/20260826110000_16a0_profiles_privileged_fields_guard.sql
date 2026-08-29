@@ -1,6 +1,5 @@
 -- #16A-0 — Profiles privileged-fields guard
--- DRAFT for version control. Do NOT apply until explicitly approved.
--- Shared Supabase project: applies to production AND metalora-cursor-test.
+-- Applied to shared Supabase project (production + metalora-cursor-test).
 --
 -- Scope:
 --   - BEFORE INSERT/UPDATE trigger on public.profiles

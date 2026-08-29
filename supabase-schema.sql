@@ -1,3 +1,20 @@
+-- =============================================================================
+-- HISTORICAL / DEPRECATED BOOTSTRAP
+-- =============================================================================
+-- DO NOT run against production or any shared Supabase project.
+-- DO NOT use this file as the authoritative current schema.
+--
+-- This file contains known structural drift from live Supabase, including:
+--   - products.id as TEXT (live: UUID)
+--   - order_items keyed by order_number (live: order_id UUID FK)
+--   - public.inquiries instead of live cs_inquiries
+--   - missing user_agreements and #16B constraints/indexes/helpers
+--
+-- Authoritative state = live Supabase + supabase/migrations/*
+-- A fresh-project baseline export from live is still pending.
+-- See supabase/README.md
+-- =============================================================================
+
 -- 1. Create the public.profiles table
 CREATE TABLE public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,

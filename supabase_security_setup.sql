@@ -1,3 +1,16 @@
+-- =============================================================================
+-- HISTORICAL / DEPRECATED SECURITY SETUP
+-- =============================================================================
+-- DO NOT apply this file against production or any shared Supabase project.
+--
+-- This file contains pre-#16A permissive and stale RLS policy definitions,
+-- including client order writes, order_items joins on order_number, policies
+-- on inquiries (not live cs_inquiries), and open banner reads.
+--
+-- Authoritative RLS state = applied supabase/migrations/* + live Supabase.
+-- See supabase/README.md
+-- =============================================================================
+
 -- METALORA Supabase Security Setup (RLS Policies)
 -- Copy and run these commands in your Supabase SQL Editor
 

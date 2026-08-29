@@ -1,6 +1,5 @@
 -- #16A-2 — Products public WRITE lockdown only
--- DRAFT for version control. Do NOT apply until explicitly approved.
--- Shared Supabase project: applies to production AND metalora-cursor-test.
+-- Applied to shared Supabase project (production + metalora-cursor-test).
 --
 -- Scope (narrow / P0):
 --   - DROP public INSERT + UPDATE policies only

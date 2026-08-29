@@ -1,6 +1,5 @@
 -- #16A-1 — Orders / Order Items RLS lockdown
--- DRAFT for version control. Do NOT apply until explicitly approved.
--- Shared Supabase project: applies to production AND metalora-cursor-test.
+-- Applied to shared Supabase project (production + metalora-cursor-test).
 --
 -- Scope:
 --   - ENABLE ROW LEVEL SECURITY on orders, order_items
