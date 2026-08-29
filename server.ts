@@ -183,20 +183,23 @@ function homeSeoPayload(): SeoPayload {
     ogImage: DEFAULT_OG_IMAGE,
     jsonLd: [organizationJsonLd(), websiteJsonLd()],
     rootHtml: `<main class="seo-shell">
-  <header>
-    <p>METALORA</p>
-    <h1>${escapeHtml(title)}</h1>
-    <p>${escapeHtml(description)}</p>
-  </header>
-  <section>
-    <h2>NOT A POSTER.</h2>
-    <h2>ENGINEERED ART.</h2>
-    <p>포스터가 아닙니다.<br/>엔지니어링 된 작품입니다.</p>
-  </section>
-  <section>
-    <h2>벽에 상처를 남기지 마세요.</h2>
-    <h2>오직 예술만 남기세요.</h2>
-  </section>
+  <div class="seo-shell__hero"></div>
+  <div class="seo-shell__content">
+    <header>
+      <p>METALORA</p>
+      <h1>${escapeHtml(title)}</h1>
+      <p>${escapeHtml(description)}</p>
+    </header>
+    <section>
+      <h2>NOT A POSTER.</h2>
+      <h2>ENGINEERED ART.</h2>
+      <p>포스터가 아닙니다.<br/>엔지니어링 된 작품입니다.</p>
+    </section>
+    <section>
+      <h2>벽에 상처를 남기지 마세요.</h2>
+      <h2>오직 예술만 남기세요.</h2>
+    </section>
+  </div>
 </main>`,
   };
 }
@@ -284,10 +287,6 @@ function productSeoPayload(product: PublicProductRow): SeoPayload {
       ? `<p>₩${escapeHtml(price.toLocaleString("ko-KR"))}</p>`
       : "";
   const availabilityLabel = availability.includes("InStock") ? "구매 가능" : "품절";
-  const imgBlock =
-    imageUrl && imageUrl !== DEFAULT_OG_IMAGE
-      ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.title)}" />`
-      : "";
 
   return {
     kind: "product",
@@ -298,14 +297,16 @@ function productSeoPayload(product: PublicProductRow): SeoPayload {
     ogImage: imageUrl,
     jsonLd: [organizationJsonLd(), productLd, breadcrumbLd],
     rootHtml: `<main class="seo-shell">
-  <article>
-    <h1>${escapeHtml(product.title)}</h1>
-    ${priceBlock}
-    <p>${escapeHtml(availabilityLabel)}</p>
-    <h2>작품 설명</h2>
-    <p>${escapeHtml(description)}</p>
-    ${imgBlock}
-  </article>
+  <div class="seo-shell__hero"></div>
+  <div class="seo-shell__content">
+    <article>
+      <h1>${escapeHtml(product.title)}</h1>
+      ${priceBlock}
+      <p>${escapeHtml(availabilityLabel)}</p>
+      <h2>작품 설명</h2>
+      <p>${escapeHtml(description)}</p>
+    </article>
+  </div>
 </main>`,
   };
 }
@@ -321,9 +322,12 @@ function missingProductSeoPayload(productId: string): SeoPayload {
     robots: "noindex, nofollow",
     jsonLd: [organizationJsonLd()],
     rootHtml: `<main class="seo-shell">
-  <h1>상품을 찾을 수 없습니다</h1>
-  <p>요청하신 상품을 찾을 수 없거나 현재 공개되지 않습니다.</p>
-  <p><a href="/">홈으로 돌아가기</a></p>
+  <div class="seo-shell__hero"></div>
+  <div class="seo-shell__content">
+    <h1>상품을 찾을 수 없습니다</h1>
+    <p>요청하신 상품을 찾을 수 없거나 현재 공개되지 않습니다.</p>
+    <p><a href="/">홈으로 돌아가기</a></p>
+  </div>
 </main>`,
     status: 404,
   };
@@ -340,9 +344,12 @@ function productLookupUnavailableSeoPayload(productId: string): SeoPayload {
     ogImage: DEFAULT_OG_IMAGE,
     jsonLd: [organizationJsonLd()],
     rootHtml: `<main class="seo-shell">
-  <h1>일시적으로 상품 정보를 불러올 수 없습니다</h1>
-  <p>잠시 후 다시 시도해 주세요.</p>
-  <p><a href="/">홈으로 돌아가기</a></p>
+  <div class="seo-shell__hero"></div>
+  <div class="seo-shell__content">
+    <h1>일시적으로 상품 정보를 불러올 수 없습니다</h1>
+    <p>잠시 후 다시 시도해 주세요.</p>
+    <p><a href="/">홈으로 돌아가기</a></p>
+  </div>
 </main>`,
     status: 503,
   };
@@ -361,9 +368,12 @@ function removedPublicRouteSeoPayload(pathname: string): SeoPayload {
     robots: "noindex, nofollow",
     jsonLd: [organizationJsonLd()],
     rootHtml: `<main class="seo-shell">
-  <h1>페이지를 찾을 수 없습니다</h1>
-  <p>요청하신 페이지를 찾을 수 없습니다.</p>
-  <p><a href="/">홈으로 돌아가기</a></p>
+  <div class="seo-shell__hero"></div>
+  <div class="seo-shell__content">
+    <h1>페이지를 찾을 수 없습니다</h1>
+    <p>요청하신 페이지를 찾을 수 없습니다.</p>
+    <p><a href="/">홈으로 돌아가기</a></p>
+  </div>
 </main>`,
     status: 404,
   };
@@ -386,8 +396,11 @@ function staticRouteSeoPayload(
     rootHtml:
       rootHtml ||
       `<main class="seo-shell">
-  <h1>${escapeHtml(title)}</h1>
-  <p>${escapeHtml(description)}</p>
+  <div class="seo-shell__hero"></div>
+  <div class="seo-shell__content">
+    <h1>${escapeHtml(title)}</h1>
+    <p>${escapeHtml(description)}</p>
+  </div>
 </main>`,
   };
 }
@@ -584,7 +597,7 @@ async function resolveSeoForPath(pathname: string): Promise<SeoPayload> {
     ogType: "website",
     ogImage: DEFAULT_OG_IMAGE,
     jsonLd: [organizationJsonLd()],
-    rootHtml: `<main class="seo-shell"><h1>메탈로라</h1></main>`,
+    rootHtml: `<main class="seo-shell"><div class="seo-shell__hero"></div><div class="seo-shell__content"><h1>메탈로라</h1></div></main>`,
   };
 }
 

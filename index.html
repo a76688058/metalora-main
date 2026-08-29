@@ -74,87 +74,72 @@
     <meta name="apple-mobile-web-app-title" content="메탈로라">
     <meta name="theme-color" content="#0F0F11">
 
-    <!-- Critical shell styles: paint before Vite/JS CSS so SEO HTML is not raw FOUC -->
+    <!--
+      Pre-React shell: first viewport = neutral app background only.
+      Crawlable copy sits below the fold in normal document flow.
+    -->
     <style>
       html, body {
         margin: 0;
-        background-color: #0F0F11;
-        color: #F2F2F7;
+        background-color: #ffffff;
+        color: #121212;
         font-family: "IBM Plex Sans KR", "Noto Sans KR", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
       #root > .seo-shell {
         box-sizing: border-box;
-        min-height: 100vh;
-        min-height: 100dvh;
-        max-width: 72rem;
-        margin: 0 auto;
-        padding: 4.5rem 1.5rem 3rem;
-        background-color: #0F0F11;
-        color: #F2F2F7;
+        margin: 0;
+        background-color: #ffffff;
+        color: #121212;
         line-height: 1.5;
       }
-      #root > .seo-shell header > p:first-child {
+      /* Empty first viewport — same neutral base as app startup (no logo/copy/image) */
+      #root > .seo-shell > .seo-shell__hero {
+        box-sizing: border-box;
+        min-height: 100vh;
+        min-height: 100dvh;
+        background-color: #ffffff;
+      }
+      /* Real crawlable document content after the hero-height region */
+      #root > .seo-shell > .seo-shell__content {
+        box-sizing: border-box;
+        max-width: 72rem;
+        margin: 0 auto;
+        padding: 3rem 1.5rem 4rem;
+      }
+      #root > .seo-shell > .seo-shell__content header > p:first-child {
         margin: 0 0 1rem;
         font-size: 0.75rem;
         font-weight: 300;
         letter-spacing: 0.35em;
         text-transform: uppercase;
-        color: rgba(242, 242, 247, 0.55);
+        color: #52525b;
       }
-      #root > .seo-shell h1 {
+      #root > .seo-shell > .seo-shell__content h1 {
         margin: 0 0 1rem;
-        font-size: clamp(1.75rem, 4.5vw, 3rem);
+        font-size: clamp(1.75rem, 4.5vw, 2.75rem);
         font-weight: 700;
         letter-spacing: -0.02em;
         line-height: 1.2;
-        color: #F2F2F7;
+        color: #121212;
       }
-      #root > .seo-shell h2 {
-        margin: 0 0 0.5rem;
-        font-size: clamp(1.35rem, 3.5vw, 2.5rem);
+      #root > .seo-shell > .seo-shell__content h2 {
+        margin: 2.5rem 0 0.5rem;
+        font-size: clamp(1.25rem, 3vw, 2rem);
         font-weight: 300;
-        letter-spacing: 0.12em;
-        line-height: 1.15;
-        text-transform: uppercase;
-        color: rgba(242, 242, 247, 0.9);
+        letter-spacing: 0.08em;
+        line-height: 1.2;
+        color: #18181b;
       }
-      #root > .seo-shell p {
+      #root > .seo-shell > .seo-shell__content p {
         margin: 0 0 1rem;
         font-size: 1rem;
         font-weight: 300;
-        color: rgba(242, 242, 247, 0.65);
+        color: #3f3f46;
       }
-      #root > .seo-shell section {
-        margin-top: 3.5rem;
-      }
-      #root > .seo-shell article h1 {
-        font-size: clamp(2rem, 5vw, 3.25rem);
-        font-weight: 800;
-        letter-spacing: -0.025em;
-      }
-      #root > .seo-shell article > p:first-of-type {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #F2F2F7;
-      }
-      #root > .seo-shell article h2 {
-        margin-top: 2rem;
-        font-size: 0.875rem;
-        font-weight: 700;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        color: #F2F2F7;
-      }
-      #root > .seo-shell img {
-        display: block;
-        max-width: min(100%, 28rem);
-        margin-top: 1.5rem;
-        border-radius: 0.5rem;
-      }
-      #root > .seo-shell a {
-        color: rgba(242, 242, 247, 0.85);
+      #root > .seo-shell > .seo-shell__content a {
+        color: #18181b;
         text-decoration: underline;
         text-underline-offset: 0.2em;
       }
@@ -163,20 +148,23 @@
   <body>
     <div id="root">
       <main class="seo-shell">
-        <header>
-          <p>METALORA</p>
-          <h1>메탈로라 | 프리미엄 커스텀 메탈 액자</h1>
-          <p>클릭 한 번으로 당신의 소중한 순간을 영원히 빛나는 프리미엄 커스텀 메탈 액자로 만드세요. 변하지 않는 가치, 메탈로라.</p>
-        </header>
-        <section>
-          <h2>NOT A POSTER.</h2>
-          <h2>ENGINEERED ART.</h2>
-          <p>포스터가 아닙니다.<br/>엔지니어링 된 작품입니다.</p>
-        </section>
-        <section>
-          <h2>벽에 상처를 남기지 마세요.</h2>
-          <h2>오직 예술만 남기세요.</h2>
-        </section>
+        <div class="seo-shell__hero"></div>
+        <div class="seo-shell__content">
+          <header>
+            <p>METALORA</p>
+            <h1>메탈로라 | 프리미엄 커스텀 메탈 액자</h1>
+            <p>클릭 한 번으로 당신의 소중한 순간을 영원히 빛나는 프리미엄 커스텀 메탈 액자로 만드세요. 변하지 않는 가치, 메탈로라.</p>
+          </header>
+          <section>
+            <h2>NOT A POSTER.</h2>
+            <h2>ENGINEERED ART.</h2>
+            <p>포스터가 아닙니다.<br/>엔지니어링 된 작품입니다.</p>
+          </section>
+          <section>
+            <h2>벽에 상처를 남기지 마세요.</h2>
+            <h2>오직 예술만 남기세요.</h2>
+          </section>
+        </div>
       </main>
     </div>
     <script type="module" src="/src/main.tsx"></script>
