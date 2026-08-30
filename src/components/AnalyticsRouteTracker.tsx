@@ -5,6 +5,7 @@ import {
   hasAnalyticsConsent,
   track,
 } from "../lib/analytics";
+import { syncGa4DefaultPageContext } from "../lib/ga4";
 
 /** Survives StrictMode remounts within the same document lifetime. */
 let lastPageViewKey: string | null = null;
@@ -22,6 +23,7 @@ export default function AnalyticsRouteTracker() {
       if (!hasAnalyticsConsent()) return;
       if (lastPageViewKey === key) return;
       lastPageViewKey = key;
+      syncGa4DefaultPageContext();
       track("page_view", {
         page_path: key,
         page_title: typeof document !== "undefined" ? document.title : undefined,

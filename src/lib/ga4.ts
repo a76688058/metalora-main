@@ -40,6 +40,7 @@ declare global {
 
 let scriptLoadPromise: Promise<void> | null = null;
 let configured = false;
+let activeMeasurementId: string | null = null;
 let enabling = false;
 let unregisterSink: (() => void) | null = null;
 let consentListenerAttached = false;
@@ -152,26 +153,89 @@ export function sanitizeAnalyticsPagePath(pagePath: string): string {
   return withoutQuery || "/";
 }
 
+/** Origin + pathname only — never forward raw document.referrer. */
+export function getSafeAnalyticsPageReferrer(): string {
+  try {
+    const raw = document.referrer;
+    if (!raw) return "";
+    const parsed = new URL(raw);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return "";
+  }
+}
+
+function getGa4DefaultPageContext(): Record<string, string> {
+  const context: Record<string, string> = {
+    page_location: getSafeAnalyticsPageLocation(),
+  };
+  const referrer = getSafeAnalyticsPageReferrer();
+  if (referrer) {
+    context.page_referrer = referrer;
+  }
+  return context;
+}
+
+/** Shared gtag config fields — every config call must keep automatic pageviews off. */
+function getGa4SharedConfigFields(): Record<string, unknown> {
+  return {
+    send_page_view: false,
+    ...getGa4DefaultPageContext(),
+  };
+}
+
+/**
+ * Sync GA4 default page context so automatic events (scroll, engagement, etc.)
+ * inherit sanitized page_location/page_referrer instead of document.location.
+ */
+export function syncGa4DefaultPageContext(): void {
+  const measurementId = activeMeasurementId ?? getGa4MeasurementId();
+  if (!measurementId || !configured || typeof window.gtag !== "function") {
+    return;
+  }
+
+  try {
+    window.gtag(
+      "config",
+      measurementId,
+      withDebugMode(getGa4SharedConfigFields()),
+    );
+    debugLog("default page context synced");
+  } catch {
+    // Analytics must never affect app behavior.
+  }
+}
+
 function withGa4EventPayload<T extends Record<string, unknown>>(payload: T): T {
-  return withDebugMode({
+  const enriched: Record<string, unknown> = {
     ...payload,
     page_location: getSafeAnalyticsPageLocation(),
-  });
+  };
+  const referrer = getSafeAnalyticsPageReferrer();
+  if (referrer) {
+    enriched.page_referrer = referrer;
+  }
+  return withDebugMode(enriched as T);
 }
 
 function configureGa4(measurementId: string): void {
   ensureDataLayer();
+  activeMeasurementId = measurementId;
   window.gtag("js", new Date());
   window.gtag(
     "config",
     measurementId,
     withDebugMode({
-      send_page_view: false,
       anonymize_ip: true,
+      ...getGa4SharedConfigFields(),
     }),
   );
   configured = true;
-  debugLog("configured", { measurementId, send_page_view: false });
+  debugLog("configured", {
+    measurementId,
+    send_page_view: false,
+    page_location: getSafeAnalyticsPageLocation(),
+  });
 }
 
 function sendToGa4<E extends keyof AnalyticsEventMap>(
@@ -309,6 +373,7 @@ function disableGa4Sink(): void {
     debugLog("sink unregistered");
   }
   configured = false;
+  activeMeasurementId = null;
   if (typeof window.gtag === "function") {
     try {
       window.gtag("consent", "update", {
