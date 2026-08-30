@@ -699,6 +699,107 @@ function buildRpcOrderItems(validatedSnapshots: ValidatedItemSnapshot[]) {
   }));
 }
 
+/** GA4-safe purchase line items — no PII, URLs, or raw snapshot blobs. */
+type AnalyticsPurchaseItem = {
+  item_id: string;
+  item_name: string;
+  item_variant?: string;
+  price: number;
+  quantity: number;
+};
+
+function isWorkshopRpcOrderItem(productId: unknown): boolean {
+  if (productId == null) return true;
+  if (typeof productId !== 'string') return false;
+  const trimmed = productId.trim();
+  return trimmed === '' || trimmed === 'workshop-single';
+}
+
+function buildAnalyticsPurchaseItemsFromSnapshot(
+  snapshot: PaymentIntentSnapshot,
+): AnalyticsPurchaseItem[] {
+  const items: AnalyticsPurchaseItem[] = [];
+
+  for (const rawItem of snapshot.order_items) {
+    const item = rawItem as {
+      product_id?: string | null;
+      product_title?: string;
+      quantity?: unknown;
+      price?: unknown;
+      option?: string;
+      orientation?: string | null;
+    };
+
+    const quantity = parsePositiveIntQuantity(item.quantity);
+    if (quantity === null) {
+      continue;
+    }
+
+    const unitPrice = typeof item.price === 'number' ? item.price : Number(item.price);
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      continue;
+    }
+
+    const item_id = isWorkshopRpcOrderItem(item.product_id)
+      ? 'workshop-single'
+      : String(item.product_id).trim();
+
+    const item_name = trimNonEmptyString(item.product_title) || '제품';
+
+    const variantParts = [
+      trimNonEmptyString(item.option),
+      trimNonEmptyString(item.orientation),
+    ].filter((part): part is string => Boolean(part));
+    const item_variant =
+      variantParts.length > 0 ? variantParts.join(' / ') : undefined;
+
+    const analyticsItem: AnalyticsPurchaseItem = {
+      item_id,
+      item_name,
+      price: unitPrice,
+      quantity,
+    };
+    if (item_variant) {
+      analyticsItem.item_variant = item_variant;
+    }
+    items.push(analyticsItem);
+  }
+
+  return items;
+}
+
+function buildPaymentConfirmSuccessPayload(input: {
+  orderUuid: string;
+  orderNumber: string;
+  amount: number;
+  snapshot: PaymentIntentSnapshot;
+  alreadyFinalized: boolean;
+  message?: string;
+}): {
+  success: true;
+  orderId: string;
+  order_number: string;
+  amount: number;
+  currency: 'KRW';
+  already_finalized: boolean;
+  items: AnalyticsPurchaseItem[];
+  message?: string;
+} {
+  const payload = {
+    success: true as const,
+    orderId: input.orderUuid,
+    order_number: input.orderNumber,
+    amount: input.amount,
+    currency: 'KRW' as const,
+    already_finalized: input.alreadyFinalized,
+    items: buildAnalyticsPurchaseItemsFromSnapshot(input.snapshot),
+  };
+  if (input.message) {
+    return { ...payload, message: input.message };
+  }
+  return payload;
+}
+
 function validateShippingInput(shipping: unknown):
   | { ok: true; shipping: CheckoutShipping }
   | { ok: false; status: number; error: string } {
@@ -1396,7 +1497,16 @@ ${staticUrls}${productUrls}
             return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
           }
           console.log(`[PAYMENT_SKIP] Order ${orderId} already finalized.`);
-          return res.json({ success: true, message: "이미 처리된 주문입니다.", orderId: existingOrder.id });
+          return res.json(
+            buildPaymentConfirmSuccessPayload({
+              orderUuid: existingOrder.id,
+              orderNumber: paymentIntent.order_number as string,
+              amount: intentTotal,
+              snapshot,
+              alreadyFinalized: true,
+              message: '이미 처리된 주문입니다.',
+            }),
+          );
         }
         console.error("[PAYMENT_RECOVERY_REQUIRED] Unfinalized existing order:", { orderId });
         return res.status(409).json({ error: "주문 처리에 문제가 발생했습니다. 고객센터에 문의해 주세요." });
@@ -1601,7 +1711,15 @@ ${itemsList}
         );
       }
 
-      return res.json({ success: true, orderId: finalizeResult.order_id });
+      return res.json(
+        buildPaymentConfirmSuccessPayload({
+          orderUuid: finalizeResult.order_id,
+          orderNumber: finalizeResult.order_number,
+          amount: intentTotal,
+          snapshot,
+          alreadyFinalized: finalizeResult.already_finalized,
+        }),
+      );
 
     } catch (error: any) {
       console.error("Payment Confirmation API Error:", error);
