@@ -135,6 +135,30 @@ function withDebugMode<T extends Record<string, unknown>>(payload: T): T {
   return { ...payload, debug_mode: true };
 }
 
+/** Origin + pathname only — never query or hash (payment tokens live in search). */
+export function getSafeAnalyticsPageLocation(): string {
+  try {
+    return `${window.location.origin}${window.location.pathname}`;
+  } catch {
+    return "";
+  }
+}
+
+/** Strip query/hash if a caller passed pathname+search into page_path. */
+export function sanitizeAnalyticsPagePath(pagePath: string): string {
+  if (!pagePath) return "/";
+  const withoutHash = pagePath.split("#")[0] ?? pagePath;
+  const withoutQuery = withoutHash.split("?")[0] ?? withoutHash;
+  return withoutQuery || "/";
+}
+
+function withGa4EventPayload<T extends Record<string, unknown>>(payload: T): T {
+  return withDebugMode({
+    ...payload,
+    page_location: getSafeAnalyticsPageLocation(),
+  });
+}
+
 function configureGa4(measurementId: string): void {
   ensureDataLayer();
   window.gtag("js", new Date());
@@ -161,9 +185,8 @@ function sendToGa4<E extends keyof AnalyticsEventMap>(
     window.gtag(
       "event",
       "page_view",
-      withDebugMode({
-        page_path: p.page_path,
-        page_location: window.location.href,
+      withGa4EventPayload({
+        page_path: sanitizeAnalyticsPagePath(p.page_path),
         page_title: p.page_title,
       }),
     );
@@ -181,7 +204,7 @@ function sendToGa4<E extends keyof AnalyticsEventMap>(
     window.gtag(
       "event",
       event,
-      withDebugMode({
+      withGa4EventPayload({
         currency: p.currency,
         value: p.value,
         items: p.items,
@@ -195,7 +218,7 @@ function sendToGa4<E extends keyof AnalyticsEventMap>(
     window.gtag(
       "event",
       "payment_start",
-      withDebugMode({
+      withGa4EventPayload({
         currency: p.currency,
         value: p.value,
         items: p.items,
@@ -210,7 +233,7 @@ function sendToGa4<E extends keyof AnalyticsEventMap>(
     window.gtag(
       "event",
       "purchase",
-      withDebugMode({
+      withGa4EventPayload({
         transaction_id: p.transaction_id,
         currency: p.currency,
         value: p.value,
