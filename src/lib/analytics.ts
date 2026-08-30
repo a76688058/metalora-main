@@ -47,6 +47,19 @@ export type AnalyticsEventMap = {
     value: number;
     items: AnalyticsItem[];
   };
+  payment_fail: {
+    failure_stage:
+      | "prepare_http"
+      | "prepare_network"
+      | "toss_sdk_load"
+      | "toss_request"
+      | "toss_redirect_fail"
+      | "confirm_network"
+      | "confirm_http"
+      | "confirm_finalize";
+    failure_code?: string;
+    payment_provider: "toss";
+  };
 };
 
 export type AnalyticsEventName = keyof AnalyticsEventMap;

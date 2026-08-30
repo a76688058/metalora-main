@@ -12,6 +12,12 @@ import PolicyModal from './PolicyModal';
 import { policies } from '../constants/policies';
 import { Product } from '../data/products';
 import { track, type AnalyticsItem } from '../lib/analytics';
+import {
+  extractTossCodeFromError,
+  httpFailureCode,
+  reportPaymentFail,
+  sanitizeTossFailureCode,
+} from '../lib/paymentFailureAnalytics';
 
 interface CartProps {
   isOpen: boolean;
@@ -343,41 +349,86 @@ export default function Cart() {
         throw new Error('로그인 세션이 만료되었습니다. 다시 로그인 후 시도해 주세요.');
       }
 
-      const prepareResponse = await fetch('/api/payment/prepare', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          items: prepareItems,
-          shipping: {
-            name: shippingData.name,
-            phone: shippingData.phone,
-            zip_code: shippingData.zipCode,
-            address: shippingData.address,
-            address_detail: shippingData.addressDetail,
+      let prepareResponse: Response;
+      try {
+        prepareResponse = await fetch('/api/payment/prepare', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
           },
-          consents: {
-            ...consents,
-            agreed_at: new Date().toISOString(),
-          },
-        }),
-      });
-
-      const prepareResult = await prepareResponse.json();
-      if (!prepareResponse.ok) {
-        throw new Error(prepareResult.error || '결제 준비 중 오류가 발생했습니다.');
+          body: JSON.stringify({
+            items: prepareItems,
+            shipping: {
+              name: shippingData.name,
+              phone: shippingData.phone,
+              zip_code: shippingData.zipCode,
+              address: shippingData.address,
+              address_detail: shippingData.addressDetail,
+            },
+            consents: {
+              ...consents,
+              agreed_at: new Date().toISOString(),
+            },
+          }),
+        });
+      } catch {
+        reportPaymentFail({
+          failure_stage: 'prepare_network',
+          failure_code: 'network_error',
+        });
+        throw new Error('결제 준비 중 오류가 발생했습니다.');
       }
 
-      const orderNumber = prepareResult.orderId as string;
+      let prepareResult: Record<string, unknown>;
+      try {
+        prepareResult = (await prepareResponse.json()) as Record<string, unknown>;
+      } catch {
+        reportPaymentFail({
+          failure_stage: 'prepare_http',
+          failure_code: prepareResponse.ok
+            ? 'invalid_prepare_response'
+            : httpFailureCode(prepareResponse.status),
+        });
+        throw new Error(
+          prepareResponse.ok
+            ? '결제 준비 응답이 올바르지 않습니다.'
+            : '결제 준비 중 오류가 발생했습니다.',
+        );
+      }
+
+      if (!prepareResponse.ok) {
+        reportPaymentFail({
+          failure_stage: 'prepare_http',
+          failure_code: httpFailureCode(prepareResponse.status),
+        });
+        throw new Error(
+          (typeof prepareResult.error === 'string' && prepareResult.error) ||
+            '결제 준비 중 오류가 발생했습니다.',
+        );
+      }
+
+      const orderNumber = prepareResult.orderId;
       const authoritativeAmount = Number(prepareResult.amount);
-      if (!orderNumber || !Number.isFinite(authoritativeAmount) || authoritativeAmount <= 0) {
+      if (
+        typeof orderNumber !== 'string' ||
+        !orderNumber ||
+        !Number.isFinite(authoritativeAmount) ||
+        authoritativeAmount <= 0
+      ) {
+        reportPaymentFail({
+          failure_stage: 'prepare_http',
+          failure_code: 'invalid_prepare_response',
+          orderNumberForDedupe:
+            typeof prepareResult.orderId === 'string' ? prepareResult.orderId : undefined,
+        });
         throw new Error('결제 준비 응답이 올바르지 않습니다.');
       }
 
+      const resolvedOrderNumber = orderNumber;
+
       const pendingOrderData = {
-        order_number: orderNumber,
+        order_number: resolvedOrderNumber,
         user_id: currentUser.id,
         user_custom_id: userCustomId,
         total_price: authoritativeAmount,
@@ -446,7 +497,20 @@ export default function Cart() {
       }));
 
       // 3. Initialize Toss Payments
-      const tossPayments = await loadTossPayments(TOSS_CLIENT_KEY);
+      let tossPayments;
+      try {
+        tossPayments = await loadTossPayments(TOSS_CLIENT_KEY);
+      } catch (error: unknown) {
+        reportPaymentFail({
+          failure_stage: 'toss_sdk_load',
+          failure_code: sanitizeTossFailureCode(
+            extractTossCodeFromError(error),
+            'sdk_load_failed',
+          ),
+          orderNumberForDedupe: orderNumber,
+        });
+        throw error;
+      }
       
       const orderName = selectedItems.length > 1 
         ? `${selectedItems[0].product?.title || '커스텀 제품'} 외 ${selectedItems.length - 1}건`
@@ -459,14 +523,26 @@ export default function Cart() {
         payment_provider: 'toss',
       });
 
-      await tossPayments.requestPayment('카드', {
-        amount: authoritativeAmount,
-        orderId: orderNumber,
-        orderName: orderName,
-        customerName: shippingData.name,
-        successUrl: `${window.location.origin}/payment/success`,
-        failUrl: `${window.location.origin}/payment/fail`,
-      });
+      try {
+        await tossPayments.requestPayment('카드', {
+          amount: authoritativeAmount,
+          orderId: orderNumber,
+          orderName: orderName,
+          customerName: shippingData.name,
+          successUrl: `${window.location.origin}/payment/success`,
+          failUrl: `${window.location.origin}/payment/fail`,
+        });
+      } catch (error: unknown) {
+        reportPaymentFail({
+          failure_stage: 'toss_request',
+          failure_code: sanitizeTossFailureCode(
+            extractTossCodeFromError(error),
+            'request_failed',
+          ),
+          orderNumberForDedupe: orderNumber,
+        });
+        throw error;
+      }
 
       setIsBottomSheetOpen(false);
     } catch (error: any) {

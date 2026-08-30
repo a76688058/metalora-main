@@ -306,6 +306,20 @@ function sendToGa4<E extends keyof AnalyticsEventMap>(
     );
     return;
   }
+
+  if (event === "payment_fail") {
+    const p = payload as AnalyticsEventMap["payment_fail"];
+    window.gtag(
+      "event",
+      "payment_fail",
+      withGa4EventPayload({
+        failure_stage: p.failure_stage,
+        ...(p.failure_code ? { failure_code: p.failure_code } : {}),
+        payment_provider: p.payment_provider,
+      }),
+    );
+    return;
+  }
 }
 
 function flushPending(): void {

@@ -7,6 +7,10 @@ import LoadingScreen from '../components/LoadingScreen';
 import { useCart } from '../context/CartContext';
 import { useTheme } from '../context/ThemeContext';
 import { resolvePurchaseAnalyticsAfterConfirm } from '../lib/purchaseAnalyticsDedupe';
+import {
+  httpFailureCode,
+  reportPaymentFail,
+} from '../lib/paymentFailureAnalytics';
 
 /**
  * METALORA PII(Personally Identifiable Information) 보호 모듈
@@ -94,6 +98,11 @@ export default function PaymentSuccess() {
         const { data: { session } } = await supabase.auth.getSession();
         const accessToken = session?.access_token;
         if (!accessToken) {
+          reportPaymentFail({
+            failure_stage: 'confirm_http',
+            failure_code: 'http_401',
+            orderNumberForDedupe: orderId ?? undefined,
+          });
           throw new Error('로그인 세션이 만료되었습니다. 다시 로그인 후 주문 내역을 확인해 주세요.');
         }
 
@@ -111,27 +120,63 @@ export default function PaymentSuccess() {
           }
         }
 
-        const response = await fetch('/api/payment/confirm', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            paymentKey,
-            orderId,
-            amount: totalAmount,
-          }),
-        });
+        let response: Response;
+        try {
+          response = await fetch('/api/payment/confirm', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              paymentKey,
+              orderId,
+              amount: totalAmount,
+            }),
+          });
+        } catch {
+          reportPaymentFail({
+            failure_stage: 'confirm_network',
+            failure_code: 'network_error',
+            orderNumberForDedupe: orderId ?? undefined,
+          });
+          throw new Error('결제 승인 중 오류가 발생했습니다.');
+        }
 
-        const result = await response.json();
+        let result: Record<string, unknown>;
+        try {
+          result = (await response.json()) as Record<string, unknown>;
+        } catch {
+          reportPaymentFail({
+            failure_stage: response.ok ? 'confirm_finalize' : 'confirm_http',
+            failure_code: response.ok
+              ? 'invalid_confirm_success_response'
+              : httpFailureCode(response.status),
+            orderNumberForDedupe: orderId ?? undefined,
+          });
+          throw new Error('결제 승인 중 오류가 발생했습니다.');
+        }
 
         if (!response.ok) {
-          throw new Error(result.error || '결제 승인 중 오류가 발생했습니다.');
+          reportPaymentFail({
+            failure_stage: 'confirm_http',
+            failure_code: httpFailureCode(response.status),
+            orderNumberForDedupe: orderId ?? undefined,
+          });
+          throw new Error(
+            (typeof result.error === 'string' && result.error) ||
+              '결제 승인 중 오류가 발생했습니다.',
+          );
         }
 
         if (result.success === true) {
           resolvePurchaseAnalyticsAfterConfirm(result);
+        } else {
+          reportPaymentFail({
+            failure_stage: 'confirm_finalize',
+            failure_code: 'invalid_confirm_success_response',
+            orderNumberForDedupe: orderId ?? undefined,
+          });
         }
 
         // Optional cart clear when session snapshot is still available

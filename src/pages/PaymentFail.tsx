@@ -1,7 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { XCircle } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import {
+  reportPaymentFail,
+  sanitizeTossFailureCode,
+} from '../lib/paymentFailureAnalytics';
 
 export default function PaymentFail() {
   const [searchParams] = useSearchParams();
@@ -11,6 +15,14 @@ export default function PaymentFail() {
   const code = searchParams.get('code');
   const message = searchParams.get('message');
   const orderId = searchParams.get('orderId');
+
+  useEffect(() => {
+    reportPaymentFail({
+      failure_stage: 'toss_redirect_fail',
+      failure_code: sanitizeTossFailureCode(code, 'unknown_toss_failure'),
+      orderNumberForDedupe: orderId ?? undefined,
+    });
+  }, [code, orderId]);
 
   return (
     <div className={`min-h-screen flex items-center justify-center p-6 transition-colors duration-500 ${theme === 'dark' ? 'bg-[#0F0F11]' : 'bg-white'}`}>
