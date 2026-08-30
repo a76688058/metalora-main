@@ -202,6 +202,22 @@ function sendToGa4<E extends keyof AnalyticsEventMap>(
         payment_provider: p.payment_provider,
       }),
     );
+    return;
+  }
+
+  if (event === "purchase") {
+    const p = payload as AnalyticsEventMap["purchase"];
+    window.gtag(
+      "event",
+      "purchase",
+      withDebugMode({
+        transaction_id: p.transaction_id,
+        currency: p.currency,
+        value: p.value,
+        items: p.items,
+      }),
+    );
+    return;
   }
 }
 

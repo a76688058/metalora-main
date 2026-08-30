@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import LoadingScreen from '../components/LoadingScreen';
 import { useCart } from '../context/CartContext';
 import { useTheme } from '../context/ThemeContext';
+import { resolvePurchaseAnalyticsAfterConfirm } from '../lib/purchaseAnalyticsDedupe';
 
 /**
  * METALORA PII(Personally Identifiable Information) 보호 모듈
@@ -127,6 +128,10 @@ export default function PaymentSuccess() {
 
         if (!response.ok) {
           throw new Error(result.error || '결제 승인 중 오류가 발생했습니다.');
+        }
+
+        if (result.success === true) {
+          resolvePurchaseAnalyticsAfterConfirm(result);
         }
 
         // Optional cart clear when session snapshot is still available

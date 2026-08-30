@@ -41,6 +41,12 @@ export type AnalyticsEventMap = {
     items: AnalyticsItem[];
     payment_provider: "toss";
   };
+  purchase: {
+    transaction_id: string;
+    currency: "KRW";
+    value: number;
+    items: AnalyticsItem[];
+  };
 };
 
 export type AnalyticsEventName = keyof AnalyticsEventMap;
@@ -76,6 +82,11 @@ export function hasAnalyticsConsent(): boolean {
   } catch {
     return false;
   }
+}
+
+/** Canonical consent check for components (same semantics as track()). */
+export function isAnalyticsConsentAccepted(): boolean {
+  return hasAnalyticsConsent();
 }
 
 export function getAnalyticsConsent(): AnalyticsConsentValue | null {
