@@ -170,8 +170,14 @@ function sendToGa4<E extends keyof AnalyticsEventMap>(
     return;
   }
 
-  if (event === "view_item" || event === "add_to_cart") {
-    const p = payload as AnalyticsEventMap["view_item" | "add_to_cart"];
+  if (
+    event === "view_item" ||
+    event === "add_to_cart" ||
+    event === "begin_checkout"
+  ) {
+    const p = payload as AnalyticsEventMap[
+      "view_item" | "add_to_cart" | "begin_checkout"
+    ];
     window.gtag(
       "event",
       event,
@@ -179,6 +185,21 @@ function sendToGa4<E extends keyof AnalyticsEventMap>(
         currency: p.currency,
         value: p.value,
         items: p.items,
+      }),
+    );
+    return;
+  }
+
+  if (event === "payment_start") {
+    const p = payload as AnalyticsEventMap["payment_start"];
+    window.gtag(
+      "event",
+      "payment_start",
+      withDebugMode({
+        currency: p.currency,
+        value: p.value,
+        items: p.items,
+        payment_provider: p.payment_provider,
       }),
     );
   }

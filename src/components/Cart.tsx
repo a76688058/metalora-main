@@ -10,6 +10,8 @@ import { supabase } from '../lib/supabase';
 import { loadTossPayments } from '@tosspayments/payment-sdk';
 import PolicyModal from './PolicyModal';
 import { policies } from '../constants/policies';
+import { Product } from '../data/products';
+import { track, type AnalyticsItem } from '../lib/analytics';
 
 interface CartProps {
   isOpen: boolean;
@@ -17,6 +19,46 @@ interface CartProps {
 }
 
 const TOSS_CLIENT_KEY = 'test_ck_Poxy1XQL8R9nPR9Xn61Xr7nO5Wml';
+
+/** Map selected cart rows to safe GA4 ecommerce items (no PII / no custom image URLs). */
+function mapSelectedItemsToAnalyticsItems(
+  items: Array<{
+    product_id: string;
+    product_type: 'stock' | 'workshop';
+    selected_option: string;
+    quantity: number;
+    custom_config?: { price?: number; size?: string };
+    product?: Product;
+  }>,
+): AnalyticsItem[] {
+  return items.map((item) => {
+    if (item.product_id === 'workshop-single' || item.product_type === 'workshop') {
+      const unitPrice = item.custom_config?.price || 0;
+      const variant =
+        (typeof item.custom_config?.size === 'string' && item.custom_config.size) ||
+        '커스텀';
+      return {
+        item_id: 'workshop-single',
+        item_name: item.product?.title || '커스텀 포스터',
+        item_variant: variant,
+        price: unitPrice,
+        quantity: item.quantity,
+      };
+    }
+
+    const option = item.product?.options?.find(
+      (opt) => opt.id === item.selected_option,
+    );
+    const unitPrice = option?.price ?? 0;
+    return {
+      item_id: item.product_id,
+      item_name: item.product?.title || '제품',
+      ...(option?.name ? { item_variant: option.name } : {}),
+      price: unitPrice,
+      quantity: item.quantity,
+    };
+  });
+}
 
 export default function Cart() {
   const navigate = useNavigate();
@@ -410,6 +452,13 @@ export default function Cart() {
         ? `${selectedItems[0].product?.title || '커스텀 제품'} 외 ${selectedItems.length - 1}건`
         : (selectedItems[0].product?.title || '커스텀 제품');
 
+      track('payment_start', {
+        currency: 'KRW',
+        value: authoritativeAmount,
+        items: mapSelectedItemsToAnalyticsItems(selectedItems),
+        payment_provider: 'toss',
+      });
+
       await tossPayments.requestPayment('카드', {
         amount: authoritativeAmount,
         orderId: orderNumber,
@@ -430,6 +479,14 @@ export default function Cart() {
   };
 
   const handleNextStep = () => {
+    if (selectedIds.size === 0 || isTransitioning || step !== 1) return;
+
+    track('begin_checkout', {
+      currency: 'KRW',
+      value: selectedTotalPrice,
+      items: mapSelectedItemsToAnalyticsItems(selectedItems),
+    });
+
     setIsTransitioning(true);
     setTimeout(() => {
       setStep(2);

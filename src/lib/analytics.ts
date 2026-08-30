@@ -30,6 +30,17 @@ export type AnalyticsEventMap = {
     value: number;
     items: [AnalyticsItem];
   };
+  begin_checkout: {
+    currency: "KRW";
+    value: number;
+    items: AnalyticsItem[];
+  };
+  payment_start: {
+    currency: "KRW";
+    value: number;
+    items: AnalyticsItem[];
+    payment_provider: "toss";
+  };
 };
 
 export type AnalyticsEventName = keyof AnalyticsEventMap;
