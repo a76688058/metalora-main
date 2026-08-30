@@ -1,9 +1,10 @@
 import React, { useState, useRef, Suspense, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion';
 import { Upload, Image as ImageIcon, Check, ChevronLeft, Maximize, X, User, Loader2, ShoppingBag, Clock, Truck } from 'lucide-react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, ContactShadows, useTexture, Html } from '@react-three/drei';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Environment, ContactShadows, Html } from '@react-three/drei';
 import * as THREE from 'three';
+import { MetaloraArtwork3D } from '../artwork3d';
 import Header from '../Header';
 import LoadingScreen from '../LoadingScreen';
 import ErrorBoundary from '../ErrorBoundary';
@@ -120,241 +121,73 @@ function WorkshopPoster3DWithFallback({ imageUrl, materialType, interactive, siz
   );
 }
 
-// --- 3D Poster Component (Ported from Main Landing) ---
-function WorkshopPoster3D({ 
-  imageUrl, 
-  materialType, 
-  interactive = false, 
+// --- 3D Poster Component (shared MetaloraArtwork3D core) ---
+function WorkshopPoster3D({
+  imageUrl,
+  materialType,
+  interactive = false,
   size = 'A4',
   orientation = 'portrait',
   autoRotate = false,
   layoutMode = 'cover',
   theme,
-  aiOutpaint = false
-}: { 
-  imageUrl: string | null, 
-  materialType: string, 
-  interactive?: boolean, 
-  size?: SizeType,
-  orientation?: 'portrait' | 'landscape',
-  autoRotate?: boolean,
-  layoutMode?: 'cover' | 'contain',
-  theme: string,
-  aiOutpaint?: boolean
+  aiOutpaint = false,
+}: {
+  imageUrl: string | null;
+  materialType: string;
+  interactive?: boolean;
+  size?: SizeType;
+  orientation?: 'portrait' | 'landscape';
+  autoRotate?: boolean;
+  layoutMode?: 'cover' | 'contain';
+  theme: string;
+  aiOutpaint?: boolean;
 }) {
-  const groupRef = useRef<THREE.Group>(null);
-  const meshRef = useRef<THREE.Mesh>(null);
-  const [hovered, setHovered] = useState(false);
-  const [active, setActive] = useState(false);
-  const targetRotation = useRef({ x: 0, y: 0 });
-  
-  const textureUrl = imageUrl || DEFAULT_IMAGE;
-  const texture = useTexture(textureUrl);
-
-  const targetAspect = useMemo(() => {
-    const baseAspect = 1 / 1.414;
-    return orientation === 'landscape' ? 1 / baseAspect : baseAspect;
-  }, [size, orientation]);
-
-  useEffect(() => {
-    if (!texture || !texture.image) return;
-    const img = texture.image as HTMLImageElement;
-    const imageAspect = img.width / img.height;
-    
-    // Reset wrapping to ensure clean containment
-    texture.wrapS = THREE.ClampToEdgeWrapping;
-    texture.wrapT = THREE.ClampToEdgeWrapping;
-
-    if (layoutMode === 'cover') {
-      if (imageAspect > targetAspect) {
-        texture.repeat.set(targetAspect / imageAspect, 1);
-        texture.offset.set((1 - targetAspect / imageAspect) / 2, 0);
-      } else {
-        texture.repeat.set(1, imageAspect / targetAspect);
-        texture.offset.set(0, (1 - imageAspect / targetAspect) / 2);
-      }
-    } else {
-      // Contain mode - Use full texture, calculated size instead of UV mapping
-      texture.repeat.set(1, 1);
-      texture.offset.set(0, 0);
-    }
-    
-    texture.anisotropy = 16;
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-    texture.needsUpdate = true;
-  }, [texture, targetAspect, layoutMode]);
-
-  useEffect(() => {
-    const handleOrientation = (e: DeviceOrientationEvent) => {
-      if (!interactive && !autoRotate && e.beta !== null && e.gamma !== null) {
-        const maxTilt = Math.PI / 12;
-        const tiltX = THREE.MathUtils.clamp((e.beta - 45) * (Math.PI / 180), -maxTilt, maxTilt);
-        const tiltY = THREE.MathUtils.clamp(e.gamma * (Math.PI / 180), -maxTilt, maxTilt);
-        targetRotation.current = { x: tiltX, y: tiltY };
-      }
-    };
-
-    window.addEventListener('deviceorientation', handleOrientation);
-    return () => window.removeEventListener('deviceorientation', handleOrientation);
-  }, [interactive, autoRotate]);
-
-  useFrame((state, delta) => {
-    if (groupRef.current) {
-      const targetRotationY = active ? Math.PI : 0;
-      groupRef.current.rotation.y = THREE.MathUtils.lerp(
-        groupRef.current.rotation.y,
-        targetRotationY,
-        delta * 5
-      );
-
-      const targetScale = active ? 1.1 : 1;
-      const currentScale = groupRef.current.scale.x;
-      const newScale = THREE.MathUtils.lerp(currentScale, targetScale, delta * 5);
-      groupRef.current.scale.setScalar(newScale);
-    }
-
-    if (meshRef.current) {
-      if (interactive) {
-        meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0, delta * 5);
-        meshRef.current.rotation.y = THREE.MathUtils.lerp(meshRef.current.rotation.y, 0, delta * 5);
-      } else if (autoRotate) {
-        meshRef.current.rotation.y += delta * 0.35; // ~20 degrees per second
-        meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0, delta * 5);
-      } else {
-        let targetX = targetRotation.current.x;
-        let targetY = targetRotation.current.y;
-
-        if (hovered && !("ontouchstart" in window)) {
-          targetY = (state.mouse.x * Math.PI) / 8;
-          targetX = -(state.mouse.y * Math.PI) / 8;
-        }
-
-        meshRef.current.rotation.y = THREE.MathUtils.lerp(meshRef.current.rotation.y, targetY, delta * 5);
-        meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, targetX, delta * 5);
-      }
-    }
-  });
-
-  const materials = useMemo(() => {
-    const isAluminum = materialType === 'aluminum';
-    const roughness = isAluminum ? 0.3 : 0.85;
-    const metalness = isAluminum ? 0.7 : 0.1;
-
-    // 빈 공간 배경색: 화이트 모드(라이트테마)에서는 블랙, 블랙 모드(다크테마)에서는 화이트
-    // AI Outpaint 활성 시에는 보라색 톤 적용
-    const bgHex = aiOutpaint
-      ? (theme === 'dark' ? '#1a1033' : '#f5f3ff')
-      : (theme === 'dark' ? '#ffffff' : '#000000');
-
-    const baseProps = {
-      roughness,
-      metalness,
-      toneMapped: false
-    };
-
-    return [
-      new THREE.MeshStandardMaterial({ ...baseProps, color: '#1a1a1a' }), // side
-      new THREE.MeshStandardMaterial({ ...baseProps, color: '#1a1a1a' }), // side
-      new THREE.MeshStandardMaterial({ ...baseProps, color: '#1a1a1a' }), // side
-      new THREE.MeshStandardMaterial({ ...baseProps, color: '#1a1a1a' }), // side
-      new THREE.MeshStandardMaterial({ ...baseProps, color: bgHex }), // front (background for photo)
-      new THREE.MeshStandardMaterial({ ...baseProps, color: '#1a1a1a' }), // back
-    ];
-  }, [materialType, theme, layoutMode, aiOutpaint]);
-
   const isAluminum = materialType === 'aluminum';
   const depth = isAluminum ? 0.008 : 0.04;
+  const slabWidth = orientation === 'landscape' ? 1.414 : 1;
+  const slabHeight = orientation === 'landscape' ? 1 : 1.414;
 
-  const geometryArgs = useMemo(() => {
-    const width = orientation === 'landscape' ? 1.414 : 1;
-    const height = orientation === 'landscape' ? 1 : 1.414;
-    return [width, height, depth] as [number, number, number];
-  }, [size, depth, orientation]);
-
-  // 사진 전 전용 재질 (Box 위에 부착)
-  const photoMaterial = useMemo(() => {
-    const isAluminum = materialType === 'aluminum';
-    return new THREE.MeshStandardMaterial({
-      map: texture,
-      emissiveMap: texture,
-      emissive: new THREE.Color('#ffffff'),
-      emissiveIntensity: isAluminum ? 1.0 : 0.05,
-      color: '#ffffff',
-      transparent: true,
-      toneMapped: false
-    });
-  }, [texture, materialType]);
-
-  // 사진 평면 사이즈 계산 (Contain 모드용)
-  const photoScale = useMemo(() => {
-    if (!texture || !texture.image || layoutMode === 'cover') return [1, 1, 1] as [number, number, number];
-    
-    const img = texture.image as HTMLImageElement;
-    const imageAspect = img.width / img.height;
-    
-    if (imageAspect > targetAspect) {
-      // 이미지가 가로로 더 김 -> 가로는 꽉 채우고 세로를 줄임
-      return [1, targetAspect / imageAspect, 1] as [number, number, number];
-    } else {
-      // 이미지가 세로로 더 김 -> 세로는 꽉 채우고 가로를 줄임
-      return [imageAspect / targetAspect, 1, 1] as [number, number, number];
-    }
-  }, [texture, layoutMode, targetAspect, orientation]);
+  const frontSurfaceColor = aiOutpaint
+    ? theme === 'dark'
+      ? '#1a1033'
+      : '#f5f3ff'
+    : theme === 'dark'
+      ? '#ffffff'
+      : '#000000';
 
   return (
-    <>
-      <ambientLight intensity={0.2} />
-      <directionalLight position={[5, 5, 5]} intensity={0.3} castShadow={false} />
-      <directionalLight position={[-5, -5, -5]} intensity={0.2} />
-      <pointLight position={[2, 2, 2]} intensity={0.2} color="#ffffff" />
-      <Environment preset="studio" environmentIntensity={0.3} />
-      
-      <group ref={groupRef}>
-        <mesh
-          ref={meshRef}
-          onClick={(e) => {
-            if (!interactive) return;
-            e.stopPropagation();
-            if (active) {
-              setActive(false);
-            } else {
-              setActive(true);
-            }
-          }}
-          onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
-          onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
-          material={materials}
-          castShadow
-          receiveShadow
-        >
-          <boxGeometry args={geometryArgs} /> 
-          
-          {/* AI Extension Grid (Only in Contain mode) */}
-          {layoutMode === 'contain' && aiOutpaint && (
-            <mesh position={[0, 0, depth / 2 + 0.0005]}>
-              <planeGeometry args={[geometryArgs[0], geometryArgs[1]]} />
-              <meshStandardMaterial 
-                transparent 
-                opacity={0.4} 
-                color={theme === 'dark' ? '#c084fc' : '#6366f1'}
-                wireframe
-              />
-            </mesh>
-          )}
-
-          {/* 사진 레이어 (Z축으로 살짝 앞으로) */}
-          <mesh 
-            position={[0, 0, depth / 2 + 0.001]} 
-            scale={photoScale}
-            material={photoMaterial}
-          >
-            <planeGeometry args={[geometryArgs[0], geometryArgs[1]]} />
-          </mesh>
+    <MetaloraArtwork3D
+      frontTextureUrl={imageUrl || DEFAULT_IMAGE}
+      width={slabWidth}
+      height={slabHeight}
+      orientation={orientation}
+      thickness={depth}
+      materialVariant={isAluminum ? 'aluminum' : 'standard'}
+      layoutMode={layoutMode}
+      facePresentation="emissive-print"
+      interactionMode={interactive ? 'inspect' : autoRotate ? 'subtle' : 'static'}
+      interactive={interactive}
+      autoRotate={autoRotate}
+      quality="high"
+      includeSceneLighting
+      frontSurfaceColor={frontSurfaceColor}
+      enablePointerFlip={interactive}
+      enableDeviceOrientation={!interactive && !autoRotate}
+      usePhotoPlane
+    >
+      {layoutMode === 'contain' && aiOutpaint ? (
+        <mesh position={[0, 0, depth / 2 + 0.0005]}>
+          <planeGeometry args={[slabWidth, slabHeight]} />
+          <meshStandardMaterial
+            transparent
+            opacity={0.4}
+            color={theme === 'dark' ? '#c084fc' : '#6366f1'}
+            wireframe
+          />
         </mesh>
-      </group>
-    </>
+      ) : null}
+    </MetaloraArtwork3D>
   );
 }
 
