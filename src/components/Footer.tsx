@@ -1,19 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import PolicyModal from './PolicyModal';
-import { ShieldCheck, AlertCircle, Settings, BarChart3 } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
 
-const Divider = () => <div className="h-[1px] bg-current opacity-10 my-8" />;
+const Divider = () => <div className="my-6 h-px bg-border-subtle" />;
 
 import { policies } from '../constants/policies';
 
 export { policies };
 
 export default function Footer() {
-  const { theme } = useTheme();
   const [modalState, setModalState] = useState<{ isOpen: boolean; key: keyof typeof policies | null }>({
     isOpen: false,
-    key: null
+    key: null,
   });
 
   const openModal = (key: keyof typeof policies) => {
@@ -30,46 +27,64 @@ export default function Footer() {
         openModal(e.detail as keyof typeof policies);
       }
     };
-    
+
     window.addEventListener('open-policy', handleOpenPolicy as EventListener);
     return () => window.removeEventListener('open-policy', handleOpenPolicy as EventListener);
   }, []);
 
   return (
-    <footer className={`border-t w-full font-sans transition-colors duration-500 ${theme === 'dark' ? 'bg-zinc-950 border-white/5' : 'bg-white border-black/5'}`}>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-10 px-6 py-16 max-w-7xl mx-auto">
-        {/* Left: Company Info */}
-        <div className="text-center md:text-left text-zinc-900 dark:text-zinc-200 text-[14px] leading-relaxed">
-          <div className="mb-6 flex justify-center">
-            <img 
-              src="/logo/metalora-wordmark.webp" 
-              alt="METALORA" 
+    <footer className="w-full border-t border-border-subtle bg-canvas font-sans">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-6 py-12 md:grid-cols-3 md:py-14">
+        {/* Company */}
+        <div className="text-center md:text-left">
+          <div className="mb-5 flex justify-center md:justify-start">
+            <img
+              src="/logo/metalora-wordmark.webp"
+              alt="METALORA"
               width={384}
               height={124}
-              className={`h-6 w-auto object-contain opacity-80 hover:opacity-100 transition-all ${theme === 'dark' ? 'filter invert' : ''}`} 
+              className="h-5 w-auto object-contain opacity-70 dark:invert"
               referrerPolicy="no-referrer"
             />
           </div>
-          <p>상호명: 메탈로라(METALORA) | 대표자: 강동훈</p>
-          <p>사업자등록번호: 776-19-02470</p>
-          <p>통신판매업신고번호: 2026-울산울주-0166</p>
-          <p>주소: 울산광역시 울주군 서생면 진하해변길 8, 12층 1202호 라-04호실(아성일마레)</p>
-          <p>이메일: a76688058@gmail.com</p>
-          <p className="mt-8 text-zinc-950 dark:text-zinc-400 font-medium">© 2026 METALORA. All rights reserved.</p>
+          <div className="type-supporting space-y-1 text-text-secondary">
+            <p>상호명: 메탈로라(METALORA) | 대표자: 강동훈</p>
+            <p>사업자등록번호: 776-19-02470</p>
+            <p>통신판매업신고번호: 2026-울산울주-0166</p>
+            <p>주소: 울산광역시 울주군 서생면 진하해변길 8, 12층 1202호 라-04호실(아성일마레)</p>
+            <p>이메일: a76688058@gmail.com</p>
+          </div>
+          <p className="type-metadata mt-6 text-text-tertiary">© 2026 METALORA. All rights reserved.</p>
         </div>
 
-        {/* Center: Policy Links */}
-        <div className="flex flex-wrap justify-center items-start gap-x-6 gap-y-4 text-sm font-medium">
-          <button onClick={() => openModal('terms')} className={`${theme === 'dark' ? 'text-zinc-300 hover:text-white' : 'text-zinc-950 hover:text-black'} transition-colors cursor-pointer`}>이용약관</button>
-          <button onClick={() => openModal('refund')} className={`${theme === 'dark' ? 'text-zinc-300 hover:text-white' : 'text-zinc-950 hover:text-black'} transition-colors cursor-pointer`}>환불정책</button>
-          <button onClick={() => openModal('privacy')} className={`${theme === 'dark' ? 'text-zinc-300 hover:text-white' : 'text-zinc-950 hover:text-black'} transition-colors cursor-pointer`}>개인정보 처리방침</button>
-          <button onClick={() => openModal('cookie')} className={`${theme === 'dark' ? 'text-zinc-300 hover:text-white' : 'text-zinc-950 hover:text-black'} transition-colors cursor-pointer`}>쿠키 정책</button>
-          <button onClick={() => openModal('agreement')} className={`${theme === 'dark' ? 'text-zinc-300 hover:text-white' : 'text-zinc-950 hover:text-black'} transition-colors cursor-pointer`}>제작동의서</button>
+        {/* Policies */}
+        <div className="flex flex-wrap items-start justify-center gap-x-5 gap-y-3">
+          {(
+            [
+              ['terms', '이용약관'],
+              ['refund', '환불정책'],
+              ['privacy', '개인정보 처리방침'],
+              ['cookie', '쿠키 정책'],
+              ['agreement', '제작동의서'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => openModal(key)}
+              className="focus-ring type-label text-text-secondary transition-colors hover:text-text-primary"
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
-        {/* Right: Contact */}
-        <div className="flex justify-center md:justify-end items-start text-sm font-medium">
-          <a href="mailto:contact@metalora.me" className={`${theme === 'dark' ? 'text-zinc-200 hover:text-white' : 'text-zinc-800 hover:text-black'} transition-colors cursor-pointer`}>
+        {/* Contact */}
+        <div className="flex items-start justify-center md:justify-end">
+          <a
+            href="mailto:contact@metalora.me"
+            className="focus-ring type-label text-text-secondary transition-colors hover:text-text-primary"
+          >
             제휴/입점 문의
           </a>
         </div>

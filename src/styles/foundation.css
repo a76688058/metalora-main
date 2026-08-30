@@ -10,6 +10,30 @@
   padding-top: env(safe-area-inset-top);
 }
 
+/* ── Global customer shell dimensions ── */
+:root {
+  --shell-announcement-height: 2rem;
+  --shell-nav-height: 4rem;
+  --shell-offset: calc(var(--shell-announcement-height) + var(--shell-nav-height));
+}
+
+@utility shell-offset {
+  padding-top: var(--shell-offset);
+}
+
+/* ── Z-index utilities (canonical values in tokens.css) ── */
+@utility z-base { z-index: var(--z-base); }
+@utility z-cookie { z-index: var(--z-cookie); }
+@utility z-header { z-index: var(--z-header); }
+@utility z-drawer-backdrop { z-index: var(--z-drawer-backdrop); }
+@utility z-drawer { z-index: var(--z-drawer); }
+@utility z-sheet-backdrop { z-index: var(--z-sheet-backdrop); }
+@utility z-sheet { z-index: var(--z-sheet); }
+@utility z-dialog-backdrop { z-index: var(--z-dialog-backdrop); }
+@utility z-dialog { z-index: var(--z-dialog); }
+@utility z-toast { z-index: var(--z-toast); }
+@utility z-critical-loading { z-index: var(--z-critical-loading); }
+
 /* ── Focus visible (foundation primitive contract) ── */
 .focus-ring {
   outline: none;

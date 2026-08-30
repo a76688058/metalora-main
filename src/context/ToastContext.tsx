@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, AlertCircle, X } from 'lucide-react';
+import { cn } from '../lib/cn';
+import { zClass } from '../constants/overlays';
 
 type ToastType = 'success' | 'error' | 'info' | 'purple';
 
@@ -34,7 +36,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[99999] flex flex-col gap-3 w-full max-w-[90%] sm:max-w-md pointer-events-none">
+      <div className={cn('fixed top-6 left-1/2 flex w-full max-w-[90%] -translate-x-1/2 flex-col gap-3 pointer-events-none sm:max-w-md', zClass('toast'))}>
         <AnimatePresence>
           {toasts.map((toast) => (
             <motion.div

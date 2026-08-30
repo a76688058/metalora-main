@@ -5,37 +5,41 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useTheme } from '../context/ThemeContext';
+import { useShellOverlay } from '../context/ShellOverlayContext';
+import { IconButton } from './ui/IconButton';
+import { cn } from '../lib/cn';
+import { zClass } from '../constants/overlays';
 import AnnouncementBar from './AnnouncementBar';
 
 const LoginModal = lazy(() => import('./LoginModal'));
 
-const LOGO_URL = "/logo/metalora-wordmark.webp";
+const LOGO_URL = '/logo/metalora-wordmark.webp';
 
 export default function Header({ isHome = false }: { isHome?: boolean }) {
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [hasOpenedLoginModal, setHasOpenedLoginModal] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const { 
-    user, 
-    adminUser, 
-    profile, 
-    adminProfile, 
-    isProfileOpen, 
-    openProfile, 
+  const {
+    user,
+    adminUser,
+    profile,
+    adminProfile,
+    isProfileOpen,
+    openProfile,
     closeProfile,
     isWorkshopOpen,
-    closeWorkshop
+    closeWorkshop,
   } = useAuth();
   const { cartItems, isCartOpen, openCart, closeCart } = useCart();
   const { theme, toggleTheme } = useTheme();
-  
+  const { registerLoginOverlay } = useShellOverlay();
+
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
   const searchQuery = searchParams.get('q') || '';
-  
-  // Local state for IME handling
+
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const isComposing = useRef(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -47,16 +51,15 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     setLocalSearch(searchQuery);
   }, [searchQuery]);
 
-  // Scroll listener for transparency
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 50);
     };
-    window.addEventListener('scroll', handleScroll);
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Click outside to close
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -97,56 +100,75 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     }
   };
 
-  const isTransparent = isHome && !isScrolled && !isSearchOpen;
+  const isHeroTop = isHome && !isScrolled && !isSearchOpen;
+  const isDark = theme === 'dark';
 
   const openLoginModal = () => {
     setHasOpenedLoginModal(true);
+    registerLoginOverlay('login', true);
     setIsLoginModalOpen(true);
   };
+
+  const closeLoginModal = () => {
+    setIsLoginModalOpen(false);
+  };
+
+  const iconTone = isHeroTop
+    ? isDark
+      ? 'text-text-inverse/80 hover:text-text-inverse'
+      : 'text-text-primary/80 hover:text-text-primary'
+    : 'text-text-secondary hover:text-text-primary';
 
   return (
     <>
       <header
-        className={`fixed top-0 left-0 w-full z-[10000] transition-all duration-500 border-b ${
-          isTransparent 
-            ? 'bg-transparent border-transparent' 
-            : theme === 'dark'
-              ? 'bg-black/80 backdrop-blur-md border-white/5'
-              : 'bg-white/80 backdrop-blur-md border-black/5'
-        }`}
         ref={searchRef}
+        className={cn(
+          'fixed top-0 left-0 isolate w-full max-w-[100vw] border-b motion-safe-transition transform-gpu',
+          zClass('header'),
+          isHeroTop
+            ? 'border-transparent bg-transparent'
+            : 'surface-glass border-border-subtle shadow-raised',
+        )}
+        style={{ transitionDuration: 'var(--duration-normal)' }}
       >
-        <motion.div layout className="flex flex-col w-full transform-gpu">
+        <motion.div className="flex w-full flex-col">
           <AnnouncementBar />
-          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between relative w-full">
-            {/* Left: Search Icon (Conditional Visibility) */}
-            <div className="flex-1 flex justify-start items-center gap-x-4">
+
+          <div
+            className="relative mx-auto flex w-full max-w-7xl items-center justify-between px-4 sm:px-6"
+            style={{ height: 'var(--shell-nav-height)' }}
+          >
+            {/* Left controls */}
+            <div className="flex min-w-0 flex-1 items-center justify-start gap-1 sm:gap-2">
               {location.pathname === '/' && (
-                <button 
+                <IconButton
+                  variant="ghost"
+                  aria-label={isSearchOpen ? '검색 닫기' : '검색 열기'}
+                  aria-expanded={isSearchOpen}
                   onClick={() => setIsSearchOpen(!isSearchOpen)}
-                  className={`${theme === 'dark' ? 'text-white' : 'text-black'} opacity-60 hover:opacity-100 transition-all duration-300`}
-                  title="Search"
+                  className={cn('shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
                 >
-                  <Search size={22} strokeWidth={1.5} />
-                </button>
+                  <Search size={20} strokeWidth={1.5} />
+                </IconButton>
               )}
-              
-              <button 
+
+              <IconButton
+                variant="ghost"
+                aria-label={isDark ? '라이트 모드로 전환' : '다크 모드로 전환'}
                 onClick={toggleTheme}
-                className={`${theme === 'dark' ? 'text-white' : 'text-black'} opacity-60 hover:opacity-100 transition-all duration-300`}
-                title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                className={cn('shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
               >
-                {theme === 'dark' ? <Sun size={22} strokeWidth={1.5} /> : <Moon size={22} strokeWidth={1.5} />}
-              </button>
+                {isDark ? <Sun size={20} strokeWidth={1.5} /> : <Moon size={20} strokeWidth={1.5} />}
+              </IconButton>
             </div>
 
-            {/* Center: Logo (Absolute Center) */}
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-              <Link 
-                to="/" 
-                className="flex items-center"
+            {/* Center logo */}
+            <div className="pointer-events-none absolute left-1/2 top-1/2 max-w-[7.25rem] -translate-x-1/2 -translate-y-1/2 min-[360px]:max-w-[42vw] sm:max-w-none">
+              <Link
+                to="/"
+                className="pointer-events-auto flex items-center justify-center"
                 onClick={(e) => {
-                  // Close any open overlays
                   if (isCartOpen) closeCart();
                   if (isProfileOpen) closeProfile();
                   if (isWorkshopOpen) closeWorkshop();
@@ -157,21 +179,27 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                   }
                 }}
               >
-                <img 
-                  src={LOGO_URL} 
-                  alt="메탈 액자의 기준, 메탈로라 | METALORA" 
+                <img
+                  src={LOGO_URL}
+                  alt="메탈 액자의 기준, 메탈로라 | METALORA"
                   width={384}
                   height={124}
-                  className={`h-9 md:h-11 object-contain transition-all duration-500 ${theme === 'dark' ? 'filter invert' : ''}`} 
+                  className={cn(
+                    'h-7 w-auto object-contain motion-safe-transition sm:h-9 md:h-10',
+                    isDark && 'invert',
+                  )}
+                  style={{ transitionDuration: 'var(--duration-normal)' }}
                   referrerPolicy="no-referrer"
                 />
               </Link>
             </div>
 
-            {/* Right: User & Collection Icons */}
-            <div className="flex-1 flex justify-end items-center gap-x-5">
+            {/* Right controls */}
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-2">
               {currentUser ? (
-                <button 
+                <IconButton
+                  variant="ghost"
+                  aria-label={isAdmin ? '관리자 대시보드' : '내 정보'}
                   onClick={() => {
                     if (isProfileOpen) {
                       closeProfile();
@@ -181,25 +209,27 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                       openProfile();
                     }
                   }}
-                  className={`${theme === 'dark' ? 'text-white' : 'text-black'} opacity-60 hover:opacity-100 transition-all duration-300`}
-                  title={isAdmin ? "Admin Dashboard" : "My Info"}
+                  className={cn('shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
                 >
-                  <User size={24} strokeWidth={1} />
-                </button>
+                  <User size={20} strokeWidth={1.5} />
+                </IconButton>
               ) : (
-                <button 
+                <IconButton
+                  variant="ghost"
+                  aria-label="로그인"
                   onClick={() => {
                     if (isWorkshopOpen) closeWorkshop();
                     openLoginModal();
-                  }} 
-                  className={`${theme === 'dark' ? 'text-white' : 'text-black'} opacity-60 hover:opacity-100 transition-all duration-300`}
-                  title="Login"
+                  }}
+                  className={cn('shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
                 >
-                  <User size={24} strokeWidth={1} />
-                </button>
+                  <User size={20} strokeWidth={1.5} />
+                </IconButton>
               )}
 
-              <button 
+              <IconButton
+                variant="ghost"
+                aria-label="내 컬렉션"
                 onClick={(e) => {
                   if (!currentUser) {
                     e.preventDefault();
@@ -215,43 +245,42 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                     openCart();
                   }
                 }}
-                className={`${theme === 'dark' ? 'text-white' : 'text-black'} opacity-60 hover:opacity-100 transition-all duration-300 relative`}
-                title="My Collection"
+                className={cn('relative shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
               >
-                <Frame size={24} strokeWidth={1} />
+                <Frame size={20} strokeWidth={1.5} />
                 {currentUser && cartItems.length > 0 && (
-                  <span className={`absolute -top-1 -right-1 w-4 h-4 ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'} text-[11px] font-bold rounded-full flex items-center justify-center`}>
+                  <span
+                    className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-text-primary text-[10px] font-semibold text-text-inverse"
+                    aria-hidden
+                  >
                     {cartItems.length}
                   </span>
                 )}
-              </button>
+              </IconButton>
             </div>
           </div>
 
-          {/* Search Section */}
+          {/* Search panel */}
           <AnimatePresence>
             {isSearchOpen && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0, transition: { duration: 0.3 } }}
-                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="overflow-hidden w-full transform-gpu will-change-transform"
+                exit={{ height: 0, opacity: 0, transition: { duration: 0.2 } }}
+                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                className="w-full overflow-hidden transform-gpu will-change-transform"
               >
-                <div className="max-w-3xl mx-auto px-6 pb-6 pt-2">
-                  <div className="relative group">
-                    <div className={`absolute inset-0 ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'} backdrop-blur-2xl rounded-xl border transition-all duration-300 group-focus-within:border-indigo-500/30 group-focus-within:shadow-[0_0_20px_rgba(99,102,241,0.1)]`} />
-                    <input
-                      type="text"
-                      placeholder="제품명 검색..."
-                      value={localSearch}
-                      onChange={handleSearchChange}
-                      onCompositionStart={handleComposition}
-                      onCompositionEnd={handleComposition}
-                      className={`relative w-full bg-transparent ${theme === 'dark' ? 'text-white placeholder-white/40' : 'text-black placeholder-black/40'} px-6 py-4 outline-none font-light tracking-wide`}
-                      autoFocus
-                    />
-                  </div>
+                <div className="mx-auto max-w-3xl px-4 pb-4 pt-1 sm:px-6 sm:pb-5">
+                  <input
+                    type="search"
+                    placeholder="제품명 검색..."
+                    value={localSearch}
+                    onChange={handleSearchChange}
+                    onCompositionStart={handleComposition}
+                    onCompositionEnd={handleComposition}
+                    className="focus-ring type-body w-full rounded-md border border-border-subtle bg-surface px-4 py-3 text-text-primary placeholder:text-text-tertiary"
+                    autoFocus
+                  />
                 </div>
               </motion.div>
             )}
@@ -263,8 +292,8 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
         <Suspense fallback={null}>
           <LoginModal
             isOpen={isLoginModalOpen}
-            onClose={() => setIsLoginModalOpen(false)}
-            onSuccess={() => setIsLoginModalOpen(false)}
+            onClose={closeLoginModal}
+            onSuccess={closeLoginModal}
           />
         </Suspense>
       )}

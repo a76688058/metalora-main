@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -7,6 +7,9 @@ import { Loader2, X, Check } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import PolicyModal from './PolicyModal';
 import { policies } from './Footer';
+import { cn } from '../lib/cn';
+import { zClass } from '../constants/overlays';
+import { useShellOverlay } from '../context/ShellOverlayContext';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -78,6 +81,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
   const { user, profile, refreshSession } = useAuth();
   const { showToast } = useToast();
   const { theme } = useTheme();
+  const { registerLoginOverlay } = useShellOverlay();
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [isConsentOpen, setIsConsentOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -113,6 +117,16 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
 
   const toggleAgreement = (key: keyof typeof agreements) => {
     setAgreements(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  useLayoutEffect(() => {
+    if (isOpen) {
+      registerLoginOverlay('login', true);
+    }
+  }, [isOpen, registerLoginOverlay]);
+
+  const handleLoginOverlayExit = () => {
+    registerLoginOverlay('login', false);
   };
 
   useEffect(() => {
@@ -339,22 +353,25 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
 
   return (
     <>
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={handleLoginOverlayExit}>
       {isOpen && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className={`fixed inset-0 z-[50000] flex items-center justify-center transition-colors duration-500 will-change-transform transform-gpu ${
-              theme === 'dark' ? 'bg-[#0c0c0c]' : 'bg-white'
-            }`}
+            className={cn(
+              'fixed inset-0 flex items-center justify-center transform-gpu will-change-transform motion-safe-transition',
+              zClass('dialog'),
+              theme === 'dark' ? 'bg-canvas' : 'bg-canvas',
+            )}
           >
             {/* Close Button - Moved outside scrolling container for visibility */}
             <button 
               onClick={handleClose}
-              className={`absolute top-6 right-6 md:top-8 md:right-8 transition-colors z-[10001] p-2 ${
-                theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-black/70 hover:text-black'
-              }`}
+              className={cn(
+                'absolute right-4 top-4 z-10 p-2 motion-safe-transition sm:right-6 sm:top-6',
+                'focus-ring text-text-secondary hover:text-text-primary',
+              )}
               aria-label="닫기"
             >
               <X size={24} strokeWidth={2} />
@@ -364,9 +381,10 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className={`relative w-full max-w-lg h-full overflow-y-auto px-6 pt-24 pb-6 md:pb-10 will-change-transform transform-gpu scrollbar-hide flex flex-col items-center justify-center border shadow-[0_0_50px_-12px_rgba(0,0,0,1)] ${
-                theme === 'dark' ? 'border-white/5' : 'border-black/5'
-              }`}
+              className={cn(
+                'relative flex h-full w-full max-w-lg flex-col items-center justify-center overflow-y-auto border border-border-subtle px-6 pb-6 pt-20 md:pb-10',
+                'surface-raised scrollbar-hide transform-gpu will-change-transform',
+              )}
             >
             <div className="w-full flex flex-col items-center -mt-16 md:-mt-24">
             <div className="flex flex-col items-center mb-10">
@@ -497,18 +515,21 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className={`fixed inset-0 z-[60000] flex items-end sm:items-center justify-center transition-colors duration-500 will-change-transform transform-gpu ${
-            theme === 'dark' ? 'bg-[#0c0c0c]' : 'bg-black/20 backdrop-blur-sm'
-          }`}
+          className={cn(
+            'fixed inset-0 flex items-end justify-center sm:items-center transform-gpu will-change-transform',
+            zClass('sheet'),
+            theme === 'dark' ? 'bg-overlay-backdrop-heavy' : 'bg-overlay-backdrop backdrop-blur-sm',
+          )}
         >
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`w-full max-w-md rounded-t-[32px] sm:rounded-[28px] p-8 relative border shadow-[0_0_50px_-12px_rgba(0,0,0,1)] sm:-translate-y-12 transform-gpu will-change-transform ${
-              theme === 'dark' ? 'bg-zinc-900 text-white border-white/5' : 'bg-white text-black border-black/5'
-            }`}
+            className={cn(
+              'relative w-full max-w-md rounded-t-lg border border-border-subtle p-8 sm:rounded-lg sm:-translate-y-8',
+              'surface-modal transform-gpu will-change-transform',
+            )}
           >
             <button 
               onClick={() => setIsConsentOpen(false)}

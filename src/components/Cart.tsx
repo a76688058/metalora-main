@@ -10,6 +10,8 @@ import { supabase } from '../lib/supabase';
 import { loadTossPayments } from '@tosspayments/payment-sdk';
 import PolicyModal from './PolicyModal';
 import { policies } from '../constants/policies';
+import { cn } from '../lib/cn';
+import { zClass } from '../constants/overlays';
 import { Product } from '../data/products';
 import { track, type AnalyticsItem } from '../lib/analytics';
 import {
@@ -583,7 +585,7 @@ export default function Cart() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[30000] flex justify-end pointer-events-auto transform-gpu"
+      className={cn('fixed inset-0 flex justify-end pointer-events-auto transform-gpu', zClass('drawer'))}
     >
       {/* Backdrop */}
       <div 
@@ -598,7 +600,7 @@ export default function Cart() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-[40000] bg-black/40 backdrop-blur-xl flex items-center justify-center pointer-events-none"
+            className={cn('absolute inset-0 bg-black/40 backdrop-blur-xl flex items-center justify-center pointer-events-none', zClass('criticalLoading'))}
           >
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
@@ -993,7 +995,7 @@ export default function Cart() {
       {/* Consent Detail Modal - Summary version */}
       <AnimatePresence>
         {consentModal.isOpen && consentModal.type && (
-          <div className="fixed inset-0 z-[100003] flex items-center justify-center p-6">
+          <div className={cn('fixed inset-0 flex items-center justify-center p-6', zClass('dialog'))}>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1053,16 +1055,17 @@ export default function Cart() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsBottomSheetOpen(false)}
-              className="fixed inset-0 z-[10001] bg-black/60 backdrop-blur-sm"
+              className={cn('fixed inset-0 bg-black/60 backdrop-blur-sm', zClass('sheetBackdrop'))}
             />
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className={`fixed bottom-0 left-0 right-0 z-[10002] rounded-t-[32px] border-t shadow-[0_-10px_40px_rgba(0,0,0,0.2)] overflow-hidden transition-colors duration-500 ${
-                theme === 'dark' ? 'bg-[#1C1C1E] border-white/10' : 'bg-white border-black/5'
-              }`}
+              className={cn(
+                'fixed bottom-0 left-0 right-0 rounded-t-lg border-t border-border-subtle surface-modal overflow-hidden motion-safe-transition',
+                zClass('sheet'),
+              )}
             >
               {/* Handle Bar */}
               <div className="w-full flex justify-center pt-3 pb-2">

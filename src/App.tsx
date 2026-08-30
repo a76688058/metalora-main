@@ -18,6 +18,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { CartProvider, useCart } from './context/CartContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { ShellOverlayProvider } from './context/ShellOverlayContext';
+import { cn } from './lib/cn';
 
 import CookieBanner from './components/CookieBanner';
 import AnalyticsRouteTracker from './components/AnalyticsRouteTracker';
@@ -160,6 +162,8 @@ function Layout() {
   const [hasOpenedProfileEdit, setHasOpenedProfileEdit] = useState(false);
   const isAdminPage = location.pathname.startsWith('/admin');
   const isAuthPage = location.pathname === '/login' || location.pathname === '/profile/complete' || location.pathname === '/auth/callback';
+  const isHome = location.pathname === '/';
+  const showCustomerShell = !isAdminPage && !isAuthPage;
 
   useEffect(() => {
     if (isProfileEditOpen) setHasOpenedProfileEdit(true);
@@ -171,9 +175,11 @@ function Layout() {
   const currentTheme = isAdminPage ? 'dark' : theme;
 
   return (
-    <div className={`min-h-screen font-sans selection:bg-white selection:text-black flex flex-col transition-colors duration-300 ${
-      currentTheme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'
-    }`}>
+    <div className={cn(
+      'min-h-screen font-sans selection:bg-white selection:text-black flex flex-col transition-colors duration-300',
+      showCustomerShell && 'overflow-x-hidden',
+      currentTheme === 'dark' ? 'bg-black text-white' : 'bg-white text-black',
+    )}>
       <AnimatePresence>
         {isCartOpen && (
           <Suspense fallback={null}>
@@ -206,7 +212,7 @@ function Layout() {
       <AdminBanner />
       {!isAdminPage && !isAuthPage && <Header isHome={location.pathname === '/'} />}
       <div className="flex-1 flex flex-col">
-        <main className={`flex-1 ${!isAdminPage && !isAuthPage ? 'pt-28' : ''}`}>
+        <main className={cn('flex-1', showCustomerShell && !isHome && 'shell-offset')}>
           <AnimatedRoutes />
         </main>
         {!isAdminPage && !isAuthPage && <Footer />}
@@ -221,13 +227,15 @@ export default function App() {
       <AuthProvider>
         <ProductProvider>
           <CartProvider>
-            <ThemeProvider>
-              <Router>
-                <AnalyticsRouteTracker />
-                <Layout />
-              </Router>
-              <CookieBanner />
-            </ThemeProvider>
+            <ShellOverlayProvider>
+              <ThemeProvider>
+                <Router>
+                  <AnalyticsRouteTracker />
+                  <Layout />
+                </Router>
+                <CookieBanner />
+              </ThemeProvider>
+            </ShellOverlayProvider>
           </CartProvider>
         </ProductProvider>
       </AuthProvider>

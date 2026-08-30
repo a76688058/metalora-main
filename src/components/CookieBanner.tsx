@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useTheme } from '../context/ThemeContext';
 import { X } from 'lucide-react';
+import { Button } from './ui/Button';
+import { IconButton } from './ui/IconButton';
+import { cn } from '../lib/cn';
+import { zClass } from '../constants/overlays';
+import { useShellOverlay } from '../context/ShellOverlayContext';
 import { dispatchAnalyticsConsentChanged } from '../lib/analytics';
 
 export default function CookieBanner() {
-  const { theme } = useTheme();
+  const { isTransactionOverlayActive } = useShellOverlay();
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     const consent = localStorage.getItem('cookieConsent');
     if (!consent) {
-      // 약간의 지연 후 배너 표시 (UX 향상)
       const timer = setTimeout(() => setIsVisible(true), 1500);
       return () => clearTimeout(timer);
     }
@@ -33,32 +36,33 @@ export default function CookieBanner() {
     window.dispatchEvent(new CustomEvent('open-policy', { detail: 'cookie' }));
   };
 
+  const shouldShow = isVisible && !isTransactionOverlayActive;
+
   return (
     <AnimatePresence>
-      {isVisible && (
+      {shouldShow && (
         <motion.div
+          role="region"
+          aria-label="쿠키 사용 안내"
           initial={{ y: '100%', opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: '100%', opacity: 0 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          className={`fixed bottom-0 left-0 right-0 z-[60000] p-5 md:p-6 border-t shadow-2xl backdrop-blur-xl transition-colors duration-500 ${
-            theme === 'dark' 
-              ? 'bg-zinc-950/85 border-white/10 text-zinc-300' 
-              : 'bg-white/85 border-black/10 text-zinc-700'
-          }`}
+          transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+          className={cn(
+            'fixed inset-x-0 bottom-0 border-t border-border-subtle surface-floating pb-safe motion-safe-transition',
+            zClass('cookie'),
+          )}
+          style={{ transitionDuration: 'var(--duration-panel)' }}
         >
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative">
-            
-            {/* 텍스트 영역 */}
-            <div className="flex-1 pr-6 md:pr-8">
-              <p className="text-[14px] md:text-[15px] leading-relaxed font-medium">
-                <strong className={theme === 'dark' ? 'text-white' : 'text-black'}>METALORA</strong>는 더 나은 서비스 경험과 맞춤형 환경을 제공하기 위해 쿠키를 사용합니다. 
-                자세한 내용은{' '}
-                <button 
-                  onClick={openCookiePolicy} 
-                  className={`underline underline-offset-4 font-semibold transition-colors ${
-                    theme === 'dark' ? 'text-white hover:text-purple-400' : 'text-black hover:text-purple-600'
-                  }`}
+          <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-6 sm:py-5">
+            <div className="min-w-0 flex-1 pr-8 sm:pr-0">
+              <p className="type-supporting text-text-secondary">
+                <strong className="type-label text-text-primary">METALORA</strong>
+                {' '}는 더 나은 서비스 경험과 맞춤형 환경을 제공하기 위해 쿠키를 사용합니다.{' '}
+                <button
+                  type="button"
+                  onClick={openCookiePolicy}
+                  className="focus-ring type-label text-accent underline underline-offset-4 hover:text-accent-hover"
                 >
                   쿠키 정책
                 </button>
@@ -66,36 +70,23 @@ export default function CookieBanner() {
               </p>
             </div>
 
-            {/* 버튼 영역 */}
-            <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
-              <button
-                onClick={handleDecline}
-                className={`flex-1 md:flex-none px-6 py-3 rounded-xl text-[14px] font-semibold transition-colors ${
-                  theme === 'dark'
-                    ? 'bg-zinc-800 hover:bg-zinc-700 text-white'
-                    : 'bg-zinc-200 hover:bg-zinc-300 text-black'
-                }`}
-              >
+            <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
+              <Button variant="secondary" size="md" fullWidth className="sm:w-auto" onClick={handleDecline}>
                 필수만 허용
-              </button>
-              <button
-                onClick={handleAccept}
-                className="flex-1 md:flex-none px-6 py-3 rounded-xl text-[14px] font-semibold bg-purple-600 hover:bg-purple-700 text-white transition-colors shadow-lg shadow-purple-500/20"
-              >
+              </Button>
+              <Button variant="primary" size="md" fullWidth className="sm:w-auto" onClick={handleAccept}>
                 모두 동의
-              </button>
+              </Button>
             </div>
 
-            {/* 모바일 닫기 버튼 */}
-            <button 
-              onClick={handleDecline}
-              className={`absolute -top-1 -right-1 md:hidden p-1.5 rounded-full transition-colors ${
-                theme === 'dark' ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-200 text-zinc-500 hover:text-black'
-              }`}
+            <IconButton
+              variant="ghost"
               aria-label="닫기"
+              onClick={handleDecline}
+              className="absolute right-3 top-3 sm:hidden"
             >
-              <X size={16} />
-            </button>
+              <X size={18} />
+            </IconButton>
           </div>
         </motion.div>
       )}
