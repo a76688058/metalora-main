@@ -136,11 +136,15 @@ export function reportPaymentFail(input: {
       return;
     }
 
-    track('payment_fail', {
+    const dispatched = track('payment_fail', {
       failure_stage: input.failure_stage,
       failure_code: input.failure_code,
       payment_provider: 'toss',
     });
+
+    if (!dispatched) {
+      return;
+    }
 
     if (dedupeKey) {
       markPaymentFail(dedupeKey, REPORTED_MARKER);

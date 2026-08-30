@@ -67,9 +67,14 @@ export type AnalyticsEventName = keyof AnalyticsEventMap;
 export type AnalyticsSink = <E extends AnalyticsEventName>(
   event: E,
   payload: AnalyticsEventMap[E],
-) => void;
+) => boolean;
 
 const sinks = new Set<AnalyticsSink>();
+
+/** @internal Reset sink registry between ordering tests. */
+export function __resetAnalyticsSinksForTests(): void {
+  sinks.clear();
+}
 
 function isDebugEnabled(): boolean {
   try {
@@ -119,26 +124,39 @@ export function registerAnalyticsSink(sink: AnalyticsSink): () => void {
   };
 }
 
+export function hasRegisteredAnalyticsSinks(): boolean {
+  return sinks.size > 0;
+}
+
 export function track<E extends AnalyticsEventName>(
   event: E,
   payload: AnalyticsEventMap[E],
-): void {
+): boolean {
   if (!hasAnalyticsConsent()) {
     debugLog(`suppressed (no consent): ${event}`, payload);
-    return;
+    return false;
+  }
+
+  if (sinks.size === 0) {
+    debugLog(`suppressed (no sink): ${event}`, payload);
+    return false;
   }
 
   debugLog(event, payload);
 
+  let dispatched = false;
   for (const sink of sinks) {
     try {
-      sink(event, payload);
+      if (sink(event, payload)) {
+        dispatched = true;
+      }
     } catch (err) {
       if (isDebugEnabled()) {
         console.warn("[ANALYTICS_DEBUG] sink error", err);
       }
     }
   }
+  return dispatched;
 }
 
 export function dispatchAnalyticsConsentChanged(

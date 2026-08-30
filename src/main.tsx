@@ -3,6 +3,9 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { LanguageProvider } from './context/LanguageContext';
+import { initGa4Analytics } from './lib/ga4';
+
+initGa4Analytics();
 
 // Suppress WebGL context creation errors from THREE.js
 const originalConsoleError = console.error;

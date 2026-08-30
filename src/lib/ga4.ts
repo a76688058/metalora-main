@@ -41,16 +41,9 @@ declare global {
 let scriptLoadPromise: Promise<void> | null = null;
 let configured = false;
 let activeMeasurementId: string | null = null;
-let enabling = false;
 let unregisterSink: (() => void) | null = null;
 let consentListenerAttached = false;
-
-type QueuedEvent = {
-  event: keyof AnalyticsEventMap;
-  payload: AnalyticsEventMap[keyof AnalyticsEventMap];
-};
-
-const pendingEvents: QueuedEvent[] = [];
+let consentDefaultQueued = false;
 
 function isDebugEnabled(): boolean {
   try {
@@ -101,6 +94,16 @@ function ensureDataLayer(): void {
     }
     window.gtag = gtagStub as unknown as GtagFn;
   }
+}
+
+function queueConsentDefault(): void {
+  if (consentDefaultQueued) return;
+  consentDefaultQueued = true;
+  window.gtag("consent", "default", {
+    analytics_storage: "denied",
+    ad_storage: "denied",
+    wait_for_update: 500,
+  });
 }
 
 function loadGtagScript(measurementId: string): Promise<void> {
@@ -218,6 +221,7 @@ function withGa4EventPayload<T extends Record<string, unknown>>(payload: T): T {
   return withDebugMode(enriched as T);
 }
 
+/** Queue measurement config to dataLayer — does not require gtag.js to be loaded. */
 function configureGa4(measurementId: string): void {
   ensureDataLayer();
   activeMeasurementId = measurementId;
@@ -236,6 +240,42 @@ function configureGa4(measurementId: string): void {
     send_page_view: false,
     page_location: getSafeAnalyticsPageLocation(),
   });
+}
+
+/**
+ * Synchronously grant consent and queue GA4 config before any tracked events.
+ * Safe to call multiple times (idempotent once configured).
+ */
+function activateGa4Sync(): boolean {
+  const measurementId = getGa4MeasurementId();
+  if (!measurementId || !hasAnalyticsConsent()) {
+    debugLog("skipped sync activate: missing ID or no consent");
+    return false;
+  }
+  if (configured) {
+    return true;
+  }
+
+  ensureDataLayer();
+  window.gtag("consent", "update", {
+    analytics_storage: "granted",
+  });
+  configureGa4(measurementId);
+  return true;
+}
+
+async function loadGa4ScriptAsync(): Promise<void> {
+  const measurementId = getGa4MeasurementId();
+  if (!measurementId || !hasAnalyticsConsent()) {
+    return;
+  }
+
+  try {
+    await loadGtagScript(measurementId);
+    debugLog("gtag.js loaded");
+  } catch (err) {
+    debugLog("script load failed", err);
+  }
 }
 
 function sendToGa4<E extends keyof AnalyticsEventMap>(
@@ -322,65 +362,35 @@ function sendToGa4<E extends keyof AnalyticsEventMap>(
   }
 }
 
-function flushPending(): void {
-  while (pendingEvents.length > 0) {
-    const next = pendingEvents.shift();
-    if (!next) break;
-    sendToGa4(next.event, next.payload);
+const ga4Sink: AnalyticsSink = (event, payload) => {
+  if (!configured || typeof window.gtag !== "function") {
+    return false;
+  }
+
+  try {
+    sendToGa4(event, payload);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+function registerGa4SinkIfNeeded(): void {
+  if (!unregisterSink) {
+    unregisterSink = registerAnalyticsSink(ga4Sink);
+    debugLog("sink registered");
   }
 }
 
-const ga4Sink: AnalyticsSink = (event, payload) => {
-  if (!configured) {
-    // Keep only a short buffer so consent-time page_view is not lost while gtag loads.
-    if (pendingEvents.length < 20) {
-      pendingEvents.push({ event, payload });
-    }
+function enableGa4ForConsent(): void {
+  if (!activateGa4Sync()) {
     return;
   }
-  sendToGa4(event, payload);
-};
-
-async function enableGa4(): Promise<void> {
-  const measurementId = getGa4MeasurementId();
-  if (!measurementId) {
-    debugLog("skipped enable: missing Measurement ID");
-    return;
-  }
-  if (!hasAnalyticsConsent()) {
-    debugLog("skipped enable: no consent");
-    return;
-  }
-  if (enabling || (configured && unregisterSink)) {
-    return;
-  }
-  enabling = true;
-
-  try {
-    // Register before async script load so consent-time track() is queued, not dropped.
-    if (!unregisterSink) {
-      unregisterSink = registerAnalyticsSink(ga4Sink);
-      debugLog("sink registered");
-    }
-
-    await loadGtagScript(measurementId);
-    if (!configured) {
-      window.gtag("consent", "update", {
-        analytics_storage: "granted",
-      });
-      configureGa4(measurementId);
-    }
-    flushPending();
-  } catch (err) {
-    debugLog("enable failed", err);
-    pendingEvents.length = 0;
-  } finally {
-    enabling = false;
-  }
+  registerGa4SinkIfNeeded();
+  void loadGa4ScriptAsync();
 }
 
 function disableGa4Sink(): void {
-  pendingEvents.length = 0;
   if (unregisterSink) {
     unregisterSink();
     unregisterSink = null;
@@ -401,21 +411,16 @@ function disableGa4Sink(): void {
 
 /**
  * Bootstrap GA4 against the existing consent-aware track() layer.
- * Call once from the app root. Safe to call multiple times.
+ * Call once before React render. Safe to call multiple times.
  */
 export function initGa4Analytics(): void {
   if (typeof window === "undefined") return;
 
   ensureDataLayer();
-  // Default denied until explicit accept (fail closed for analytics_storage).
-  window.gtag("consent", "default", {
-    analytics_storage: "denied",
-    ad_storage: "denied",
-    wait_for_update: 500,
-  });
+  queueConsentDefault();
 
   if (getAnalyticsConsent() === "accepted") {
-    void enableGa4();
+    enableGa4ForConsent();
   }
 
   if (consentListenerAttached) return;
@@ -424,11 +429,56 @@ export function initGa4Analytics(): void {
   window.addEventListener(ANALYTICS_CONSENT_EVENT, ((event: Event) => {
     const detail = (event as CustomEvent<{ consent?: string }>).detail;
     if (detail?.consent === "accepted") {
-      void enableGa4();
+      enableGa4ForConsent();
       return;
     }
     if (detail?.consent === "essential_only") {
       disableGa4Sink();
     }
   }) as EventListener);
+}
+
+/** @internal Reset GA4 module state between ordering tests. */
+export function __resetGa4ForTests(): void {
+  scriptLoadPromise = null;
+  configured = false;
+  activeMeasurementId = null;
+  if (unregisterSink) {
+    unregisterSink();
+    unregisterSink = null;
+  }
+  consentListenerAttached = false;
+  consentDefaultQueued = false;
+}
+
+/** @internal Test helper — parse queued gtag command names in order. */
+export function parseGa4DataLayerCommands(
+  dataLayer: Array<IArguments | Record<string, unknown>>,
+): string[] {
+  return dataLayer.map((entry) => {
+    if (!entry || typeof entry !== "object") return "?";
+    const args = entry as IArguments;
+    if (typeof args.length !== "number" || args.length === 0) return "?";
+    return String(args[0]);
+  });
+}
+
+/** @internal Test helper — index of first matching command, or -1. */
+export function indexOfGa4DataLayerCommand(
+  dataLayer: Array<IArguments | Record<string, unknown>>,
+  command: string,
+  eventName?: string,
+): number {
+  return dataLayer.findIndex((entry) => {
+    if (!entry || typeof entry !== "object") return false;
+    const args = entry as IArguments;
+    if (String(args[0]) !== command) return false;
+    if (eventName === undefined) return true;
+    return String(args[1]) === eventName;
+  });
+}
+
+/** @internal Test helper — whether GA4 config has been queued synchronously. */
+export function isGa4ConfiguredForDispatch(): boolean {
+  return configured;
 }
