@@ -5,14 +5,94 @@ import { fileURLToPath } from "url";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
-
-dotenv.config();
+import { PRODUCTION_SUPABASE_URL } from "./src/lib/supabaseHosts";
+import {
+  PAYMENT_TEST_CROSS_WRITE_ERROR,
+  PAYMENT_TEST_ENV_NAME,
+  isTossTestSecret,
+  missingPaymentTestEnv,
+  refusePaymentTestProductionHost,
+  refuseTossTestToProductionSupabase,
+} from "./src/lib/paymentEnvGuard";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Supabase Configuration
-const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://qifloweuwyhvukabgnoa.supabase.co';
+const isPaymentTestMode =
+  process.env.METALORA_ENV === PAYMENT_TEST_ENV_NAME ||
+  process.env.npm_lifecycle_event === "dev:payment-test";
+
+if (isPaymentTestMode) {
+  process.env.METALORA_ENV = PAYMENT_TEST_ENV_NAME;
+  process.env.VITE_METALORA_ENV = PAYMENT_TEST_ENV_NAME;
+  const paymentTestEnvPath = path.join(__dirname, ".env.payment-test.local");
+  if (!fs.existsSync(paymentTestEnvPath)) {
+    throw new Error(
+      "Payment-test startup aborted: .env.payment-test.local is missing. Copy .env.payment-test.example and fill TEST values only.",
+    );
+  }
+  const loaded = dotenv.config({ path: paymentTestEnvPath, override: true });
+  if (loaded.error) {
+    throw new Error(
+      "Payment-test startup aborted: .env.payment-test.local could not be loaded. Copy .env.payment-test.example and fill TEST values only.",
+    );
+  }
+} else {
+  dotenv.config();
+}
+
+/**
+ * Payment-test: fail closed if isolated config is missing or still points at production.
+ * Logs variable NAMES only — never values.
+ */
+function assertPaymentTestEnvironment(): void {
+  const missing = missingPaymentTestEnv(process.env);
+  if (missing.length > 0) {
+    throw new Error(
+      `Payment-test startup aborted: missing required environment variable(s): ${missing.join(", ")}`,
+    );
+  }
+
+  const url = (process.env.VITE_SUPABASE_URL ?? "").trim();
+  const toss = (process.env.TOSS_SECRET_KEY ?? "").trim();
+
+  if (
+    refusePaymentTestProductionHost({
+      metaloraEnv: PAYMENT_TEST_ENV_NAME,
+      supabaseUrl: url,
+    }).refuse
+  ) {
+    throw new Error(
+      "Payment-test startup aborted: VITE_SUPABASE_URL must be the isolated test project, not production.",
+    );
+  }
+
+  if (!isTossTestSecret(toss)) {
+    throw new Error(
+      "Payment-test startup aborted: TOSS_SECRET_KEY must be a Toss TEST secret (test_sk_ / test_gsk_).",
+    );
+  }
+
+  if (
+    refuseTossTestToProductionSupabase({
+      tossSecretKey: toss,
+      supabaseUrl: url,
+    }).refuse
+  ) {
+    throw new Error(
+      "Payment-test startup aborted: Toss TEST credentials cannot target production Supabase.",
+    );
+  }
+}
+
+if (isPaymentTestMode) {
+  assertPaymentTestEnvironment();
+}
+
+// Supabase Configuration — payment-test never falls back to the production URL.
+const supabaseUrl = isPaymentTestMode
+  ? (process.env.VITE_SUPABASE_URL ?? "").trim()
+  : (process.env.VITE_SUPABASE_URL || PRODUCTION_SUPABASE_URL);
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 
@@ -50,6 +130,29 @@ function assertProductionEnvironment(): void {
       `Production startup aborted: missing required environment variable(s): ${missing.join(", ")}`,
     );
   }
+}
+
+function paymentCrossWriteGuard(): { status: number; error: string } | null {
+  const toss = (process.env.TOSS_SECRET_KEY ?? "").trim();
+  if (
+    refusePaymentTestProductionHost({
+      metaloraEnv: isPaymentTestMode ? PAYMENT_TEST_ENV_NAME : (process.env.METALORA_ENV ?? ""),
+      supabaseUrl,
+    }).refuse
+  ) {
+    console.error("[PAYMENT_ENV_GUARD] payment-test mode refused production (or invalid) Supabase host.");
+    return { status: 500, error: PAYMENT_TEST_CROSS_WRITE_ERROR };
+  }
+  if (
+    refuseTossTestToProductionSupabase({
+      tossSecretKey: toss,
+      supabaseUrl,
+    }).refuse
+  ) {
+    console.error("[PAYMENT_ENV_GUARD] Toss TEST credentials cannot write to production Supabase.");
+    return { status: 500, error: PAYMENT_TEST_CROSS_WRITE_ERROR };
+  }
+  return null;
 }
 
 /** Authoritative public SEO origin — never derive from request Host / *.run.app */
@@ -668,6 +771,7 @@ function trimNonEmptyString(value: unknown): string | null {
 }
 
 function generatePaymentOrderNumber(): string {
+  // Canonical DB/Toss order identity (idempotency key for finalize_paid_order).
   return `ORD-${randomUUID()}`;
 }
 
@@ -839,6 +943,10 @@ function parsePaymentIntentSnapshot(raw: unknown):
   }
 
   if (!Array.isArray(value.order_items) || value.order_items.length === 0) {
+    return { ok: false, status: 500, error: '주문 정보를 확인할 수 없습니다.' };
+  }
+
+  if (value.ordered_items.length !== value.order_items.length) {
     return { ok: false, status: 500, error: '주문 정보를 확인할 수 없습니다.' };
   }
 
@@ -1132,6 +1240,8 @@ async function validateCheckoutItems(
       console.error("[PAYMENT_ITEM_FAIL] Invalid option price:", { orderId: orderIdForLog, productId });
       return { ok: false, status: 400, error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." };
     }
+    // Catalog availability flag only (JSONB options.stock). Not an inventory ledger:
+    // not decremented, not row-locked, not re-checked after Toss DONE.
     const stock = Number(matchedOption.stock);
     if (Number.isFinite(stock) && stock <= 0) {
       console.error("[PAYMENT_ITEM_FAIL] Option sold out:", { orderId: orderIdForLog, productId });
@@ -1173,8 +1283,226 @@ async function validateCheckoutItems(
   };
 }
 
+/**
+ * POPULAR-001B — storefront-safe catalog popularity.
+ * Read-only aggregate. Commercial truth for NEW orders is payment_finalized_at.
+ * Legacy complement uses Admin Best Sellers / ops paid-like statuses only.
+ * Never returns order rows, PII, or payment fields.
+ */
+const CATALOG_POPULARITY_PAGE_SIZE = 1000;
+const CATALOG_POPULARITY_TTL_MS = 120_000;
+const CATALOG_POPULARITY_PAID_LIKE_STATUSES = [
+  "PAID",
+  "PRODUCTION",
+  "SHIPPING",
+  "COMPLETED",
+  "결제확인",
+  "제작중",
+  "배송중",
+  "배송완료",
+  "구매확정",
+  "paid",
+  "production",
+  "shipping",
+  "completed",
+] as const;
+
+type CatalogPopularityQueryPage<T> = {
+  data: T[] | null;
+  error: { code?: string } | null;
+};
+
+type CatalogPopularityRow = {
+  product_id: string;
+  units_sold: number;
+};
+
+type CatalogPopularityCacheEntry = {
+  payload: CatalogPopularityRow[];
+  expiresAt: number;
+};
+
+let catalogPopularityCache: CatalogPopularityCacheEntry | null = null;
+let catalogPopularityInFlight: Promise<CatalogPopularityRow[]> | null = null;
+
+function normalizeCatalogProductId(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function isCatalogProductId(value: unknown): value is string {
+  return typeof value === "string" && PRODUCT_ID_RE.test(value.trim());
+}
+
+function addCatalogPopularityUnits(
+  unitsByProductId: Map<string, number>,
+  productId: unknown,
+  quantity: unknown,
+): void {
+  if (!isCatalogProductId(productId)) return;
+  const units = parsePositiveIntQuantity(quantity);
+  if (units === null) return;
+  const id = normalizeCatalogProductId(productId);
+  unitsByProductId.set(id, (unitsByProductId.get(id) ?? 0) + units);
+}
+
+function isExcludedLegacyPopularityLine(item: unknown): boolean {
+  if (!item || typeof item !== "object") return true;
+  const row = item as Record<string, unknown>;
+  if (row.is_custom === true) return true;
+  if (row.product_type === "workshop") return true;
+  const productId = row.product_id;
+  if (productId == null) return true;
+  if (typeof productId === "string") {
+    const trimmed = productId.trim();
+    if (trimmed === "" || trimmed === "workshop-single") return true;
+  }
+  return !isCatalogProductId(productId);
+}
+
+async function paginateCatalogPopularityQuery<T>(
+  queryPage: (from: number, to: number) => PromiseLike<CatalogPopularityQueryPage<T>>,
+): Promise<T[]> {
+  const all: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await queryPage(
+      from,
+      from + CATALOG_POPULARITY_PAGE_SIZE - 1,
+    );
+    if (error) {
+      console.error(
+        "[CATALOG_POPULARITY] query failed",
+        typeof error.code === "string" ? error.code : "unknown",
+      );
+      throw new Error("catalog_popularity_query_failed");
+    }
+    const batch = data ?? [];
+    all.push(...batch);
+    if (batch.length < CATALOG_POPULARITY_PAGE_SIZE) break;
+    from += CATALOG_POPULARITY_PAGE_SIZE;
+  }
+  return all;
+}
+
+function buildCatalogPopularityPayload(
+  unitsByProductId: Map<string, number>,
+): CatalogPopularityRow[] {
+  return Array.from(unitsByProductId.entries())
+    .filter(([, unitsSold]) => unitsSold > 0)
+    .map(([product_id, units_sold]) => ({ product_id, units_sold }))
+    .sort(
+      (a, b) =>
+        b.units_sold - a.units_sold || a.product_id.localeCompare(b.product_id),
+    );
+}
+
+function cloneCatalogPopularityPayload(
+  payload: CatalogPopularityRow[],
+): CatalogPopularityRow[] {
+  return payload.map((row) => ({
+    product_id: row.product_id,
+    units_sold: row.units_sold,
+  }));
+}
+
+function readFreshCatalogPopularityCache(): CatalogPopularityRow[] | null {
+  if (!catalogPopularityCache) return null;
+  if (Date.now() >= catalogPopularityCache.expiresAt) {
+    catalogPopularityCache = null;
+    return null;
+  }
+  return catalogPopularityCache.payload;
+}
+
+async function computeCatalogPopularityPayload(): Promise<CatalogPopularityRow[]> {
+  if (!supabaseAdmin) {
+    throw new Error("catalog_popularity_unavailable");
+  }
+
+  console.log("[CATALOG_POPULARITY] aggregation");
+
+  const unitsByProductId = new Map<string, number>();
+
+  const finalizedOrders = await paginateCatalogPopularityQuery<{
+    order_items: Array<{ product_id: string | null; quantity: number }> | null;
+  }>((from, to) =>
+    supabaseAdmin
+      .from("orders")
+      .select("order_items(product_id, quantity)")
+      .not("payment_finalized_at", "is", null)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+
+  for (const order of finalizedOrders) {
+    const items = Array.isArray(order.order_items) ? order.order_items : [];
+    for (const item of items) {
+      addCatalogPopularityUnits(
+        unitsByProductId,
+        item.product_id,
+        item.quantity,
+      );
+    }
+  }
+
+  const legacyOrders = await paginateCatalogPopularityQuery<{
+    ordered_items: unknown;
+  }>((from, to) =>
+    supabaseAdmin
+      .from("orders")
+      .select("ordered_items")
+      .is("payment_finalized_at", null)
+      .in("status", CATALOG_POPULARITY_PAID_LIKE_STATUSES)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+
+  for (const order of legacyOrders) {
+    const items = Array.isArray(order.ordered_items) ? order.ordered_items : [];
+    for (const item of items) {
+      if (isExcludedLegacyPopularityLine(item)) continue;
+      const row = item as Record<string, unknown>;
+      addCatalogPopularityUnits(unitsByProductId, row.product_id, row.quantity);
+    }
+  }
+
+  return buildCatalogPopularityPayload(unitsByProductId);
+}
+
+function loadCatalogPopularityPayload(): Promise<CatalogPopularityRow[]> {
+  const cached = readFreshCatalogPopularityCache();
+  if (cached) {
+    return Promise.resolve(cloneCatalogPopularityPayload(cached));
+  }
+
+  if (catalogPopularityInFlight) {
+    return catalogPopularityInFlight.then(cloneCatalogPopularityPayload);
+  }
+
+  const pending = computeCatalogPopularityPayload()
+    .then((payload) => {
+      catalogPopularityCache = {
+        payload: cloneCatalogPopularityPayload(payload),
+        expiresAt: Date.now() + CATALOG_POPULARITY_TTL_MS,
+      };
+      return payload;
+    })
+    .finally(() => {
+      if (catalogPopularityInFlight === pending) {
+        catalogPopularityInFlight = null;
+      }
+    });
+
+  catalogPopularityInFlight = pending;
+  return pending.then(cloneCatalogPopularityPayload);
+}
+
 async function startServer() {
-  assertProductionEnvironment();
+  if (isPaymentTestMode) {
+    assertPaymentTestEnvironment();
+  } else {
+    assertProductionEnvironment();
+  }
 
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
@@ -1219,6 +1547,27 @@ async function startServer() {
   // API routes FIRST
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  /**
+   * Public catalog metadata: paid unit sales per catalog product_id.
+   * Privileged server read; response is product_id + units_sold only.
+   */
+  app.get("/api/catalog/popularity", async (_req, res) => {
+    if (!supabaseAdmin) {
+      return res.status(503).json({
+        error: "Catalog popularity is temporarily unavailable",
+      });
+    }
+
+    try {
+      const payload = await loadCatalogPopularityPayload();
+      return res.status(200).json(payload);
+    } catch {
+      return res.status(500).json({
+        error: "Catalog popularity is temporarily unavailable",
+      });
+    }
   });
 
   // RSS Feed for Naver Search Advisor
@@ -1354,6 +1703,11 @@ ${staticUrls}${productUrls}
    * 결제 준비 API — server-validated immutable payment_intents snapshot (#18B-2)
    */
   app.post("/api/payment/prepare", async (req, res) => {
+    const envGuard = paymentCrossWriteGuard();
+    if (envGuard) {
+      return res.status(envGuard.status).json({ error: envGuard.error });
+    }
+
     const authResult = await verifyPaymentBearer(req.headers.authorization);
     if (authResult.ok === false) {
       return res.status(authResult.status).json({ error: authResult.error });
@@ -1413,10 +1767,15 @@ ${staticUrls}${productUrls}
 
   /**
    * 결제 승인 API (Toss Payments 서버-대-서버 승인)
-   * @description 클라이언트에서 받은 결제 정보를 토스에서 확인하고 DB를 업데이트합니다.
-   * Reentrant: POST confirm 실패 시 GET /orders/{orderId} 로 DONE 결제 복구 후 finalize.
+   * State: payment_intents → Toss DONE (POST confirm or GET recovery) → finalize_paid_order.
+   * Idempotency: order_number (DB) + paymentKey (Toss). Completion: orders.payment_finalized_at.
    */
   app.post("/api/payment/confirm", async (req, res) => {
+    const envGuard = paymentCrossWriteGuard();
+    if (envGuard) {
+      return res.status(envGuard.status).json({ error: envGuard.error });
+    }
+
     const { paymentKey, orderId, amount } = req.body;
     
     if (!paymentKey || !orderId || !amount) {
@@ -1702,7 +2061,7 @@ ${itemsList}
 • **성함:** ${snapshot.shipping.name || '고객'} 님
 • **배송지:** ${snapshot.shipping.address || '주소 없음'} ${snapshot.shipping.address_detail || ''}`;
 
-        await fetch(WEBHOOK_URL, {
+        void fetch(WEBHOOK_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ content: discordContent }),
@@ -1747,6 +2106,7 @@ ${itemsList}
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
+      mode: isPaymentTestMode ? PAYMENT_TEST_ENV_NAME : "development",
       server: { middlewareMode: true, host: '0.0.0.0', port: 3000 },
       appType: "spa",
     });
@@ -1843,6 +2203,7 @@ ${itemsList}
         ? process.env.DEPLOY_SHA.trim()
         : "unknown";
     console.log(`[STARTUP] deploy_sha=${deploySha}`);
+    console.log(`[STARTUP] metalora_env=${isPaymentTestMode ? PAYMENT_TEST_ENV_NAME : "default"}`);
     console.log(`Server started on port ${PORT}`);
   });
 }

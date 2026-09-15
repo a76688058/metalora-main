@@ -1,4 +1,14 @@
 # Promote the candidate-tagged revision to 100% production traffic on metalora-direct.
+# Fail-closed: refuse unless candidate is a distinct 0% revision (#19D/E-1).
+# Does not retag stable. deploy-candidate.ps1 assigns stable to pre-deploy production.
+#
+# -ValidateOnly  : read-only describe + safety check; no traffic change
+# -TestTrafficJson : evaluate safety against injected status.traffic JSON; no gcloud
+
+param(
+    [switch]$ValidateOnly,
+    [string]$TestTrafficJson
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -13,7 +23,7 @@ function Invoke-Gcloud {
     )
     & gcloud @Args
     if ($LASTEXITCODE -ne 0) {
-        throw "gcloud failed: gcloud $($Args -join ' ')"
+        throw "gcloud failed: gcloud $($Args -join ' ') (exit $LASTEXITCODE)"
     }
 }
 
@@ -36,7 +46,7 @@ function Get-ProductionTrafficEntry {
         })
 
     if ($entries.Count -ne 1) {
-        throw "Expected exactly one revision with 100% traffic; found $($entries.Count)."
+        throw "Expected exactly one revision with >0 traffic; found $($entries.Count)."
     }
 
     if ([int]$entries[0].percent -ne 100) {
@@ -55,28 +65,98 @@ function Get-TrafficEntryByTag {
     return @($Service.status.traffic | Where-Object { $_.tag -eq $Tag })
 }
 
-$serviceBefore = Get-CloudRunService
-$productionBefore = Get-ProductionTrafficEntry -Service $serviceBefore
-$previousProductionRevision = $productionBefore.revisionName
+function Test-CandidateHasNoProductionTraffic {
+    param($CandidateEntry)
 
-$candidateEntries = @(
-    Get-TrafficEntryByTag -Service $serviceBefore -Tag "candidate"
-)
-if ($candidateEntries.Count -ne 1) {
-    throw "Candidate tag not found or ambiguous ($($candidateEntries.Count) entries). Deploy a candidate first."
+    if ($null -eq $CandidateEntry.percent) {
+        return $true
+    }
+    return ([int]$CandidateEntry.percent -eq 0)
 }
 
-$candidateRevision = $candidateEntries[0].revisionName
+function Assert-PromoteSafety {
+    param($Service)
 
-# --- Point stable at current production before promotion ---
-Invoke-Gcloud -Args @(
-    "run", "services", "update-traffic", $SERVICE,
-    "--project=$PROJECT",
-    "--region=$REGION",
-    "--update-tags=stable=$previousProductionRevision"
-)
+    $production = Get-ProductionTrafficEntry -Service $Service
+    $productionRevision = [string]$production.revisionName
 
-# --- Promote candidate to 100% ---
+    $candidateEntries = @(Get-TrafficEntryByTag -Service $Service -Tag "candidate")
+    if ($candidateEntries.Count -ne 1) {
+        throw "Candidate tag not found or ambiguous ($($candidateEntries.Count) entries). Deploy an isolated candidate first."
+    }
+
+    $stableEntries = @(Get-TrafficEntryByTag -Service $Service -Tag "stable")
+    if ($stableEntries.Count -ne 1) {
+        throw "Stable tag not found or ambiguous ($($stableEntries.Count) entries)."
+    }
+
+    $candidateRevision = [string]$candidateEntries[0].revisionName
+    $stableRevision = [string]$stableEntries[0].revisionName
+
+    if ([string]::IsNullOrWhiteSpace($candidateRevision)) {
+        throw "Candidate tag has no revisionName."
+    }
+    if ([string]::IsNullOrWhiteSpace($stableRevision)) {
+        throw "Stable tag has no revisionName."
+    }
+
+    if ($candidateRevision -eq $productionRevision) {
+        throw "Promote refused: candidate revision equals current production ($candidateRevision). Deploy a new isolated candidate first."
+    }
+
+    if (-not (Test-CandidateHasNoProductionTraffic -CandidateEntry $candidateEntries[0])) {
+        throw "Promote refused: candidate must have 0% or unset traffic; found $($candidateEntries[0].percent)%."
+    }
+
+    if ($stableRevision -eq $candidateRevision) {
+        throw "Promote refused: stable must not point at the candidate revision ($candidateRevision)."
+    }
+
+    return [pscustomobject]@{
+        ProductionRevision = $productionRevision
+        CandidateRevision  = $candidateRevision
+        StableRevision     = $stableRevision
+    }
+}
+
+function New-ServiceFromTrafficJson {
+    param([string]$Json)
+
+    $parsed = $Json | ConvertFrom-Json
+    $traffic = @($parsed)
+    return [pscustomobject]@{
+        status = [pscustomobject]@{
+            traffic = $traffic
+        }
+    }
+}
+
+if ($TestTrafficJson) {
+    $mockService = New-ServiceFromTrafficJson -Json $TestTrafficJson
+    $checked = Assert-PromoteSafety -Service $mockService
+    Write-Host "PRODUCTION_REVISION=$($checked.ProductionRevision)"
+    Write-Host "CANDIDATE_REVISION=$($checked.CandidateRevision)"
+    Write-Host "STABLE_REVISION=$($checked.StableRevision)"
+    Write-Host "status PROMOTE_SAFE"
+    exit 0
+}
+
+$serviceBefore = Get-CloudRunService
+$checked = Assert-PromoteSafety -Service $serviceBefore
+
+if ($ValidateOnly) {
+    Write-Host "PRODUCTION_REVISION=$($checked.ProductionRevision)"
+    Write-Host "CANDIDATE_REVISION=$($checked.CandidateRevision)"
+    Write-Host "STABLE_REVISION=$($checked.StableRevision)"
+    Write-Host "status PROMOTE_SAFE"
+    exit 0
+}
+
+$previousProductionRevision = $checked.ProductionRevision
+$candidateRevision = $checked.CandidateRevision
+$stableBeforeRevision = $checked.StableRevision
+
+# --- Promote candidate to 100% (does not retag stable) ---
 Invoke-Gcloud -Args @(
     "run", "services", "update-traffic", $SERVICE,
     "--project=$PROJECT",
@@ -98,7 +178,13 @@ if ($stableEntries.Count -ne 1) {
     throw "Expected exactly one stable-tagged revision after promotion; found $($stableEntries.Count)."
 }
 
-$stableRevision = $stableEntries[0].revisionName
+$stableRevision = [string]$stableEntries[0].revisionName
+if ($stableRevision -ne $stableBeforeRevision) {
+    throw "Promote must not change the stable rollback target. Before=$stableBeforeRevision After=$stableRevision."
+}
+if ($stableRevision -eq [string]$productionAfter.revisionName) {
+    throw "Stable rollback target must remain distinct from new production ($stableRevision)."
+}
 
 Write-Host ""
 Write-Host "PREVIOUS_PRODUCTION_REVISION=$previousProductionRevision"

@@ -28,6 +28,9 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY server.ts ./
+# Post-#18 server.ts boots via tsx and imports these two modules.
+# Builder COPY src is compile-only and is not present in this stage.
+COPY src/lib/supabaseHosts.ts src/lib/paymentEnvGuard.ts ./src/lib/
 COPY --from=builder /app/dist/client ./dist/client
 
 EXPOSE 8080
