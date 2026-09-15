@@ -225,11 +225,122 @@ function paymentOpsProviderCode(raw: unknown): string | null {
   return trimmed;
 }
 
+const DISCORD_OPS_ALERT_ERROR_MESSAGE = "[DISCORD_OPS_ALERT_ERROR]";
+const DISCORD_WEBHOOK_TIMEOUT_MS = 2500;
+
+function paymentOpsDeploySha(): string | null {
+  if (typeof process.env.DEPLOY_SHA === "string" && process.env.DEPLOY_SHA.trim()) {
+    return process.env.DEPLOY_SHA.trim();
+  }
+  return null;
+}
+
+function discordWebhookUrlPresent(): boolean {
+  const raw = process.env.DISCORD_WEBHOOK_URL;
+  return typeof raw === "string" && raw.trim() !== "";
+}
+
+/**
+ * Shared Discord transport. Never logs the webhook URL or response body.
+ * Bounded timeout. Callers must ignore delivery outcome for payment HTTP status.
+ */
+async function postDiscordContent(
+  content: string,
+): Promise<{ skipped: boolean; delivered: boolean; http_status: number | null }> {
+  if (!discordWebhookUrlPresent()) {
+    return { skipped: true, delivered: false, http_status: null };
+  }
+  const webhookUrl = (process.env.DISCORD_WEBHOOK_URL ?? "").trim();
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+      signal: AbortSignal.timeout(DISCORD_WEBHOOK_TIMEOUT_MS),
+    });
+    return {
+      skipped: false,
+      delivered: response.ok,
+      http_status: response.status,
+    };
+  } catch {
+    return { skipped: false, delivered: false, http_status: null };
+  }
+}
+
+function logDiscordOpsAlertError(input: {
+  payment_event: PaymentOpsEvent;
+  request_id: string;
+  order_id?: string | null;
+  http_status?: number | null;
+}): void {
+  const payload: Record<string, unknown> = {
+    severity: "ERROR",
+    message: DISCORD_OPS_ALERT_ERROR_MESSAGE,
+    payment_event: input.payment_event,
+    request_id: input.request_id,
+    deploy_sha: paymentOpsDeploySha(),
+  };
+  const orderId = paymentOpsOrderId(input.order_id);
+  if (orderId) {
+    payload.order_id = orderId;
+  }
+  if (typeof input.http_status === "number" && Number.isInteger(input.http_status)) {
+    payload.http_status = input.http_status;
+  }
+  console.error(JSON.stringify(payload));
+}
+
+function buildPaymentOpsDiscordAlert(input: {
+  payment_event: PaymentOpsEvent;
+  phase: PaymentOpsPhase;
+  request_id: string;
+  order_id?: string;
+  http_status?: number;
+  provider?: "toss";
+  provider_code?: string;
+  retryable: boolean;
+  recovery_required: boolean;
+  deploy_sha: string | null;
+}): string {
+  const header = input.recovery_required
+    ? "🚨 **RECOVERY REQUIRED / CRITICAL OPERATIONS ACTION**"
+    : "⚠️ **PAYMENT OPS FAILURE**";
+  const lines = [
+    header,
+    `• payment_event: \`${input.payment_event}\``,
+    `• phase: \`${input.phase}\``,
+    `• request_id: \`${input.request_id}\``,
+  ];
+  if (input.order_id) {
+    lines.push(`• order_id: \`${input.order_id}\``);
+  }
+  if (typeof input.http_status === "number") {
+    lines.push(`• http_status: \`${String(input.http_status)}\``);
+  }
+  if (input.provider) {
+    lines.push(`• provider: \`${input.provider}\``);
+  }
+  if (input.provider_code) {
+    lines.push(`• provider_code: \`${input.provider_code}\``);
+  }
+  lines.push(`• retryable: \`${input.retryable ? "true" : "false"}\``);
+  lines.push(`• recovery_required: \`${input.recovery_required ? "true" : "false"}\``);
+  if (input.deploy_sha) {
+    lines.push(`• deploy_sha: \`${input.deploy_sha}\``);
+  }
+  return lines.join("\n");
+}
+
 /**
  * Canonical #20C payment operational failure signal.
  * One JSON line. Bounded fields only — no PII, secrets, bodies, or paymentKey.
+ * #20D Discord alert is a side channel: never throws, never changes payment outcome.
  */
-function logPaymentOpsFailure(input: PaymentOpsFailureInput): void {
+async function logPaymentOpsFailure(input: PaymentOpsFailureInput): Promise<void> {
+  const deploySha = paymentOpsDeploySha();
+  const recoveryRequired = input.recovery_required === true;
+  const retryable = input.retryable === true;
   const payload: Record<string, unknown> = {
     severity: input.alert_eligible ? "ERROR" : "WARNING",
     message: PAYMENT_OPS_FAILURE_MESSAGE,
@@ -238,12 +349,9 @@ function logPaymentOpsFailure(input: PaymentOpsFailureInput): void {
     phase: input.phase,
     alert_eligible: input.alert_eligible,
     request_id: input.request_id,
-    recovery_required: input.recovery_required === true,
-    retryable: input.retryable === true,
-    deploy_sha:
-      typeof process.env.DEPLOY_SHA === "string" && process.env.DEPLOY_SHA.trim()
-        ? process.env.DEPLOY_SHA.trim()
-        : null,
+    recovery_required: recoveryRequired,
+    retryable,
+    deploy_sha: deploySha,
   };
 
   const orderId = paymentOpsOrderId(input.order_id);
@@ -266,6 +374,39 @@ function logPaymentOpsFailure(input: PaymentOpsFailureInput): void {
   }
 
   console.error(JSON.stringify(payload));
+
+  if (!input.alert_eligible) {
+    return;
+  }
+
+  const alertContent = buildPaymentOpsDiscordAlert({
+    payment_event: input.payment_event,
+    phase: input.phase,
+    request_id: input.request_id,
+    order_id: orderId ?? undefined,
+    http_status:
+      typeof input.http_status === "number" && Number.isInteger(input.http_status)
+        ? input.http_status
+        : undefined,
+    provider: input.provider === "toss" ? "toss" : undefined,
+    provider_code: providerCode ?? undefined,
+    retryable,
+    recovery_required: recoveryRequired,
+    deploy_sha: deploySha,
+  });
+
+  const delivery = await postDiscordContent(alertContent);
+  if (delivery.skipped) {
+    return;
+  }
+  if (!delivery.delivered) {
+    logDiscordOpsAlertError({
+      payment_event: input.payment_event,
+      request_id: input.request_id,
+      order_id: orderId,
+      http_status: delivery.http_status,
+    });
+  }
 }
 
 /** Authoritative public SEO origin — never derive from request Host / *.run.app */
@@ -1594,7 +1735,7 @@ ${staticUrls}${productUrls}
     const requestId = newPaymentRequestId();
     const envGuard = paymentCrossWriteGuard();
     if (envGuard) {
-      logPaymentOpsFailure({
+      await logPaymentOpsFailure({
         payment_event: "env_guard",
         phase: "prepare",
         alert_eligible: true,
@@ -1608,7 +1749,7 @@ ${staticUrls}${productUrls}
     const authResult = await verifyPaymentBearer(req.headers.authorization);
     if (authResult.ok === false) {
       if (authResult.status >= 500) {
-        logPaymentOpsFailure({
+        await logPaymentOpsFailure({
           payment_event: "config_missing",
           phase: "prepare",
           alert_eligible: true,
@@ -1634,7 +1775,7 @@ ${staticUrls}${productUrls}
       const checkoutResult = await validateCheckoutItems(items, orderNumber);
       if (checkoutResult.ok === false) {
         if (checkoutResult.status >= 500) {
-          logPaymentOpsFailure({
+          await logPaymentOpsFailure({
             payment_event: checkoutResult.payment_event ?? "internal_unhandled",
             phase: "prepare",
             alert_eligible: true,
@@ -1672,7 +1813,7 @@ ${staticUrls}${productUrls}
 
       if (insertError) {
         console.error("[PAYMENT_PREPARE_FAIL] payment_intents insert error:", insertError);
-        logPaymentOpsFailure({
+        await logPaymentOpsFailure({
           payment_event: "db_intent_insert",
           phase: "prepare",
           alert_eligible: true,
@@ -1688,7 +1829,7 @@ ${staticUrls}${productUrls}
       return res.json({ orderId: orderNumber, amount: total });
     } catch (error) {
       console.error("[PAYMENT_PREPARE_ERROR]", error);
-      logPaymentOpsFailure({
+      await logPaymentOpsFailure({
         payment_event: "internal_unhandled",
         phase: "prepare",
         alert_eligible: true,
@@ -1710,7 +1851,7 @@ ${staticUrls}${productUrls}
     const requestId = newPaymentRequestId();
     const envGuard = paymentCrossWriteGuard();
     if (envGuard) {
-      logPaymentOpsFailure({
+      await logPaymentOpsFailure({
         payment_event: "env_guard",
         phase: "confirm",
         alert_eligible: true,
@@ -1737,7 +1878,7 @@ ${staticUrls}${productUrls}
     const authResult = await verifyPaymentBearer(req.headers.authorization);
     if (authResult.ok === false) {
       if (authResult.status >= 500) {
-        logPaymentOpsFailure({
+        await logPaymentOpsFailure({
           payment_event: "config_missing",
           phase: "confirm",
           alert_eligible: true,
@@ -1763,7 +1904,7 @@ ${staticUrls}${productUrls}
 
       if (intentError) {
         console.error("[PAYMENT_INTENT_FAIL] Lookup error:", intentError);
-        logPaymentOpsFailure({
+        await logPaymentOpsFailure({
           payment_event: "db_intent_lookup",
           phase: "confirm",
           alert_eligible: true,
@@ -1782,7 +1923,7 @@ ${staticUrls}${productUrls}
 
       if (paymentIntent.user_custom_id !== verifiedUserCustomId) {
         console.error("[PAYMENT_INTENT_FAIL] user_custom_id mismatch for payment intent:", { orderId });
-        logPaymentOpsFailure({
+        await logPaymentOpsFailure({
           payment_event: "integrity_ownership",
           phase: "confirm",
           alert_eligible: true,
@@ -1797,7 +1938,7 @@ ${staticUrls}${productUrls}
       const intentTotal = Number(paymentIntent.total_price);
       if (!Number.isFinite(intentTotal) || intentTotal <= 0) {
         console.error("[PAYMENT_INTENT_FAIL] Invalid intent total_price:", { orderId });
-        logPaymentOpsFailure({
+        await logPaymentOpsFailure({
           payment_event: "integrity_intent_state",
           phase: "confirm",
           alert_eligible: true,
@@ -1815,7 +1956,7 @@ ${staticUrls}${productUrls}
           expected: intentTotal,
           amount: Number(amount),
         });
-        logPaymentOpsFailure({
+        await logPaymentOpsFailure({
           payment_event: "integrity_amount_mismatch",
           phase: "confirm",
           alert_eligible: true,
@@ -1830,7 +1971,7 @@ ${staticUrls}${productUrls}
       const snapshotResult = parsePaymentIntentSnapshot(paymentIntent.validated_snapshot);
       if (snapshotResult.ok === false) {
         console.error("[PAYMENT_INTENT_FAIL] Malformed validated_snapshot:", { orderId });
-        logPaymentOpsFailure({
+        await logPaymentOpsFailure({
           payment_event: "integrity_snapshot",
           phase: "confirm",
           alert_eligible: true,
@@ -1853,7 +1994,7 @@ ${staticUrls}${productUrls}
       if (existingOrder) {
         if (existingOrder.user_id && existingOrder.user_id !== verifiedUserId) {
           console.error("[PAYMENT_OWNERSHIP_FAIL] Existing order belongs to another user.");
-          logPaymentOpsFailure({
+          await logPaymentOpsFailure({
             payment_event: "integrity_ownership",
             phase: "confirm",
             alert_eligible: true,
@@ -1867,7 +2008,7 @@ ${staticUrls}${productUrls}
         if (existingOrder.payment_finalized_at != null) {
           if (Number(existingOrder.total_price) !== intentTotal) {
             console.error("[PAYMENT_FINALIZE_FAIL] Finalized order amount mismatch:", { orderId });
-            logPaymentOpsFailure({
+            await logPaymentOpsFailure({
               payment_event: "integrity_amount_mismatch",
               phase: "confirm",
               alert_eligible: true,
@@ -1891,7 +2032,7 @@ ${staticUrls}${productUrls}
           );
         }
         console.error("[PAYMENT_RECOVERY_REQUIRED] Unfinalized existing order:", { orderId });
-        logPaymentOpsFailure({
+        await logPaymentOpsFailure({
           payment_event: "recovery_required",
           phase: "confirm",
           alert_eligible: true,
@@ -1907,7 +2048,7 @@ ${staticUrls}${productUrls}
       const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY;
       if (!TOSS_SECRET_KEY) {
         console.error("[CRITICAL] TOSS_SECRET_KEY is missing in server environment.");
-        logPaymentOpsFailure({
+        await logPaymentOpsFailure({
           payment_event: "config_missing",
           phase: "confirm",
           alert_eligible: true,
@@ -1965,7 +2106,7 @@ ${staticUrls}${productUrls}
               reason: validation.reason,
             });
             const statusNotDone = validation.reason.startsWith("status_not_done");
-            logPaymentOpsFailure({
+            await logPaymentOpsFailure({
               payment_event: statusNotDone ? "provider_not_done" : "integrity_provider_mismatch",
               phase: "toss_confirm",
               alert_eligible: true,
@@ -2009,7 +2150,7 @@ ${staticUrls}${productUrls}
               : lookup.reason === "invalid_body"
                 ? "provider_invalid_response"
                 : "provider_http_error";
-          logPaymentOpsFailure({
+          await logPaymentOpsFailure({
             payment_event: paymentEvent,
             phase: "toss_recovery",
             alert_eligible: lookup.reason !== "not_found",
@@ -2031,7 +2172,7 @@ ${staticUrls}${productUrls}
             status: lookup.payment.status,
           });
           const statusNotDone = validation.reason.startsWith("status_not_done");
-          logPaymentOpsFailure({
+          await logPaymentOpsFailure({
             payment_event: statusNotDone ? "provider_not_done" : "integrity_provider_mismatch",
             phase: "toss_recovery",
             alert_eligible: !statusNotDone,
@@ -2088,7 +2229,7 @@ ${staticUrls}${productUrls}
 
       if (finalizeError) {
         console.error("[DB_FINALIZE_ERROR]", finalizeError);
-        logPaymentOpsFailure({
+        await logPaymentOpsFailure({
           payment_event: "db_finalize_rpc",
           phase: "finalize",
           alert_eligible: true,
@@ -2108,7 +2249,7 @@ ${staticUrls}${productUrls}
           orderId,
           count: Array.isArray(finalizeRows) ? finalizeRows.length : null,
         });
-        logPaymentOpsFailure({
+        await logPaymentOpsFailure({
           payment_event: "db_finalize_rpc",
           phase: "finalize",
           alert_eligible: true,
@@ -2131,7 +2272,7 @@ ${staticUrls}${productUrls}
 
       if (!finalizeResult?.order_id) {
         console.error("[DB_FINALIZE_ERROR] RPC result missing order_id:", { orderId });
-        logPaymentOpsFailure({
+        await logPaymentOpsFailure({
           payment_event: "db_finalize_rpc",
           phase: "finalize",
           alert_eligible: true,
@@ -2180,18 +2321,19 @@ ${staticUrls}${productUrls}
 • **주문번호:** \`${orderId}\`
 • **결제수단:** ${shippingInfo.payment_method}
 \n🛒 **주문 품목**
-${itemsList}
-\n👤 **주문자 정보**
-• **성함:** ${snapshot.shipping.name || '고객'} 님
-• **배송지:** ${snapshot.shipping.address || '주소 없음'} ${snapshot.shipping.address_detail || ''}`;
+${itemsList}`;
 
-        void fetch(WEBHOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: discordContent }),
-        }).catch((e) =>
-          console.error(`[DISCORD_ERROR] orderId=${orderId}`, e instanceof Error ? e.message : 'unknown'),
-        );
+        void postDiscordContent(discordContent)
+          .then((successDelivery) => {
+            if (!successDelivery.skipped && !successDelivery.delivered) {
+              const safeOrderId = paymentOpsOrderId(orderId) ?? "unknown";
+              console.error(`[DISCORD_ERROR] orderId=${safeOrderId}`);
+            }
+          })
+          .catch(() => {
+            const safeOrderId = paymentOpsOrderId(orderId) ?? "unknown";
+            console.error(`[DISCORD_ERROR] orderId=${safeOrderId}`);
+          });
       }
 
       return res.json(
@@ -2206,7 +2348,7 @@ ${itemsList}
 
     } catch (error: any) {
       console.error("Payment Confirmation API Error:", error);
-      logPaymentOpsFailure({
+      await logPaymentOpsFailure({
         payment_event: "internal_unhandled",
         phase: tossDoneEstablished ? "finalize" : "confirm",
         alert_eligible: true,

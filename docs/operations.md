@@ -170,17 +170,86 @@ jsonPayload.recovery_required=true
 
 If a line is ingested as `textPayload` instead, search `"[PAYMENT_OPS_FAILURE]"` under the same `resource` filter, then inspect the JSON object on that line.
 
-#### #20D handoff
+### Operational Alerts (#20D)
 
-**#20D may alert on:**
+Discord is an operational side channel. Delivery success or failure **must not** change payment HTTP status, finalize/idempotency, or recovery behavior.
 
-`message = [PAYMENT_OPS_FAILURE]` AND `alert_eligible = true`
+- **Failure ops alerts** (`alert_eligible = true`): bounded awaited delivery (2.5s timeout) so Cloud Run is less likely to drop the page. Discord still cannot change the original payment HTTP result.
+- **Success notification:** operational side effect only. It is **non-blocking** and must **not** delay the successful payment response.
 
-**#20D may give higher priority to:**
+#### A. Trigger
 
-`recovery_required = true`
+Send a Discord **failure** alert only when:
 
-Do **not** create Cloud Monitoring alerts, send Discord failure webhooks, or change the success Discord payload in #20C. Those remain #20D.
+`[PAYMENT_OPS_FAILURE]` AND `alert_eligible = true`
+
+`alert_eligible = false` must **not** page Discord.
+
+Browser `reportPaymentFail` belongs to analytics (**#22**) and is **not** an ops pager.
+
+#### B. Priority
+
+`recovery_required = true` is the highest payment-ops priority. Discord text is labeled **RECOVERY REQUIRED / CRITICAL OPERATIONS ACTION**.
+
+#### C. Discord failure alert fields
+
+Bounded operational fields only:
+
+- `payment_event`
+- `phase`
+- `request_id`
+- `order_id` (when present)
+- `http_status`
+- `provider`
+- `provider_code`
+- `retryable`
+- `recovery_required`
+- `deploy_sha`
+
+#### D. PII policy
+
+Discord alerts (failure **and** success) must **not** contain:
+
+- customer / shipping name
+- address / `address_detail`
+- phone / email
+- `paymentKey`
+- raw request / provider payloads
+- secrets (webhook URL, Toss keys, service role, JWT)
+
+#### E. Success notification
+
+First-finalize success notify still fires only when `already_finalized` is false.
+
+The success HTTP response does **not** wait for Discord. Delivery uses the shared bounded transport as a non-blocking side effect.
+
+Success Discord now includes order number, amount, payment method, and line items (title / option / qty / existing operational flags). It **excludes** shipping name, address, and `address_detail`. Phone and email are not included.
+
+#### F. Discord delivery failure
+
+If an **ops failure alert** cannot be delivered, Cloud Logging records:
+
+`[DISCORD_OPS_ALERT_ERROR]`
+
+Allowed fields: `payment_event`, `request_id`, `order_id` (when safe), HTTP status category, `deploy_sha`. No webhook URL, raw body, PII, or arbitrary error dump. This marker **must not** send another Discord notification.
+
+Success-notify delivery failure remains `[DISCORD_ERROR]` (order_id only).
+
+#### G. Operational action
+
+For `recovery_required = true`:
+
+- investigate payment / order reconciliation using Cloud Logging + `docs/ops-payment-queries.sql`
+- do **not** manually fabricate `order_items`
+- do **not** manually increment `profiles.total_spent`
+- do **not** retry Toss approval from SQL
+- use the authenticated confirm retry path / existing runbook
+
+#### H. Boundary
+
+GA4 / browser `reportPaymentFail` remains **#22**. It is not an operational detector and not a Discord pager.
+
+Do not add commerce anomaly queries here (**#20J**).
 
 ---
 
