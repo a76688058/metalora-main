@@ -99,7 +99,7 @@ Completion authority for new payments is **`payment_finalized_at`**, not `status
    - `[DB_FINALIZE_ERROR]`
    - `[PAYMENT_RECOVERY_REQUIRED]`
    - `[DISCORD_ERROR]` (notify-only; not payment failure)
-4. Run the read-only queries in `docs/ops-payment-queries.sql`.
+4. Run the read-only queries in `docs/ops-payment-queries.sql` (A–H volume/legacy, then **#20J** anomaly checks as needed).
 5. **Do NOT** manually increment `profiles.total_spent`.
 6. **Do NOT** manually insert `order_items`.
 7. **Do NOT** retry Toss approval manually from SQL.
@@ -249,7 +249,39 @@ For `recovery_required = true`:
 
 GA4 / browser `reportPaymentFail` remains **#22**. It is not an operational detector and not a Discord pager.
 
-Do not add commerce anomaly queries here (**#20J**).
+### Commerce / data anomaly detection (#20J)
+
+SELECT-only checks live in `docs/ops-payment-queries.sql` (sections **#20J-1** onward). They inspect database state. They do **not** page Discord, do **not** mutate rows, and do **not** replace #20C/#20D.
+
+| Signal | Role |
+|---|---|
+| **#20C** `[PAYMENT_OPS_FAILURE]` | Runtime failure classification (Cloud Logging) |
+| **#20D** Discord when `alert_eligible=true` | Ops pager for eligible runtime failures |
+| **#20J** SQL pack | Data-state inconsistency after the fact |
+
+Correlate a #20J row with logs using `order_number` (or profile/product internal id), `#20C` `request_id` when the time window is known, `deploy_sha`, and timestamp. Do **not** use GA4 (**#22**).
+
+**Daily (or after a payment incident / commerce-affecting rollback):**
+
+- #20J-1 amount mismatch (finalized intent vs order)
+- #20J-3 payment identifier reuse
+- A/F/G plus #20J-2 unmarked-order vs intent collision (finalized-order integrity)
+- #20J-4 `profiles.total_spent` vs SUM of `payment_finalized_at IS NOT NULL` orders
+
+**Weekly:**
+
+- #20J-5 profile/member integrity (missing profile for commerce; member-domain username gap)
+- #20J-6 catalog soft-stock / option structure
+
+Also run the pack before **#24** launch readiness where relevant.
+
+**Severity:** HIGH = money / recovery / identifier reuse / missing owner profile. REVIEW = catalog JSON / member-domain username gap / same-row key conflict. INFO = visible product with no purchasable option (may be intentional sold-out).
+
+**Stock disclaimer:** `products.options.stock` is a prepare-time catalog flag, not a transactional inventory ledger. #20J-6 does not prove physical stock.
+
+**Do not:** INSERT/UPDATE/DELETE from these results; manually increment `total_spent`; fabricate `order_items`; retry Toss from SQL.
+
+No scheduler / cron / Cloud Monitoring automation in #20J.
 
 ---
 
