@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
-import { useTexture } from '@react-three/drei';
-import { useThree } from '@react-three/fiber';
+import { useLoader, useThree } from '@react-three/fiber';
+import * as THREE from 'three';
 import ArtworkReactiveLighting from './ArtworkReactiveLighting';
 import ArtworkSceneLighting from './ArtworkSceneLighting';
 import { createBoxMaterials, createFaceMaterial, disposeArtworkMaterials } from './materials';
@@ -42,6 +42,9 @@ function MetaloraArtwork3D({
   enableDeviceOrientation = false,
   usePhotoPlane = false,
   nonInteractiveMotion = 'idle-tilt',
+  castShadow = false,
+  receiveShadow = false,
+  onTexturesReady,
   children,
 }: MetaloraArtwork3DProps) {
   const maxAnisotropy = useThree((state) => state.gl.capabilities.getMaxAnisotropy());
@@ -55,7 +58,9 @@ function MetaloraArtwork3D({
     [frontTextureUrl, backTextureUrl],
   );
 
-  const cachedTextures = useTexture(textureUrls);
+  const cachedTextures = useLoader(THREE.TextureLoader, textureUrls, (loader) => {
+    loader.setCrossOrigin('anonymous');
+  }) as THREE.Texture[];
   const effectiveAnisotropy = resolveAnisotropy(QUALITY_ANISOTROPY[quality], maxAnisotropy);
 
   const instanceTextures = useMemo(() => {
@@ -84,6 +89,12 @@ function MetaloraArtwork3D({
       back?.dispose();
     };
   }, [instanceTextures]);
+
+  useEffect(() => {
+    if (frontTexture) {
+      onTexturesReady?.();
+    }
+  }, [frontTexture, onTexturesReady]);
 
   const resolvedInteractionMode = interactive ? 'inspect' : interactionMode;
   const resolvedAutoRotate = autoRotate || (!interactive && interactionMode === 'subtle');
@@ -150,8 +161,8 @@ function MetaloraArtwork3D({
           onClick={onClick}
           onPointerOver={onPointerOver}
           onPointerOut={onPointerOut}
-          castShadow={usePhotoPlane}
-          receiveShadow={usePhotoPlane}
+          castShadow={castShadow}
+          receiveShadow={receiveShadow}
         >
           <boxGeometry args={[finalWidth, finalHeight, depth]} />
 

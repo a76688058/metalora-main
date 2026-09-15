@@ -2,11 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 const FALLBACK_MESSAGES = [
-  '지금 주문 시 무료 배송 (오늘 마감)',
   'ATELIER의 새로운 컬렉션을 만나보세요',
   '포스터가 아닌 엔지니어링 된 작품',
-  '벽에 상처를 남기지 않는 혁신적인 거치 방식',
+  '못 없이 설치하는 마그네틱 마운트.',
 ];
+
+const BLOCKED_CLAIM =
+  /무료\s*배송|전\s*지역\s*무료|벽면 손상|상처를 남기지|자국 없음|4K|영원히|양면 승화/i;
+
+function allowedMessages(list: string[]): string[] {
+  const kept = list.filter((msg) => msg.trim() && !BLOCKED_CLAIM.test(msg));
+  return kept.length > 0 ? kept : FALLBACK_MESSAGES;
+}
 
 const AnnouncementBar = () => {
   const [messages, setMessages] = useState<string[]>(FALLBACK_MESSAGES);
@@ -27,7 +34,7 @@ const AnnouncementBar = () => {
         }
 
         if (data && data.length > 0) {
-          setMessages(data.map((b) => b.content));
+          setMessages(allowedMessages(data.map((b) => b.content)));
         }
       } catch (error) {
         console.error('Error fetching banners for bar:', error);
@@ -65,7 +72,7 @@ const AnnouncementBar = () => {
       role="region"
       aria-label="공지"
     >
-      <div className="mx-auto flex h-8 max-w-7xl items-center justify-center px-4 sm:px-6">
+      <div className="container-shell flex h-8 items-center justify-center">
         <p className="type-metadata truncate text-center text-text-secondary">
           {displayMessage}
         </p>

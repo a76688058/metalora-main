@@ -23,6 +23,7 @@ import { cn } from './lib/cn';
 
 import CookieBanner from './components/CookieBanner';
 import AnalyticsRouteTracker from './components/AnalyticsRouteTracker';
+import { isUsableMemberProfile, safeInternalPath } from './lib/authIntegrity';
 
 const ProductDetail = lazy(() => import('./components/ProductDetail'));
 const Login = lazy(() => import('./pages/Login'));
@@ -75,47 +76,67 @@ function ScrollToTop() {
   return null;
 }
 
-// Middleware Protected Route Component
+function sessionProfile(
+  user: { id: string } | null,
+  adminUser: { id: string } | null,
+  profile: { id?: string | null; user_custom_id?: string | null; is_admin?: boolean } | null,
+  adminProfile: { id?: string | null; user_custom_id?: string | null; is_admin?: boolean } | null,
+) {
+  const sessionUser = user || adminUser;
+  if (!sessionUser) return { sessionUser: null, resolved: null as typeof profile };
+  if (profile?.id === sessionUser.id) return { sessionUser, resolved: profile };
+  if (adminProfile?.id === sessionUser.id) return { sessionUser, resolved: adminProfile };
+  return { sessionUser, resolved: profile || adminProfile };
+}
+
 function ProtectedRoute({ children, requireAdmin = false }: { children: React.ReactNode, requireAdmin?: boolean }) {
   const { user, profile, adminUser, adminProfile, isLoading, isProfileResolved } = useAuth();
   const { showToast } = useToast();
+  const location = useLocation();
+  const adminDeniedToastRef = useRef(false);
+  const { sessionUser, resolved } = sessionProfile(user, adminUser, profile, adminProfile);
+  const isAdmin = resolved?.is_admin === true;
+  const usable = isUsableMemberProfile(resolved);
+  const waitForAuth = isLoading;
+  const waitForProfile = Boolean(sessionUser) && !isProfileResolved;
 
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
-
-  // Session present but profiles.is_admin not hydrated yet — do not treat as non-admin.
-  if (requireAdmin && (user || adminUser) && !isProfileResolved) {
-    return <LoadingScreen />;
-  }
-  
-  if (requireAdmin) {
-    // Allow access if either adminProfile or regular profile has is_admin flag
-    const isAdmin = adminProfile?.is_admin || profile?.is_admin;
-    if (!isAdmin) {
-      if (user || adminUser) {
-        // Logged in but not an admin
+  useEffect(() => {
+    if (waitForAuth || waitForProfile) return;
+    if (requireAdmin && sessionUser && !isAdmin) {
+      if (!adminDeniedToastRef.current) {
+        adminDeniedToastRef.current = true;
         showToast('관리자 권한이 없습니다.', 'error');
-        return <Navigate to="/" replace />;
       }
+      return;
+    }
+    adminDeniedToastRef.current = false;
+  }, [waitForAuth, waitForProfile, requireAdmin, sessionUser, isAdmin, showToast]);
+
+  if (waitForAuth || waitForProfile) {
+    return <LoadingScreen />;
+  }
+
+  if (requireAdmin) {
+    if (!sessionUser) {
       return <Navigate to="/admin/login" replace />;
+    }
+    if (!isAdmin) {
+      return <Navigate to="/" replace />;
     }
     return <>{children}</>;
   }
 
-  // Regular User Protection
-  if (!user) {
-    // If not logged in as user, but logged in as admin, allow browsing but might need user login for some actions
-    // However, for protected user routes like /profile, we need a user session
-    return <Navigate to="/login" replace />;
+  if (!sessionUser || !usable) {
+    const next = safeInternalPath(`${location.pathname}${location.search}`);
+    const loginTo = next === '/' ? '/login' : `/login?redirect=${encodeURIComponent(next)}`;
+    return <Navigate to={loginTo} replace />;
   }
-  
+
   return <>{children}</>;
 }
 
 function AnimatedRoutes() {
   const location = useLocation();
-  const { profile, adminProfile } = useAuth();
 
   return (
     <AnimatePresence mode="wait">
@@ -125,15 +146,10 @@ function AnimatedRoutes() {
         <Route path="/login" element={<LazyRoute><Login /></LazyRoute>} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/policy/:type" element={<PolicyPage />} />
-        
-        {/* Profile Complete - Skip for Admins */}
-        <Route 
-          path="/profile/complete" 
-          element={
-            (adminProfile?.is_admin || profile?.is_admin) ? 
-            <Navigate to="/admin" replace /> : 
-            <ProtectedRoute><ProfileComplete /></ProtectedRoute>
-          } 
+
+        <Route
+          path="/profile/complete"
+          element={<ProtectedRoute><ProfileComplete /></ProtectedRoute>}
         />
         
         {/* Member Only Routes */}
@@ -177,7 +193,7 @@ function Layout() {
   return (
     <div className={cn(
       'min-h-screen font-sans selection:bg-white selection:text-black flex flex-col transition-colors duration-300',
-      showCustomerShell && 'overflow-x-hidden',
+      showCustomerShell && 'overflow-x-clip',
       currentTheme === 'dark' ? 'bg-black text-white' : 'bg-white text-black',
     )}>
       <AnimatePresence>

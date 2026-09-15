@@ -9,6 +9,7 @@ import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { loadTossPayments } from '@tosspayments/payment-sdk';
 import PolicyModal from './PolicyModal';
+import LoginModal from './LoginModal';
 import { policies } from '../constants/policies';
 import { cn } from '../lib/cn';
 import { zClass } from '../constants/overlays';
@@ -20,6 +21,7 @@ import {
   reportPaymentFail,
   sanitizeTossFailureCode,
 } from '../lib/paymentFailureAnalytics';
+import { isUsableMemberProfile } from '../lib/authIntegrity';
 
 interface CartProps {
   isOpen: boolean;
@@ -86,13 +88,22 @@ export default function Cart() {
     };
   }, [isOpen]);
 
-  const { user, adminUser, profile, adminProfile } = useAuth();
+  const { user, adminUser, profile, adminProfile, isLoading: isAuthLoading, isProfileResolved } = useAuth();
   const { showToast } = useToast();
   const [step, setStep] = useState(1); // 1: List, 2: Order Form
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const pendingCheckoutRef = useRef(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [displayPrice, setDisplayPrice] = useState(0);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsLoginModalOpen(false);
+      pendingCheckoutRef.current = false;
+    }
+  }, [isOpen]);
 
   // Initialize selection: Select all by default
   useEffect(() => {
@@ -266,7 +277,42 @@ export default function Cart() {
     }, 0);
   };
 
+  const currentAuthUser = user || adminUser;
+  const checkoutProfile =
+    currentAuthUser && profile?.id === currentAuthUser.id
+      ? profile
+      : currentAuthUser && adminProfile?.id === currentAuthUser.id
+        ? adminProfile
+        : null;
+  const canCheckout =
+    Boolean(currentAuthUser) && isUsableMemberProfile(checkoutProfile);
+  const checkoutAuthPending =
+    isAuthLoading || (Boolean(currentAuthUser) && !isProfileResolved);
+
+  const beginCheckoutStep = () => {
+    if (selectedIds.size === 0 || isTransitioning || step !== 1) return;
+    track('begin_checkout', {
+      currency: 'KRW',
+      value: selectedTotalPrice,
+      items: mapSelectedItemsToAnalyticsItems(selectedItems),
+    });
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setStep(2);
+      setIsTransitioning(false);
+    }, 600);
+  };
+
+  const requireCheckoutAuth = (): boolean => {
+    if (checkoutAuthPending) return false;
+    if (canCheckout) return true;
+    pendingCheckoutRef.current = step === 1;
+    setIsLoginModalOpen(true);
+    return false;
+  };
+
   const handlePayment = async () => {
+    if (!requireCheckoutAuth()) return;
     const currentUser = user || adminUser;
     if (!currentUser) return;
     if (!shippingData.name || !shippingData.phone || !shippingData.address || !shippingData.zipCode || !shippingData.addressDetail) {
@@ -558,18 +604,8 @@ export default function Cart() {
 
   const handleNextStep = () => {
     if (selectedIds.size === 0 || isTransitioning || step !== 1) return;
-
-    track('begin_checkout', {
-      currency: 'KRW',
-      value: selectedTotalPrice,
-      items: mapSelectedItemsToAnalyticsItems(selectedItems),
-    });
-
-    setIsTransitioning(true);
-    setTimeout(() => {
-      setStep(2);
-      setIsTransitioning(false);
-    }, 600);
+    if (!requireCheckoutAuth()) return;
+    beginCheckoutStep();
   };
 
   const handlePrevStep = () => {
@@ -579,6 +615,18 @@ export default function Cart() {
       setIsTransitioning(false);
     }, 600);
   };
+
+  useEffect(() => {
+    if (!pendingCheckoutRef.current || isLoginModalOpen || checkoutAuthPending || !canCheckout) {
+      return;
+    }
+    if (step !== 1) {
+      pendingCheckoutRef.current = false;
+      return;
+    }
+    pendingCheckoutRef.current = false;
+    beginCheckoutStep();
+  }, [isLoginModalOpen, checkoutAuthPending, canCheckout, step]);
 
   return (
     <motion.div 
@@ -990,6 +1038,15 @@ export default function Cart() {
         onClose={() => setPolicyModal({ isOpen: false, key: null })}
         title={policyModal.key ? policies[policyModal.key].title : ''}
         content={policyModal.key ? policies[policyModal.key].content : null}
+      />
+
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => {
+          pendingCheckoutRef.current = false;
+          setIsLoginModalOpen(false);
+        }}
+        onSuccess={() => setIsLoginModalOpen(false)}
       />
 
       {/* Consent Detail Modal - Summary version */}

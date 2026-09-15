@@ -1,8 +1,13 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useProducts } from '../context/ProductContext';
 import ProductCard from './ProductCard';
+import { Product } from '../data/products';
 import { motion, useMotionValue, useAnimationFrame } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
+
+interface ProductGridProps {
+  products?: Product[];
+}
 
 // Custom wrap function
 const wrap = (min: number, max: number, v: number) => {
@@ -10,7 +15,7 @@ const wrap = (min: number, max: number, v: number) => {
   return ((((v - min) % rangeSize) + rangeSize) % rangeSize) + min;
 };
 
-function ProductGrid() {
+function ProductGrid({ products }: ProductGridProps) {
   const { products: allProducts, isLoading, isError, fetchProducts } = useProducts();
   const { theme } = useTheme();
   const [isDragging, setIsDragging] = useState(false);
@@ -23,8 +28,9 @@ function ProductGrid() {
   const isAutoPlaying = useRef(true);
 
   const visibleProducts = useMemo(() => {
+    if (products !== undefined) return products;
     return allProducts.filter(p => p.is_visible !== false);
-  }, [allProducts]);
+  }, [products, allProducts]);
 
   const { marqueeItems, finalCopies } = useMemo(() => {
     if (visibleProducts.length === 0) return { marqueeItems: [], finalCopies: 0 };

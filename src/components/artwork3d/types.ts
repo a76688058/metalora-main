@@ -56,6 +56,9 @@ export interface MetaloraArtwork3DProps {
   /** Workshop: render artwork on a separate front plane (contain sizing) */
   usePhotoPlane?: boolean;
   nonInteractiveMotion?: 'rotate' | 'idle-tilt';
+  castShadow?: boolean;
+  receiveShadow?: boolean;
+  onTexturesReady?: () => void;
   children?: React.ReactNode;
 }
 

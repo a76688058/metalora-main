@@ -11,10 +11,9 @@ export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const { adminProfile, adminUser, refreshProfile } = useAuth();
+  const { adminProfile, adminUser, refreshProfile, signOut } = useAuth();
   const { showToast } = useToast();
 
-  // Check if already authenticated as admin
   React.useEffect(() => {
     if (adminUser && adminProfile?.is_admin) {
       navigate('/admin');
@@ -26,8 +25,6 @@ export default function AdminLogin() {
     setIsLoading(true);
     setError('');
 
-    let authenticated = false;
-
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
@@ -35,19 +32,22 @@ export default function AdminLogin() {
       });
 
       if (authError) throw authError;
-      authenticated = true;
+      if (!data.user) throw new Error('로그인 중 오류가 발생했습니다.');
 
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('is_admin')
+        .select('id, is_admin')
         .eq('id', data.user.id)
-        .single();
+        .maybeSingle();
 
-      if (profileError) {
+      if (profileError || !profileData) {
+        await signOut({ redirect: false, toast: false });
         throw new Error('회원 정보를 확인할 수 없습니다.');
       }
 
-      if (!profileData?.is_admin) {
+      if (!profileData.is_admin) {
+        // Keep the verified member session. Do not destroy storefront login.
+        await refreshProfile();
         throw new Error('관리자 권한이 없습니다.');
       }
 
@@ -55,9 +55,6 @@ export default function AdminLogin() {
       showToast('관리자 로그인 성공', 'success');
       navigate('/admin');
     } catch (err: any) {
-      if (authenticated) {
-        await supabase.auth.signOut();
-      }
       setError(err.message || '로그인 중 오류가 발생했습니다.');
     } finally {
       setIsLoading(false);

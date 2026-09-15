@@ -1,3 +1,20 @@
+/** Live public.profiles columns used by the app. No phantom auth/product fields. */
+export interface Profile {
+  id: string;
+  user_custom_id: string | null;
+  full_name: string | null;
+  phone_number: string | null;
+  zip_code: string | null;
+  address: string | null;
+  address_detail: string | null;
+  total_spent: number;
+  is_admin: boolean;
+  agreed_to_terms_at: string | null;
+  agreed_to_privacy_at: string | null;
+  agreed_to_cookie_at: string | null;
+  updated_at: string | null;
+}
+
 export interface ProductOption {
   id: string;
   name: string;

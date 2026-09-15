@@ -88,7 +88,11 @@ export default function PaymentSuccess() {
   useEffect(() => {
     const confirmPayment = async () => {
       if (isProcessing.current) return;
-      if (!paymentKey || !orderId || !totalAmount) return;
+      if (!paymentKey || !orderId || !totalAmount) {
+        setErrorMessage('결제 정보가 올바르지 않습니다. 주문 내역을 확인해 주세요.');
+        setIsConfirming(false);
+        return;
+      }
 
       isProcessing.current = true;
       setIsConfirming(true);
@@ -169,15 +173,16 @@ export default function PaymentSuccess() {
           );
         }
 
-        if (result.success === true) {
-          resolvePurchaseAnalyticsAfterConfirm(result);
-        } else {
+        if (result.success !== true) {
           reportPaymentFail({
             failure_stage: 'confirm_finalize',
             failure_code: 'invalid_confirm_success_response',
             orderNumberForDedupe: orderId ?? undefined,
           });
+          throw new Error('결제 승인 중 오류가 발생했습니다.');
         }
+
+        resolvePurchaseAnalyticsAfterConfirm(result);
 
         // Optional cart clear when session snapshot is still available
         if (pendingItems && pendingItems.length > 0) {
@@ -245,12 +250,24 @@ export default function PaymentSuccess() {
       <div className={`min-h-screen flex items-center justify-center p-6 transition-colors duration-500 ${theme === 'dark' ? 'bg-[#0F0F11]' : 'bg-white'}`}>
         <div className={`max-w-md w-full rounded-3xl p-8 text-center border shadow-2xl ${theme === 'dark' ? 'bg-[#1C1C1E] border-red-500/20' : 'bg-zinc-50 border-red-500/10'}`}>
           <p className="text-red-500 font-bold mb-6">{errorMessage}</p>
-          <button 
-            onClick={() => navigate('/')}
-            className="px-6 py-3 btn-cyberpunk rounded-2xl font-semibold text-white"
-          >
-            홈으로 이동
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className={`px-6 py-3 rounded-2xl font-semibold ${
+                theme === 'dark' ? 'bg-[#2C2C2E] text-white hover:bg-[#3C3C3E]' : 'bg-zinc-200 text-black hover:bg-zinc-300'
+              }`}
+            >
+              다시 시도
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="px-6 py-3 btn-cyberpunk rounded-2xl font-semibold text-white"
+            >
+              홈으로 이동
+            </button>
+          </div>
         </div>
       </div>
     );

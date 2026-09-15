@@ -5,17 +5,7 @@ import { Search, Filter, TrendingUp, Users, ArrowUpDown, X, Save, Loader2 } from
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../context/ToastContext';
 import LoadingScreen from '../components/LoadingScreen';
-
-interface Profile {
-  id: string;
-  full_name: string | null;
-  phone_number: string | null;
-  zip_code: string | null;
-  address: string | null;
-  address_detail: string | null;
-  total_spent: number;
-  updated_at: string;
-}
+import type { Profile } from '../types/database';
 
 export default function AdminUsers() {
   const { showToast } = useToast();
@@ -57,7 +47,9 @@ export default function AdminUsers() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select(
+          'id, user_custom_id, full_name, phone_number, zip_code, address, address_detail, total_spent, is_admin, agreed_to_terms_at, agreed_to_privacy_at, agreed_to_cookie_at, updated_at',
+        )
         .order('total_spent', { ascending: sortOrder === 'asc' });
 
       if (error) throw error;
@@ -119,10 +111,14 @@ export default function AdminUsers() {
     }
   };
 
-  const filteredUsers = (users || []).filter((u) =>
-    (u?.full_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (u?.phone_number || '').includes(searchTerm)
-  );
+  const filteredUsers = (users || []).filter((u) => {
+    const q = searchTerm.toLowerCase();
+    return (
+      (u?.full_name?.toLowerCase() || '').includes(q) ||
+      (u?.user_custom_id?.toLowerCase() || '').includes(q) ||
+      (u?.phone_number || '').includes(searchTerm)
+    );
+  });
 
   const totalMembers = users?.length || 0;
   const totalRevenue = (users || []).reduce((acc, u) => acc + (u?.total_spent || 0), 0);
@@ -170,7 +166,7 @@ export default function AdminUsers() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
             <input
               type="text"
-              placeholder="이름, 연락처 검색..."
+              placeholder="이름, 아이디, 연락처 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-zinc-600"
@@ -233,7 +229,7 @@ export default function AdminUsers() {
                           )}
                         </div>
                         <div className="text-xs text-zinc-500">
-                          ID: {user?.id?.substring(0, 8) || 'unknown'}...
+                          {user?.user_custom_id || '아이디 없음'}
                         </div>
                       </td>
                       <td className="px-6 py-4">

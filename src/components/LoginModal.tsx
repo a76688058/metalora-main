@@ -10,6 +10,13 @@ import { policies } from './Footer';
 import { cn } from '../lib/cn';
 import { zClass } from '../constants/overlays';
 import { useShellOverlay } from '../context/ShellOverlayContext';
+import {
+  memberAuthEmail,
+  memberStoredUsername,
+  memberUsernameSignupError,
+  normalizeMemberUsername,
+} from '../lib/memberUsername';
+import { isUsableMemberProfile, PROFILE_COLUMNS } from '../lib/authIntegrity';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -78,7 +85,7 @@ const CheckboxRow = ({
 );
 
 export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '/' }: LoginModalProps) {
-  const { user, profile, refreshSession } = useAuth();
+  const { user, profile, refreshSession, signOut } = useAuth();
   const { showToast } = useToast();
   const { theme } = useTheme();
   const { registerLoginOverlay } = useShellOverlay();
@@ -158,9 +165,18 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     e.preventDefault();
     if (isLoading) return;
 
-    if (formData.username.length < 4) {
+    const username = normalizeMemberUsername(formData.username);
+    if (username.length < 4) {
       setErrorMsg('아이디는 4자 이상으로 입력해주세요.');
       return;
+    }
+
+    if (!isLoginMode) {
+      const signupError = memberUsernameSignupError(formData.username);
+      if (signupError) {
+        setErrorMsg(signupError);
+        return;
+      }
     }
 
     if (formData.password.length < 6) {
@@ -176,14 +192,18 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
       if (isLoginMode) {
         const { data: usernameExists, error: profileError } = await supabase.rpc(
           'profiles_username_exists',
-          { username: formData.username },
+          { username },
         );
 
-        if (profileError || !usernameExists) {
+        if (profileError) {
+          throw new Error('아이디 확인 중 오류가 발생했습니다.');
+        }
+
+        if (!usernameExists) {
           throw new Error('존재하지 않는 아이디입니다.');
         }
 
-        const virtualEmail = `${formData.username}@metalora.me`;
+        const virtualEmail = memberAuthEmail(username);
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: virtualEmail,
           password: formData.password,
@@ -197,10 +217,23 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           throw new Error(errMsg);
         }
 
-        if (signInData.session) {
-          await refreshSession();
+        if (!signInData.session?.user) {
+          throw new Error('인증 중 오류가 발생했습니다.');
         }
-        
+
+        await refreshSession();
+
+        const { data: profileRow, error: memberProfileError } = await supabase
+          .from('profiles')
+          .select(PROFILE_COLUMNS)
+          .eq('id', signInData.session.user.id)
+          .maybeSingle();
+
+        if (memberProfileError || !isUsableMemberProfile(profileRow)) {
+          await signOut({ redirect: false, toast: false });
+          throw new Error('계정 정보를 불러올 수 없습니다. 관리자에게 문의해주세요.');
+        }
+
         if (onSuccess) {
           onSuccess();
         } else {
@@ -208,14 +241,14 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
         }
       } else {
         // Step 1: Validation before showing consent overlay
-        if (!formData.username || !formData.full_name || !formData.phone_number) {
+        if (!username || !formData.full_name || !formData.phone_number) {
           throw new Error('필수 정보가 누락되었습니다.');
         }
 
         // Check username availability via RPC (no direct profiles SELECT)
         const { data: usernameExists, error: usernameCheckError } = await supabase.rpc(
           'profiles_username_exists',
-          { username: formData.username },
+          { username },
         );
 
         if (usernameCheckError) {
@@ -243,7 +276,12 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     setErrorMsg('');
 
     try {
-      const email = `${formData.username}@metalora.me`;
+      const username = normalizeMemberUsername(formData.username);
+      const signupError = memberUsernameSignupError(formData.username);
+      if (signupError) {
+        throw new Error(signupError);
+      }
+      const email = memberAuthEmail(username);
       
       let authUser = null;
       let authSession = null;
@@ -255,7 +293,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           data: {
             full_name: formData.full_name,
             phone_number: formData.phone_number,
-            user_custom_id: formData.username,
+            user_custom_id: memberStoredUsername(username),
             agreed_to_terms_at: new Date().toISOString(),
             agreed_to_privacy_at: new Date().toISOString(),
             agreed_to_cookie_at: new Date().toISOString(),
@@ -320,11 +358,12 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
 
       const { data: profileRow, error: profileError } = await supabase
         .from('profiles')
-        .select('id')
+        .select(PROFILE_COLUMNS)
         .eq('id', authUser.id)
         .maybeSingle();
 
-      if (profileError || !profileRow) {
+      if (profileError || !isUsableMemberProfile(profileRow)) {
+        await signOut({ redirect: false, toast: false });
         throw new Error('계정 정보를 불러올 수 없습니다. 관리자에게 문의해주세요.');
       }
 
@@ -517,7 +556,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           exit={{ opacity: 0 }}
           className={cn(
             'fixed inset-0 flex items-end justify-center sm:items-center transform-gpu will-change-transform',
-            zClass('sheet'),
+            zClass('dialog'),
             theme === 'dark' ? 'bg-overlay-backdrop-heavy' : 'bg-overlay-backdrop backdrop-blur-sm',
           )}
         >

@@ -17,8 +17,8 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [formData, setFormData] = useState({
-    shipping_name: '',
-    shipping_phone: '',
+    full_name: '',
+    phone_number: '',
     zip_code: '',
     address: '',
     address_detail: '',
@@ -106,18 +106,17 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
         
         const { data, error } = await supabase
           .from('profiles')
-          .select('*')
+          .select('full_name, phone_number, zip_code, address, address_detail')
           .eq('id', user.id)
           .single();
           
         if (error) throw error;
 
         if (data) {
-          // 실제 컴포넌트에서 사용하는 상태 변수(State) 업데이트 함수로 정확히 맵핑할 것
           setFormData(prev => ({
             ...prev,
-            shipping_name: data.shipping_name || data.full_name || '',
-            shipping_phone: data.shipping_phone || data.phone_number || '',
+            full_name: data.full_name || '',
+            phone_number: data.phone_number || '',
             zip_code: data.zip_code || '',
             address: data.address || '',
             address_detail: data.address_detail || '',
@@ -130,9 +129,18 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
     
     // 모달이 열려있을 때만 데이터를 불러오도록 제어
     if (isOpen) {
+      if (profile) {
+        setFormData({
+          full_name: profile.full_name || '',
+          phone_number: profile.phone_number || '',
+          zip_code: profile.zip_code || '',
+          address: profile.address || '',
+          address_detail: profile.address_detail || '',
+        });
+      }
       fetchShippingInfo();
     }
-  }, [isOpen]);
+  }, [isOpen, profile]);
 
   if (!isOpen) return null;
 
@@ -161,8 +169,8 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
       const { error } = await supabase
         .from('profiles')
         .update({
-          full_name: formData.shipping_name,
-          phone_number: formData.shipping_phone,
+          full_name: formData.full_name,
+          phone_number: formData.phone_number,
           zip_code: formData.zip_code,
           address: formData.address,
           address_detail: formData.address_detail,
@@ -225,8 +233,8 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
                     <input
                       type="text"
                       required
-                      value={formData.shipping_name}
-                      onChange={(e) => setFormData({ ...formData, shipping_name: e.target.value })}
+                      value={formData.full_name}
+                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                       className="w-full h-16 bg-[#1C1C1E] border border-white/5 rounded-2xl px-6 text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all text-lg tracking-tight"
                       placeholder="이름을 입력하세요"
                     />
@@ -236,8 +244,8 @@ export default function ShippingModal({ isOpen, onClose, onSuccess }: ShippingMo
                     <input
                       type="tel"
                       required
-                      value={formData.shipping_phone}
-                      onChange={(e) => setFormData({ ...formData, shipping_phone: e.target.value })}
+                      value={formData.phone_number}
+                      onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
                       className="w-full h-16 bg-[#1C1C1E] border border-white/5 rounded-2xl px-6 text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all text-lg tracking-tight"
                       placeholder="010-0000-0000"
                     />

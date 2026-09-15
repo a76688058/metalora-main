@@ -1,7 +1,50 @@
 import { createClient } from '@supabase/supabase-js';
+import {
+  PRODUCTION_SUPABASE_URL,
+  isProductionSupabaseHost,
+  supabaseHostFromUrl,
+} from './supabaseHosts';
 
-const supabaseUrl = 'https://qifloweuwyhvukabgnoa.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpZmxvd2V1d3lodnVrYWJnbm9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxOTYwMTIsImV4cCI6MjA4ODc3MjAxMn0.OtYeV7UatathlEP4wTlTeUHSRFnK5ndrXw7Er8Eutpo';
+const PRODUCTION_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpZmxvd2V1d3lodnVrYWJnbm9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxOTYwMTIsImV4cCI6MjA4ODc3MjAxMn0.OtYeV7UatathlEP4wTlTeUHSRFnK5ndrXw7Er8Eutpo';
+
+function isPaymentTestClient(): boolean {
+  return import.meta.env.MODE === 'payment-test'
+    || import.meta.env.VITE_METALORA_ENV === 'payment-test';
+}
+
+function resolveClientSupabaseConfig(): { url: string; anonKey: string; storageKey: string } {
+  if (!isPaymentTestClient()) {
+    return {
+      url: PRODUCTION_SUPABASE_URL,
+      anonKey: PRODUCTION_ANON_KEY,
+      storageKey: 'metalora-auth-token',
+    };
+  }
+
+  const url = (import.meta.env.VITE_SUPABASE_URL ?? '').trim();
+  const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY ?? '').trim();
+  if (!url || !anonKey) {
+    throw new Error(
+      'Payment-test client aborted: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required.',
+    );
+  }
+
+  const host = supabaseHostFromUrl(url);
+  if (!host || isProductionSupabaseHost(host)) {
+    throw new Error(
+      'Payment-test client aborted: VITE_SUPABASE_URL must not be the production Supabase project.',
+    );
+  }
+
+  return {
+    url,
+    anonKey,
+    storageKey: 'metalora-auth-token-payment-test',
+  };
+}
+
+const { url: supabaseUrl, anonKey: supabaseAnonKey, storageKey: supabaseAuthStorageKey } =
+  resolveClientSupabaseConfig();
 
 const REQUEST_TIMEOUT_MS = 15000;
 
@@ -124,7 +167,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
-    storageKey: 'metalora-auth-token', // Unified key for both
+    storageKey: supabaseAuthStorageKey,
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
   },
   global: {

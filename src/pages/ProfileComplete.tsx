@@ -6,13 +6,14 @@ import { supabase } from '../lib/supabase';
 import DaumPostcode from 'react-daum-postcode';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, X } from 'lucide-react';
+import { safeInternalPath } from '../lib/authIntegrity';
 
 export default function ProfileComplete() {
-  const { user, profile, adminProfile, refreshProfile } = useAuth();
+  const { user, profile, adminProfile, refreshProfile, isLoading, isProfileResolved } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const redirectUrl = searchParams.get('redirect') || '/';
+  const redirectUrl = safeInternalPath(searchParams.get('redirect'));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPostcodeOpen, setIsPostcodeOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -36,14 +37,15 @@ export default function ProfileComplete() {
   }, [isPostcodeOpen]);
 
   useEffect(() => {
-    // 관리자 계정인 경우 이 페이지를 건너뜀
-    if (adminProfile?.is_admin) {
-      navigate('/admin');
+    if (isLoading || !isProfileResolved) return;
+
+    if (adminProfile?.is_admin || profile?.is_admin) {
+      navigate('/admin', { replace: true });
       return;
     }
 
     if (profile?.phone_number && profile?.address) {
-      navigate(redirectUrl);
+      navigate(redirectUrl, { replace: true });
     } else if (profile) {
       setFormData({
         full_name: profile.full_name || '',
@@ -53,7 +55,7 @@ export default function ProfileComplete() {
         address_detail: profile.address_detail || '',
       });
     }
-  }, [profile, adminProfile, navigate]);
+  }, [isLoading, isProfileResolved, profile, adminProfile, navigate, redirectUrl]);
 
   const handleComplete = (data: any) => {
     let fullAddress = data.address;

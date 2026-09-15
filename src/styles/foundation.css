@@ -21,6 +21,21 @@
   padding-top: var(--shell-offset);
 }
 
+/* Layout primitive only — max width, centering, responsive gutter.
+   Values: tokens.css --layout-shell-*. Breakpoint: Tailwind sm (40rem). */
+.container-shell {
+  width: 100%;
+  max-width: var(--layout-shell-max-width);
+  margin-inline: auto;
+  padding-inline: var(--layout-shell-gutter);
+}
+
+@media (min-width: 40rem) {
+  .container-shell {
+    padding-inline: var(--layout-shell-gutter-wide);
+  }
+}
+
 /* ── Z-index utilities (canonical values in tokens.css) ── */
 @utility z-base { z-index: var(--z-base); }
 @utility z-cookie { z-index: var(--z-cookie); }

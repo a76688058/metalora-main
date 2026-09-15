@@ -1,51 +1,27 @@
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProducts } from '../context/ProductContext';
-import { Link, useSearchParams, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
+import { useSearchParams, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { Clock, Shuffle } from 'lucide-react';
-import { useListImageSrc } from '../hooks/useListImageSrc';
 import ProductGrid from '../components/ProductGrid';
-import HeroCinematic from '../components/HeroCinematic';
+import ProductCard from '../components/ProductCard';
+import HeroSpatial from '../components/hero/HeroSpatial';
+import { Button } from '../components/ui/Button';
 import { useTheme } from '../context/ThemeContext';
 
 // Document-lifetime: first Home mount vs later SPA remounts (e.g. Product → Back).
 let hasMountedHomeInThisDocument = false;
 
 const ARTWORK_IMAGE_SIZES =
-  '(max-width: 767px) calc((100vw - 48px) / 2), (max-width: 1023px) calc((100vw - 112px) / 3), (max-width: 1279px) calc((100vw - 168px) / 4), 218px';
-
-function ArtworkImage({
-  originalUrl,
-  alt,
-  className,
-}: {
-  originalUrl: string | null | undefined;
-  alt: string;
-  className: string;
-}) {
-  const { src, srcSet, onError } = useListImageSrc(originalUrl, 720, { responsive: true });
-
-  return (
-    <img
-      src={src}
-      srcSet={srcSet}
-      sizes={srcSet ? ARTWORK_IMAGE_SIZES : undefined}
-      alt={alt}
-      onError={onError}
-      className={className}
-      loading="lazy"
-      decoding="async"
-      fetchPriority="auto"
-    />
-  );
-}
+  '(max-width: 639px) calc((100vw - 3rem) / 2), (max-width: 767px) calc((100vw - 4rem) / 2), (max-width: 1023px) calc((100vw - 6rem) / 3), calc((min(100vw, 80rem) - 7.5rem) / 4)';
 
 export default function Home() {
   const { products, isLoading, isError, fetchProducts } = useProducts();
   const { theme } = useTheme();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
+  const isSearchMode = Boolean(searchQuery);
   const location = useLocation();
   const navigate = useNavigate();
   const navType = useNavigationType();
@@ -60,6 +36,10 @@ export default function Home() {
     if (type === 'random') {
       setRandomSeed(Math.random());
     }
+  };
+
+  const clearSearch = () => {
+    setSearchParams({});
   };
 
   useEffect(() => {
@@ -142,13 +122,17 @@ export default function Home() {
     }
   }, [navType, location.pathname]);
 
-  const visibleProducts = useMemo(() => {
-    let filtered = products
+  const searchResultProducts = useMemo(() => {
+    return products
       .filter(p => p.is_visible !== false)
       .filter(p => {
         if (!searchQuery) return true;
         return p.title.toLowerCase().includes(searchQuery.toLowerCase());
       });
+  }, [products, searchQuery]);
+
+  const visibleProducts = useMemo(() => {
+    let filtered = [...searchResultProducts];
 
     if (sortBy === 'latest') {
       filtered.sort((a, b) => {
@@ -166,80 +150,110 @@ export default function Home() {
       animationDelay: Math.random() * 0.5,
       isNew: p.created_at ? (new Date().getTime() - new Date(p.created_at).getTime()) < (14 * 24 * 60 * 60 * 1000) : false
     }));
-  }, [products, searchQuery, sortBy, randomSeed]);
+  }, [searchResultProducts, sortBy, randomSeed]);
 
-  const skeletonTone = theme === 'dark' ? 'bg-zinc-900 border-white/5 shadow-black/50' : 'bg-zinc-100 border-black/5 shadow-black/10';
-  const textMuted = theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200';
+  const skeletonTone = theme === 'dark' ? 'bg-zinc-900' : 'bg-zinc-100';
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.5 }}
-      className={`min-h-screen pb-24 ${theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'}`}
-    >
-      <HeroCinematic />
+    <div className="isolate">
+      <HeroSpatial />
 
-      {/* Spacer between Hero and Marquee (Increased to match Marquee visual weight) */}
-      <div className="h-40 md:h-56 lg:h-72" />
-
-      {/* Marquee Section (Re-inserted) */}
-      <div id="marquee-section" className="scroll-mt-28 mb-12 md:mb-16">
-        <ProductGrid />
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.5 }}
+        className="relative z-[5] overflow-x-clip bg-canvas text-text-primary"
+        style={{
+          marginTop: '-8vh',
+          marginBottom: 'calc((1 - var(--hero-curtain-rise, 1)) * 72vh - 2px)',
+          transform: 'translate3d(0, calc((1 - var(--hero-curtain-rise, 1)) * 72vh), 0)',
+          willChange: 'transform',
+        }}
+      >
+      {/* Collection chapter — black/white surface rises over Hero during EXIT */}
+      <div
+        id="marquee-section"
+        className="scroll-mt-28 pt-12 md:pt-16 pb-16 md:pb-24"
+        style={{
+          transform:
+            'translate3d(0, calc((1 - var(--hero-marquee-enter, 1)) * 60px), 0) scale(calc(0.985 + var(--hero-marquee-enter, 1) * 0.015))',
+          opacity: 'calc(0.2 + var(--hero-marquee-enter, 1) * 0.8)',
+        }}
+      >
+        <ProductGrid products={searchQuery ? searchResultProducts : undefined} />
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-8 lg:px-12">
-        {/* Section Header & Sorting */}
-        <div className={`flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6 border-b pb-6 ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}>
-          <div className="flex flex-col gap-2">
-            <h2 className={`text-2xl md:text-3xl font-light tracking-[0.2em] uppercase ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-              All Artworks
+      <div className="container-shell">
+        <div
+          className="mb-10 grid grid-cols-1 items-end gap-6 border-b border-border-subtle pb-6 md:grid-cols-3"
+          style={{
+            transform: 'translate3d(0, calc((1 - var(--hero-artworks-enter, 1)) * 32px), 0)',
+            opacity: 'var(--hero-artworks-enter, 1)',
+          }}
+        >
+          <div className="hidden md:block" aria-hidden="true" />
+          <div className="flex flex-col items-center text-center">
+            <h2
+              className="type-product-title text-text-primary"
+              style={{ fontSize: 26 }}
+            >
+              고르거나, 만들거나.
             </h2>
-            <p className="text-[12px] md:text-sm font-medium tracking-[0.3em] text-zinc-950 dark:text-zinc-300 uppercase">
-              {isLoading ? 'Loading pieces…' : isError ? 'Unavailable' : `${visibleProducts.length} Pieces Available`}
+            <p
+              className="text-sm text-text-secondary"
+              style={{
+                fontSize: 14,
+                opacity: 'var(--hero-artworks-subtitle-enter, 1)',
+              }}
+            >
+              PICK OR MAKE
             </p>
           </div>
-
-          <div className={`flex items-center backdrop-blur-md p-1 rounded-full border shadow-xl ${theme === 'dark' ? 'bg-zinc-900/80 border-white/10' : 'bg-zinc-100/80 border-black/10'}`}>
-            <button
-              onClick={() => handleSortChange('latest')}
-              disabled={isLoading || isError}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[12px] font-bold tracking-widest uppercase transition-all ${
-                sortBy === 'latest' 
-                  ? theme === 'dark' ? 'bg-white text-black shadow-md' : 'bg-black text-white shadow-md'
-                  : 'text-zinc-500 hover:text-zinc-700'
-              } ${(isLoading || isError) ? 'opacity-50 pointer-events-none' : ''}`}
-            >
-              <Clock size={14} strokeWidth={2.5} />
-              최신순
-            </button>
-            <button
-              onClick={() => handleSortChange('random')}
-              disabled={isLoading || isError}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[12px] font-bold tracking-widest uppercase transition-all ${
-                sortBy === 'random'
-                  ? theme === 'dark' ? 'bg-white text-black shadow-md' : 'bg-black text-white shadow-md'
-                  : 'text-zinc-500 hover:text-zinc-700'
-              } ${(isLoading || isError) ? 'opacity-50 pointer-events-none' : ''}`}
-            >
-              <Shuffle size={14} strokeWidth={2.5} />
-              랜덤순
-            </button>
+          <div className="flex flex-col items-center gap-3 md:items-end">
+            {isSearchMode ? (
+              <Button type="button" variant="ghost" size="md" onClick={clearSearch}>
+                전체 작품 보기
+              </Button>
+            ) : null}
+            <div role="group" aria-label="작품 정렬" className="flex flex-wrap items-center justify-center md:justify-end">
+              <button
+                type="button"
+                onClick={() => handleSortChange('latest')}
+                disabled={isLoading || isError}
+                aria-pressed={sortBy === 'latest'}
+                className={`focus-ring type-label inline-flex min-h-11 items-center gap-2 border-b px-3 ${
+                  sortBy === 'latest'
+                    ? 'border-text-primary text-text-primary'
+                    : 'border-transparent text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                <Clock size={14} strokeWidth={2.5} aria-hidden />
+                최신순
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSortChange('random')}
+                disabled={isLoading || isError}
+                aria-pressed={sortBy === 'random'}
+                className={`focus-ring type-label inline-flex min-h-11 items-center gap-2 border-b px-3 ${
+                  sortBy === 'random'
+                    ? 'border-text-primary text-text-primary'
+                    : 'border-transparent text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                <Shuffle size={14} strokeWidth={2.5} aria-hidden />
+                랜덤순
+              </button>
+            </div>
           </div>
         </div>
         
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-12 md:gap-x-6 md:gap-y-16">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6 lg:grid-cols-4">
           {isLoading ? (
             Array.from({ length: 10 }).map((_, index) => (
-              <div key={`artwork-skeleton-${index}`} className="flex flex-col" aria-hidden="true">
-                <div className={`aspect-[210/297] border shadow-2xl animate-pulse ${skeletonTone}`} />
-                <div className="mt-6 flex flex-col items-center space-y-2">
-                  <div className={`h-3 w-16 rounded-sm animate-pulse ${textMuted}`} />
-                  <div className={`h-3 w-24 rounded-sm animate-pulse ${textMuted}`} />
-                  <div className={`h-[1px] w-4 ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
-                  <div className={`h-3 w-14 rounded-sm animate-pulse ${textMuted}`} />
-                </div>
+              <div key={`artwork-skeleton-${index}`} aria-hidden="true">
+                <div className={`aspect-[210/297] animate-pulse ${skeletonTone}`} />
               </div>
             ))
           ) : isError ? (
@@ -255,73 +269,20 @@ export default function Home() {
           ) : (
             <AnimatePresence mode="popLayout">
               {visibleProducts.length > 0 ? (
-                visibleProducts.map((product, index) => (
+                visibleProducts.map((product) => (
                   <motion.div
                     key={product.id}
                     layout
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ 
-                      layout: { duration: 0.6, ease: [0.16, 1, 0.3, 1] },
-                      opacity: { duration: 0.4 },
-                      scale: { duration: 0.4 }
-                    }}
-                    className="group flex flex-col transform-gpu will-change-transform"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ opacity: { duration: 0.3 } }}
                   >
-                    <Link 
-                      to={`/product/${product.id}`} 
-                      onClick={() => sessionStorage.setItem('homeScrollPosition', window.scrollY.toString())}
-                      className="flex flex-col w-full relative"
-                    >
-                      <div className={`block overflow-hidden aspect-[210/297] relative border shadow-2xl ${
-                        theme === 'dark' ? 'bg-zinc-900 border-white/5 shadow-black/50' : 'bg-zinc-100 border-black/5 shadow-black/10'
-                      }`}>
-                        <ArtworkImage
-                          originalUrl={product.image || product.front_image}
-                          alt={product.title}
-                          className="w-full h-full object-cover rounded-none transition-transform duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-110"
-                        />
-                        
-                        {/* Badges */}
-                        <div className="absolute top-3 left-3 flex flex-col gap-2 z-10">
-                          {product.limited && (
-                            <span className="bg-white/90 backdrop-blur-md text-black text-[11px] font-black px-2 py-1 tracking-[0.2em] uppercase shadow-lg">
-                              Limited
-                            </span>
-                          )}
-                          {product.isNew && (
-                            <span className="bg-purple-600/90 backdrop-blur-md text-white text-[11px] font-black px-2 py-1 tracking-[0.2em] uppercase shadow-lg">
-                              New
-                            </span>
-                          )}
-                        </div>
-    
-                        {/* Subtle overlay on hover */}
-                        <div className="absolute inset-0 bg-black/0 transition-all duration-700 group-hover:bg-black/30 pointer-events-none flex items-center justify-center">
-                          <span className="text-[12px] font-black tracking-[0.4em] uppercase text-white opacity-0 group-hover:opacity-100 transition-all duration-700 translate-y-4 group-hover:translate-y-0">
-                            View Details
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-6 flex flex-col items-center space-y-2">
-                        <div className="flex flex-col items-center">
-                          <p className="text-[11px] font-medium tracking-[0.3em] text-zinc-950 dark:text-zinc-300 uppercase mb-1">
-                            {product.artist}
-                          </p>
-                          <h3 className={`text-[12px] md:text-[14px] font-sans font-light tracking-[0.1em] uppercase truncate w-full text-center group-hover:text-purple-400 transition-colors duration-500 ${
-                            theme === 'dark' ? 'text-white' : 'text-black'
-                          }`}>
-                            {product.title}
-                          </h3>
-                        </div>
-                        <div className={`h-[1px] w-4 group-hover:w-8 transition-all duration-700 ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
-                        <p className={`text-[12px] md:text-[13px] font-sans font-medium tracking-widest ${theme === 'dark' ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                          ₩{product.options?.[0]?.price?.toLocaleString() || '0'}
-                        </p>
-                      </div>
-                    </Link>
+                    <ProductCard
+                      product={product}
+                      sizes={ARTWORK_IMAGE_SIZES}
+                      presentation="gallery"
+                    />
                   </motion.div>
                 ))
               ) : (
@@ -329,7 +290,7 @@ export default function Home() {
                   layout
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="col-span-full flex flex-col items-center justify-center py-32 text-white/50"
+                  className="col-span-full flex flex-col items-center justify-center py-32 text-text-secondary"
                 >
                   <p className="text-lg font-light tracking-wider">검색 결과가 없습니다.</p>
                   <p className="text-sm mt-2">다른 검색어를 입력해 보세요.</p>
@@ -340,5 +301,6 @@ export default function Home() {
         </div>
       </div>
     </motion.div>
+    </div>
   );
 }

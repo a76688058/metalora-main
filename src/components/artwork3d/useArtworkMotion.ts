@@ -70,6 +70,11 @@ export function useArtworkMotion(options: ArtworkMotionOptions): ArtworkMotionRe
     group.scale.setScalar(THREE.MathUtils.lerp(currentScale, scaleTarget, delta * 5));
 
     if (external?.rotationX !== undefined || external?.rotationY !== undefined) {
+      if (options.interactionMode === 'static') {
+        if (external.rotationX !== undefined) mesh.rotation.x = external.rotationX;
+        if (external.rotationY !== undefined) mesh.rotation.y = external.rotationY;
+        return;
+      }
       if (external.rotationX !== undefined) {
         mesh.rotation.x = THREE.MathUtils.lerp(mesh.rotation.x, external.rotationX, delta * 6);
       }

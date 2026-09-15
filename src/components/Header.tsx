@@ -14,6 +14,7 @@ import AnnouncementBar from './AnnouncementBar';
 const LoginModal = lazy(() => import('./LoginModal'));
 
 const LOGO_URL = '/logo/metalora-wordmark.webp';
+const SEARCH_PANEL_ID = 'header-search-panel';
 
 export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [hasOpenedLoginModal, setHasOpenedLoginModal] = useState(false);
@@ -43,6 +44,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const isComposing = useRef(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const searchToggleRef = useRef<HTMLButtonElement>(null);
 
   const currentUser = user || adminUser;
   const isAdmin = profile?.is_admin || adminProfile?.is_admin;
@@ -74,6 +76,28 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isSearchOpen]);
+
+  useEffect(() => {
+    if (!isSearchOpen) return;
+
+    const handleSearchEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setIsSearchOpen(false);
+      searchToggleRef.current?.focus();
+    };
+
+    document.addEventListener('keydown', handleSearchEscape);
+    return () => {
+      document.removeEventListener('keydown', handleSearchEscape);
+    };
+  }, [isSearchOpen]);
+
+  useEffect(() => {
+    if (location.pathname !== '/') {
+      setIsSearchOpen(false);
+    }
+  }, [location.pathname]);
 
   const updateSearch = (value: string) => {
     if (value) {
@@ -136,16 +160,18 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
           <AnnouncementBar />
 
           <div
-            className="relative mx-auto flex w-full max-w-7xl items-center justify-between px-4 sm:px-6"
+            className="relative flex items-center justify-between container-shell"
             style={{ height: 'var(--shell-nav-height)' }}
           >
             {/* Left controls */}
             <div className="flex min-w-0 flex-1 items-center justify-start gap-1 sm:gap-2">
               {location.pathname === '/' && (
                 <IconButton
+                  ref={searchToggleRef}
                   variant="ghost"
                   aria-label={isSearchOpen ? '검색 닫기' : '검색 열기'}
                   aria-expanded={isSearchOpen}
+                  aria-controls={SEARCH_PANEL_ID}
                   onClick={() => setIsSearchOpen(!isSearchOpen)}
                   className={cn('shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
                 >
@@ -260,7 +286,8 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
             </div>
           </div>
 
-          {/* Search panel */}
+          {/* Search panel — Home only; unmount with route so exit animation cannot linger off-Home */}
+          {location.pathname === '/' && (
           <AnimatePresence>
             {isSearchOpen && (
               <motion.div
@@ -270,9 +297,14 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
                 className="w-full overflow-hidden transform-gpu will-change-transform"
               >
-                <div className="mx-auto max-w-3xl px-4 pb-4 pt-1 sm:px-6 sm:pb-5">
+                <div
+                  id={SEARCH_PANEL_ID}
+                  role="search"
+                  className="mx-auto max-w-3xl px-4 pb-4 pt-1 sm:px-6 sm:pb-5"
+                >
                   <input
                     type="search"
+                    aria-label="제품명 검색"
                     placeholder="제품명 검색..."
                     value={localSearch}
                     onChange={handleSearchChange}
@@ -285,6 +317,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
               </motion.div>
             )}
           </AnimatePresence>
+          )}
         </motion.div>
       </header>
 

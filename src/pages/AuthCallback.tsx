@@ -2,11 +2,12 @@ import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Loader2 } from 'lucide-react';
+import { safeInternalPath } from '../lib/authIntegrity';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const redirectUrl = searchParams.get('redirect') || '/';
+  const redirectUrl = safeInternalPath(searchParams.get('redirect'));
 
   useEffect(() => {
     const handleAuthCallback = async () => {
