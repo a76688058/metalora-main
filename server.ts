@@ -155,6 +155,119 @@ function paymentCrossWriteGuard(): { status: number; error: string } | null {
   return null;
 }
 
+const PAYMENT_OPS_FAILURE_MESSAGE = "[PAYMENT_OPS_FAILURE]";
+const PAYMENT_OPS_PROVIDER_CODE_RE = /^[A-Z0-9_]{1,64}$/;
+const PAYMENT_OPS_ORDER_ID_RE = /^[A-Za-z0-9._-]{1,64}$/;
+
+type PaymentOpsEvent =
+  | "env_guard"
+  | "config_missing"
+  | "db_products_lookup"
+  | "db_intent_insert"
+  | "db_intent_lookup"
+  | "db_finalize_rpc"
+  | "provider_network"
+  | "provider_http_error"
+  | "provider_invalid_response"
+  | "provider_not_done"
+  | "recovery_required"
+  | "integrity_amount_mismatch"
+  | "integrity_intent_state"
+  | "integrity_ownership"
+  | "integrity_snapshot"
+  | "integrity_provider_mismatch"
+  | "internal_unhandled";
+
+type PaymentOpsPhase =
+  | "prepare"
+  | "confirm"
+  | "toss_confirm"
+  | "toss_recovery"
+  | "finalize";
+
+type PaymentOpsFailureInput = {
+  payment_event: PaymentOpsEvent;
+  phase: PaymentOpsPhase;
+  alert_eligible: boolean;
+  request_id: string;
+  order_id?: string | null;
+  payment_intent_id?: string | null;
+  http_status?: number | null;
+  provider?: "toss" | null;
+  provider_code?: string | null;
+  recovery_required?: boolean;
+  retryable?: boolean;
+};
+
+function newPaymentRequestId(): string {
+  return randomUUID();
+}
+
+function paymentOpsOrderId(raw: unknown): string | null {
+  if (typeof raw !== "string") {
+    return null;
+  }
+  const trimmed = raw.trim();
+  if (!PAYMENT_OPS_ORDER_ID_RE.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+function paymentOpsProviderCode(raw: unknown): string | null {
+  if (typeof raw !== "string") {
+    return null;
+  }
+  const trimmed = raw.trim();
+  if (!PAYMENT_OPS_PROVIDER_CODE_RE.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+/**
+ * Canonical #20C payment operational failure signal.
+ * One JSON line. Bounded fields only — no PII, secrets, bodies, or paymentKey.
+ */
+function logPaymentOpsFailure(input: PaymentOpsFailureInput): void {
+  const payload: Record<string, unknown> = {
+    severity: input.alert_eligible ? "ERROR" : "WARNING",
+    message: PAYMENT_OPS_FAILURE_MESSAGE,
+    ops_domain: "payment",
+    payment_event: input.payment_event,
+    phase: input.phase,
+    alert_eligible: input.alert_eligible,
+    request_id: input.request_id,
+    recovery_required: input.recovery_required === true,
+    retryable: input.retryable === true,
+    deploy_sha:
+      typeof process.env.DEPLOY_SHA === "string" && process.env.DEPLOY_SHA.trim()
+        ? process.env.DEPLOY_SHA.trim()
+        : null,
+  };
+
+  const orderId = paymentOpsOrderId(input.order_id);
+  if (orderId) {
+    payload.order_id = orderId;
+  }
+  const paymentIntentId = paymentOpsOrderId(input.payment_intent_id);
+  if (paymentIntentId) {
+    payload.payment_intent_id = paymentIntentId;
+  }
+  if (typeof input.http_status === "number" && Number.isInteger(input.http_status)) {
+    payload.http_status = input.http_status;
+  }
+  if (input.provider === "toss") {
+    payload.provider = "toss";
+  }
+  const providerCode = paymentOpsProviderCode(input.provider_code);
+  if (providerCode) {
+    payload.provider_code = providerCode;
+  }
+
+  console.error(JSON.stringify(payload));
+}
+
 /** Authoritative public SEO origin — never derive from request Host / *.run.app */
 const CANONICAL_PUBLIC_ORIGIN = "https://metalora.art";
 const DEFAULT_OG_IMAGE =
@@ -1127,10 +1240,15 @@ async function validateCheckoutItems(
   orderIdForLog: string,
 ): Promise<
   | { ok: true; checkout: CheckoutValidationResult }
-  | { ok: false; status: number; error: string }
+  | { ok: false; status: number; error: string; payment_event?: PaymentOpsEvent }
 > {
   if (!supabaseAdmin) {
-    return { ok: false, status: 500, error: "서버 구성 오류가 발생했습니다." };
+    return {
+      ok: false,
+      status: 500,
+      error: "서버 구성 오류가 발생했습니다.",
+      payment_event: "config_missing",
+    };
   }
 
   if (!Array.isArray(pendingItems) || pendingItems.length === 0) {
@@ -1159,7 +1277,12 @@ async function validateCheckoutItems(
 
     if (productsError) {
       console.error("[PAYMENT_ITEM_FAIL] Products lookup error:", productsError);
-      return { ok: false, status: 500, error: "주문 상품 정보를 확인할 수 없습니다." };
+      return {
+        ok: false,
+        status: 500,
+        error: "주문 상품 정보를 확인할 수 없습니다.",
+        payment_event: "db_products_lookup",
+      };
     }
 
     productMap = new Map((products || []).map((p: any) => [p.id, p]));
@@ -1468,13 +1591,32 @@ ${staticUrls}${productUrls}
    * 결제 준비 API — server-validated immutable payment_intents snapshot (#18B-2)
    */
   app.post("/api/payment/prepare", async (req, res) => {
+    const requestId = newPaymentRequestId();
     const envGuard = paymentCrossWriteGuard();
     if (envGuard) {
+      logPaymentOpsFailure({
+        payment_event: "env_guard",
+        phase: "prepare",
+        alert_eligible: true,
+        request_id: requestId,
+        http_status: envGuard.status,
+        retryable: false,
+      });
       return res.status(envGuard.status).json({ error: envGuard.error });
     }
 
     const authResult = await verifyPaymentBearer(req.headers.authorization);
     if (authResult.ok === false) {
+      if (authResult.status >= 500) {
+        logPaymentOpsFailure({
+          payment_event: "config_missing",
+          phase: "prepare",
+          alert_eligible: true,
+          request_id: requestId,
+          http_status: authResult.status,
+          retryable: true,
+        });
+      }
       return res.status(authResult.status).json({ error: authResult.error });
     }
     const { verifiedUserId, verifiedUserCustomId } = authResult.user;
@@ -1491,6 +1633,17 @@ ${staticUrls}${productUrls}
     try {
       const checkoutResult = await validateCheckoutItems(items, orderNumber);
       if (checkoutResult.ok === false) {
+        if (checkoutResult.status >= 500) {
+          logPaymentOpsFailure({
+            payment_event: checkoutResult.payment_event ?? "internal_unhandled",
+            phase: "prepare",
+            alert_eligible: true,
+            request_id: requestId,
+            order_id: orderNumber,
+            http_status: checkoutResult.status,
+            retryable: checkoutResult.payment_event !== "config_missing",
+          });
+        }
         return res.status(checkoutResult.status).json({ error: checkoutResult.error });
       }
 
@@ -1519,6 +1672,15 @@ ${staticUrls}${productUrls}
 
       if (insertError) {
         console.error("[PAYMENT_PREPARE_FAIL] payment_intents insert error:", insertError);
+        logPaymentOpsFailure({
+          payment_event: "db_intent_insert",
+          phase: "prepare",
+          alert_eligible: true,
+          request_id: requestId,
+          order_id: orderNumber,
+          http_status: 500,
+          retryable: true,
+        });
         return res.status(500).json({ error: "결제 준비 중 오류가 발생했습니다." });
       }
 
@@ -1526,6 +1688,15 @@ ${staticUrls}${productUrls}
       return res.json({ orderId: orderNumber, amount: total });
     } catch (error) {
       console.error("[PAYMENT_PREPARE_ERROR]", error);
+      logPaymentOpsFailure({
+        payment_event: "internal_unhandled",
+        phase: "prepare",
+        alert_eligible: true,
+        request_id: requestId,
+        order_id: orderNumber,
+        http_status: 500,
+        retryable: true,
+      });
       return res.status(500).json({ error: "결제 준비 중 오류가 발생했습니다." });
     }
   });
@@ -1536,8 +1707,17 @@ ${staticUrls}${productUrls}
    * Idempotency: order_number (DB) + paymentKey (Toss). Completion: orders.payment_finalized_at.
    */
   app.post("/api/payment/confirm", async (req, res) => {
+    const requestId = newPaymentRequestId();
     const envGuard = paymentCrossWriteGuard();
     if (envGuard) {
+      logPaymentOpsFailure({
+        payment_event: "env_guard",
+        phase: "confirm",
+        alert_eligible: true,
+        request_id: requestId,
+        http_status: envGuard.status,
+        retryable: false,
+      });
       return res.status(envGuard.status).json({ error: envGuard.error });
     }
 
@@ -1552,11 +1732,26 @@ ${staticUrls}${productUrls}
       return res.status(400).json({ error: "필수 결제 정보가 누락되었습니다." });
     }
 
+    const opsOrderId = paymentOpsOrderId(orderId);
+
     const authResult = await verifyPaymentBearer(req.headers.authorization);
     if (authResult.ok === false) {
+      if (authResult.status >= 500) {
+        logPaymentOpsFailure({
+          payment_event: "config_missing",
+          phase: "confirm",
+          alert_eligible: true,
+          request_id: requestId,
+          order_id: opsOrderId,
+          http_status: authResult.status,
+          retryable: true,
+        });
+      }
       return res.status(authResult.status).json({ error: authResult.error });
     }
     const { verifiedUserId, verifiedUserCustomId } = authResult.user;
+
+    let tossDoneEstablished = false;
 
     try {
       const { data: paymentIntent, error: intentError } = await supabaseAdmin!
@@ -1568,6 +1763,15 @@ ${staticUrls}${productUrls}
 
       if (intentError) {
         console.error("[PAYMENT_INTENT_FAIL] Lookup error:", intentError);
+        logPaymentOpsFailure({
+          payment_event: "db_intent_lookup",
+          phase: "confirm",
+          alert_eligible: true,
+          request_id: requestId,
+          order_id: opsOrderId,
+          http_status: 500,
+          retryable: true,
+        });
         return res.status(500).json({ error: "주문 정보를 확인할 수 없습니다." });
       }
 
@@ -1578,12 +1782,30 @@ ${staticUrls}${productUrls}
 
       if (paymentIntent.user_custom_id !== verifiedUserCustomId) {
         console.error("[PAYMENT_INTENT_FAIL] user_custom_id mismatch for payment intent:", { orderId });
+        logPaymentOpsFailure({
+          payment_event: "integrity_ownership",
+          phase: "confirm",
+          alert_eligible: true,
+          request_id: requestId,
+          order_id: opsOrderId,
+          http_status: 403,
+          retryable: false,
+        });
         return res.status(403).json({ error: "주문 정보가 일치하지 않습니다." });
       }
 
       const intentTotal = Number(paymentIntent.total_price);
       if (!Number.isFinite(intentTotal) || intentTotal <= 0) {
         console.error("[PAYMENT_INTENT_FAIL] Invalid intent total_price:", { orderId });
+        logPaymentOpsFailure({
+          payment_event: "integrity_intent_state",
+          phase: "confirm",
+          alert_eligible: true,
+          request_id: requestId,
+          order_id: opsOrderId,
+          http_status: 500,
+          retryable: false,
+        });
         return res.status(500).json({ error: "주문 정보를 확인할 수 없습니다." });
       }
 
@@ -1593,12 +1815,30 @@ ${staticUrls}${productUrls}
           expected: intentTotal,
           amount: Number(amount),
         });
+        logPaymentOpsFailure({
+          payment_event: "integrity_amount_mismatch",
+          phase: "confirm",
+          alert_eligible: true,
+          request_id: requestId,
+          order_id: opsOrderId,
+          http_status: 400,
+          retryable: false,
+        });
         return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
       }
 
       const snapshotResult = parsePaymentIntentSnapshot(paymentIntent.validated_snapshot);
       if (snapshotResult.ok === false) {
         console.error("[PAYMENT_INTENT_FAIL] Malformed validated_snapshot:", { orderId });
+        logPaymentOpsFailure({
+          payment_event: "integrity_snapshot",
+          phase: "confirm",
+          alert_eligible: true,
+          request_id: requestId,
+          order_id: opsOrderId,
+          http_status: snapshotResult.status,
+          retryable: false,
+        });
         return res.status(snapshotResult.status).json({ error: snapshotResult.error });
       }
       const snapshot = snapshotResult.snapshot;
@@ -1613,11 +1853,29 @@ ${staticUrls}${productUrls}
       if (existingOrder) {
         if (existingOrder.user_id && existingOrder.user_id !== verifiedUserId) {
           console.error("[PAYMENT_OWNERSHIP_FAIL] Existing order belongs to another user.");
+          logPaymentOpsFailure({
+            payment_event: "integrity_ownership",
+            phase: "confirm",
+            alert_eligible: true,
+            request_id: requestId,
+            order_id: opsOrderId,
+            http_status: 403,
+            retryable: false,
+          });
           return res.status(403).json({ error: "주문 정보가 일치하지 않습니다." });
         }
         if (existingOrder.payment_finalized_at != null) {
           if (Number(existingOrder.total_price) !== intentTotal) {
             console.error("[PAYMENT_FINALIZE_FAIL] Finalized order amount mismatch:", { orderId });
+            logPaymentOpsFailure({
+              payment_event: "integrity_amount_mismatch",
+              phase: "confirm",
+              alert_eligible: true,
+              request_id: requestId,
+              order_id: opsOrderId,
+              http_status: 400,
+              retryable: false,
+            });
             return res.status(400).json({ error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." });
           }
           console.log(`[PAYMENT_SKIP] Order ${orderId} already finalized.`);
@@ -1633,12 +1891,31 @@ ${staticUrls}${productUrls}
           );
         }
         console.error("[PAYMENT_RECOVERY_REQUIRED] Unfinalized existing order:", { orderId });
+        logPaymentOpsFailure({
+          payment_event: "recovery_required",
+          phase: "confirm",
+          alert_eligible: true,
+          request_id: requestId,
+          order_id: opsOrderId,
+          http_status: 409,
+          recovery_required: true,
+          retryable: false,
+        });
         return res.status(409).json({ error: "주문 처리에 문제가 발생했습니다. 고객센터에 문의해 주세요." });
       }
 
       const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY;
       if (!TOSS_SECRET_KEY) {
         console.error("[CRITICAL] TOSS_SECRET_KEY is missing in server environment.");
+        logPaymentOpsFailure({
+          payment_event: "config_missing",
+          phase: "confirm",
+          alert_eligible: true,
+          request_id: requestId,
+          order_id: opsOrderId,
+          http_status: 500,
+          retryable: true,
+        });
         return res.status(500).json({ error: "서버 구성 오류가 발생했습니다." });
       }
 
@@ -1650,6 +1927,8 @@ ${staticUrls}${productUrls}
 
       let verifiedPayment: TossPaymentObject | null = null;
       let establishSource: 'post_confirm' | 'get_recovery' | null = null;
+      let lastTossHttpStatus: number | null = null;
+      let lastTossProviderCode: string | null = null;
 
       // --- Establish Toss DONE: POST confirm, else GET recovery ---
       try {
@@ -1668,12 +1947,15 @@ ${staticUrls}${productUrls}
           }),
         });
 
+        lastTossHttpStatus = tossResponse.status;
+
         let tossData: any = null;
         try {
           tossData = await tossResponse.json();
         } catch {
           tossData = null;
         }
+        lastTossProviderCode = paymentOpsProviderCode(tossData?.code);
 
         if (tossResponse.ok && tossData && typeof tossData === 'object') {
           const validation = validateTossDonePayment(tossData as TossPaymentObject, expectedToss);
@@ -1682,10 +1964,24 @@ ${staticUrls}${productUrls}
               orderId,
               reason: validation.reason,
             });
+            const statusNotDone = validation.reason.startsWith("status_not_done");
+            logPaymentOpsFailure({
+              payment_event: statusNotDone ? "provider_not_done" : "integrity_provider_mismatch",
+              phase: "toss_confirm",
+              alert_eligible: true,
+              request_id: requestId,
+              order_id: opsOrderId,
+              http_status: 400,
+              provider: "toss",
+              provider_code: lastTossProviderCode,
+              recovery_required: !statusNotDone,
+              retryable: false,
+            });
             return res.status(400).json({ error: "결제 금액 불일치가 감지되었습니다." });
           }
           verifiedPayment = tossData as TossPaymentObject;
           establishSource = 'post_confirm';
+          tossDoneEstablished = true;
         } else {
           console.error("[PAYMENT_TOSS_ERROR] POST confirm failed; attempting GET recovery:", {
             orderId,
@@ -1707,6 +2003,23 @@ ${staticUrls}${productUrls}
             orderId,
             reason: lookup.reason,
           });
+          const paymentEvent: PaymentOpsEvent =
+            lookup.reason === "network"
+              ? "provider_network"
+              : lookup.reason === "invalid_body"
+                ? "provider_invalid_response"
+                : "provider_http_error";
+          logPaymentOpsFailure({
+            payment_event: paymentEvent,
+            phase: "toss_recovery",
+            alert_eligible: lookup.reason !== "not_found",
+            request_id: requestId,
+            order_id: opsOrderId,
+            http_status: lastTossHttpStatus ?? 400,
+            provider: "toss",
+            provider_code: lastTossProviderCode,
+            retryable: lookup.reason === "network" || lookup.reason === "api_error",
+          });
           return res.status(400).json({ error: "결제 대행사 승인 실패" });
         }
 
@@ -1717,11 +2030,27 @@ ${staticUrls}${productUrls}
             reason: validation.reason,
             status: lookup.payment.status,
           });
+          const statusNotDone = validation.reason.startsWith("status_not_done");
+          logPaymentOpsFailure({
+            payment_event: statusNotDone ? "provider_not_done" : "integrity_provider_mismatch",
+            phase: "toss_recovery",
+            alert_eligible: !statusNotDone,
+            request_id: requestId,
+            order_id: opsOrderId,
+            http_status: 400,
+            provider: "toss",
+            provider_code: paymentOpsProviderCode(
+              typeof lookup.payment.status === "string" ? lookup.payment.status : null,
+            ),
+            recovery_required: !statusNotDone,
+            retryable: false,
+          });
           return res.status(400).json({ error: "결제 대행사 승인 실패" });
         }
 
         verifiedPayment = lookup.payment;
         establishSource = 'get_recovery';
+        tossDoneEstablished = true;
         console.log(`[PAYMENT_TOSS_RECOVERY] Established DONE via GET for order ${orderId}`);
       }
 
@@ -1759,6 +2088,16 @@ ${staticUrls}${productUrls}
 
       if (finalizeError) {
         console.error("[DB_FINALIZE_ERROR]", finalizeError);
+        logPaymentOpsFailure({
+          payment_event: "db_finalize_rpc",
+          phase: "finalize",
+          alert_eligible: true,
+          request_id: requestId,
+          order_id: opsOrderId,
+          http_status: 500,
+          recovery_required: true,
+          retryable: true,
+        });
         return res.status(500).json({
           error: "주문 정보 저장 중 오류가 발생했습니다.",
         });
@@ -1768,6 +2107,16 @@ ${staticUrls}${productUrls}
         console.error("[DB_FINALIZE_ERROR] Unexpected RPC result row count:", {
           orderId,
           count: Array.isArray(finalizeRows) ? finalizeRows.length : null,
+        });
+        logPaymentOpsFailure({
+          payment_event: "db_finalize_rpc",
+          phase: "finalize",
+          alert_eligible: true,
+          request_id: requestId,
+          order_id: opsOrderId,
+          http_status: 500,
+          recovery_required: true,
+          retryable: true,
         });
         return res.status(500).json({
           error: "주문 정보 저장 중 오류가 발생했습니다.",
@@ -1782,6 +2131,16 @@ ${staticUrls}${productUrls}
 
       if (!finalizeResult?.order_id) {
         console.error("[DB_FINALIZE_ERROR] RPC result missing order_id:", { orderId });
+        logPaymentOpsFailure({
+          payment_event: "db_finalize_rpc",
+          phase: "finalize",
+          alert_eligible: true,
+          request_id: requestId,
+          order_id: opsOrderId,
+          http_status: 500,
+          recovery_required: true,
+          retryable: true,
+        });
         return res.status(500).json({
           error: "주문 정보 저장 중 오류가 발생했습니다.",
         });
@@ -1847,6 +2206,16 @@ ${itemsList}
 
     } catch (error: any) {
       console.error("Payment Confirmation API Error:", error);
+      logPaymentOpsFailure({
+        payment_event: "internal_unhandled",
+        phase: tossDoneEstablished ? "finalize" : "confirm",
+        alert_eligible: true,
+        request_id: requestId,
+        order_id: opsOrderId,
+        http_status: 500,
+        recovery_required: tossDoneEstablished,
+        retryable: true,
+      });
       let errorMessage = "결제 처리 중 서버 오류가 발생했습니다.";
       
       if (error.message?.includes("fetch")) {

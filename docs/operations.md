@@ -91,6 +91,7 @@ Completion authority for new payments is **`payment_finalized_at`**, not `status
 1. Obtain **`order_number` only** (Toss `orderId`, e.g. `ORD-…`). Do not collect unnecessary PII for triage.
 2. Search Cloud Run logs for that `order_number` / `orderId`.
 3. Look for markers such as:
+   - `[PAYMENT_OPS_FAILURE]` (canonical #20C operational detection signal)
    - `[PAYMENT_START]`
    - `[PAYMENT_TOSS_ERROR]`
    - `[PAYMENT_TOSS_RECOVERY]`
@@ -109,6 +110,77 @@ Completion authority for new payments is **`payment_finalized_at`**, not `status
 - Confirm may return 409 (`[PAYMENT_RECOVERY_REQUIRED]`).
 - Do **not** auto-repair.
 - Inspect manually / treat as a separate legacy case.
+
+### Payment Failure Detection (#20C)
+
+Canonical Cloud Logging marker (server-side only; does **not** depend on GA4 or browser consent):
+
+`[PAYMENT_OPS_FAILURE]`
+
+Browser `reportPaymentFail` belongs to analytics (**#22**), not #20C. Do not use GA4 as an operational detector.
+
+Each event is one JSON line (`ops_domain = "payment"`). Fields:
+
+| Field | Meaning |
+|---|---|
+| `payment_event` | Stable machine code for the failure class (see taxonomy in server.ts). |
+| `alert_eligible` | `true` = pager-worthy operational failure for **#20D**. `false` = recorded but not a page (e.g. Toss never approved). |
+| `recovery_required` | `true` = external payment may have succeeded while internal finalize did not complete, or an unfinalized existing order. |
+| `retryable` | `true` = a later authenticated confirm retry may still succeed. |
+| `request_id` | Server-generated UUID for this single prepare/confirm request. Correlate logs; not stored in the database; not a client API field. |
+
+`order_id` is the Toss/order_number string (`ORD-…`) when present. Unified events never include shipping PII, `paymentKey`, tokens/secrets, raw bodies, or raw provider payloads.
+
+#### Cloud Logging queries
+
+Scope (all queries):
+
+```
+resource.type="cloud_run_revision"
+resource.labels.service_name="metalora-direct"
+```
+
+If Cloud Run parses the JSON line into `jsonPayload`:
+
+**C. All payment operational failures**
+
+```
+resource.type="cloud_run_revision"
+resource.labels.service_name="metalora-direct"
+jsonPayload.message="[PAYMENT_OPS_FAILURE]"
+```
+
+**D. Alert-eligible only (#20D default)**
+
+```
+resource.type="cloud_run_revision"
+resource.labels.service_name="metalora-direct"
+jsonPayload.message="[PAYMENT_OPS_FAILURE]"
+jsonPayload.alert_eligible=true
+```
+
+**E. Recovery-required**
+
+```
+resource.type="cloud_run_revision"
+resource.labels.service_name="metalora-direct"
+jsonPayload.message="[PAYMENT_OPS_FAILURE]"
+jsonPayload.recovery_required=true
+```
+
+If a line is ingested as `textPayload` instead, search `"[PAYMENT_OPS_FAILURE]"` under the same `resource` filter, then inspect the JSON object on that line.
+
+#### #20D handoff
+
+**#20D may alert on:**
+
+`message = [PAYMENT_OPS_FAILURE]` AND `alert_eligible = true`
+
+**#20D may give higher priority to:**
+
+`recovery_required = true`
+
+Do **not** create Cloud Monitoring alerts, send Discord failure webhooks, or change the success Discord payload in #20C. Those remain #20D.
 
 ---
 
