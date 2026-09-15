@@ -4,3 +4,8 @@ coverage/
 *.log
 .env*
 !.env.example
+!.env.payment-test.example
+!.env.payment-test.db.example
+.supabase-live-schema.local.sql
+.supabase-live-auth-trigger.local.sql
+metalora-live-public-ddl.csv

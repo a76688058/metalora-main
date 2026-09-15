@@ -82,6 +82,10 @@ payment_intents (immutable pre-Toss snapshot)
 
 Completion authority for new payments is **`payment_finalized_at`**, not `status` alone.
 
+**Idempotency:** Toss `paymentKey` (PSP confirm) + `order_number` / Toss `orderId` (DB finalize). Do not invent a third key.
+
+**Stock:** `products.options.stock` is a catalog availability flag checked at `/api/payment/prepare` only. It is not decremented and must not block finalize after Toss `DONE`.
+
 ### Customer reports: “payment succeeded but order is missing”
 
 1. Obtain **`order_number` only** (Toss `orderId`, e.g. `ORD-…`). Do not collect unnecessary PII for triage.
@@ -157,7 +161,9 @@ See also `supabase/README.md`.
 - `BASE_URL`
 - `DEPLOY_SHA` (set by deploy-candidate; used for log correlation)
 - `PORT`
-- `VITE_SUPABASE_URL` (server has a URL fallback; not fail-fast-required)
+- `VITE_SUPABASE_URL` (default `npm run dev` still has a production URL fallback; **payment-test does not** — `npm run dev:payment-test` fail-closes if `.env.payment-test.local` is missing or still points at production)
+
+Isolated payment-test: copy `.env.payment-test.example` → `.env.payment-test.local` (gitignored). Required names: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `TOSS_SECRET_KEY`. Toss TEST + production host is refused on `/api/payment/prepare` and `/api/payment/confirm`. Bootstrap and verify steps: `supabase/README.md`. #18 isolated TEST environment is CLOSED; do not use production hosts or live Toss keys in payment-test.
 
 Never document secret **values**.
 
