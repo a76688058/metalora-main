@@ -1,6 +1,6 @@
 # Metalora production operations
 
-Minimal runbook for deploy, rollback, payment triage, and backup policy.
+Minimal runbook for deploy, rollback, payment triage, incident response, and backup policy.
 Do not store secret values in this document.
 
 ---
@@ -58,18 +58,22 @@ Promotion must move traffic to the already-tested revision only.
 
 ## C. Rollback procedure
 
+Rollback is **not automatic**. Use it only after recording current traffic and deciding a revision regression is the cause. Full incident wrapper: **#20G**.
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\rollback-production.ps1
 ```
 
-- Rollback sends 100% traffic to the **stable-tagged** previous production revision.
-- After rollback, verify:
-  - `GET /api/health` → 200
-  - `GET /` → 200
+- Script sends 100% traffic to the **stable-tagged** previous production revision. It does **not** retag `stable`.
+- **CHECK** before: production revision, `stable` target, `deploy_sha`.
+- **CHECK** after: exactly one revision at 100%; `GET /api/health` → 200 JSON `{"status":"ok"}`; `GET /` → 200 HTML.
+- Do **not** run `scripts/verify-candidate.ps1` against production (it refuses when `candidate` aliases production).
 
 ---
 
 ## D. Payment incident triage
+
+Payment **contracts** (#20C / #20D / #20J and the confirm-retry path) live here. Severity, contain, verify, and close: **#20G**. Dependency playbooks: **#20I**.
 
 ### Architecture (new payment path)
 
@@ -306,6 +310,8 @@ No scheduler / cron / Cloud Monitoring automation in #20J.
 
 Database backups do **not** automatically imply that Storage object files have a separate backup strategy.
 
+**#20F remains blocked** until scheduled backups, PITR, and a verified restore path exist. Do **not** treat production as backed up or restorable today. Do **not** invent a restore command.
+
 ---
 
 ## F. Database migration rule
@@ -340,4 +346,254 @@ Isolated payment-test: copy `.env.payment-test.example` → `.env.payment-test.l
 
 Never document secret **values**.
 
-Secret rotation procedures are a future ops enhancement.
+Secret rotation procedures are a future ops enhancement (**#20L**). Do not rotate secrets as a first diagnostic step during an incident.
+
+---
+
+## H. Incident Response Runbook (#20G)
+
+Roles: **operator** (executes checks/actions) and **incident owner** (classifies, decides contain/recover/close). One person may hold both.
+
+Snapshot (read live; **not** a permanent identity): after #20D promote, production was `metalora-direct-00064-vat` @ 100% and `stable` was `metalora-direct-00061-yen`. Always re-read Cloud Run traffic.
+
+### Principles
+
+1. Preserve evidence first.
+2. Prefer read-only diagnosis.
+3. Stop further damage before any data repair.
+4. Rollback the **application revision** when evidence points to a bad release.
+5. Never fabricate commerce state.
+6. Separate application recovery (traffic/revision) from data reconciliation (later approved plan / **#20M**).
+7. Record exact revision, `deploy_sha`, and timestamps.
+8. Validate recovery before closing.
+
+**DO NOT**
+
+- insert `order_items` by hand
+- increment/decrement `profiles.total_spent`
+- mark payment successful without evidence
+- delete `payment_intents` to hide an anomaly
+- replay destructive migrations during an incident
+- change production secrets as a first diagnostic step
+- change traffic without recording the previous production / `stable` / percent split
+- invent a DB restore while **#20F** is blocked
+
+### Severity
+
+| Level | Meaning | Examples |
+|---|---|---|
+| **SEV-1** | Critical production | Storefront broadly down; checkout/payment broadly down; confirmed payment with missing/inconsistent order **at scale**; production DB unavailable; widespread integrity failure |
+| **SEV-2** | Material degradation | Partial provider failures; one dependency degraded; repeated `#20D` alerts; isolated `recovery_required`; admin-critical workflow down |
+| **SEV-3** | Limited / non-critical | Isolated user issue; non-critical dependency warning; low-impact operational defect |
+
+Isolated `recovery_required` with one `order_number` is typically **SEV-2** (HIGH reconciliation, not automatically SEV-1). Scale / DB-down / storefront-down is **SEV-1**.
+
+### Universal flow
+
+**A. DETECT** — Record time and source (Discord `#20D`, Cloud Logging, user report, checklist).
+
+**B. CONFIRM** — Safe reproduce only. **CHECK:** `GET https://metalora.art/api/health` → 200 `{"status":"ok"}`; `GET https://metalora.art/`; Cloud Run production revision, traffic percents, `stable` tag, `DEPLOY_SHA`. Also hit the Cloud Run **service URL** if the public origin is in doubt (**#20I-D**).
+
+**C. CLASSIFY** — SEV-1/2/3 and class: application / payment / database / dependency / DNS.
+
+**D. CONTAIN** — Stop deploy/promote. Preserve state. Rollback **only** if a release regression is evidenced (section below). No DB mutations.
+
+**E. DIAGNOSE** — `deploy_sha`, `request_id`, `order_number`, `payment_event`, Cloud Run logs, `#20J` SELECT-only queries. Do not use GA4 (**#22**).
+
+**F. RECOVER** — Application: approved rollback script if justified. Dependency: wait/retry per **#20I**. Payment: authenticated `POST /api/payment/confirm` retry only (section D). No manual reconstruction. No settlement/cancel-refund procedures (**#24**).
+
+**G. VERIFY** — `/api/health`, `/`, relevant API, production revision, 100% on exactly one revision, `stable` unchanged unless a later ticket retags it, relevant `#20J` query if commerce-related.
+
+**H. CLOSE** — Fill the incident record below. Remaining risk + follow-up ticket. Formal post-incident reconciliation verification is **#20M** (not this runbook).
+
+### Application / release incident
+
+**CHECK**
+
+1. Production revision, percent, `stable`, `candidate`, `DEPLOY_SHA`.
+2. Whether `/api/health` and `/` fail on **public origin**, **service URL**, or both.
+3. Cloud Run logs for the **current** production revision.
+
+**ACTION** (suspected bad production revision)
+
+1. Record production + `stable` **before** any traffic change.
+2. Stop `deploy-candidate` / `promote-candidate`.
+3. If rollback is justified, run **only**:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\scripts\rollback-production.ps1
+   ```
+4. Confirm exactly one revision has 100% traffic and it equals the pre-recorded `stable` target.
+5. Smoke: `GET /api/health`, `GET /` on `https://metalora.art` (and service URL if needed).
+6. Keep the failed revision identity for the incident record. Do not delete it as cleanup.
+
+**DO NOT** auto-rollback. **DO NOT** promote a new candidate as the first recovery. **DO NOT** use ad-hoc `gcloud run services update-traffic` unless the approved script cannot run — and then only to the already-recorded `stable` revision. `scripts/verify-candidate.ps1` is for an **isolated 0% candidate**, not production.
+
+### Payment incident
+
+Use section **D** contracts. Sequence:
+
+1. Capture `order_number`, `request_id`, `deploy_sha`, `payment_event`, time window. No name/address/phone/email/`paymentKey`.
+2. Cloud Logging: `[PAYMENT_OPS_FAILURE]` filters in section D. Discord is secondary (**#20I-E**).
+3. Classify:
+   - provider failed **before** confirmation (`alert_eligible` may be false; not a page)
+   - provider confirmed / Toss `DONE` but finalize failed → `recovery_required=true` → reconciliation-required **HIGH**
+   - integrity mismatch / ownership / amount
+   - benign idempotent replay (`already_finalized`)
+4. If data-state must be confirmed: `#20J` SELECT-only (especially #20J-1, #20J-2, #20J-3, #20J-4). No auto-repair.
+5. Recover only via authenticated confirm retry (GET lookup + idempotent `finalize_paid_order`).
+6. Live Toss keys, real settlement, cancel/refund: **#24**. Do not claim they exist here.
+
+**DO NOT** fabricate orders, `order_items`, `payment_finalized_at`, or `total_spent`. **DO NOT** retry Toss approval from SQL.
+
+### Database / data incident
+
+Current capability is section **E**: Free plan, no scheduled DB backups, PITR not available as a restore path, no verified restore drill, Storage objects not covered. **#20F blocked.**
+
+**CHECK** — Preserve logs and `#20J` SELECT results (affected ids / time window). Identify whether auth, payment finalize, or both fail.
+
+**ACTION** — Stop mutation-heavy troubleshooting. Do not weaken RLS. Do not switch Cloud Run at the payment-test project. Do not restore (no restore exists). Escalate any destructive action; it needs a **separate approved recovery plan**, not this runbook.
+
+**DO NOT** call the system backed up or recoverable today.
+
+### Incident record template
+
+Do not record customer name, address, phone, email, `paymentKey`, or secrets.
+
+```
+Incident ID / date:
+Severity (SEV-1 / SEV-2 / SEV-3):
+Detection source:
+Start time:
+Affected service/path:
+Production revision (before):
+Stable revision (before):
+deploy_sha:
+request_id(s):
+order_number(s):
+Observed symptoms:
+Evidence (log markers / #20J query ids only):
+Containment:
+Recovery action:
+Verification performed:
+Remaining risk:
+Follow-up ticket:
+Close time:
+Production revision (after):
+```
+
+### Stage boundaries
+
+Not implemented here: **#20K** admin privilege ops; **#20L** secret rotation / RLS regression / dependency security cadence; **#20M** formal post-incident reconciliation verification; **#21** SEO; **#22** GA4; **#23** device QA; **#24** live Toss / settlement / cancel-refund / legal launch / fulfillment.
+
+---
+
+## I. Operational Checklist (#20H)
+
+Cadence is practical, not automated. No cron / Cloud Monitoring in this stage.
+
+### Daily / active-commerce
+
+- [ ] `GET https://metalora.art/api/health` → 200 `{"status":"ok"}`
+- [ ] Exactly one Cloud Run revision at 100% traffic
+- [ ] Review `#20D` Discord / `[PAYMENT_OPS_FAILURE]` `alert_eligible=true`
+- [ ] Review `recovery_required=true` events
+- [ ] If commerce activity exists: `#20J-1`, `#20J-2`, `#20J-3`, `#20J-4` (SELECT-only)
+- [ ] Note unresolved incident follow-ups
+
+### Weekly
+
+- [ ] Cloud Run error patterns (not a full recertification)
+- [ ] `[DISCORD_OPS_ALERT_ERROR]` / missing Discord vs present payment logs
+- [ ] `#20J-5` profile/member queries
+- [ ] `#20J-6` catalog/soft-stock (not physical inventory)
+- [ ] `stable` still points at a sensible previous production revision
+- [ ] Outstanding `recovery_required` cases
+
+### After every production deploy
+
+Candidate (0%): `scripts/verify-candidate.ps1` (isolation + health + `/` + unknown `/api` JSON 404 + headers + HTML cache).
+
+After promote / on production:
+
+- [ ] Production revision and `DEPLOY_SHA`
+- [ ] 100% on exactly one revision; no split
+- [ ] `stable` recorded (must remain pre-promote production)
+- [ ] `GET /api/health`, `GET /`
+- [ ] Unknown `/api` → JSON 404 (not SPA HTML) if that contract is in scope
+- [ ] No unexpected `#20D` alerts
+
+Do **not** run `verify-candidate.ps1` after promote (candidate tag will alias production; script refuses).
+
+### After payment incident
+
+- [ ] Correlate `#20C` logs (`request_id` / `order_number` / `payment_event`)
+- [ ] Review `#20D` alert if `alert_eligible=true`
+- [ ] Run relevant `#20J` query
+- [ ] Confirm order/`payment_finalized_at` via existing recovery path only
+- [ ] Record follow-up on the incident template
+
+### Monthly / periodic (#20H only)
+
+- [ ] This file still matches live architecture (service, traffic model, scripts)
+- [ ] Backup status (section E) has not silently changed; **#20F** still blocked unless newly verified
+- [ ] Unresolved operational risks listed
+
+Security maintenance, secret rotation, RLS regression cadence: **#20L** (not this checklist).
+
+---
+
+## J. External Dependency Incident Response (#20I)
+
+Use the universal flow in **#20G**. These playbooks classify **which** dependency.
+
+### A. Cloud Run (`metalora-direct`, `us-west1`, project `metalora-auth`)
+
+**Symptoms:** health failure, 5xx, revision startup failure, wrong revision/traffic, candidate/prod drift.
+
+**CHECK:** production revision; traffic percents; `stable`; `DEPLOY_SHA`; revision logs; `GET /api/health`.
+
+**ACTION:** stop deploy/promote; decide revision-vs-dependency; rollback **only** if release-related using `scripts/rollback-production.ps1`; verify 100% + smoke.
+
+**DO NOT:** retag `stable` during incident recovery; probe production with `verify-candidate.ps1`.
+
+### B. Supabase (production project host `qifloweuwyhvukabgnoa.supabase.co`)
+
+**Symptoms:** DB/API down; auth failures; `finalize_paid_order` / `[DB_FINALIZE_ERROR]`; unexpected RLS.
+
+**CHECK:** whether auth, payment, or both fail; Cloud Run DB error markers; project status in the vendor dashboard (do not paste keys).
+
+**ACTION:** wait/retry dependency recovery; after restoration, SELECT-only `#20J` + confirm-retry for incomplete payments.
+
+**DO NOT:** weaken RLS; point production at the payment-test project; mutate commerce rows; invent a backup restore (**#20F** blocked).
+
+### C. Toss Payments
+
+**Symptoms:** provider network/HTTP errors; confirm failures; repeated `[PAYMENT_OPS_FAILURE]`.
+
+**CHECK:** `payment_event`, `provider_code`, `recovery_required`; whether failure was **before** or **after** provider confirmation; vendor status **if** published (unknown URL: do not invent one).
+
+**ACTION:** if provider may already have confirmed, do **not** blindly re-POST confirm from a second client; use existing GET-recovery + finalize path (section D). Correlate `#20J`.
+
+**DO NOT:** manually mark paid. **Boundary:** live keys / real settlement / cancel-refund = **#24**.
+
+### D. DNS / domain (`metalora.art`)
+
+Canonical public origin is `https://metalora.art` (`BASE_URL` / server SEO origin). Registrar/DNS host is **not** documented here — do not invent it.
+
+**CHECK:** public origin vs Cloud Run **service URL** from `gcloud run services describe` (status URL). TLS on the public origin. Apex reachability.
+
+**If service URL works and `metalora.art` fails:** treat as DNS/domain/TLS. Do **not** rollback the application revision first.
+
+**If both fail:** treat as Cloud Run / app (**#20I-A**).
+
+### E. Discord (ops alert side channel)
+
+**Symptoms:** `[DISCORD_OPS_ALERT_ERROR]`; alerts missing while `[PAYMENT_OPS_FAILURE]` logs exist.
+
+**ACTION:** inspect Cloud Run logs (source of truth). Payment correctness first. Restore webhook delivery separately. Never print or rotate the webhook value in chat (**#20L** for rotation).
+
+**DO NOT:** treat Discord outage as payment failure; send test webhooks during IR; recursive-page on `[DISCORD_OPS_ALERT_ERROR]`.
+
+### F. CDN / edge
+
+No separately managed CDN product is established. Google frontend / Cloud Run ingress is assumed. If a dedicated CDN is added later, write a playbook then. Do not tune a CDN that is not in the architecture.
