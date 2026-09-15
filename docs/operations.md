@@ -483,7 +483,7 @@ Production revision (after):
 
 ### Stage boundaries
 
-Not implemented here: **#20K** admin privilege ops; **#20L** secret rotation / RLS regression / dependency security cadence; **#20M** formal post-incident reconciliation verification; **#21** SEO; **#22** GA4; **#23** device QA; **#24** live Toss / settlement / cancel-refund / legal launch / fulfillment.
+Admin access operations: **#20K** (later in this file). Not implemented here: **#20L** secret rotation / RLS regression / dependency security cadence; **#20M** formal post-incident reconciliation verification; **#21** SEO; **#22** GA4; **#23** device QA; **#24** live Toss / settlement / cancel-refund / legal launch / fulfillment.
 
 ---
 
@@ -537,6 +537,15 @@ Do **not** run `verify-candidate.ps1` after promote (candidate tag will alias pr
 - [ ] This file still matches live architecture (service, traffic model, scripts)
 - [ ] Backup status (section E) has not silently changed; **#20F** still blocked unless newly verified
 - [ ] Unresolved operational risks listed
+- [ ] **#20K** admin roster review (`docs/ops-admin-queries.sql` A/E)
+- [ ] **#20K** unexpected/orphan admin-state check (queries B/C/D)
+- [ ] **#20K** unresolved privilege-change review (query F is metadata only, not an audit log)
+
+### After admin access change (#20K)
+
+- [ ] Re-query authoritative `profiles.is_admin` roster
+- [ ] Confirm exactly the intended profile id has (or no longer has) admin
+- [ ] Record evidence on the change/incident template (no PII / no secrets)
 
 Security maintenance, secret rotation, RLS regression cadence: **#20L** (not this checklist).
 
@@ -597,3 +606,96 @@ Canonical public origin is `https://metalora.art` (`BASE_URL` / server SEO origi
 ### F. CDN / edge
 
 No separately managed CDN product is established. Google frontend / Cloud Run ingress is assumed. If a dedicated CDN is added later, write a playbook then. Do not tune a CDN that is not in the architecture.
+
+---
+
+## K. Admin Access Operations (#20K)
+
+Do not redesign #16 / #17. There are **no role tiers** beyond boolean `profiles.is_admin`.
+
+### Source of truth
+
+| Item | Contract |
+|---|---|
+| Privilege state | `public.profiles.is_admin` (`boolean NOT NULL DEFAULT false`) |
+| Client Admin UI | **Not** an authorization source. `AdminUsers` does not toggle `is_admin`. |
+| `AdminLogin` | Signs in with Auth password, then **reads** `profiles.is_admin`. Non-admin keeps the member session (`#17`) and is denied `/admin`. |
+| `ProtectedRoute(requireAdmin)` | Requires a session **and** `resolved.is_admin === true`. Does **not** require `user_custom_id`. |
+| Member usable-profile | `isUsableMemberProfile` (non-blank `user_custom_id`) applies to member checkout/routes, **not** to admin routes. NULL username on an admin-provisioned profile is intentional (`#16C-1`). |
+| RLS | Table policies / `profiles_is_current_user_admin()` consult the same `is_admin` column. |
+| `server.ts` | No admin grant/revoke API and no `is_admin` checks. |
+
+**Who can change `is_admin`:** trigger `profiles_guard_privileged_fields` (`#16A-0` / `#16C-1`) freezes `is_admin` (and `total_spent`) unless `auth.jwt() ->> 'role'` is `service_role`. Authenticated client JWTs cannot grant themselves admin. SQL-editor sessions that do **not** present a service_role JWT will keep the old `is_admin` value. Do **not** disable the trigger. Do **not** give service-role credentials to a human storefront user.
+
+### Inventory
+
+SELECT-only pack: `docs/ops-admin-queries.sql` (A roster, B orphan auth user, C NULL `is_admin`, D blank username, E count, F recent `updated_at` on admin rows).
+
+### Periodic review
+
+**Monthly:** run A/E; confirm every admin id still needs access; run B/C/D; glance at F as a hint only.
+
+**After staff/operator change:** re-run roster immediately; revoke access that is no longer required (procedure below); do not delete profile/order history.
+
+**After security incident:** re-review all admins; revoke suspect access; credential rotation only if exposure is evidenced (**#20L**); verify production after containment (**#20G**).
+
+### Grant procedure
+
+Live grant is **not** executed in this ticket and **must not** be pasted into the SELECT pack.
+
+**Before:** verify target `profiles.id` (and `user_custom_id` if present) via query A; confirm an `auth.users` row exists (query B healthy for that id); confirm privilege is required; record who / why / date (incident template; no email/phone).
+
+**During:** separately approved maintenance action only — DML that can actually change `is_admin` must run as **service_role JWT** (same class as `supabaseAdmin`). There is no in-app grant control.
+
+**DO NOT:** edit `localStorage`; bypass/disable the privileged-fields trigger; weaken RLS; grant service-role to a person.
+
+**After:** re-run query A/E; confirm **exactly** the intended id is admin; AdminLogin verification only when a later ticket explicitly approves a live login test; record evidence.
+
+### Revocation procedure
+
+Live revoke is **not** executed in this ticket.
+
+**Before:** identify exact `profiles.id` (no ambiguous username-only match if username is NULL).
+
+**During:** same authoritative mechanism as grant (`is_admin = false` via service_role JWT). Do **not** delete the profile or orders to remove privilege.
+
+**After:** re-run query A; confirm the id is absent from the admin roster. If compromise is suspected, privilege removal **and** Auth session/account containment are **different** operations (below).
+
+### Session / Auth limitation
+
+These are **not** the same:
+
+| Layer | What it does | Immediate effect of `is_admin = false` |
+|---|---|---|
+| A. Profile privilege | `profiles.is_admin` | RLS admin policies fail on the next DB request. Client UI may still show admin until `refreshProfile` / reload. |
+| B. Auth session/JWT | Supabase Auth access token | **Not** invalidated by changing `is_admin`. Token does not carry the admin flag. |
+| C. Account disable/delete | Vendor Auth user controls | Not implemented in this repo. Not the same as A or B. |
+
+Client inactivity sign-out (30 minutes, admin session only) is **not** global revocation.
+
+Immediate global session invalidation is **not proven** by current app code. For compromise: remove privilege (A) **and** use supported Auth sign-out/disable **only** via a separately approved vendor/Auth maintenance action (C/B). Do not mutate sessions from this ticket.
+
+### Compromised admin playbook
+
+1. Classify SEV (**#20G**). Suspected admin takeover is at least SEV-2; storefront-wide abuse is SEV-1.
+2. Preserve evidence (roster SELECT results, Cloud Run log window). No PII in the record.
+3. Identify exact `profiles.id`.
+4. Revoke `is_admin` via the approved service_role mechanism; do not weaken Auth/RLS to “get back in”.
+5. Re-run roster A/E for unexpected extra admins.
+6. Review Cloud Run / Supabase evidence (not Discord as source of truth).
+7. Rotate secrets **only** if this incident shows credential exposure (**#20L**).
+8. Verify admin routes deny the id after containment; smoke production if the incident was SEV-1.
+9. Follow-up record; formal reconciliation **#20M**.
+
+### Audit logging — current reality
+
+**No durable admin-action audit log exists.**
+
+- `profiles.updated_at` is current-row metadata, not history, and may not change on privilege-only DML.
+- Browser `console.*` is not an audit trail.
+- Cloud Run logs do not prove who changed `is_admin` in SQL/Dashboard.
+- `#20K` is review/change procedure, not an audit product. Do not add an audit table in this stage.
+
+### Privacy
+
+Query outputs: `profile_id`, `user_custom_id`, `is_admin`, timestamps, counts. Never email, phone, name, address, tokens, or service-role values.
