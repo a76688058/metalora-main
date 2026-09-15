@@ -9,3 +9,4 @@ coverage/
 .supabase-live-schema.local.sql
 .supabase-live-auth-trigger.local.sql
 metalora-live-public-ddl.csv
+supabase/.temp/

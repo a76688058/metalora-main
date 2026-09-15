@@ -28,3 +28,4 @@ Thumbs.db
 # Optional local artifacts
 agent-transcripts
 terminals
+supabase/.temp/
