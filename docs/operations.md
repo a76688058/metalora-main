@@ -302,15 +302,21 @@ No scheduler / cron / Cloud Monitoring automation in #20J.
 
 **Operating policy:**
 
-- Keep Free plan during development / before the first real customer purchase.
-- **Immediately after the first real customer purchase**, upgrade Supabase to a paid plan.
-- After upgrade, verify scheduled backups are active.
-- Record retention / latest backup status after upgrade.
-- Until then, **never assume** Supabase can automatically restore production data.
+**#20F is DEFERRED** today because the required capability does not exist on Free.
 
-Database backups do **not** automatically imply that Storage object files have a separate backup strategy.
+**Hard gate — before** `#24` live-payment activation **or** the first real production customer payment, whichever would occur first:
 
-**#20F remains blocked** until scheduled backups, PITR, and a verified restore path exist. Do **not** treat production as backed up or restorable today. Do **not** invent a restore command.
+1. Upgrade Supabase to a plan that provides the required backup capability.
+2. Confirm scheduled database backups are active.
+3. Confirm PITR status if PITR is selected/enabled.
+4. Execute and record a restore drill.
+5. Document Storage recovery status/path.
+
+Until those conditions are satisfied: production is **not** restorable; real customer payments must **not** be enabled or accepted.
+
+Database backups do **not** automatically imply that Storage object files have a separate recovery path. Storage recovery is currently unverified.
+
+**#20F** remains blocked by unavailable capability. Do **not** invent a restore command. `#20` may close with this deferred restore obligation; `#24` still owns live-payment activation.
 
 ---
 
@@ -558,7 +564,7 @@ Health 200 is technical recovery, not closeout. Full criteria: **#20M**.
 ### Monthly / periodic (#20H only)
 
 - [ ] This file still matches live architecture (service, traffic model, scripts)
-- [ ] Backup status (section E) has not silently changed; **#20F** still blocked unless newly verified
+- [ ] Backup status (section E) has not silently changed; **#20F** still deferred/blocked unless the pre-`#24` restore gate is newly satisfied
 - [ ] Unresolved operational risks listed
 - [ ] **#20K** admin roster review (`docs/ops-admin-queries.sql` A/E)
 - [ ] **#20K** unexpected/orphan admin-state check (queries B/C/D)
@@ -903,7 +909,7 @@ Required before closeout of any payment incident.
 
 **CHECK:** evidence preserved; `#20J` SELECT-only; affected rows/time window; expected constraints.
 
-Section **E** still applies: Supabase Free, no scheduled backup, no PITR, no verified restore drill, Storage recovery unverified. **#20F blocked.**
+Section **E** still applies: Supabase Free, no scheduled backup, no PITR, no verified restore drill, Storage recovery unverified. **#20F** deferred/blocked. Restore verification is a **pre-`#24` / pre-first-real-payment** hard gate, not an after-purchase task.
 
 If the incident needs a real restore: recovery is **BLOCKED / UNRESOLVED**. Reference **#20F**. Do **not** invent a manual replacement restore.
 
@@ -917,11 +923,11 @@ After the dependency looks recovered: (1) dependency-specific health, (2) METALO
 
 ### Settlement boundary
 
-**CURRENT:** Formal live settlement reconciliation is **not** active. **#24** still owns live Toss keys, real payment validation, cancel/refund, settlement/live-payment launch.
+**CURRENT:** Formal live settlement reconciliation is **not** active. **#24** still owns live Toss keys, real payment validation, cancel/refund, settlement/live-payment launch. **#24 must not activate** until the section **E** restore gate is satisfied.
 
 For current TEST-oriented payment ops: verify app vs provider **test** state only. Do **not** run bank/merchant settlement procedures here.
 
-**AFTER #24 live payment activation:** extend #20M with captured payment vs order, cancel/refund state, settlement-impact review, and provider-side final state. That is a future required extension, not current capability.
+**AFTER #24 live payment activation** (which itself requires the restore gate first): extend #20M with captured payment vs order, cancel/refund state, settlement-impact review, and provider-side final state. That is a future required extension, not current capability.
 
 ### Closeout criteria
 
