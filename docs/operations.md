@@ -404,7 +404,7 @@ Isolated `recovery_required` with one `order_number` is typically **SEV-2** (HIG
 
 **G. VERIFY** — `/api/health`, `/`, relevant API, production revision, 100% on exactly one revision, `stable` unchanged unless a later ticket retags it, relevant `#20J` query if commerce-related.
 
-**H. CLOSE** — Fill the incident record below. Remaining risk + follow-up ticket. Formal post-incident reconciliation verification is **#20M** (not this runbook).
+**H. CLOSE** — Fill the incident record below. Health 200 is not closure. Formal reconciliation / closeout: **#20M**.
 
 ### Application / release incident
 
@@ -464,8 +464,11 @@ Incident ID / date:
 Severity (SEV-1 / SEV-2 / SEV-3):
 Detection source:
 Start time:
+Incident time window:
 Affected service/path:
+Dependency involved (if any):
 Production revision (before):
+Production traffic (before):
 Stable revision (before):
 deploy_sha:
 request_id(s):
@@ -474,16 +477,23 @@ Observed symptoms:
 Evidence (log markers / #20J query ids only):
 Containment:
 Recovery action:
-Verification performed:
-Remaining risk:
-Follow-up ticket:
-Close time:
+Rollback performed (YES/NO):
+Technical recovery time:
 Production revision (after):
+Production traffic (after):
+Stable revision (after):
+Reconciliation queries/checks performed:
+Recovery verification result:
+Reconciliation status (RECONCILIATION PENDING / VERIFIED RECOVERED / UNRESOLVED):
+Remaining risk:
+Follow-up ticket(s):
+Final closure status (VERIFIED RECOVERED / RECONCILIATION PENDING / UNRESOLVED / CLOSED):
+Close time:
 ```
 
 ### Stage boundaries
 
-Admin access operations: **#20K**. Periodic security maintenance: **#20L** (later in this file). Not implemented here: **#20M** formal post-incident reconciliation verification; **#21** SEO; **#22** GA4; **#23** device QA; **#24** live Toss / settlement / cancel-refund / legal launch / fulfillment.
+Admin access operations: **#20K**. Periodic security maintenance: **#20L**. Post-incident reconciliation: **#20M**. Not implemented here: **#21** SEO; **#22** GA4; **#23** device QA; **#24** live Toss / settlement / cancel-refund / legal launch / fulfillment.
 
 ---
 
@@ -531,6 +541,19 @@ Do **not** run `verify-candidate.ps1` after promote (candidate tag will alias pr
 - [ ] Run relevant `#20J` query
 - [ ] Confirm order/`payment_finalized_at` via existing recovery path only
 - [ ] Record follow-up on the incident template
+- [ ] Do not close while `recovery_required` is unresolved (**#20M**)
+
+### After any incident (#20M)
+
+Health 200 is technical recovery, not closeout. Full criteria: **#20M**.
+
+- [ ] Immediate fault contained
+- [ ] Technical recovery confirmed (revision/traffic/smoke as applicable)
+- [ ] Decide whether commerce / DB / admin / security / dependency reconciliation is required
+- [ ] Run relevant `#20J` / `#20K` / `#20L` checks
+- [ ] Record production revision, traffic, `stable`, `deploy_sha`
+- [ ] Residual risks + follow-up tickets
+- [ ] Close only when **#20M** criteria are met
 
 ### Monthly / periodic (#20H only)
 
@@ -808,3 +831,115 @@ Closure date:
 **Backup:** section E; **#20F still blocked** on Free plan — do not mark backup healthy.
 
 **DO NOT:** auto-fix; print secret values; disable the privileged-field trigger; invent restore.
+
+---
+
+## M. Post-Incident Reconciliation & Recovery Verification (#20M)
+
+#20G contains; #20H checks; **#20M** decides whether the incident is actually recovered and closeable.
+
+`GET /api/health` 200 is **not** CLOSED.
+
+#20M is verification only. It does **not** authorize SQL repair, manual payment finalization, `total_spent` edits, order reconstruction, profile mutation, rollback, secret rotation, or restore. Those need a separately approved action.
+
+### Recovery states
+
+| State | Meaning |
+|---|---|
+| **RECOVERING** | Fault is being contained/repaired. |
+| **TECHNICALLY RECOVERED** | Service / API / dependency is responding again. |
+| **RECONCILIATION PENDING** | Service works; affected data/state still needs validation. |
+| **VERIFIED RECOVERED** | Technical state **and** affected operational/data state both verified. |
+| **CLOSED** | Evidence recorded, residual risks documented, follow-ups assigned, owner confirms. |
+
+Commerce/data: **TECHNICALLY RECOVERED** does **not** automatically mean **VERIFIED RECOVERED**.
+
+### Snapshot (before reconciliation)
+
+Use the **#20G** incident record. Capture: incident ID, time window, SEV, affected path, production revision + traffic, `stable`, `deploy_sha`, recovery action, rollback YES/NO, `request_id`(s), `order_number`(s), dependency if any.
+
+**DO NOT** record name, address, phone, email, `paymentKey`, or secrets. Re-read live Cloud Run traffic; do not treat a past revision snapshot as a standing rule.
+
+### Smoke matrix
+
+| Incident type | Required verification |
+|---|---|
+| Release / runtime | One intended revision @ 100%; known `stable`; `GET /api/health`; `GET /`; unknown `/api` JSON 404; `deploy_sha`; no new related errors / `#20C` repeats from the recovered revision; Discord delivery failures reviewed if relevant. **Do not** use `verify-candidate.ps1` as production smoke. |
+| Payment | `#20C` logs; `#20D` `alert_eligible` / `recovery_required`; relevant `#20J`; classify each order (below). |
+| Database | Preserve evidence; SELECT-only `#20J`; invariants; **#20F blocked** — no restore. |
+| Admin / security | `#20K` roster / orphans / intended privilege; `#20L` relevant RLS/guard/secret-exposure review. |
+| External dependency | Dependency health + METALORA smoke + local state not corrupted; payment/Supabase → `#20J`; residual risk. |
+| DNS | `metalora.art` vs Cloud Run service URL; TLS/reachability (**#20I-D**). |
+| Discord | Cloud Run logs remain source of truth; restore webhook delivery separately (**#20I-E**). |
+
+### Release / runtime
+
+**CHECK:** exactly one production revision at 100% (no unexpected split); `stable` known and sensible; `/api/health`; `/`; unknown `/api` JSON 404; `deploy_sha` matches the intended revision; relevant release contract still present; no immediate new related error pattern.
+
+**DO NOT** treat candidate verification as production verification.
+
+### Payment / order
+
+Required before closeout of any payment incident.
+
+1. Identify `order_number`(s) / `request_id`(s).
+2. External/provider state from existing evidence only: not confirmed / confirmed / unknown. Do not invent live settlement.
+3. Internal: `payment_intents`, order existence, `payment_finalized_at`, `order_items`, totals, ownership, `total_spent` impact.
+4. Relevant `#20J` (especially 1–4; 5–6 if profile/catalog involved).
+5. Confirm no unexplained amount mismatch, order-number collision, payment-identifier reuse, ownership anomaly, or `total_spent` mismatch.
+6. Classify each affected payment/order:
+
+| Class | Meaning |
+|---|---|
+| **CONSISTENT** | Internal + known provider evidence agree. |
+| **RECOVERY REQUIRED** | Divergence; existing confirm-retry path still needed, or state unresolved. |
+| **UNRESOLVED** | Cannot safely classify; leave open. |
+
+`recovery_required = true` (**#20C** / **#20D**): cannot **CLOSED** until affected state is reconciled, relevant `#20J` reviewed, recovery action has evidence, and final state is recorded. If recovery cannot be completed safely: leave **RECONCILIATION PENDING** or **UNRESOLVED**. Do not force-close.
+
+**DO NOT** create orders / `order_items` / finalize flags / `total_spent` adjustments. **DO NOT** delete `payment_intents` to hide state.
+
+### Database / data
+
+**CHECK:** evidence preserved; `#20J` SELECT-only; affected rows/time window; expected constraints.
+
+Section **E** still applies: Supabase Free, no scheduled backup, no PITR, no verified restore drill, Storage recovery unverified. **#20F blocked.**
+
+If the incident needs a real restore: recovery is **BLOCKED / UNRESOLVED**. Reference **#20F**. Do **not** invent a manual replacement restore.
+
+### Admin / security
+
+**#20K** roster / orphan / intended privilege. **#20L** relevant policy/guard inventory; rotate secrets only if exposure is evidenced. Confirm no unexpected admin remains and privileged-guard / expected objects still exist. No durable admin audit log exists.
+
+### External dependency
+
+After the dependency looks recovered: (1) dependency-specific health, (2) METALORA health, (3) local state not corrupted during outage, (4) payment/Supabase → `#20J`, (5) queued / retried / `recovery_required` review, (6) residual risk. Dependency recovery alone is not enough if commerce state may have diverged. Playbooks: **#20I**.
+
+### Settlement boundary
+
+**CURRENT:** Formal live settlement reconciliation is **not** active. **#24** still owns live Toss keys, real payment validation, cancel/refund, settlement/live-payment launch.
+
+For current TEST-oriented payment ops: verify app vs provider **test** state only. Do **not** run bank/merchant settlement procedures here.
+
+**AFTER #24 live payment activation:** extend #20M with captured payment vs order, cancel/refund state, settlement-impact review, and provider-side final state. That is a future required extension, not current capability.
+
+### Closeout criteria
+
+**CLOSED** only when all of:
+
+- immediate fault contained
+- production service verified
+- production / `stable` recorded
+- affected data reconciled where applicable
+- no unexplained HIGH commerce anomaly remains
+- `recovery_required` cases resolved **or** explicitly left open (not silently dropped)
+- residual risks documented
+- follow-up tickets assigned
+- evidence recorded (no PII / no secrets)
+- incident owner confirms closure
+
+Any material data/recovery question remaining → **do not** mark CLOSED.
+
+### Record
+
+Use the #20G template (includes technical recovery time, reconciliation status, checks performed, verification result, residual risk, follow-ups, final closure status). Allowed values: **VERIFIED RECOVERED** / **RECONCILIATION PENDING** / **UNRESOLVED** / **CLOSED**.
