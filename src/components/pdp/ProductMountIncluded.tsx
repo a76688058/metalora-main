@@ -16,16 +16,16 @@ import {
  * Included quantities: artwork ×1, PPF ×1, protective sticker ×1, magnets ×2.
  * Do not add wall-damage, mark-free, strength, or install-time claims.
  */
-const MOUNT_HEADING = 'MOUNT';
+const MOUNT_HEADING = '설치';
 const MOUNT_PRIMARY = '못 없이 설치하는 마그네틱 마운트.';
 const MOUNT_SUPPORT =
-  '보호 스티커와 두 개의 자석을 이용해 작품을 벽면에 자력으로 부착합니다.';
+  '보호 스티커와 자석 2개로 벽면에 부착합니다.';
 
-const INCLUDED_HEADING = 'INCLUDED';
+const INCLUDED_HEADING = '구성품';
 
 const INCLUDED_ITEMS = [
   { key: 'artwork' as const, name: '작품', qty: 1 },
-  { key: 'ppf' as const, name: 'PPF 보호필름', qty: 1 },
+  { key: 'ppf' as const, name: '표면 보호필름', qty: 1 },
   { key: 'sticker' as const, name: '보호 스티커', qty: 1 },
   { key: 'magnets' as const, name: '자석', qty: 2 },
 ];

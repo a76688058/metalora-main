@@ -207,7 +207,7 @@ export default function Home() {
                 opacity: 'var(--hero-artworks-subtitle-enter, 1)',
               }}
             >
-              PICK OR MAKE
+              고르기 · 만들기
             </p>
           </div>
           <div className="flex flex-col items-center gap-3 md:items-end">
@@ -258,12 +258,12 @@ export default function Home() {
             ))
           ) : isError ? (
             <div className="col-span-full flex flex-col items-center justify-center py-32 gap-4">
-              <div className="text-red-400">Failed to load products.</div>
+              <div className="text-red-400">작품을 불러올 수 없습니다.</div>
               <button
                 onClick={fetchProducts}
                 className={`px-4 py-2 rounded-lg ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}
               >
-                Retry
+                다시 시도
               </button>
             </div>
           ) : (

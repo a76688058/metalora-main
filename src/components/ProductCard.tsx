@@ -80,8 +80,8 @@ export default function ProductCard({
         />
         {(product.limited || product.isNew) ? (
           <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
-            {product.limited ? <Badge variant="limited">Limited</Badge> : null}
-            {product.isNew ? <Badge variant="new">New</Badge> : null}
+            {product.limited ? <Badge variant="limited">한정판</Badge> : null}
+            {product.isNew ? <Badge variant="new">신상품</Badge> : null}
           </div>
         ) : null}
       </div>

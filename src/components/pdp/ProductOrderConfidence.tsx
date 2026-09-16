@@ -11,7 +11,7 @@ import { FACTUAL_SHELL, FactualIndex } from './factualVisuals';
  * Confirmed general-catalog commerce facts only (Rule 03).
  * Do not import Custom / Workshop policy. Do not claim free shipping.
  */
-const HEADING = 'ORDER WITH CONFIDENCE';
+const HEADING = '주문 안내';
 
 function LeadNumber({
   kicker,
@@ -99,7 +99,7 @@ export function ProductOrderConfidence() {
           <ol className="mt-12 m-0 grid list-none grid-cols-1 p-0 md:mt-16 md:grid-cols-2">
             <ConfidenceCell
               index="01"
-              label="PRODUCTION"
+              label="제작"
               detail="주문 후 제작에 필요한 예상 기간입니다."
               invert={invert}
               className="border-b border-border-subtle md:border-r"
@@ -108,7 +108,7 @@ export function ProductOrderConfidence() {
             </ConfidenceCell>
             <ConfidenceCell
               index="02"
-              label="DELIVERY"
+              label="배송"
               detail="제주·도서산간 지역은 추가 배송비가 발생할 수 있습니다."
               invert={invert}
               className="border-b border-border-subtle"
@@ -117,7 +117,7 @@ export function ProductOrderConfidence() {
             </ConfidenceCell>
             <ConfidenceCell
               index="03"
-              label="RETURNS"
+              label="반품"
               detail="단순 변심에 의한 반품은 수령 후 7일 이내 가능하며, 반품 배송비는 구매자 부담입니다."
               invert={invert}
               className="md:border-r md:border-border-subtle"
@@ -126,7 +126,7 @@ export function ProductOrderConfidence() {
             </ConfidenceCell>
             <ConfidenceCell
               index="04"
-              label="ISSUE SUPPORT"
+              label="불량 · 파손"
               detail="상품의 불량, 배송 중 파손 또는 오배송은 판매자 부담으로 교환 또는 환불을 진행합니다."
               note="초기 불량은 신속히 확인하며, 사용 중 발생한 문제는 상태 확인 후 개별 안내합니다."
               invert={invert}

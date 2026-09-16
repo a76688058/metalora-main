@@ -138,12 +138,12 @@ function ProductGrid({ products }: ProductGridProps) {
           theme === 'dark' ? 'bg-black' : 'bg-white'
         }`}
       >
-        <div className="text-red-400">Failed to load products.</div>
+        <div className="text-red-400">작품을 불러올 수 없습니다.</div>
         <button
           onClick={fetchProducts}
           className={`px-4 py-2 rounded-lg ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`}
         >
-          Retry
+          다시 시도
         </button>
       </section>
     );

@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 const FALLBACK_MESSAGES = [
-  'ATELIER의 새로운 컬렉션을 만나보세요',
-  '포스터가 아닌 엔지니어링 된 작품',
+  '새로운 컬렉션을 만나보세요',
+  '포스터가 아닌 알루미늄 작품',
   '못 없이 설치하는 마그네틱 마운트.',
 ];
 

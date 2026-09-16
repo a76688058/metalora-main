@@ -75,7 +75,7 @@ export function SublimationHeatVisual({ className }: { className?: string }) {
     >
       <div className="w-full max-w-[28rem]">
         <p className="text-[clamp(4.5rem,12vw,7.5rem)] font-semibold leading-[0.82] tracking-[-0.055em] text-text-primary">
-          180℃
+          이미지
         </p>
         <div className="relative mt-10 h-10 w-full max-w-[22rem]">
           <div className="absolute inset-x-0 top-3 h-[7px] bg-[#d8d4cc] ring-1 ring-black/10 dark:bg-[#5c6168]" />
@@ -121,9 +121,9 @@ export function ImageSurfaceVisual({
 const PROCESS_STEPS = [
   '이미지 준비',
   '출력',
-  '승화전사',
-  '후면 작업',
-  '부품 조립',
+  '이미지 전사',
+  '뒷면 작업',
+  '자석 조립',
   '검수',
   '포장',
 ] as const;

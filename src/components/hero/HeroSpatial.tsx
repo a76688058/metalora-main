@@ -290,7 +290,7 @@ export default function HeroSpatial() {
             </div>
           ) : null}
 
-          <h1 className="sr-only">METALORA — Premium Metal Artworks</h1>
+          <h1 className="sr-only">메탈 액자의 기준, 메탈로라</h1>
 
           {/* Commerce group — horizontal center tracks projected artwork center */}
           {heroProduct ? (
@@ -339,7 +339,7 @@ export default function HeroSpatial() {
                   sessionStorage.setItem('homeScrollPosition', window.scrollY.toString())
                 }
               >
-                View Artwork →
+                작품 보기 →
               </Link>
             </div>
           ) : null}
@@ -352,7 +352,7 @@ export default function HeroSpatial() {
               style={{ opacity: 'var(--hero-scroll-cue-opacity, 1)' }}
               aria-hidden
             >
-              Scroll ↓
+              아래로 스크롤 ↓
             </p>
           ) : (
             <button
@@ -364,7 +364,7 @@ export default function HeroSpatial() {
                   : 'border-black/12 bg-black/5 hover:bg-black/10'
               }`}
             >
-              Collection
+              컬렉션 보기
             </button>
           )}
         </div>

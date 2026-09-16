@@ -24,35 +24,35 @@ const PANEL_M = {
   thicknessMm: 1.15,
 } as const;
 
-const HEADING = 'PRODUCT TRUTH';
+const HEADING = '제품 정보';
 const LEAD = '이 제품이 무엇으로 만들어지고, 어떻게 생산되는지.';
 
 const COPY = {
   aluminum: {
     index: '01',
-    label: 'ALUMINUM',
+    label: '알루미늄',
     value: `M · ${PANEL_M.widthMm} × ${PANEL_M.heightMm} mm`,
     detail: `${PANEL_M.thicknessMm} mm 알루미늄 패널`,
     note: '현재 M 사이즈 완제품 크기입니다.',
   },
   sublimation: {
     index: '02',
-    label: 'SUBLIMATION',
-    value: '180℃',
-    detail: '조건으로 승화전사',
-    note: 'METALORA가 실제 사용하는 승화전사 설정입니다. 알루미늄 자체가 180℃에 도달한다는 의미가 아닙니다.',
+    label: '선명한 표현',
+    value: '이미지 전사',
+    detail: '알루미늄에 이미지를 전사해 디테일을 표현합니다.',
+    note: '종이 대신 알루미늄 패널에 이미지를 표현합니다.',
   },
   image: {
     index: '03',
-    label: 'IMAGE',
-    value: 'AI 업스케일링을 거친 고해상도 이미지',
+    label: '이미지의 색감과 디테일',
+    value: '작품의 색감과 디테일을 알루미늄 위에 표현합니다.',
     detail: '출력에 사용하는 최종 이미지입니다.',
   },
   made: {
     index: '04',
-    label: 'MADE BY METALORA',
+    label: '메탈로라가 만듭니다',
     value: 'METALORA가 진행합니다.',
-    detail: '이미지 준비부터 출력, 승화전사, 후면 작업, 부품 조립, 검수, 포장까지.',
+    detail: '이미지 준비, 출력, 이미지 전사, 뒷면 작업, 자석 조립, 검수, 포장.',
   },
 } as const;
 
