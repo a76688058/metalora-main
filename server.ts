@@ -425,6 +425,50 @@ const POLICY_SITEMAP_PATHS = [
   "/policy/cookie",
   "/policy/agreement",
 ] as const;
+const POLICY_TYPES = new Set(
+  POLICY_SITEMAP_PATHS.map((policyPath) => policyPath.slice("/policy/".length)),
+);
+
+/** Exact document routes from App.tsx — reachable, never indexable. */
+const FUNCTIONAL_NOINDEX_PATHS = [
+  "/login",
+  "/auth/callback",
+  "/profile/complete",
+  "/payment/success",
+  "/payment/fail",
+  "/admin",
+  "/admin/login",
+  "/admin/products",
+  "/admin/orders",
+  "/admin/cs",
+  "/admin/users",
+  "/admin/best-sellers",
+  "/admin/banners",
+] as const;
+const FUNCTIONAL_NOINDEX_SET = new Set<string>(FUNCTIONAL_NOINDEX_PATHS);
+
+const FUNCTIONAL_NOINDEX_TITLES: Record<string, string> = {
+  "/login": "로그인 | 메탈로라",
+  "/auth/callback": "인증 | 메탈로라",
+  "/profile/complete": "프로필 | 메탈로라",
+  "/payment/success": "결제 완료 | 메탈로라",
+  "/payment/fail": "결제 | 메탈로라",
+  "/admin": "관리자 | 메탈로라",
+  "/admin/login": "관리자 로그인 | 메탈로라",
+  "/admin/products": "관리자 | 메탈로라",
+  "/admin/orders": "관리자 | 메탈로라",
+  "/admin/cs": "관리자 | 메탈로라",
+  "/admin/users": "관리자 | 메탈로라",
+  "/admin/best-sellers": "관리자 | 메탈로라",
+  "/admin/banners": "관리자 | 메탈로라",
+};
+
+const HOME_SEO_DESCRIPTION =
+  "못 없이 설치하는 마그네틱 메탈 액자. 알루미늄에 이미지를 승화전사한 인테리어 메탈 아트로 공간에 포인트를 더해보세요.";
+
+/** Final-segment static extensions only — do not treat punctuation in route text as an asset. */
+const ASSET_LIKE_EXT_RE =
+  /\.(?:js|mjs|cjs|css|map|json|xml|txt|ico|png|jpe?g|gif|webp|avif|svg|woff2?|ttf|eot|otf|mp4|webm|pdf|html|htm|wasm|csv|zip)$/i;
 
 /**
  * Public SEO origin. BASE_URL is honored only when it is explicitly the apex
@@ -529,8 +573,7 @@ function websiteJsonLd(): Record<string, unknown> {
 
 function homeSeoPayload(): SeoPayload {
   const title = "메탈로라 | 프리미엄 커스텀 메탈 액자";
-  const description =
-    "클릭 한 번으로 당신의 소중한 순간을 영원히 빛나는 프리미엄 커스텀 메탈 액자로 만드세요. 변하지 않는 가치, 메탈로라.";
+  const description = HOME_SEO_DESCRIPTION;
   return {
     kind: "home",
     title,
@@ -553,8 +596,8 @@ function homeSeoPayload(): SeoPayload {
       <p>포스터가 아닙니다.<br/>엔지니어링 된 작품입니다.</p>
     </section>
     <section>
-      <h2>벽에 상처를 남기지 마세요.</h2>
-      <h2>오직 예술만 남기세요.</h2>
+      <h2>못 없이 설치하는 마그네틱 메탈 액자</h2>
+      <p>알루미늄에 이미지를 승화전사한 인테리어 메탈 아트입니다. 마그네틱 마운트로 못 없이 간편하게 설치해 공간에 포인트를 더해보세요.</p>
     </section>
   </div>
 </main>`,
@@ -712,8 +755,8 @@ function productLookupUnavailableSeoPayload(productId: string): SeoPayload {
   };
 }
 
-/** Known removed dummy public URLs — hard 404, never indexable homepage shells. */
-function removedPublicRouteSeoPayload(pathname: string): SeoPayload {
+/** Unknown / removed public document URLs — hard 404, never indexable homepage shells. */
+function unknownDocumentSeoPayload(pathname: string): SeoPayload {
   const path = pathname.startsWith("/") ? pathname : `/${pathname}`;
   return {
     kind: "generic",
@@ -734,6 +777,56 @@ function removedPublicRouteSeoPayload(pathname: string): SeoPayload {
 </main>`,
     status: 404,
   };
+}
+
+function functionalNoindexSeoPayload(canonicalPath: string): SeoPayload {
+  const title = FUNCTIONAL_NOINDEX_TITLES[canonicalPath] || "메탈로라";
+  const description = "메탈로라 서비스 페이지입니다.";
+  return {
+    kind: "generic",
+    title,
+    description,
+    canonicalPath,
+    ogType: "website",
+    ogImage: DEFAULT_OG_IMAGE,
+    robots: "noindex, nofollow",
+    jsonLd: [],
+    rootHtml: `<main class="seo-shell">
+  <div class="seo-shell__hero"></div>
+  <div class="seo-shell__content">
+    <h1>${escapeHtml(title)}</h1>
+    <p>${escapeHtml(description)}</p>
+  </div>
+</main>`,
+    status: 200,
+  };
+}
+
+function stripTrailingSlashes(pathname: string): string {
+  if (!pathname || pathname === "/") return "/";
+  const stripped = pathname.replace(/\/+$/, "");
+  return stripped.length > 0 ? stripped : "/";
+}
+
+function isAssetLikePath(pathname: string): boolean {
+  const segments = pathname.split("/").filter(Boolean);
+  const last = segments[segments.length - 1] || "";
+  return ASSET_LIKE_EXT_RE.test(last);
+}
+
+/**
+ * Known document routes only (exact lowercase paths from App.tsx).
+ * Returns the canonical no-trailing-slash form, or null if the path is unknown.
+ * Case variants and unknown routes are not normalized.
+ */
+function knownCanonicalDocumentPath(pathname: string): string | null {
+  const stripped = stripTrailingSlashes(pathname);
+  if (stripped === "/") return "/";
+  if (FUNCTIONAL_NOINDEX_SET.has(stripped)) return stripped;
+  if (/^\/product\/[^/]+$/.test(stripped)) return stripped;
+  const policyMatch = stripped.match(/^\/policy\/([^/]+)$/);
+  if (policyMatch && POLICY_TYPES.has(policyMatch[1])) return stripped;
+  return null;
 }
 
 function staticRouteSeoPayload(
@@ -899,11 +992,14 @@ async function loadVisibleProductForSeo(
 }
 
 async function resolveSeoForPath(pathname: string): Promise<SeoPayload> {
-  if (pathname === "/" || pathname === "") {
+  const path = pathname === "" ? "/" : pathname;
+
+  if (path === "/") {
     return homeSeoPayload();
   }
 
-  const productMatch = pathname.match(/^\/product\/([^/]+)\/?$/);
+  // Exact lowercase /product/:id only — case variants are unknown 404s.
+  const productMatch = path.match(/^\/product\/([^/]+)$/);
   if (productMatch) {
     const productId = decodeURIComponent(productMatch[1]);
     if (!PRODUCT_ID_RE.test(productId)) {
@@ -919,11 +1015,11 @@ async function resolveSeoForPath(pathname: string): Promise<SeoPayload> {
     return productSeoPayload(lookup.product);
   }
 
-  const policyMatch = pathname.match(/^\/policy\/([^/]+)\/?$/);
+  // Exact lowercase /policy/:type only.
+  const policyMatch = path.match(/^\/policy\/([^/]+)$/);
   if (policyMatch) {
     const type = policyMatch[1];
-    const allowed = POLICY_SITEMAP_PATHS.map((p) => p.replace("/policy/", ""));
-    if (allowed.includes(type)) {
+    if (POLICY_TYPES.has(type)) {
       const titles: Record<string, string> = {
         terms: "이용약관 | 메탈로라",
         refund: "환불정책 | 메탈로라",
@@ -937,25 +1033,14 @@ async function resolveSeoForPath(pathname: string): Promise<SeoPayload> {
         "메탈로라 서비스 정책.",
       );
     }
+    return unknownDocumentSeoPayload(path);
   }
 
-  // Known removed dummy public URLs (#21A-2) — 404 + noindex, not 200 SPA shells
-  if (pathname === "/brand-story" || pathname === "/collection") {
-    return removedPublicRouteSeoPayload(pathname);
+  if (FUNCTIONAL_NOINDEX_SET.has(path)) {
+    return functionalNoindexSeoPayload(path);
   }
 
-  // Other SPA routes: keep shell bootable, but do not claim homepage canonical
-  return {
-    kind: "generic",
-    title: "메탈로라 | 프리미엄 커스텀 메탈 액자",
-    description:
-      "클릭 한 번으로 당신의 소중한 순간을 영원히 빛나는 프리미엄 커스텀 메탈 액자로 만드세요. 변하지 않는 가치, 메탈로라.",
-    canonicalPath: pathname.startsWith("/") ? pathname : `/${pathname}`,
-    ogType: "website",
-    ogImage: DEFAULT_OG_IMAGE,
-    jsonLd: [organizationJsonLd()],
-    rootHtml: `<main class="seo-shell"><div class="seo-shell__hero"></div><div class="seo-shell__content"><h1>메탈로라</h1></div></main>`,
-  };
+  return unknownDocumentSeoPayload(path);
 }
 
 /** Workshop unit price — authoritative; never trust client custom_config.price */
@@ -2448,19 +2533,52 @@ ${itemsList}`;
     }));
 
     // 2. Catch-all: route-aware SEO HTML shell, then React mounts client-side
-    app.get("*", async (req, res) => {
+    const requestPathname = (req: express.Request): string => {
+      const raw = (req.path || "/").split("?")[0] || "/";
+      return raw.startsWith("/") ? raw : `/${raw}`;
+    };
+
+    const requestQuerySuffix = (req: express.Request): string => {
+      const url = req.originalUrl || "";
+      const i = url.indexOf("?");
+      return i === -1 ? "" : url.slice(i);
+    };
+
+    const sendSeoDocument = async (
+      req: express.Request,
+      res: express.Response,
+    ) => {
       if (req.originalUrl.startsWith("/api/")) {
         return res.status(404).json({ error: "Not found" });
       }
 
+      const pathname = requestPathname(req);
+
+      if (isAssetLikePath(pathname)) {
+        res.status(404);
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("X-Robots-Tag", "noindex, nofollow");
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        if (req.method === "HEAD") return res.end();
+        return res.send("Not found");
+      }
+
+      const canonical = knownCanonicalDocumentPath(pathname);
+      if (canonical && pathname !== canonical) {
+        return res.redirect(301, `${canonical}${requestQuerySuffix(req)}`);
+      }
+
       try {
-        const pathname = (req.path || "/").split("?")[0] || "/";
         const seo = await resolveSeoForPath(pathname);
         const html = applySeoToHtml(getIndexHtmlTemplate(), seo);
         res.status(seo.status ?? 200);
         res.setHeader("Cache-Control", "no-cache");
         res.setHeader("Content-Type", "text/html; charset=utf-8");
-        res.send(html);
+        if (seo.robots) {
+          res.setHeader("X-Robots-Tag", seo.robots);
+        }
+        if (req.method === "HEAD") return res.end();
+        return res.send(html);
       } catch (err) {
         console.error("Error generating SEO HTML:", err);
         res.status(503);
@@ -2470,7 +2588,10 @@ ${itemsList}`;
           "<!doctype html><html lang=\"ko\"><head><meta charset=\"UTF-8\" /><title>Service Temporarily Unavailable</title></head><body><p>Service Temporarily Unavailable</p></body></html>",
         );
       }
-    });
+    };
+
+    app.get("*", sendSeoDocument);
+    app.head("*", sendSeoDocument);
   }
 
   app.listen(PORT, "0.0.0.0", () => {
