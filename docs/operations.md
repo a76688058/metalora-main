@@ -346,7 +346,7 @@ Isolated payment-test: copy `.env.payment-test.example` → `.env.payment-test.l
 
 Never document secret **values**.
 
-Secret rotation procedures are a future ops enhancement (**#20L**). Do not rotate secrets as a first diagnostic step during an incident.
+Secret **review / rotation readiness** is **#20L** (later in this file). Do not rotate secrets as a first diagnostic step during an incident.
 
 ---
 
@@ -483,7 +483,7 @@ Production revision (after):
 
 ### Stage boundaries
 
-Admin access operations: **#20K** (later in this file). Not implemented here: **#20L** secret rotation / RLS regression / dependency security cadence; **#20M** formal post-incident reconciliation verification; **#21** SEO; **#22** GA4; **#23** device QA; **#24** live Toss / settlement / cancel-refund / legal launch / fulfillment.
+Admin access operations: **#20K**. Periodic security maintenance: **#20L** (later in this file). Not implemented here: **#20M** formal post-incident reconciliation verification; **#21** SEO; **#22** GA4; **#23** device QA; **#24** live Toss / settlement / cancel-refund / legal launch / fulfillment.
 
 ---
 
@@ -540,6 +540,7 @@ Do **not** run `verify-candidate.ps1` after promote (candidate tag will alias pr
 - [ ] **#20K** admin roster review (`docs/ops-admin-queries.sql` A/E)
 - [ ] **#20K** unexpected/orphan admin-state check (queries B/C/D)
 - [ ] **#20K** unresolved privilege-change review (query F is metadata only, not an audit log)
+- [ ] **#20L** security query pack + dependency advisories (`docs/ops-security-queries.sql`, `npm audit` / `npm outdated`)
 
 ### After admin access change (#20K)
 
@@ -699,3 +700,111 @@ Immediate global session invalidation is **not proven** by current app code. For
 ### Privacy
 
 Query outputs: `profile_id`, `user_custom_id`, `is_admin`, timestamps, counts. Never email, phone, name, address, tokens, or service-role values.
+
+---
+
+## L. Periodic Security Maintenance (#20L)
+
+Do **not** mutate secrets, RLS, packages, or runtime in this procedure. No auto-fix. No secret **values** in records or this file.
+
+Catalog checks: `docs/ops-security-queries.sql` (SELECT-only). Admin roster: `docs/ops-admin-queries.sql` (**#20K**).
+
+### Cadence
+
+**Monthly (or before a major release):** secret-name inventory; `#20L` SQL pack vs last snapshot; `#20K` roster; `npm audit` + `npm outdated`; production config checks below.
+
+**After any DB migration:** rerun SQL A–H; privileged guard (D) + SECURITY DEFINER inventory (E/F); expected objects (H).
+
+**After auth/admin change:** `#20K` A/B/E; no policy/privilege regression.
+
+**After security incident:** full checklist; rotate secrets **only** if exposure is evidenced; **#20G** contain/verify; **#20M** for formal reconciliation.
+
+### Secret / key inventory (names only)
+
+**SECRET** (Secret Manager on production Cloud Run; never commit values):
+
+| Env name | Binding name (snapshot) |
+|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | `metalora-direct-supabase-service-role` |
+| `TOSS_SECRET_KEY` | `metalora-direct-toss-secret-key` |
+| `DISCORD_WEBHOOK_URL` | `metalora-direct-discord-webhook` |
+
+**PUBLIC / CLIENT CONFIG** (not equivalent to service-role): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (publishable anon key), `BASE_URL`, `DEPLOY_SHA`. Production fail-closed also requires the anon key to be **present** (blank-name check), but it is still not a service-role secret.
+
+Repo placeholders: `.env.example`, `.env.payment-test.example`. Local files `.env*` stay gitignored except those examples. `.dockerignore` excludes `.env` / `.env.*` and `supabase/.temp/`.
+
+Production (`metalora-direct-00064-vat` snapshot): `METALORA_ENV` unset (payment-test inactive). Re-read live env **names** on each review.
+
+**Monthly review:** expected bindings only; no secret in git (`git grep` for `live_sk_` / webhook URLs / service-role JWT material); payment-test still isolated (`#18` guards).
+
+**Rotate when:** suspected/confirmed exposure; operator with secret access leaves; provider requires it; secret appeared in logs/chat/tickets; incident evidence. Do **not** rotate on a calendar with no reason.
+
+**Approved rotation sequence (no values in commands):** (1) identify secret **name**, (2) create new provider credential/version, (3) update Secret Manager / Cloud Run binding, (4) `scripts/deploy-candidate.ps1`, (5) `scripts/verify-candidate.ps1`, (6) promote only after gate, (7) production smoke, (8) revoke **old** credential only after the new one is proven, (9) record evidence without values.
+
+### RLS / policy regression
+
+Run `docs/ops-security-queries.sql`. Compare to the previous saved inventory. Unexpected new public table without RLS, missing `trg_profiles_guard_privileged_fields`, or missing `finalize_paid_order` = HIGH. Broad `PUBLIC`/`anon` policies are **REVIEW**, not automatic bugs (catalog product/banner reads are expected). Do not ENABLE/DROP RLS from the pack.
+
+### Dependency / supply-chain
+
+No Dependabot / GitHub Actions security workflow is in this repo today.
+
+**CHECK:** `npm audit`, `npm outdated`, lockfile diff, Dockerfile `node:22-bookworm-slim`, unexpected new direct deps.
+
+**Classify:** CRITICAL = exploitable on a **reachable production** path. HIGH = material, prioritized. REVIEW = advisory, outdated, unused, dev-only, or unclear reachability (do not upgrade solely because a newer version exists).
+
+**Remediation (separate ticket):** identify package/version → production reachability → smallest compatible change → lint/build → candidate if runtime-affecting → promote gate → record CVE/advisory id. **Do not `npm audit fix` in this stage.**
+
+**Hygiene (do not remove in #20L):** `@google/genai` has no `src/` import (AI Studio leftover README still mentions Gemini). `better-sqlite3` likewise unused in app source. Classify as NON-BLOCKING dependency-surface reduction.
+
+**#20L inspection snapshot (do not fix here):** `npm audit` reported 18 issues (3 low, 4 moderate, 10 high, 1 critical=`protobufjs`). Vite advisories in the report are largely **dev-server** class; production image serves Express + prebuilt `dist/client`. Treat as REVIEW until a ticket proves production reachability. `npm outdated` lists many wanted/latest bumps — not automatic upgrades.
+
+### Production security-config review
+
+**CHECK** (contracts already closed in `#18`/`#19`; do not reopen unless drift):
+
+- Production Supabase host lock (`qifloweuwyhvukabgnoa.supabase.co`); payment-test must not point at it
+- `METALORA_ENV` absent on production; cross-write guards on prepare/confirm
+- Fail-closed required env **names** at boot
+- Headers: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy`, production `HSTS`
+- HTML `Cache-Control: no-cache`; hashed assets may be immutable
+- `trust proxy` = true (GCP); `x-powered-by` disabled
+- Unknown `/api` → JSON 404
+- `.env*` / `supabase/.temp/` ignored in git and Docker context
+- Secret Manager binding **names** match the table above
+
+CSP and application rate limiting are **deferred** (server comment: no CSP). No evidence in this inspection to implement them in #20L. No WAF/SIEM/new vendor.
+
+### Admin cross-check
+
+Use **#20K**. There is **no** durable admin audit log.
+
+### Vulnerability / finding record
+
+```
+Finding ID / date:
+Source/tool (npm audit / SQL pack / config review):
+Affected component:
+Severity (CRITICAL / HIGH / REVIEW):
+Evidence (advisory id, query letter — no secrets/PII/paymentKey):
+Production reachability:
+Remediation owner / ticket:
+Verification:
+Closure date:
+```
+
+### Operator checklist
+
+**Source / repo:** unexpected secret files; ignore rules intact; lockfile reviewed; no surprise dependencies.
+
+**Cloud / runtime:** production revision; Secret Manager **names**; payment-test off; `/api/health`; security headers.
+
+**Database:** SQL A–H; privileged guard present; SECURITY DEFINER inventory reviewed.
+
+**Admin:** `#20K` roster / orphans / still-required access.
+
+**Alerting:** `#20C` / `#20D` still in `server.ts` + this file; `[DISCORD_OPS_ALERT_ERROR]` reviewed.
+
+**Backup:** section E; **#20F still blocked** on Free plan — do not mark backup healthy.
+
+**DO NOT:** auto-fix; print secret values; disable the privileged-field trigger; invent restore.
