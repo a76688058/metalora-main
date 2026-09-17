@@ -1027,10 +1027,17 @@ async function resolveSeoForPath(pathname: string): Promise<SeoPayload> {
         cookie: "쿠키 정책 | 메탈로라",
         agreement: "제작동의서 | 메탈로라",
       };
+      const descriptions: Record<string, string> = {
+        terms: "메탈로라 서비스 이용에 적용되는 이용약관을 확인하세요.",
+        refund: "메탈로라의 환불 및 교환 관련 정책을 확인하세요.",
+        privacy: "메탈로라의 개인정보 처리방침을 확인하세요.",
+        cookie: "메탈로라의 쿠키 사용 관련 정책을 확인하세요.",
+        agreement: "메탈로라의 커스텀 제작 및 콘텐츠 이용 동의 내용을 확인하세요.",
+      };
       return staticRouteSeoPayload(
         `/policy/${type}`,
         titles[type] || "정책 | 메탈로라",
-        "메탈로라 서비스 정책.",
+        descriptions[type] || titles[type] || "정책 | 메탈로라",
       );
     }
     return unknownDocumentSeoPayload(path);
