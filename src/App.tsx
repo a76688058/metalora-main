@@ -22,6 +22,7 @@ import { ShellOverlayProvider } from './context/ShellOverlayContext';
 import { cn } from './lib/cn';
 
 import CookieBanner from './components/CookieBanner';
+import DocumentHead from './components/DocumentHead';
 import AnalyticsRouteTracker from './components/AnalyticsRouteTracker';
 import { isUsableMemberProfile, safeInternalPath } from './lib/authIntegrity';
 
@@ -246,6 +247,7 @@ export default function App() {
             <ShellOverlayProvider>
               <ThemeProvider>
                 <Router>
+                  <DocumentHead />
                   <AnalyticsRouteTracker />
                   <Layout />
                 </Router>
