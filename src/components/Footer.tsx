@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import PolicyModal from './PolicyModal';
 
 const Divider = () => <div className="my-6 h-px bg-border-subtle" />;
@@ -6,6 +7,10 @@ const Divider = () => <div className="my-6 h-px bg-border-subtle" />;
 import { policies } from '../constants/policies';
 
 export { policies };
+
+function isUnmodifiedPrimaryClick(event: React.MouseEvent) {
+  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+}
 
 export default function Footer() {
   const [modalState, setModalState] = useState<{ isOpen: boolean; key: keyof typeof policies | null }>({
@@ -79,14 +84,18 @@ export default function Footer() {
                 ['agreement', '제작동의서'],
               ] as const
             ).map(([key, label]) => (
-              <button
+              <Link
                 key={key}
-                type="button"
-                onClick={() => openModal(key)}
+                to={`/policy/${key}`}
                 className="focus-ring type-label text-text-secondary transition-colors hover:text-text-primary"
+                onClick={(event) => {
+                  if (!isUnmodifiedPrimaryClick(event)) return;
+                  event.preventDefault();
+                  openModal(key);
+                }}
               >
                 {label}
-              </button>
+              </Link>
             ))}
           </div>
 
