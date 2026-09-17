@@ -1742,36 +1742,69 @@ ${rssItems}
   });
 
   // Dynamic Sitemap — all <loc> pinned to canonical public origin
+  const sitemapUtcLastmod = (createdAt: unknown): string | null => {
+    if (createdAt == null) return null;
+    if (typeof createdAt === "string" && createdAt.trim() === "") return null;
+    const parsed = new Date(createdAt as string | number | Date);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toISOString().slice(0, 10);
+  };
+
+  const sendSitemapUnavailable = (
+    res: express.Response,
+    logLabel: string,
+    detail?: unknown,
+  ) => {
+    if (detail !== undefined) {
+      console.error(logLabel, detail);
+    } else {
+      console.error(logLabel);
+    }
+    res.status(503);
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    return res.send("Sitemap Temporarily Unavailable");
+  };
+
   app.get("/sitemap.xml", async (_req, res) => {
     try {
       const client = supabasePublic || supabaseAdmin;
+      if (!client) {
+        return sendSitemapUnavailable(
+          res,
+          "[Sitemap Query Error] supabase client unavailable",
+        );
+      }
+
       const baseUrl = getSeoOrigin();
+      const { data: products, error } = await client
+        .from("products")
+        .select("id, created_at")
+        .eq("is_visible", true);
 
-      let productUrls = "";
+      if (error) {
+        return sendSitemapUnavailable(res, "[Sitemap Query Error]", error);
+      }
 
-      if (client) {
-        const { data: products, error } = await client
-          .from("products")
-          .select("id, created_at")
-          .eq("is_visible", true);
+      if (!Array.isArray(products)) {
+        return sendSitemapUnavailable(
+          res,
+          "[Sitemap Query Error] unexpected product payload",
+        );
+      }
 
-        if (!error && products) {
-          productUrls = products
-            .map((product) => {
-              const date = new Date(product.created_at || Date.now())
-                .toISOString()
-                .split("T")[0];
-              return `
+      const productUrls = products
+        .map((product) => {
+          const lastmod = sitemapUtcLastmod(product.created_at);
+          const lastmodXml = lastmod ? `\n    <lastmod>${lastmod}</lastmod>` : "";
+          return `
   <url>
-    <loc>${baseUrl}/product/${product.id}</loc>
-    <lastmod>${date}</lastmod>
+    <loc>${baseUrl}/product/${product.id}</loc>${lastmodXml}
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>`;
-            })
-            .join("");
-        }
-      }
+        })
+        .join("");
 
       const staticUrls = [
         { path: "/", changefreq: "daily", priority: "1.0" },
@@ -1799,8 +1832,7 @@ ${staticUrls}${productUrls}
       res.header("Content-Type", "application/xml");
       res.send(sitemap);
     } catch (error) {
-      console.error("[Sitemap Generation Error]", error);
-      res.status(500).send("Sitemap Generation Error");
+      return sendSitemapUnavailable(res, "[Sitemap Generation Error]", error);
     }
   });
 
