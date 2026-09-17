@@ -1685,11 +1685,55 @@ async function startServer() {
   });
 
   // RSS Feed for Naver Search Advisor
-  app.get("/rss.xml", async (req, res) => {
+  const rssCdata = (value: string): string =>
+    `<![CDATA[${value.replace(/]]>/g, "]]]]><![CDATA[>")}]]>`;
+
+  const rssUtcPubDate = (createdAt: unknown): string | null => {
+    if (createdAt == null) return null;
+    if (typeof createdAt === "string" && createdAt.trim() === "") return null;
+    const parsed = new Date(createdAt as string | number | Date);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toUTCString();
+  };
+
+  const usableRssProductId = (id: unknown): string | null => {
+    if (typeof id !== "string") return null;
+    const trimmed = id.trim();
+    if (!trimmed) return null;
+    if (/[<>&"'\s]/.test(trimmed)) return null;
+    return trimmed;
+  };
+
+  const usableRssTitle = (title: unknown): string | null => {
+    if (typeof title !== "string") return null;
+    const trimmed = title.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
+
+  const sendRssUnavailable = (
+    res: express.Response,
+    logLabel: string,
+    detail?: unknown,
+  ) => {
+    if (detail !== undefined) {
+      console.error(logLabel, detail);
+    } else {
+      console.error(logLabel);
+    }
+    res.status(503);
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    return res.send("RSS Temporarily Unavailable");
+  };
+
+  app.get("/rss.xml", async (_req, res) => {
     try {
       const client = supabasePublic || supabaseAdmin;
       if (!client) {
-        throw new Error("Supabase is not configured.");
+        return sendRssUnavailable(
+          res,
+          "[RSS Query Error] supabase client unavailable",
+        );
       }
 
       const { data: products, error } = await client
@@ -1700,26 +1744,51 @@ async function startServer() {
         .limit(20);
 
       if (error) {
-        throw error;
+        return sendRssUnavailable(res, "[RSS Query Error]", error);
+      }
+
+      if (!Array.isArray(products)) {
+        return sendRssUnavailable(
+          res,
+          "[RSS Query Error] unexpected product payload",
+        );
       }
 
       const baseUrl = getSeoOrigin();
+      const rssItems = products
+        .map((product) => {
+          const id = usableRssProductId(product?.id);
+          if (!id) {
+            console.error("[RSS Query Error] skipping product without usable id");
+            return "";
+          }
 
-      const rssItems = (products || []).map(product => {
-        const productUrl = `${baseUrl}/product/${product.id}`;
-        const pubDate = new Date(product.created_at || Date.now()).toUTCString();
-        const imageUrl = resolvePublicImageUrl(product.front_image || product.image) || '';
-        const imageHtml = imageUrl ? `<br/><img src="${imageUrl}" alt="${product.title}" />` : '';
+          const productUrl = `${baseUrl}/product/${id}`;
+          const title = usableRssTitle(product?.title);
+          const titleXml = title
+            ? `\n      <title>${rssCdata(`${title} - 프리미엄 메탈 액자`)}</title>`
+            : "";
+          const descriptionBody =
+            typeof product.description === "string" && product.description
+              ? product.description
+              : "최고급 커스텀 메탈 액자를 경험해보세요.";
+          const imageUrl = resolvePublicImageUrl(
+            product.front_image || product.image,
+          );
+          const imageHtml = imageUrl
+            ? `<br/><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(title || "")}" />`
+            : "";
+          const pubDate = rssUtcPubDate(product.created_at);
+          const pubDateXml = pubDate ? `\n      <pubDate>${pubDate}</pubDate>` : "";
 
-        return `
-    <item>
-      <title><![CDATA[${product.title} - 프리미엄 메탈 액자]]></title>
+          return `
+    <item>${titleXml}
       <link>${productUrl}</link>
-      <description><![CDATA[${product.description || '최고급 커스텀 메탈 액자를 경험해보세요.'}${imageHtml}]]></description>
-      <pubDate>${pubDate}</pubDate>
+      <description>${rssCdata(`${descriptionBody}${imageHtml}`)}</description>${pubDateXml}
       <guid>${productUrl}</guid>
     </item>`;
-      }).join('');
+        })
+        .join("");
 
       const rssFeed = `<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
@@ -1733,11 +1802,10 @@ ${rssItems}
   </channel>
 </rss>`;
 
-      res.header('Content-Type', 'application/xml');
+      res.header("Content-Type", "application/xml");
       res.send(rssFeed);
     } catch (error) {
-      console.error("[RSS Feed Error]", error);
-      res.status(500).send("Feed Generation Error");
+      return sendRssUnavailable(res, "[RSS Feed Error]", error);
     }
   });
 
