@@ -1,0 +1,39 @@
+---
+description: METALORA physical product scale and PDP/Hero spatial WebGL contracts.
+alwaysApply: true
+---
+
+# Spatial / product contracts
+
+## Physical — currently confirmed M size
+- Current confirmed finished size M: **200 × 283 mm**, thickness **1.15 mm**.
+- Do not generalize M dimensions to future/unconfirmed sizes.
+- Any new size requires confirmed finished physical dimensions before PDP geometry, Room Preview, specs, or legal disclosure are updated.
+- PDP story scale: **1 world unit = 210 mm**.
+- M story geometry: width `200/210`, height `283/210`, thickness `1.15/210` ≈ **0.0055**.
+- Never increase physical thickness to make EDGE easier to see.
+
+## Measured mounting stack
+Protective sticker **190 × 145 mm**. Magnets **80 × 80 mm × 2**.
+
+Actual stack: wall → protective adhesive sticker → wall-side magnet → artwork-side magnet → artwork.
+
+Do **not** invent unmeasured magnet/sticker thickness, magnet material, magnetic strength, or adhesive spec.
+
+## PDP WebGL
+- Story Canvas max **1**. Story Canvas and 3D Viewer Canvas must **never coexist**.
+- Room Preview = **zero WebGL**.
+- Mobile/compact PDP story = **zero WebGL** unless a ticket explicitly reopens it.
+- `prefers-reduced-motion` story = **zero WebGL**.
+- Canvas carries visuals; factual/semantic information stays in the DOM.
+- Story Canvas: `aria-hidden`, non-interactive.
+- Native vertical scrolling. No wheel interception. No body lock for story choreography.
+- TRUE PIN is bounded by its story section. Do not put overflow on a sticky ancestor in a way that breaks pinning.
+- Story DOM overlays must respect Viewer / Room Preview gating.
+- Lazy spatial init; no unnecessary eager WebGL.
+
+## Rear face
+`back_image` existence ≠ a physically validated product reverse. Until a real rear-sublimated product is produced and validated: no rear-print claim, no fake rear artwork — truthful aluminum reverse only.
+
+## Local vs shared
+Do not change global `artwork3d` / Hero defaults for PDP-local visual needs.

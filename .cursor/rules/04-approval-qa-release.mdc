@@ -1,0 +1,35 @@
+---
+description: METALORA visual-approval gate, A5 QA scope, polish vs blocking, production final.
+alwaysApply: true
+---
+
+# Approval / QA / release
+
+## Visible UI gate
+Implementation → implementation report → assistant/design review → **USER VISUAL APPROVAL** → targeted A5 QA → close.
+
+Never send a visible UI task to A5 before explicit user visual approval. Never start the next visible phase while the current phase still requires user approval.
+
+Exception: a non-visual stability/integrity patch after approved visuals may get targeted verification without reopening design, but must preserve the approved output.
+
+## A5
+- Default READ ONLY (see `01-ownership-write-scope`).
+- Test only plausibly affected surfaces. Do not recertify unrelated historic contracts.
+- Verify actual runtime where feasible. Report PASS / FAIL / risks. Lint/typecheck as appropriate.
+
+## Source-write verification
+After source writes:
+- run the smallest relevant runtime/static verification for the changed scope
+- run `npm run lint` unless the task cannot reasonably do so
+- report the exact verification performed and its result
+- if verification cannot run, report why; never imply PASS without verification
+
+## Blocking vs polish
+Structural/blocking issues must **not** be deferred as polish.
+
+**Safe DETAIL POLISH:** font size/weight/tracking/line-height, minor color adjustment, unless it affects accessibility contrast, product truth, or material identification, small spacing, icon sizing, minor button position, shadow intensity, short microcopy.
+
+**Not polish:** broken interaction, overflow, Canvas collision, incorrect physical product fact, legal/claim inconsistency, inaccessible essential control, incorrect responsive architecture, broken scroll/pin.
+
+## Production final
+Must include: accessibility, device/responsive, performance, policy/legal, auth/payment, analytics, SEO, deployment/runtime configuration.

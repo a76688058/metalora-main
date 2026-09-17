@@ -1,0 +1,118 @@
+---
+description: METALORA agent ownership and write-scope boundaries.
+alwaysApply: true
+---
+
+# Ownership / write scope
+
+No agent owns the whole repository. File ownership is governed by this rule.
+
+| Agent | Domain | Default writes |
+|---|---|---|
+| **A0** | Architecture / Integration | `src/App.tsx`, routing/providers, cross-domain contracts |
+| **A1** | Design System / Global Shell | tokens, `ui/*`, Header, Footer, foundation |
+| **A2** | Storefront / Product UX | Home/PDP non-WebGL commerce and content UX |
+| **A3** | Commerce / Account UX | Cart, Checkout, Account |
+| **A4** | Spatial / 3D / Motion | Hero spatial, PDP WebGL, spatial choreography |
+| **A5** | UX QA / A11y / Performance | **NONE** (READ ONLY). Targeted verification, not rewrites |
+| **A6** | Production Guard | Payments, auth, analytics, security, SEO, deploy, policy/legal release gate — RED |
+
+A6 owns production-release verification for policy/legal risk; product/content wording may still require A2/A3 writes under explicit ticket scope.
+
+## General
+- One file = one active writer. Line-level split does not authorize parallel tickets.
+- Max 2 concurrent write agents. A third writer requires A0 certification of: disjoint WRITE SETS; no integration file; no shared primitive contract mutation; no RED boundary.
+- Cross-owner writes require explicit ticket scope. A ticket may authorize a one-time write; it does **not** transfer permanent ownership.
+- If another owner’s file is required: do **not** edit it. Return a DEPENDENCY REQUEST to the owning agent (or A0).
+- Shared-component changes must be additive and minimal when possible.
+- Never change shared defaults to solve a local PDP/Hero issue when a local override is safe.
+- Preserve previously approved/frozen areas unless a dedicated ticket reopens them.
+- `clean main A2` is a session/window label only. It does **not** grant whole-repo write access.
+
+## A0 — Architecture / Integration
+- Default single writer: `src/App.tsx` (no parallel App.tsx writers), `src/main.tsx`, routing/providers, `src/context/AuthContext.tsx`, `src/context/ShellOverlayContext.tsx`.
+- `vite.config.ts` with A6 review.
+- Catch-all / 404 **routing architecture**.
+- `App.tsx` integration goes through A0 unless the ticket explicitly assigns it.
+- Forbidden: visual redesign, 3D internals, payment/SEO/analytics semantics.
+
+## A1 — Design System / Global Shell
+- `src/styles/tokens.css`, `src/styles/foundation.css`, `src/index.css`, `src/components/ui/*`, `src/constants/overlays.ts`.
+- Header, Footer, **AnnouncementBar**, ThemeContext, ToastContext, global shell/chrome.
+- Header = A1 single writer. A3 may specify account/cart entry behavior; A3 does not edit Header.
+- Forbidden: Hero cluster, Home composition, payment authority, competing primitives.
+
+## A2 — Storefront / Product UX
+- Home composition, ProductCard / ProductGrid, PDP **non-WebGL**, merchandising/storefront UX, ProductContext UX.
+- Forbidden by default: `App.tsx`, `server.ts`, `src/components/hero/*`, production SEO (`robots.txt`, sitemap, RSS, canonical, JSON-LD), mounted WebGL internals.
+- Must not fork A1 design primitives.
+
+## A3 — Commerce / Account UX
+- `src/components/Cart.tsx`, `src/context/CartContext.tsx`, LoginModal / account overlays, PaymentSuccess / PaymentFail **UI**, commerce/account UX, admin chrome.
+- Owns payment **UX**. Does **not** own payment **authority** / confirm / amounts / Toss semantics (A6).
+- Must not fork A1 design primitives. Must not edit Header.
+
+## A4 — Spatial / 3D / Motion
+- `src/components/hero/*`, `src/components/artwork3d/*`, mounted WebGL, spatial/3D/motion, Hook3D / BrandStory-type spatial.
+- Forbidden: Home composition, `App.tsx`, page-local 3D forks of shared artwork3d/Hero defaults.
+
+## A5 — UX QA / Accessibility / Performance
+- STRICT READ ONLY. Default WRITE SET **NONE**.
+- Independent QA only. Do not silently fix source during QA.
+- Visible UI QA only after **USER VISUAL APPROVAL** (see `04-approval-qa-release`).
+
+## A6 — Production Guard
+- `server.ts` production SEO / payment / auth / security semantics.
+- `public/robots.txt`, sitemap, RSS, canonical, JSON-LD, analytics libs, supabase client/security, Dockerfile, deploy scripts, `docs/operations.md`.
+- Payment **authority**. Production release guard. Policy/legal release gate.
+- `package.json` / lockfile: RED with A0.
+- Dedicated RED tickets only. No UI cosmetics.
+
+## Cross-agent special rules
+- **404:** A0 routing contract / A1 presentation / A6 HTTP+SEO.
+- **Payment:** A3 UX, A6 authority. Payment-adjacent A3 work requires A6 verification.
+- **Mounted WebGL:** A4. A2/A3 own the journey around it.
+- Unmounted orphan components require an **A0 disposition ticket**. Do not delete them incidentally.
+- Production deploy / promote: **A6 + explicit user approval**. Never automatic.
+
+## Permanent single-writer files
+| File | Owner | Notes |
+|---|---|---|
+| `src/App.tsx` | A0 | No parallel writers |
+| `src/main.tsx` | A0 | |
+| `src/context/AuthContext.tsx` | A0 | |
+| `src/context/ShellOverlayContext.tsx` | A0 | |
+| `vite.config.ts` | A0 | A6 review |
+| `src/styles/tokens.css` | A1 | |
+| `src/styles/foundation.css` | A1 | |
+| `src/index.css` | A1 | |
+| `src/components/ui/*` | A1 | |
+| `src/constants/overlays.ts` | A1 | |
+| `src/components/Header.tsx` | A1 | |
+| `src/components/Footer.tsx` | A1 | |
+| `src/components/AnnouncementBar.tsx` | A1 | |
+| `src/context/ThemeContext.tsx` | A1 | |
+| `src/context/ToastContext.tsx` | A1 | |
+| `src/pages/Home.tsx` | A2 | Treat `hero/*` as a black box |
+| `src/components/ProductCard.tsx` | A2 | |
+| `src/components/ProductGrid.tsx` | A2 | |
+| PDP non-WebGL (`src/components/pdp/*` storefront/copy) | A2 | A4 reviewer if WebGL |
+| `src/components/Cart.tsx` | A3 | A6 review on payment path |
+| `src/context/CartContext.tsx` | A3 | |
+| `src/pages/PaymentSuccess.tsx` | A3 | A6 review required |
+| `src/pages/PaymentFail.tsx` | A3 | A6 review required |
+| `src/components/hero/*` | A4 | |
+| `src/components/artwork3d/*` | A4 | |
+| `src/lib/analytics.ts` | A6 | |
+| `src/lib/ga4.ts` | A6 | |
+| `src/lib/purchaseAnalyticsDedupe.ts` | A6 | |
+| `src/lib/paymentFailureAnalytics.ts` | A6 | |
+| `src/components/AnalyticsRouteTracker.tsx` | A6 | |
+| `src/lib/supabase.ts` | A6 | |
+| `server.ts` | A6 | A0 architecture review |
+| `public/robots.txt` | A6 | |
+| sitemap / RSS production logic | A6 | |
+| `Dockerfile` | A6 | |
+| `scripts/deploy-*.ps1` | A6 | |
+| `docs/operations.md` | A6 | |
+| `package.json` / lockfile | A6 / A0 | RED |

@@ -1,0 +1,36 @@
+---
+description: METALORA governance — WIP, git, write gates, decisions, no secrets.
+alwaysApply: true
+---
+
+# Project governance
+
+Operating model: Parallel Audit → Directed Decision → Controlled Write → Independent Verification.
+
+## Working state
+- Preserve dirty WIP. Never reset / checkout / stash / clean user work to make a task easier.
+- No git commit / push / reset / checkout / stash unless the user explicitly requests it.
+
+## Write discipline
+- Minimize WRITE SET. One file = one active writer. Max 2 concurrent write agents.
+- Before source writes report: baseline, WRITE SET, collision PASS/FAIL, exact plan, dependency needed YES/NO.
+- Do not install or add dependencies unless necessary and reported in the ticket.
+- Preserve approved behavior outside the ticket’s explicit scope. Do not refactor unrelated code to solve a local issue.
+
+## Decisions vs Rules
+- Stable decisions live in `docs/decisions/<TASK-ID>_<SHORT_TOPIC>.md`. Prefer updating an existing note over a duplicate.
+- Temporary ticket parameters (camera poses, one-off tweaks, current statuses) do **not** belong in global Rules.
+
+## Project memory
+When a task produces information that materially affects continuation, create or update a decision note without waiting to be asked.
+
+Record: deferred/blocked work, env dependencies, architecture/ownership, frozen contracts, accepted baselines, known regressions, production risks, required verification, and work that must not proceed until a condition is met. Skip trivia.
+
+Note format: Status (DONE / ACCEPTED / ON HOLD / BLOCKED / DEFERRED), Decision, Completed, Blocker / Open Item, Do Not Do, Resume Condition, Resume Procedure, Ownership, Relevant Files.
+
+Keep notes concise. Do not paste full agent reports. Never store secrets, tokens, credentials, PII, or `.env` values. Variable names and PRESENT / ABSENT / EMPTY are allowed.
+
+When a task completes, is superseded, unblocks, or is deferred again, update Status on the existing note.
+
+## Secrets
+No secrets in source, Rules, decision docs, or reports.

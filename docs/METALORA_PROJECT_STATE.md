@@ -88,10 +88,12 @@ Preserved historical WIP: `wip/19f3-preserved-20260915`
 
 **RULE:** NEVER switch / reset / stash / clean / edit / touch this preserved WIP during current `main` work.
 
+File ownership is governed by `.cursor/rules/01-ownership-write-scope.mdc` (A0–A6). Task tickets may explicitly authorize a cross-owner write; they do **not** transfer permanent ownership. No agent owns the whole repository.
+
 | Name in instructions | Meaning |
 |----------------------|---------|
 | `보존 WIP A2` | Old original A2 attached to preserved WIP. **Do not use** for current implementation. |
-| `clean main A2` | Current implementation/release agent on `C:\Users\admin\Desktop\metalora-main-clean-19f3`, branch `main`. |
+| `clean main A2` | A clean-main implementation session/window used when the task’s authoritative owner allows that write. It does **not** mean A2 owns the clean-main repo, may edit cross-owner files by default, or replaces A0–A6 ownership. |
 | `A5` | Independent read-only QA agent. Must also point to the clean `main` workspace before QA. |
 
 ---
