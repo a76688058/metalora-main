@@ -23,6 +23,99 @@ const BAKED_GA4_MEASUREMENT_ID = "G-T2FFXETHTZ";
 
 const MEASUREMENT_ID_RE = /^G-[A-Z0-9]+$/i;
 
+/** Apex production host only. www.metalora.art is intentionally excluded. */
+const PRODUCTION_ANALYTICS_HOST = "metalora.art";
+
+type Ga4HostClass = "production" | "local" | "blocked";
+
+function unwrapIpv6Hostname(hostname: string): string {
+  if (hostname.startsWith("[") && hostname.endsWith("]")) {
+    return hostname.slice(1, -1);
+  }
+  return hostname;
+}
+
+function normalizeHostname(raw: string): string {
+  return unwrapIpv6Hostname(raw.trim().toLowerCase());
+}
+
+function getRuntimeHostname(): string {
+  try {
+    const location = window.location;
+    if (typeof location.hostname === "string" && location.hostname.trim()) {
+      return normalizeHostname(location.hostname);
+    }
+    if (typeof location.origin === "string" && location.origin) {
+      return normalizeHostname(new URL(location.origin).hostname);
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+}
+
+function isLocalLoopbackHost(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1"
+  );
+}
+
+function classifyGa4Host(hostname: string): Ga4HostClass {
+  if (hostname === PRODUCTION_ANALYTICS_HOST) return "production";
+  if (isLocalLoopbackHost(hostname)) return "local";
+  return "blocked";
+}
+
+function sanitizeMeasurementId(raw: string | null | undefined): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  return MEASUREMENT_ID_RE.test(trimmed) ? trimmed : null;
+}
+
+function readViteMeasurementId(): string | null {
+  try {
+    return sanitizeMeasurementId(import.meta.env.VITE_GA4_MEASUREMENT_ID);
+  } catch {
+    return null;
+  }
+}
+
+function readBakedMeasurementId(): string | null {
+  return sanitizeMeasurementId(BAKED_GA4_MEASUREMENT_ID);
+}
+
+/**
+ * Host allowlist first, then Measurement ID.
+ * production: metalora.art only (valid VITE_GA4_MEASUREMENT_ID wins, else baked).
+ * local: loopback only, and only with an explicit non-production G-* ID.
+ * blocked: everything else, including www.metalora.art and Cloud Run hosts.
+ */
+export function resolveAuthorizedGa4MeasurementId(
+  hostname: string,
+  viteMeasurementId: string | null = null,
+): string | null {
+  const hostClass = classifyGa4Host(normalizeHostname(hostname));
+  const envId = sanitizeMeasurementId(viteMeasurementId);
+  if (hostClass === "production") {
+    return envId ?? readBakedMeasurementId();
+  }
+  if (hostClass === "local") {
+    const bakedId = readBakedMeasurementId();
+    if (!envId || envId === bakedId) return null;
+    return envId;
+  }
+  return null;
+}
+
+export function getGa4MeasurementId(): string | null {
+  return resolveAuthorizedGa4MeasurementId(
+    getRuntimeHostname(),
+    readViteMeasurementId(),
+  );
+}
+
 type GtagCommand = "js" | "config" | "event" | "consent";
 
 type GtagFn = (
@@ -63,21 +156,6 @@ function debugLog(message: string, detail?: unknown): void {
   } else {
     console.info(`[ANALYTICS_DEBUG] ga4: ${message}`);
   }
-}
-
-export function getGa4MeasurementId(): string | null {
-  try {
-    const fromEnv = import.meta.env.VITE_GA4_MEASUREMENT_ID;
-    if (typeof fromEnv === "string" && MEASUREMENT_ID_RE.test(fromEnv.trim())) {
-      return fromEnv.trim();
-    }
-  } catch {
-    // ignore
-  }
-  if (MEASUREMENT_ID_RE.test(BAKED_GA4_MEASUREMENT_ID.trim())) {
-    return BAKED_GA4_MEASUREMENT_ID.trim();
-  }
-  return null;
 }
 
 /**
@@ -249,7 +327,7 @@ function configureGa4(measurementId: string): void {
 function activateGa4Sync(): boolean {
   const measurementId = getGa4MeasurementId();
   if (!measurementId || !hasAnalyticsConsent()) {
-    debugLog("skipped sync activate: missing ID or no consent");
+    debugLog("skipped sync activate: host unauthorized, missing ID, or no consent");
     return false;
   }
   if (configured) {
