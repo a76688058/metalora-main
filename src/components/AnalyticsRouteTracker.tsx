@@ -5,27 +5,30 @@ import {
   hasAnalyticsConsent,
   track,
 } from "../lib/analytics";
-import { syncGa4DefaultPageContext } from "../lib/ga4";
+import {
+  sanitizeAnalyticsPagePath,
+  syncGa4DefaultPageContext,
+} from "../lib/ga4";
 
 /** Survives StrictMode remounts within the same document lifetime. */
 let lastPageViewKey: string | null = null;
 
 /**
  * SPA page_view tracker — must render inside BrowserRouter.
+ * Dedupe identity is the sanitized pathname actually sent to GA.
  */
 export default function AnalyticsRouteTracker() {
   const location = useLocation();
+  const pagePath = sanitizeAnalyticsPagePath(location.pathname);
 
   useEffect(() => {
-    const key = `${location.pathname}${location.search}`;
-
     const emitIfAllowed = () => {
       if (!hasAnalyticsConsent()) return;
-      if (lastPageViewKey === key) return;
-      lastPageViewKey = key;
+      if (lastPageViewKey === pagePath) return;
+      lastPageViewKey = pagePath;
       syncGa4DefaultPageContext();
       track("page_view", {
-        page_path: key,
+        page_path: pagePath,
         page_title: typeof document !== "undefined" ? document.title : undefined,
       });
     };
@@ -45,7 +48,7 @@ export default function AnalyticsRouteTracker() {
     return () => {
       window.removeEventListener(ANALYTICS_CONSENT_EVENT, onConsent);
     };
-  }, [location.pathname, location.search]);
+  }, [pagePath]);
 
   return null;
 }
