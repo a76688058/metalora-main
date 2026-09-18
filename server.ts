@@ -1152,11 +1152,13 @@ function buildRpcOrderItems(validatedSnapshots: ValidatedItemSnapshot[]) {
 /** GA4-safe purchase line items — no PII, URLs, or raw snapshot blobs. */
 type AnalyticsPurchaseItem = {
   item_id: string;
-  item_name: string;
+  item_name?: string;
   item_variant?: string;
   price: number;
   quantity: number;
 };
+
+const WORKSHOP_ANALYTICS_ITEM_NAME = '나만의 커스텀 포스터';
 
 function isWorkshopRpcOrderItem(productId: unknown): boolean {
   if (productId == null) return true;
@@ -1190,11 +1192,14 @@ function buildAnalyticsPurchaseItemsFromSnapshot(
       continue;
     }
 
-    const item_id = isWorkshopRpcOrderItem(item.product_id)
+    const isWorkshop = isWorkshopRpcOrderItem(item.product_id);
+    const item_id = isWorkshop
       ? 'workshop-single'
       : String(item.product_id).trim();
 
-    const item_name = trimNonEmptyString(item.product_title) || '제품';
+    const item_name = isWorkshop
+      ? WORKSHOP_ANALYTICS_ITEM_NAME
+      : trimNonEmptyString(item.product_title);
 
     const variantParts = [
       trimNonEmptyString(item.option),
@@ -1205,10 +1210,12 @@ function buildAnalyticsPurchaseItemsFromSnapshot(
 
     const analyticsItem: AnalyticsPurchaseItem = {
       item_id,
-      item_name,
       price: unitPrice,
       quantity,
     };
+    if (item_name) {
+      analyticsItem.item_name = item_name;
+    }
     if (item_variant) {
       analyticsItem.item_variant = item_variant;
     }
