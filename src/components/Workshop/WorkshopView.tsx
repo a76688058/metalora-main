@@ -38,6 +38,17 @@ const STEPS = [
 
 type SizeType = 'A4' | 'Custom';
 
+/** Analytics identity only. Join sellable size/orientation. Separator is exact `" / "`. */
+function workshopAnalyticsItemVariant(
+  sizeValue: string | null | undefined,
+  orientationValue: string | null | undefined,
+): string | undefined {
+  const fragments = [sizeValue, orientationValue]
+    .map((fragment) => (typeof fragment === 'string' ? fragment.trim() : ''))
+    .filter((fragment) => fragment.length > 0);
+  return fragments.length > 0 ? fragments.join(' / ') : undefined;
+}
+
 // 3D Loaded Event Emitter Component
 function WorkshopCanvasLoadTracker() {
   useEffect(() => {
@@ -503,7 +514,7 @@ export default function WorkshopView({ onBack, onClose, hideHeader = false }: Wo
           {
             item_name: '나만의 커스텀 포스터',
             price: 49000,
-            item_variant: size,
+            item_variant: workshopAnalyticsItemVariant(size, orientation),
           },
         );
 
