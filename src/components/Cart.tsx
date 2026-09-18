@@ -30,6 +30,42 @@ interface CartProps {
 
 const TOSS_CLIENT_KEY = 'test_ck_Poxy1XQL8R9nPR9Xn61Xr7nO5Wml';
 
+function joinAnalyticsVariant(
+  ...fragments: Array<string | null | undefined>
+): string | undefined {
+  const parts = fragments
+    .map((fragment) => (typeof fragment === 'string' ? fragment.trim() : ''))
+    .filter((fragment) => fragment.length > 0);
+  return parts.length > 0 ? parts.join(' / ') : undefined;
+}
+
+function canonicalAnalyticsOrientation(
+  value: unknown,
+): 'portrait' | 'landscape' | undefined {
+  return value === 'portrait' || value === 'landscape' ? value : undefined;
+}
+
+function buildAnalyticsItem(input: {
+  item_id: string;
+  item_name?: string;
+  item_variant?: string;
+  price: number;
+  quantity: number;
+}): AnalyticsItem {
+  const item: Record<string, string | number> = {
+    item_id: input.item_id,
+    price: input.price,
+    quantity: input.quantity,
+  };
+  if (input.item_name) {
+    item.item_name = input.item_name;
+  }
+  if (input.item_variant) {
+    item.item_variant = input.item_variant;
+  }
+  return item as AnalyticsItem;
+}
+
 /** Map selected cart rows to safe GA4 ecommerce items (no PII / no custom image URLs). */
 function mapSelectedItemsToAnalyticsItems(
   items: Array<{
@@ -37,36 +73,41 @@ function mapSelectedItemsToAnalyticsItems(
     product_type: 'stock' | 'workshop';
     selected_option: string;
     quantity: number;
+    orientation?: string | null;
     custom_config?: { price?: number; size?: string };
     product?: Product;
   }>,
 ): AnalyticsItem[] {
   return items.map((item) => {
+    const orientation = canonicalAnalyticsOrientation(item.orientation);
+
     if (item.product_id === 'workshop-single' || item.product_type === 'workshop') {
       const unitPrice = item.custom_config?.price || 0;
-      const variant =
-        (typeof item.custom_config?.size === 'string' && item.custom_config.size) ||
-        '커스텀';
-      return {
+      const size =
+        typeof item.custom_config?.size === 'string' ? item.custom_config.size : undefined;
+      return buildAnalyticsItem({
         item_id: 'workshop-single',
-        item_name: item.product?.title || '커스텀 포스터',
-        item_variant: variant,
+        item_name: '나만의 커스텀 포스터',
+        item_variant: joinAnalyticsVariant(size, orientation),
         price: unitPrice,
         quantity: item.quantity,
-      };
+      });
     }
 
     const option = item.product?.options?.find(
       (opt) => opt.id === item.selected_option,
     );
     const unitPrice = option?.price ?? 0;
-    return {
+    const optionName = typeof option?.name === 'string' ? option.name : undefined;
+    const title =
+      typeof item.product?.title === 'string' ? item.product.title.trim() : '';
+    return buildAnalyticsItem({
       item_id: item.product_id,
-      item_name: item.product?.title || '제품',
-      ...(option?.name ? { item_variant: option.name } : {}),
+      item_name: title || undefined,
+      item_variant: joinAnalyticsVariant(optionName, orientation),
       price: unitPrice,
       quantity: item.quantity,
-    };
+    });
   });
 }
 
