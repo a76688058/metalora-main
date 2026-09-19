@@ -240,7 +240,7 @@ export const policies = {
     )
   },
   privacy: {
-    title: '개인정보 처리방침 (Metalora Legal v26.03.26)',
+    title: '개인정보 처리방침 (Metalora Legal v26.09.19)',
     content: (
       <div className="font-sans pb-8">
         <div className="bg-white dark:bg-zinc-900/40 p-6 rounded-2xl mb-10 border border-zinc-200 dark:border-white/5 shadow-sm">
@@ -356,7 +356,59 @@ export const policies = {
 
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제8조 (쿠키 및 자동 수집 장치)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>회사는 서비스 제공 및 이용 편의 향상을 위해 쿠키를 사용할 수 있습니다. 이용자는 브라우저 설정을 통해 쿠키 저장을 거부할 수 있으며, 이 경우 일부 서비스 이용이 제한될 수 있습니다.</p>
+          <p>회사는 서비스 제공 및 이용 편의 향상을 위해 쿠키를 사용할 수 있습니다. 쿠키의 종류와 선택 방법은 쿠키 정책에서 안내합니다.</p>
+          <p>이용자는 사이트의 쿠키 설정에서 분석 기능 허용 여부를 변경할 수 있습니다. 필수만 허용을 선택한 경우에도 필수적인 서비스 기능은 이용할 수 있습니다.</p>
+          <p>이와 별도로 브라우저 설정에서 쿠키를 차단하거나 삭제할 수 있으며, 이 경우에는 로그인 유지 등 일부 기능에 영향을 줄 수 있습니다.</p>
+        </div>
+        <Divider />
+
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제8조의2 (Google Analytics)</h3>
+        <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
+          <p>회사는 서비스 개선을 위해 Google Analytics를 사용합니다. Google Analytics는 Google이 제공하는 분석 서비스입니다.</p>
+          <p>분석 기능을 허용한 경우에만 작동하며, 필수만 허용을 선택한 경우 Google Analytics는 작동하지 않습니다.</p>
+          <p>분석 기능을 허용한 경우 이용자의 브라우저에서 Google Analytics의 분석 시스템으로 관련 정보가 전송될 수 있습니다.</p>
+          <p>Google Analytics는 다음 목적으로 사용될 수 있습니다.</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li>사이트 이용 현황 측정</li>
+            <li>페이지 및 상품 이용 분석</li>
+            <li>장바구니·결제 진행 과정 분석</li>
+            <li>구매/전환 측정</li>
+            <li>서비스 개선</li>
+          </ul>
+          <p>분석 기능을 허용한 경우 다음 정보가 처리될 수 있습니다.</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li>방문 페이지 및 경로</li>
+            <li>상품 조회 정보</li>
+            <li>장바구니 이용</li>
+            <li>결제 진행 과정</li>
+            <li>구매/전환 정보</li>
+            <li>상품 식별정보, 상품명, 옵션</li>
+            <li>거래 식별자</li>
+            <li>금액 및 통화</li>
+            <li>브라우저·기기 정보</li>
+            <li>대략적인 지역 정보</li>
+            <li>세션 및 이용 상호작용 정보</li>
+            <li>분석 식별자 및 분석 쿠키</li>
+          </ul>
+          <p>Google Analytics 설정에 따라 스크롤, 외부 링크 클릭, 사이트 검색, 파일 다운로드 등 일부 이용 상호작용이 자동으로 측정될 수 있습니다.</p>
+          <p>
+            Google이 정보를 사용하는 방식은{' '}
+            <a
+              href="https://policies.google.com/technologies/partner-sites?hl=ko"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-600 dark:text-purple-400 underline underline-offset-2"
+            >
+              Google이 서비스를 사용하는 사이트 또는 앱의 정보를 사용하는 방식
+            </a>
+            에서 확인할 수 있습니다.
+          </p>
+          <p>Google Analytics 관련 정보의 보관 기간은 다음과 같습니다.</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li>이벤트 수준 데이터: 현재 Google Analytics 계정 설정 기준 2개월</li>
+            <li>사용자 수준 데이터: 현재 계정 설정 기준 14개월이며, 새로운 활동 시 보관 기간이 갱신될 수 있습니다</li>
+            <li>분석 쿠키: Google 정책 및 이용 브라우저 정책에 따라 별도 기간이 적용됩니다</li>
+          </ul>
         </div>
         <Divider />
 
@@ -396,24 +448,24 @@ export const policies = {
 
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">부칙</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>본 방침은 2026년 3월 26일부터 시행됩니다.</p>
+          <p>본 방침은 2026년 9월 19일부터 시행됩니다.</p>
         </div>
       </div>
     )
   },
   cookie: {
-    title: '쿠키 정책 (Metalora Cookie Policy v26.03.26)',
+    title: '쿠키 정책 (Metalora Cookie Policy v26.09.19)',
     content: (
       <div className="font-sans pb-8">
         <div className="bg-white dark:bg-zinc-900/40 p-6 rounded-2xl mb-10 border border-zinc-200 dark:border-white/5 shadow-sm">
           <p className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-200 font-semibold">
-            더 나은 서비스 경험과 안정적인 접속을 위해 쿠키(Cookie)를 사용합니다.<br/>
-            필수적인 기능 외의 쿠키는 <span className="text-purple-600 dark:text-purple-400">브라우저 설정에서 언제든지 거부</span>하실 수 있습니다.
+            더 나은 서비스 제공을 위해 쿠키(Cookie)를 사용합니다.<br/>
+            분석 기능은 <span className="text-purple-600 dark:text-purple-400">허용한 경우에만</span> 작동하며, 필수만 허용을 선택한 경우 Google Analytics는 작동하지 않습니다.
           </p>
         </div>
 
         <p className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-300 font-normal mb-8">
-          주식회사 메탈로라(이하 "회사")는 이용자에게 보다 원활하고 개인화된 서비스를 제공하기 위하여 쿠키(Cookie)를 사용합니다. 본 쿠키 정책은 쿠키의 사용 목적 및 관리 방법에 대해 설명합니다.
+          주식회사 메탈로라(이하 "회사")는 사이트 이용을 파악하고 서비스를 개선하기 위해 쿠키(Cookie)를 사용합니다. 본 쿠키 정책은 쿠키의 사용 목적 및 관리 방법에 대해 설명합니다.
         </p>
 
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제1조 (쿠키의 정의)</h3>
@@ -442,7 +494,7 @@ export const policies = {
             <div className="p-2 bg-zinc-50 dark:bg-zinc-800 rounded-lg text-zinc-900 dark:text-white border border-zinc-100 dark:border-white/5 flex-shrink-0"><BarChart3 size={20} /></div>
             <div>
               <h4 className="text-zinc-900 dark:text-white font-bold mb-1">서비스 개선 분석</h4>
-              <p className="text-[14px] text-zinc-900 dark:text-zinc-400 leading-relaxed font-medium">익명화된 방문 기록을 분석하여 더 나은 UI/UX를 설계하는 데 활용합니다.</p>
+              <p className="text-[14px] text-zinc-900 dark:text-zinc-400 leading-relaxed font-medium">분석 식별자와 이용 기록을 바탕으로 사이트 이용을 파악하고 서비스를 개선합니다.</p>
             </div>
           </div>
         </div>
@@ -453,7 +505,7 @@ export const policies = {
           <ol className="list-decimal pl-5 space-y-4">
             <li>
               <span className="font-bold text-zinc-900 dark:text-white">필수 쿠키</span><br/>
-              서비스 제공에 반드시 필요한 쿠키로, 로그인 유지 및 보안 기능에 사용됩니다.
+              서비스 제공에 필요한 쿠키로, 로그인 유지 및 보안 기능에 사용됩니다.
             </li>
             <li>
               <span className="font-bold text-zinc-900 dark:text-white">기능 쿠키</span><br/>
@@ -461,21 +513,19 @@ export const policies = {
             </li>
             <li>
               <span className="font-bold text-zinc-900 dark:text-white">분석 쿠키</span><br/>
-              이용자의 서비스 이용 패턴을 분석하여 서비스 개선에 활용됩니다.
-            </li>
-            <li>
-              <span className="font-bold text-zinc-900 dark:text-white">마케팅 쿠키 (적용 시)</span><br/>
-              이용자의 관심사에 맞는 광고 제공을 위해 사용될 수 있습니다.
+              분석 기능을 허용한 경우 사이트 이용 및 참여도를 측정하기 위해 사용됩니다.
             </li>
           </ol>
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제4조 (쿠키의 저장 및 거부)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제4조 (쿠키의 저장 및 선택)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-400 font-normal space-y-3">
           <ol className="list-decimal pl-5 space-y-3">
-            <li>이용자는 웹 브라우저 설정을 통해 쿠키 저장을 거부하거나 삭제할 수 있습니다.</li>
-            <li>쿠키 저장을 거부할 경우 로그인 유지 등 일부 서비스 이용에 제한이 발생할 수 있습니다.</li>
+            <li>이용자는 처음 방문 시 분석 기능을 허용하거나 필수만 허용할 수 있습니다.</li>
+            <li>필수만 허용을 선택한 경우 Google Analytics는 작동하지 않으며, 필수적인 서비스 기능은 계속 이용할 수 있습니다.</li>
+            <li>이후에는 사이트의 쿠키 설정에서 분석 기능 허용 여부를 변경할 수 있습니다.</li>
+            <li>이와 별도로 웹 브라우저 설정에서 쿠키를 차단하거나 삭제할 수 있습니다. 브라우저에서 쿠키를 차단하면 로그인 유지 등 일부 기능에 영향을 줄 수 있습니다.</li>
           </ol>
           <div className="mt-6 p-6 bg-white dark:bg-zinc-900/40 rounded-2xl border border-zinc-200 dark:border-white/5 shadow-sm">
             <p className="font-bold text-zinc-950 dark:text-zinc-200 mb-3">※ 브라우저별 설정 방법 (예시)</p>
@@ -488,9 +538,15 @@ export const policies = {
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제5조 (제3자 쿠키)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제5조 (Google Analytics 분석 쿠키)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-400 font-normal space-y-3">
-          <p>회사는 서비스 분석 및 기능 제공을 위해 제3자 서비스 제공자의 쿠키를 사용할 수 있습니다.<br/>이 경우 해당 쿠키는 각 제공자의 정책에 따라 관리됩니다.</p>
+          <p>분석 기능을 허용한 경우, 자사 도메인에 설정되는 Google Analytics 분석 쿠키가 사용될 수 있습니다.</p>
+          <p>현재 사용되는 분석 쿠키는 다음과 같습니다.</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li><span className="text-zinc-900 dark:text-white font-medium">_ga</span>: 이용자와 세션을 구분하기 위한 분석 식별자</li>
+            <li><span className="text-zinc-900 dark:text-white font-medium">_ga_T2FFXETHTZ</span>: 사이트 이용 및 참여도를 측정하기 위한 분석 쿠키</li>
+          </ul>
+          <p>분석 쿠키의 보관 기간은 Google 정책 및 이용 브라우저 정책에 따라 별도로 적용되며, Google Analytics 계정에 설정된 이벤트·사용자 데이터 보관 기간과는 다릅니다.</p>
         </div>
         <Divider />
 
@@ -502,7 +558,7 @@ export const policies = {
 
         <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">부칙</h3>
         <div className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-400 font-normal space-y-3">
-          <p>본 정책은 2026년 3월 26일부터 시행됩니다.</p>
+          <p>본 정책은 2026년 9월 19일부터 시행됩니다.</p>
         </div>
       </div>
     )
