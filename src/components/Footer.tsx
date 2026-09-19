@@ -74,29 +74,40 @@ export default function Footer() {
           </div>
 
           {/* Policies */}
-          <div className="flex flex-wrap items-start justify-center gap-x-5 gap-y-3">
-            {(
-              [
-                ['terms', '이용약관'],
-                ['refund', '환불정책'],
-                ['privacy', '개인정보 처리방침'],
-                ['cookie', '쿠키 정책'],
-                ['agreement', '제작동의서'],
-              ] as const
-            ).map(([key, label]) => (
-              <Link
-                key={key}
-                to={`/policy/${key}`}
-                className="focus-ring type-label text-text-secondary transition-colors hover:text-text-primary"
-                onClick={(event) => {
-                  if (!isUnmodifiedPrimaryClick(event)) return;
-                  event.preventDefault();
-                  openModal(key);
+          <div className="flex justify-center self-start">
+            <div className="flex w-full flex-wrap items-start justify-center gap-x-5 gap-y-3 md:grid md:w-max md:grid-cols-3 md:auto-rows-min md:justify-items-start">
+              {(
+                [
+                  ['terms', '이용약관'],
+                  ['refund', '환불정책'],
+                  ['privacy', '개인정보 처리방침'],
+                  ['cookie', '쿠키 정책'],
+                  ['agreement', '제작동의서'],
+                ] as const
+              ).map(([key, label]) => (
+                <Link
+                  key={key}
+                  to={`/policy/${key}`}
+                  className="focus-ring type-label text-text-secondary transition-colors hover:text-text-primary"
+                  onClick={(event) => {
+                    if (!isUnmodifiedPrimaryClick(event)) return;
+                    event.preventDefault();
+                    openModal(key);
+                  }}
+                >
+                  {label}
+                </Link>
+              ))}
+              <button
+                type="button"
+                className="focus-ring type-label border-0 bg-transparent p-0 text-text-secondary transition-colors hover:text-text-primary"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('open-cookie-settings'));
                 }}
               >
-                {label}
-              </Link>
-            ))}
+                쿠키 설정
+              </button>
+            </div>
           </div>
 
           {/* Contact */}
