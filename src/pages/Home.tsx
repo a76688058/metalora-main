@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useProducts } from '../context/ProductContext';
 import { useSearchParams, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { Clock, Shuffle } from 'lucide-react';
 import ProductGrid from '../components/ProductGrid';
 import ProductCard from '../components/ProductCard';
@@ -19,6 +20,7 @@ const ARTWORK_IMAGE_SIZES =
 export default function Home() {
   const { products, isLoading, isError, fetchProducts } = useProducts();
   const { theme } = useTheme();
+  const { requestCustomAccess } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
   const isSearchMode = Boolean(searchQuery);
@@ -194,21 +196,16 @@ export default function Home() {
         >
           <div className="hidden md:block" aria-hidden="true" />
           <div className="flex flex-col items-center text-center">
-            <h2
-              className="type-product-title text-text-primary"
-              style={{ fontSize: 26 }}
-            >
+            <h2 className="type-page-title text-pretty text-center text-text-primary [word-break:keep-all] !text-[2.25rem] !leading-[1.12] !tracking-[-0.02em] md:!text-[3rem] md:!leading-[1.1]">
               고르거나, 만들거나.
             </h2>
-            <p
-              className="text-sm text-text-secondary"
-              style={{
-                fontSize: 14,
-                opacity: 'var(--hero-artworks-subtitle-enter, 1)',
-              }}
+            <button
+              type="button"
+              onClick={() => requestCustomAccess()}
+              className="focus-ring mt-4 inline-flex min-h-11 items-center justify-center type-label !text-[1.0625rem] !leading-snug md:!text-[1.125rem] text-text-secondary underline-offset-4 hover:text-text-primary hover:underline focus-visible:text-text-primary"
             >
-              고르기 · 만들기
-            </p>
+              커스텀 제작 →
+            </button>
           </div>
           <div className="flex flex-col items-center gap-3 md:items-end">
             {isSearchMode ? (

@@ -1,15 +1,15 @@
 # METALORA project state
 
-Persistent checkpoint for session handoff. Last updated after **NEW 2A USER-FEEDBACK CONTRACT AMENDED** (docs only; A1 Header WIP preserved; AuthContext not started).
+Persistent checkpoint for session handoff. Last updated after **NEW 2A CLOSED** (customer navigation / IA; no deploy).
 
 This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master migration: `docs/decisions/NEW-1_launch-pipeline-v2.md`. NEW 2A contract: `docs/decisions/NEW-2A_menu-ia-consistency.md`.
 
 **Current operating mode: `NEW LAUNCH PIPELINE v2 ACTIVE`.**
 **NEW 1 — ROADMAP / SCOPE LOCK: CLOSED.**
-**NEW 2A: OPEN** — **USER-FEEDBACK CONTRACT AMENDED**. Same stage. Not closed/reopened.
+**NEW 2A: CLOSED.** Implementation, user visual approval, A5 targeted QA, and A5 short-delta QA **PASS**. Orphan `CustomerNavSheet` removed.
 **NEW 2B–2F: NOT OPENED.**
 
-NEXT SOURCE SLICE: **A0 AuthContext shared Custom access** (`requestCustomAccess`). **Not started.** Do not implement from this file. Do not assign A1/A2 from this file. Preserve uncommitted A1 WIP (`Header.tsx`, `CustomerNavSheet.tsx`) until an A1 revision ticket after AuthContext. Every remaining NEW stage and every NEW 2 substage still requires an **A0 PRE-STAGE REPORT** before writes.
+NEXT: **A0 PRE-STAGE REPORT — NEW 2B** (커스텀 제작 UX/UI). Do **not** open NEW 2B from this file. HARD STOP until user/orchestration review and OPEN READY. Every remaining NEW stage and every NEW 2 substage still requires an **A0 PRE-STAGE REPORT** before writes.
 
 ---
 
@@ -18,9 +18,9 @@ NEXT SOURCE SLICE: **A0 AuthContext shared Custom access** (`requestCustomAccess
 | Item | Value |
 |------|--------|
 | Operating mode | **NEW LAUNCH PIPELINE v2 ACTIVE** |
-| Current stage | **NEW 2A OPEN** — user-feedback contract amended; next source = A0 AuthContext (not started) |
-| NEW 2 | family; only **2A OPEN**; 2B–2F not opened |
-| NEW 2A | **OPEN / AMENDED** — `docs/decisions/NEW-2A_menu-ia-consistency.md` |
+| Current stage | **NEW 2A CLOSED** — next is A0 PRE-STAGE REPORT NEW 2B (not opened) |
+| NEW 2 | family; **2A CLOSED**; 2B–2F not opened |
+| NEW 2A | **CLOSED** — `docs/decisions/NEW-2A_menu-ia-consistency.md` |
 | Historical `#16`–`#23` | **CLOSED** |
 | Prior PRE-LAUNCH HOLD | **SUPERSEDED AS CURRENT MODE** (preserved historically) |
 | BASELINE DEVELOPMENT COMPLETE | **YES** (through `#23`) |
@@ -159,19 +159,19 @@ Durable record: `docs/decisions/20F-0_account-side-backup-confirmation.md` (unch
 | Historical `#20F` | MIGRATED → **NEW 6** (not started) |
 | Historical `#24` | NOT OPENED; remaining work → NEW 4 / 7 / 8 / 9 |
 | **NEW 1** | **CLOSED** — roadmap / scope lock |
-| **NEW 2** | family; **2A OPEN**; 2B–2F **NOT OPENED** |
-| **NEW 2A** | **OPEN** — user-feedback contract amended; AuthContext slice not started |
+| **NEW 2** | family; **2A CLOSED**; 2B–2F **NOT OPENED** |
+| **NEW 2A** | **CLOSED** — customer nav / IA; visual approval + A5 PASS |
 | NEW 2B–2F | **NOT OPENED** |
 | NEW 3–5 | not opened |
 | NEW 6 | not started (hard gate before NEW 7) |
 | NEW 7–9 | not opened |
 | LIVE | **NO** |
 
-Upcoming main path: **docs durability (preserve A1 WIP) → A0 AuthContext `requestCustomAccess` → A1 Header revision → visual checkpoint 1 → A2 Home headline/CTA → visual checkpoint 2 → A3 Cart + A2 PDP rail strings → A5** → remaining NEW 2 family ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
+Upcoming main path: **A0 PRE-STAGE REPORT — NEW 2B** (not opened) → remaining NEW 2 family ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
 
-**NEW 2A** = OPEN (amended): icon-led Header (no desktop Custom text); mobile sheet keeps Custom; Home limited CTA `커스텀 제작 →`; shared AuthContext access; global search `/?q=`; cart = `장바구니`. **NEW 2B** = dedicated 커스텀 제작 UX/UI (not opened; not Profile polish). Do not execute NEW 2 as one giant ticket.
+**NEW 2A** = **CLOSED.** Final Header: Search / Theme / Logo / Account / Cart on desktop and mobile; no persistent Custom text; no mobile `메뉴` / hamburger / CustomerNavSheet. Primary Custom discovery: Home `커스텀 제작 →` via `requestCustomAccess()`. Cart commerce term = `장바구니`. Global search → `/?q=`. **NEW 2B** = dedicated 커스텀 제작 UX/UI (not opened; not Profile polish). Do not execute NEW 2 as one giant ticket.
 
-Frozen complete (do not redesign): Home/Hero, PDP Desktop, PDP Mobile Story, Product Truth, Mount/Included, OWC, Product Information, PDP Footer — except NEW 2A Header/sheet chrome, the authorized Home.tsx headline/CTA stack, and copy-only PDP rail cart-term strings listed in the 2A note.
+Frozen complete (do not redesign): Home/Hero, PDP Desktop, PDP Mobile Story, Product Truth, Mount/Included, OWC, Product Information, PDP Footer — except the closed NEW 2A Header chrome, Home.tsx headline/CTA stack, and copy-only PDP rail cart-term strings listed in the 2A note.
 
 Optional pre-launch and post-launch/data branches stay **outside** the blocking path unless explicitly promoted. See `docs/decisions/NEW-1_launch-pipeline-v2.md`.
 

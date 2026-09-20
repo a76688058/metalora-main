@@ -244,7 +244,7 @@ export function ProductTheatreRail({
         {errorMsg ? <p className="type-supporting text-error">{errorMsg}</p> : null}
         {isWorkshopReturn ? (
           <Button fullWidth onClick={onOpenCart}>
-            내 컬렉션으로
+            장바구니로
           </Button>
         ) : (
           <Button
@@ -254,17 +254,17 @@ export function ProductTheatreRail({
             loading={isAddingToCart}
           >
             {isAddingToCart
-              ? '컬렉션에 담는 중...'
+              ? '장바구니에 담는 중...'
               : isAdded
                 ? (
                     <span className="inline-flex items-center gap-2">
                       <Check size={16} strokeWidth={1.5} />
-                      컬렉션에 담겼습니다
+                      장바구니에 담겼습니다
                     </span>
                   )
                 : isSoldOut
                   ? '품절'
-                  : '내 컬렉션에 담기'}
+                  : '장바구니에 담기'}
           </Button>
         )}
 

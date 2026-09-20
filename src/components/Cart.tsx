@@ -717,7 +717,7 @@ export default function Cart() {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5">
           <h2 className={`text-2xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-            {step === 1 ? '내 컬렉션' : '주문하기'}
+            {step === 1 ? '장바구니' : '주문하기'}
           </h2>
           <button 
             onClick={onClose}
@@ -731,7 +731,7 @@ export default function Cart() {
 
         {/* Step Indicator */}
         <div className="px-6 pb-4 flex items-center gap-3 text-base font-bold tracking-tighter">
-          <span className={step === 1 ? (theme === 'dark' ? 'text-white' : 'text-black') : 'text-zinc-500'}>1. 내 컬렉션</span>
+          <span className={step === 1 ? (theme === 'dark' ? 'text-white' : 'text-black') : 'text-zinc-500'}>1. 장바구니</span>
           <ChevronRight className="text-zinc-500/30" size={16} />
           <span className={step === 2 ? (theme === 'dark' ? 'text-white' : 'text-black') : 'text-zinc-500'}>2. 주문서</span>
           <ChevronRight className="text-zinc-500/30" size={16} />
@@ -755,7 +755,7 @@ export default function Cart() {
                     <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${theme === 'dark' ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
                       <ShoppingBag size={32} className="text-zinc-400" />
                     </div>
-                    <p className={`text-lg font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>내 컬렉션이 비어있어요</p>
+                    <p className={`text-lg font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>장바구니가 비어있어요</p>
                     <button 
                       onClick={() => {
                         onClose();

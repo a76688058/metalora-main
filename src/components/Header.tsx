@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, lazy, Suspense, useCallback } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { Link, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { Search, User, Frame, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,7 +10,6 @@ import { IconButton } from './ui/IconButton';
 import { cn } from '../lib/cn';
 import { zClass } from '../constants/overlays';
 import AnnouncementBar from './AnnouncementBar';
-import CustomerNavSheet from './CustomerNavSheet';
 
 const LoginModal = lazy(() => import('./LoginModal'));
 
@@ -21,7 +20,6 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [hasOpenedLoginModal, setHasOpenedLoginModal] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isNavOpen, setIsNavOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const {
     user,
@@ -34,7 +32,6 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     isWorkshopOpen,
     closeWorkshop,
     pendingCustomAccess,
-    requestCustomAccess,
     clearPendingCustomAccess,
   } = useAuth();
   const { cartItems, isCartOpen, openCart, closeCart } = useCart();
@@ -50,7 +47,6 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const isComposing = useRef(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const searchToggleRef = useRef<HTMLButtonElement>(null);
-  const menuToggleRef = useRef<HTMLButtonElement>(null);
 
   const currentUser = user || adminUser;
   const isAdmin = profile?.is_admin || adminProfile?.is_admin;
@@ -69,10 +65,6 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const closeCustomerNav = useCallback(() => {
-    setIsNavOpen(false);
-  }, []);
-
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -89,29 +81,23 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   }, [isSearchOpen]);
 
   useEffect(() => {
-    if (!isSearchOpen || isNavOpen) return;
+    if (!isSearchOpen) return;
 
     const handleSearchEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
       setIsSearchOpen(false);
-      const searchToggle = searchToggleRef.current;
-      if (searchToggle && searchToggle.offsetParent !== null) {
-        searchToggle.focus();
-        return;
-      }
-      menuToggleRef.current?.focus();
+      searchToggleRef.current?.focus();
     };
 
     document.addEventListener('keydown', handleSearchEscape);
     return () => {
       document.removeEventListener('keydown', handleSearchEscape);
     };
-  }, [isSearchOpen, isNavOpen]);
+  }, [isSearchOpen]);
 
   useEffect(() => {
     setIsSearchOpen(false);
-    setIsNavOpen(false);
   }, [location.pathname]);
 
   const updateHomeSearch = (value: string) => {
@@ -154,7 +140,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     }
   };
 
-  const isHeroTop = isHome && !isScrolled && !isSearchOpen && !isNavOpen;
+  const isHeroTop = isHome && !isScrolled && !isSearchOpen;
   const isDark = theme === 'dark';
 
   const openLoginModal = () => {
@@ -179,16 +165,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     setIsLoginModalOpen(true);
   }, [pendingCustomAccess, currentUser, isLoginModalOpen, registerLoginOverlay]);
 
-  const handleCustom = () => {
-    setIsNavOpen(false);
-    setIsSearchOpen(false);
-    if (isCartOpen) closeCart();
-    if (isProfileOpen) closeProfile();
-    requestCustomAccess();
-  };
-
   const handleAccount = () => {
-    setIsNavOpen(false);
     clearPendingCustomAccess();
     if (currentUser) {
       if (isProfileOpen) {
@@ -204,11 +181,6 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     if (isWorkshopOpen) closeWorkshop();
     setIsSearchOpen(false);
     openLoginModal();
-  };
-
-  const handleOpenSearch = () => {
-    setIsNavOpen(false);
-    setIsSearchOpen(true);
   };
 
   const iconTone = isHeroTop
@@ -230,16 +202,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
         )}
         style={{ transitionDuration: 'var(--duration-normal)' }}
       >
-        {isNavOpen && (
-          <button
-            type="button"
-            aria-label="메뉴 닫기"
-            className="fixed inset-0 bg-overlay-backdrop"
-            onClick={closeCustomerNav}
-          />
-        )}
-
-        <motion.div className="relative flex w-full flex-col">
+        <motion.div className="flex w-full flex-col">
           <AnnouncementBar />
 
           <div
@@ -248,25 +211,6 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
           >
             {/* Left controls */}
             <div className="flex min-w-0 flex-1 items-center justify-start gap-1 sm:gap-2">
-              <button
-                ref={menuToggleRef}
-                type="button"
-                aria-label="메뉴"
-                aria-expanded={isNavOpen}
-                aria-controls="customer-nav-sheet"
-                onClick={() => {
-                  setIsSearchOpen(false);
-                  setIsNavOpen((open) => !open);
-                }}
-                className={cn(
-                  'focus-ring type-label inline-flex min-h-11 shrink-0 items-center border-0 bg-transparent px-2 md:hidden',
-                  iconTone,
-                  isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10',
-                )}
-              >
-                메뉴
-              </button>
-
               <IconButton
                 ref={searchToggleRef}
                 variant="ghost"
@@ -274,11 +218,10 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 aria-expanded={isSearchOpen}
                 aria-controls={SEARCH_PANEL_ID}
                 onClick={() => {
-                  setIsNavOpen(false);
                   setIsSearchOpen((open) => !open);
                 }}
                 className={cn(
-                  'hidden shrink-0 md:inline-flex',
+                  'shrink-0',
                   iconTone,
                   isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10',
                 )}
@@ -302,7 +245,6 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 to="/"
                 className="pointer-events-auto flex items-center justify-center"
                 onClick={(e) => {
-                  closeCustomerNav();
                   if (isCartOpen) closeCart();
                   if (isProfileOpen) closeProfile();
                   if (isWorkshopOpen) closeWorkshop();
@@ -335,11 +277,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                   variant="ghost"
                   aria-label={accountLabel}
                   onClick={handleAccount}
-                  className={cn(
-                    'hidden shrink-0 md:inline-flex',
-                    iconTone,
-                    isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10',
-                  )}
+                  className={cn('shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
                 >
                   <User size={20} strokeWidth={1.5} />
                 </IconButton>
@@ -348,11 +286,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                   variant="ghost"
                   aria-label="로그인"
                   onClick={handleAccount}
-                  className={cn(
-                    'hidden shrink-0 md:inline-flex',
-                    iconTone,
-                    isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10',
-                  )}
+                  className={cn('shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
                 >
                   <User size={20} strokeWidth={1.5} />
                 </IconButton>
@@ -362,7 +296,6 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 variant="ghost"
                 aria-label="장바구니"
                 onClick={(e) => {
-                  closeCustomerNav();
                   setIsSearchOpen(false);
                   if (!currentUser) {
                     e.preventDefault();
@@ -393,15 +326,6 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
               </IconButton>
             </div>
           </div>
-
-          <CustomerNavSheet
-            isOpen={isNavOpen}
-            onClose={closeCustomerNav}
-            onCustom={handleCustom}
-            onSearch={handleOpenSearch}
-            onAccount={handleAccount}
-            accountLabel={accountLabel}
-          />
 
           <AnimatePresence>
             {isSearchOpen && (
