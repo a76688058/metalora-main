@@ -1,14 +1,15 @@
 # METALORA project state
 
-Persistent checkpoint for session handoff. Last updated after **NEW 1 CLOSED** (Launch Pipeline v2 scope lock).
+Persistent checkpoint for session handoff. Last updated after **NEW 2A OPEN** (menu / IA decision lock; no UI implementation).
 
-This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master migration: `docs/decisions/NEW-1_launch-pipeline-v2.md`.
+This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master migration: `docs/decisions/NEW-1_launch-pipeline-v2.md`. NEW 2A contract: `docs/decisions/NEW-2A_menu-ia-consistency.md`.
 
 **Current operating mode: `NEW LAUNCH PIPELINE v2 ACTIVE`.**
 **NEW 1 — ROADMAP / SCOPE LOCK: CLOSED.**
-**NEW 2 / NEW 2A: NOT OPENED.**
+**NEW 2A: OPEN** (decision lock / stage contract). UI implementation is **not** started. Writers are **not** assigned.
+**NEW 2B–2F: NOT OPENED.**
 
-NEXT: **A0 PRE-STAGE REPORT — NEW 2A** (Global Menu / Information Architecture Consistency). Do not implement. Do not assign A1. Every NEW stage and every NEW 2 substage requires an **A0 PRE-STAGE REPORT** before writes.
+NEXT: Orchestration review → separate owner implementation tickets for NEW 2A. Do not implement from this file. Do not assign A1 from this file. Every remaining NEW stage and every NEW 2 substage still requires an **A0 PRE-STAGE REPORT** before writes.
 
 ---
 
@@ -17,9 +18,9 @@ NEXT: **A0 PRE-STAGE REPORT — NEW 2A** (Global Menu / Information Architecture
 | Item | Value |
 |------|--------|
 | Operating mode | **NEW LAUNCH PIPELINE v2 ACTIVE** |
-| Current stage | **NEW 1 CLOSED** — next is A0 PRE-STAGE REPORT NEW 2A (not opened) |
-| NEW 2 | **NOT OPENED** |
-| NEW 2A | **NOT OPENED** |
+| Current stage | **NEW 2A OPEN** — decision lock; no UI implementation |
+| NEW 2 | family; only **2A OPEN**; 2B–2F not opened |
+| NEW 2A | **OPEN** — `docs/decisions/NEW-2A_menu-ia-consistency.md` |
 | Historical `#16`–`#23` | **CLOSED** |
 | Prior PRE-LAUNCH HOLD | **SUPERSEDED AS CURRENT MODE** (preserved historically) |
 | BASELINE DEVELOPMENT COMPLETE | **YES** (through `#23`) |
@@ -158,18 +159,19 @@ Durable record: `docs/decisions/20F-0_account-side-backup-confirmation.md` (unch
 | Historical `#20F` | MIGRATED → **NEW 6** (not started) |
 | Historical `#24` | NOT OPENED; remaining work → NEW 4 / 7 / 8 / 9 |
 | **NEW 1** | **CLOSED** — roadmap / scope lock |
-| **NEW 2** | **NOT OPENED** (family 2A–2F; each needs its own A0 report) |
-| **NEW 2A** | **NOT OPENED** — next action is A0 PRE-STAGE REPORT only |
+| **NEW 2** | family; **2A OPEN**; 2B–2F **NOT OPENED** |
+| **NEW 2A** | **OPEN** — menu / IA decision lock; no UI yet |
+| NEW 2B–2F | **NOT OPENED** |
 | NEW 3–5 | not opened |
 | NEW 6 | not started (hard gate before NEW 7) |
 | NEW 7–9 | not opened |
 | LIVE | **NO** |
 
-Upcoming main path: **NEW 2A A0 PRE-STAGE REPORT** (not an open/implement ticket) → then remaining NEW 2 family ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
+Upcoming main path: **NEW 2A implementation tickets after orchestration review** → remaining NEW 2 family ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
 
-**NEW 2A** = required menu / IA consistency. **NEW 2B** = required dedicated 커스텀 제작 UX/UI (not Profile polish). Do not execute NEW 2 as one giant ticket.
+**NEW 2A** = OPEN menu / IA contract (hybrid Header, labelled mobile sheet, global search to `/?q=`, Custom nav entry with auth-gated Workshop, cart = `장바구니`). **NEW 2B** = dedicated 커스텀 제작 UX/UI (not opened; not Profile polish). Do not execute NEW 2 as one giant ticket.
 
-Frozen complete (do not redesign): Home/Hero, PDP Desktop, PDP Mobile Story, Product Truth, Mount/Included, OWC, Product Information, PDP Footer.
+Frozen complete (do not redesign): Home/Hero, PDP Desktop, PDP Mobile Story, Product Truth, Mount/Included, OWC, Product Information, PDP Footer. NEW 2A allows shared Header chrome plus copy-only PDP rail cart-term strings listed in the 2A note.
 
 Optional pre-launch and post-launch/data branches stay **outside** the blocking path unless explicitly promoted. See `docs/decisions/NEW-1_launch-pipeline-v2.md`.
 
