@@ -4,139 +4,155 @@ Status: OPEN
 
 Date: 2026-09-20
 
-Decision: NEW 2A is **OPEN** as a docs/scope contract only. Implementation is **not** started. Writers are **not** assigned in this note. Execute only via later owner tickets after orchestration review.
+Amendment: **AMEND IN PLACE** (2026-09-20 user visual feedback). Same numbered stage. Not closed. Not reopened. No NEW 2A-2. NEW 2B remains **NOT OPENED**.
 
-This note does **not** open NEW 2B–2F. It does **not** authorize a public `/workshop` or `/shop`/`/search` route, Home CTA, Workshop internals, payment, Supabase, deploy, or Rules edits.
+Decision: NEW 2A is **OPEN**. Current sub-status: **USER-FEEDBACK CONTRACT AMENDED**. Next source slice is **A0 AuthContext shared Custom access**. That source slice is **not started** in this note.
+
+This note does **not** assign writers. It does **not** authorize a public `/workshop` or `/shop`/`/search` route, Workshop internals, payment, Supabase, deploy, or Rules edits. Preserve uncommitted A1 WIP (`Header.tsx`, `CustomerNavSheet.tsx`) until an A1 revision ticket.
+
+---
+
+## Contract handling
+
+User visual review of the uncommitted A1 Header changed an IA **presentation** decision inside the already-open stage. Governance: **AMEND IN PLACE**.
 
 ---
 
 ## Report conclusions (NEW 2A PRE-STAGE)
 
-Current customer IA is Home-as-catalog + icon-only Header + overlay account/commerce.
+Current customer IA is Home-as-catalog + icon-led Header + overlay account/commerce.
 
-- Custom is Profile-only and undiscoverable when logged out
-- Search is Home-only (`/?q=` + Home gallery)
-- Frame icon is labelled `내 컬렉션` but opens Cart
+- Search was Home-only (`/?q=` + Home gallery) — 2A makes it global
+- Frame icon was labelled `내 컬렉션` but opens Cart — commerce term becomes `장바구니`
 - LoginModal and `/login` both exist and both are required
 - Footer is legal/company, not primary nav
-- Frozen Home copy 「고르거나, 만들거나」 is not an entry and must not be turned into a Home CTA
 - Mega-nav / Shop page / Admin hamburger copy are not justified
 
 ---
 
 ## Locked product decisions
 
-### Custom 제작
+### Custom 제작 — discoverability (AMENDED)
 
-Must be discoverable from customer navigation for **logged-out and logged-in** visitors. Must not require User → Profile → 커스텀 제작 to learn it exists.
+Must be discoverable for **logged-out and logged-in** visitors without requiring User → Profile → 커스텀 제작.
 
-Workshop **use** remains AUTH-GATED. No public Workshop implementation. No `/workshop` route in this stage. No Home CTA.
+Workshop **use** remains AUTH-GATED. No public Workshop. No `/workshop` route.
 
-**Entry model:**
+**Current discoverability model:**
 
-customer-visible nav entry
-→ logged in: existing `openWorkshop()` / `WorkshopOverlay`
-→ logged out: existing Header `LoginModal` with preserved Custom intent
-→ after successful login/signup: continue into existing Custom path
+| Surface | Rule |
+|---|---|
+| Desktop Home | Primary: editorial CTA `커스텀 제작 →` under `고르거나, 만들거나.` |
+| Desktop Header | **NO** persistent Custom text CTA |
+| Mobile Header bar | **NO** direct Custom text CTA |
+| Mobile `CustomerNavSheet` | **KEEP** labelled `커스텀 제작` |
+| ProfileOverlay | May remain as a secondary account path |
 
-**Pending-intent implementation (safer equivalent, preferred):**
+**SUPERSEDED:** Desktop hybrid Header as a persistent visible text destination `커스텀 제작`. That presentation is withdrawn to restore the original minimal/icon-led Header balance. This does **not** remove Custom discoverability from the product.
 
-Do **not** change Workshop internals, `AuthContext` overlay API, or `App.tsx` merely to store intent.
+### Shared Custom access (AMENDED)
 
-`Header` (A1) already mounts `LoginModal` and already can call `openWorkshop()`. Safer than threading a new LoginModal prop:
+Header-local `pendingCustomIntent` is **no longer sufficient**. Custom now has multiple entry points (Home CTA + mobile sheet, plus optional Profile).
 
-1. Custom click while logged in → `openWorkshop()`
-2. Custom click while logged out → set Header-local `pendingCustomIntent` → open existing LoginModal
-3. Header effect: if session user becomes present **and** `pendingCustomIntent` → `openWorkshop()` + clear intent
-4. LoginModal dismiss without auth → clear intent
-5. Ordinary User/Login click must **not** set Custom intent
+**Required:** AuthContext owns `requestCustomAccess()` and the shared pending Custom intent lifecycle.
 
-`LoginModal.onSuccess` already exists (login and signup). Treat it as a secondary path; do not require a LoginModal write if Header session-watch is sufficient.
+| Case | Behavior |
+|---|---|
+| Logged in | `requestCustomAccess()` → existing Workshop-opening flow → **exactly once** |
+| Logged out | record pending Custom intent → existing **Header-mounted** LoginModal → after successful auth → Workshop **exactly once** → clear pending |
+| Login dismissed/cancelled | clear pending |
+| Ordinary login (User icon, cart-gated login, `/login`) | must **not** set Custom intent |
 
-ProfileOverlay “커스텀 제작” may **remain** as an additional account path. Do not move Orders / 1:1 문의 / 프로필 수정 into Header.
+No persistence: no localStorage, URL flag, cookie, or DB flag. No public Workshop route.
 
-### Desktop Header
+`LoginModal.tsx` write is **not** expected if Header still opens the existing modal when pending is set. If that proves insufficient: STOP → dependency request.
 
-**HYBRID.** Preserve minimal storefront character.
+`App.tsx` write is **not** expected. `ShellOverlayContext` is **not** the owner of Custom intent.
+
+### Desktop Header (AMENDED)
+
+**HYBRID / icon-led.** Preserve minimal storefront character.
 
 - Logo = Brand/Home
-- 커스텀 제작 = clearly discoverable primary destination
+- **No** persistent `커스텀 제작` text on the bar
 - Account = utility
 - Cart = clearly understandable commerce entry (`장바구니`)
 - Theme = utility, not a destination
-- Search = globally reachable
+- Search = globally reachable (desktop icon)
 - No mega-nav, no category bar, no Shop nav item
 
-Exact A1 visual (text label vs compact labelled control) is **not** selected here. Implementation ticket chooses the minimum form consistent with existing Header primitives (`IconButton` / A1 tokens). Do not copy Admin chrome.
+Do not copy Admin chrome.
 
 ### Mobile Header
 
-**COMPACT LABELLED MENU / SHEET** rather than unbounded extra icons.
+**COMPACT LABELLED MENU / SHEET.**
 
-Labelled destinations/actions at minimum:
+Bar: labelled `메뉴` (or equivalent), no Custom text on the bar. Cart remains quickly reachable.
 
-- 커스텀 제작
+Sheet labelled destinations at minimum:
+
+- 커스텀 제작 → `requestCustomAccess()`
 - 검색
 - 로그인 / 내 정보 as applicable
 
-Cart remains quickly reachable (existing Header control is acceptable).
+Do **not** copy `AdminLayout` hamburger.
 
-Do **not** copy `AdminLayout` hamburger. Customer sheet uses customer UI system. Exact composition is A1 after this lock.
+### Home limited reopen (NEW)
 
-### Cart terminology
+User-authorized **narrow** exception in `src/pages/Home.tsx` (A2). General Home FROZEN policy otherwise intact.
 
-Commerce object: **`장바구니`**  
-Public artwork/catalog concept may remain: **`컬렉션`**
+Authorized:
 
-These must no longer share IA meaning.
+1. `고르거나, 만들거나.` typography
+2. Remove `고르기 · 만들기`
+3. Replace that line with editorial CTA `커스텀 제작 →`
+4. Minimal wiring: call `requestCustomAccess()`
 
-Migrate commerce-facing copy (Header accessible name, Cart title/step/empty, PDP add-to-cart strings in the frozen exception). Do **not** rename Home/Hero/Announcement/PDP-back “컬렉션” catalog language.
+**Headline guidance** (not a license to change surrounding architecture): substantially stronger than the current 26px inline treatment; premium/editorial; existing font system only; centered; do not overpower the artwork grid. Mobile ≈ page-title / ~1.75rem. Desktop ≈ hero / ~2rem (32px). Weight ~600. Tracking ~-0.01em to -0.02em. Line-height ~1.15–1.2.
 
-**Out of 2A (defer):**
+**CTA guidance:** editorial text, not a filled primary / pill / bordered ecommerce button / card / badge. Compact; secondary tone → primary on hover/focus; focus-ring; adequate touch target; subtle underline/opacity/arrow allowed; centered under the headline.
 
-- `WorkshopView` “내 컬렉션에 담기” → NEW 2B
-- `PaymentSuccess` “내 컬렉션” → NEW 2E
-- Unused `LanguageContext` strings → do not revive
+**Still frozen on Home:** Hero, artwork/grid layout, sort controls, ProductCard, section architecture, backgrounds, other copy, spacing outside the immediate headline/CTA stack, Footer.
 
-### Search
+**SUPERSEDED:** the original 2A rule “no Home Custom CTA.”
 
-Globally reachable from the normal customer shell. Results remain **`/?q=<query>`**. Home remains the results surface. From PDP/policy/other shell routes, search may navigate to Home results.
+### Cart terminology (unchanged)
 
-No `/shop`. No `/search`. No new catalog page.
+Commerce object: **`장바구니`**. Public catalog may remain **`컬렉션`**.
 
-Functional auth/noindex routes where Header is already hidden (`/login`, `/profile/complete`, `/auth/callback`, `/admin*`) stay exempt.
+Defer: `WorkshopView` add-to-cart copy → NEW 2B; `PaymentSuccess` → NEW 2E; unused `LanguageContext`.
 
-### Login
+### Search (unchanged)
 
-Keep both:
+Globally reachable from the customer shell. Results: `/?q=<query>` on Home. No `/shop`. No `/search`. Auth/admin shells where Header is hidden stay exempt.
 
-- LoginModal = contextual/in-page auth
-- `/login` = ProtectedRoute / AuthCallback / recovery destination (noindex)
+### Login (unchanged)
 
-Do not remove either. Do not restyle in 2A (2C/2F).
+Keep LoginModal (in-page) and `/login` (redirect/recovery, noindex). No 2A restyle.
 
-### Catalog
+### Catalog (unchanged)
 
-**HOME-AS-CATALOG.** `/` = gallery/search results. `/product/:id` = PDP. No Shop/Collection route.
+**HOME-AS-CATALOG.** `/` + `/product/:id`. No Shop route.
 
-### Footer
+### Footer (unchanged)
 
-Remains secondary / legal / company. Preserve crawlable `/policy/:type` (URL exists; modal intercept on unmodified same-tab click is allowed). Do not duplicate primary nav. Do **not** bury Custom exclusively in Footer. Additive Footer Custom is **not** required because Header/mobile sheet will carry Custom.
+Secondary / legal / company. Crawlable `/policy/:type`. Do not duplicate primary nav. Do not bury Custom exclusively in Footer.
 
-### Account / inquiry
+### Account / inquiry (unchanged)
 
-Profile remains account hub. Orders and 1:1 문의 may stay account-gated. 제휴/입점 mailto stays B2B. NEW 2F owns account visual polish.
+Profile remains account hub. Orders and 1:1 문의 may stay account-gated.
 
 ---
 
-## Frozen-surface exception
+## Frozen-surface exceptions
 
-Still FROZEN COMPLETE: Home/Hero, PDP Desktop, PDP Mobile Story, Product Truth, Mount/Included, OWC, Product Information, PDP Footer.
+Still FROZEN COMPLETE except:
 
-**Allowed 2A impacts:**
+**A. Shared Header / mobile sheet chrome** required by IA (including removal of desktop Custom text).
 
-A. Shared Header (and mobile sheet) chrome required by IA  
-B. Copy-only PDP commerce CTA in `src/components/pdp/ProductTheatreRail.tsx`:
+**B. Home.tsx headline/CTA stack only** (this amendment).
+
+**C. Copy-only PDP commerce CTA** in `src/components/pdp/ProductTheatreRail.tsx` (later slice, not this Home-feedback implementation):
 
 | Current | Replacement |
 |---|---|
@@ -145,48 +161,47 @@ B. Copy-only PDP commerce CTA in `src/components/pdp/ProductTheatreRail.tsx`:
 | 컬렉션에 담겼습니다 | 장바구니에 담겼습니다 |
 | 내 컬렉션으로 | 장바구니로 |
 
-COPY ONLY. Minimum required strings. No layout, type, spacing, Story, WebGL, product-copy rewrite, or PDP architecture change.
+PDP otherwise remains **FROZEN**. Do **not** change `ProductDetail.tsx` “컬렉션으로 돌아가기”.
 
-Do **not** change `ProductDetail.tsx` “컬렉션으로 돌아가기” (catalog/Home language).
-
-Exception requires **USER VISUAL APPROVAL** and targeted A5 PDP regression.
-
-Footer file write is **not** in the WRITE SET unless a later ticket proves a minimum-impact additive link is necessary. Default: Footer unchanged.
+Exceptions **A/B** and later **C** each require USER VISUAL APPROVAL and targeted A5.
 
 ---
 
 ## Exact WRITE SET
 
-Authorized later-implementation files only. This note does not implement them.
+### A0 slice (next source; not started here)
 
-### A1 (customer chrome)
+- `src/context/AuthContext.tsx` — `requestCustomAccess()` + pending lifecycle + post-auth continuation + clear/cancel as required
 
-- `src/components/Header.tsx` — **required**
-- `src/components/CustomerNavSheet.tsx` (or equivalent **new** A1-owned customer labelled sheet; not Admin) — **only if** A1 extracts the mobile sheet from Header
+### A1 slice (preserve current dirty WIP; revise after A0 AuthContext)
 
-### A3 (cart terminology)
+- `src/components/Header.tsx`
+- `src/components/CustomerNavSheet.tsx`
 
-- `src/components/Cart.tsx` — **required** (title, step label, empty state, and other **visible cart-commerce** `내 컬렉션` strings in this file)
+A1 later: remove desktop Custom text; keep global search; keep cart aria `장바구니`; keep mobile labelled menu; sheet Custom calls `requestCustomAccess()`; LoginModal remains Header-mounted; dismiss clears pending via the shared API.
 
-### A2 (frozen PDP copy exception)
+### A2 Home slice (after A1 visual checkpoint)
 
-- `src/components/pdp/ProductTheatreRail.tsx` — **required**, copy-only strings listed above
+- `src/pages/Home.tsx` — headline, remove subtitle, Custom CTA, `requestCustomAccess()`
+
+### Later unchanged NEW 2A slices
+
+- A3: `src/components/Cart.tsx`
+- A2: `src/components/pdp/ProductTheatreRail.tsx` (four strings only)
 
 ### Explicitly NOT in 2A WRITE SET
 
 - `src/App.tsx`
-- `src/context/AuthContext.tsx`
 - `src/context/ShellOverlayContext.tsx`
-- `src/components/LoginModal.tsx` (unless a later implementation ticket proves Header session-watch is insufficient)
+- `src/components/LoginModal.tsx`
 - `src/components/ProfileOverlay.tsx`
 - `src/components/Footer.tsx`
-- `src/pages/Home.tsx` / `src/components/hero/*`
-- Workshop internals (`WorkshopOverlay`, `WorkshopView`, `CopyrightPage`)
+- `src/components/hero/*`, ProductGrid, ProductCard
+- Workshop internals
 - `src/components/ProductDetail.tsx`
-- `src/pages/PaymentSuccess.tsx` / payment confirm paths
-- `server.ts`, Supabase, GA4/consent, `package.json`, `.cursor/rules/*`
+- Payment pages / `server.ts` / Supabase / GA4 / `package.json` / `.cursor/rules/*`
 
-If implementation discovers LoginModal **must** change to preserve intent, STOP and return a dependency request. Do not silently expand.
+If another file becomes mandatory: STOP → dependency request.
 
 ---
 
@@ -194,13 +209,15 @@ If implementation discovers LoginModal **must** change to preserve intent, STOP 
 
 | Area | Owner |
 |---|---|
-| Header / mobile customer sheet / nav primitives | A1 |
+| AuthContext shared Custom access | A0 |
+| Header / CustomerNavSheet | A1 |
+| Home.tsx headline + CTA | A2 |
 | Cart visible commerce terminology | A3 |
-| PDP rail copy-only exception | A2 (one-time ticket; does not transfer PDP ownership) |
-| App.tsx / AuthContext | A0 — **no write expected** |
-| Workshop | A4/A2 under **NEW 2B**, not 2A |
+| PDP rail copy-only exception | A2 (one-time; does not transfer PDP ownership) |
+| App.tsx | A0 — **no write expected** |
+| Workshop internals | NEW 2B, not 2A |
 | QA after visual approval | A5 READ ONLY |
-| SEO/URL | A6 — **NONE expected** (no new public URL) |
+| SEO/URL | A6 — **NONE expected** |
 
 Do not assign writers from this note.
 
@@ -208,18 +225,18 @@ Do not assign writers from this note.
 
 ## PROTECTED SET
 
-- Frozen Home/Hero composition and copy (including 「고르거나, 만들거나」)
-- Frozen PDP layout/Story/WebGL/Room Preview except the four rail strings
+- Frozen Home except the authorized headline/CTA stack
+- Frozen PDP except the four rail strings
 - Product-truth claims
 - Workshop internals / public Workshop route
-- Login visual system restyle
-- `/login` route removal
-- Policy URL crawlability / sitemap / robots
-- Payment authority, Toss, `server.ts` payment
-- Supabase, restore/backup (NEW 6)
+- Login visual restyle; `/login` removal
+- Policy crawl / sitemap / robots
+- Payment / Toss / `server.ts` payment
+- Supabase / NEW 6
 - Analytics/consent
 - Admin IA
 - package.json / deploy / Cloud Run
+- Persist Custom intent in storage/URL/cookie/DB
 
 ---
 
@@ -227,62 +244,114 @@ Do not assign writers from this note.
 
 Max 2 concurrent write agents. One file = one writer.
 
-1. **A1** Header (+ optional sheet file) — Custom entry, global search, hybrid desktop, labelled mobile sheet, cart accessible name
-2. **A3** `Cart.tsx` terminology — may run **after** A1 starts; do not parallel A1 on Header
-3. **A2** ProductTheatreRail copy-only — disjoint from A1/A3 files; may run in parallel with A3 **after** A1 Header is the active chrome, or strictly after A3. Prefer **A1 then A3 ∥ A2** (two writers: A3 and A2) only when A1 Header is no longer an active writer
-4. **A0 App.tsx** — not expected. If overlay orchestration fails, STOP for an A0 ticket
+Do **not** parallelize the first three source slices.
 
-A1 must not edit Cart or PDP rail. A3 must not edit Header. A2 must not edit Header/Cart.
+1. A0 — this contract amendment (docs)
+2. Durability review/commit of amendment **without** mixing A1 runtime WIP
+3. **A0 AuthContext** controlled write — **must finish** before A1/A2 consume the API
+4. **A1** revise preserved Header / CustomerNavSheet WIP
+5. **USER VISUAL REVIEW — Checkpoint 1** (Header + mobile menu). Do not start Home visual work until approved
+6. **A2** Home headline + Custom CTA
+7. Integration verification
+8. **USER VISUAL APPROVAL — Checkpoint 2** (Home + Header)
+9. Later: A3 Cart terminology; A2 ProductTheatreRail strings
+10. A5 targeted final NEW 2A QA
+11. A0 closure
+
+A1 must not edit AuthContext, Home, Cart, or PDP rail. A2 Home must not edit Header. A0 AuthContext must not edit Header/Home.
+
+---
+
+## Visual approval gates
+
+### Checkpoint 1 — after A1 Header revision
+
+- Desktop visible Custom text gone
+- Minimal/icon-led Header balance restored
+- Global search retained
+- Cart access retained (`장바구니` aria)
+- Mobile menu coherent
+- Mobile sheet Custom still visible
+
+### Checkpoint 2 — after A2 Home change
+
+- `고르거나, 만들거나.` visual scale
+- CTA relationship under headline
+- Artwork/grid hierarchy preserved
+- Desktop Home and mobile Home
+- Frozen Home content unchanged outside the stack
+
+Do **not** send to A5 before the relevant user visual approval.
 
 ---
 
 ## Definition of Done
 
-1. Custom is discoverable from customer navigation without entering Profile first (logged-out and logged-in).
+1. Custom is discoverable **without** entering Profile first, via: Home CTA (desktop and mobile Home); mobile customer nav sheet; existing Profile secondary path.
 2. Actual Custom/Workshop use remains auth-gated; no public Workshop; no `/workshop`.
-3. Desktop Header follows the locked hybrid model (no mega-nav / Shop bar).
+3. Desktop Header is hybrid/icon-led: **no** persistent Custom text; no mega-nav / Shop bar; original minimal balance restored.
 4. Mobile uses a compact labelled menu/sheet; destinations include Custom, Search, Login/내 정보; cart stays quickly reachable.
 5. Commerce cart is labelled `장바구니` on Header accessible name and Cart overlay copy in scope.
-6. Public catalog `컬렉션` language remains conceptually separate (Home/Hero/PDP-back unchanged).
+6. Public catalog `컬렉션` language remains conceptually separate (Hero/Announcement/PDP-back unchanged).
 7. Search is globally reachable in the customer shell and lands on `/?q=` Home results.
 8. LoginModal and `/login` roles remain intact.
 9. Home remains the catalog. No `/shop` or `/search` route.
 10. Policy URLs and Footer crawlability remain intact.
-11. Frozen Home/PDP layout/content unchanged except the authorized ProductTheatreRail cart-term strings.
-12. New controls have accessible names, keyboard behavior, and sensible focus (sheet/menu Escape/focus return at minimum).
-13. Existing shared overlays (Cart, Profile, Workshop, LoginModal, policy modal) are not broken.
-14. USER VISUAL APPROVAL passes (Header/mobile sheet + PDP CTA string).
-15. A5 targeted QA PASS on: Home top; Home scrolled; PDP desktop; PDP mobile story; global search path; logged-out Custom entry; logged-in Custom entry; LoginModal; Cart; Profile; policy/Footer.
-16. No payment / Supabase / runtime authority boundary crossed.
+11. Frozen Home/PDP layout/content unchanged except: Home headline/CTA stack; ProductTheatreRail four cart strings.
+12. Limited Home headline/CTA exception is visually approved (Checkpoint 2).
+13. `requestCustomAccess()` behaves consistently from Home CTA and mobile sheet.
+14. Custom post-login continuation executes **once**; dismissal clears intent; ordinary login does not set Custom intent.
+15. New controls have accessible names, keyboard behavior, and sensible focus (sheet/menu Escape/focus return at minimum).
+16. Existing shared overlays (Cart, Profile, Workshop, LoginModal, policy modal) are not broken.
+17. Checkpoint 1 and Checkpoint 2 user visual approvals pass; later Cart/PDP-term slice visual approval as applicable.
+18. A5 targeted QA PASS on the revised A5 scope below.
+19. No payment / Supabase / runtime authority boundary crossed.
 
 ---
 
-## Visual approval / A5
+## A5 scope (after visual approval)
 
-Visible chrome. Do **not** send to A5 before USER VISUAL APPROVAL.
+- Home desktop headline + CTA
+- Home mobile headline + CTA
+- Frozen Home regression: Hero, grid, sort, cards
+- Header Home top; Header Home scrolled; PDP Header
+- Mobile menu/sheet
+- Logged-out Home CTA → LoginModal
+- Dismiss → no delayed Workshop
+- Successful login → Workshop exactly once
+- Logged-in Home CTA → Workshop
+- Mobile sheet Custom logged-out and logged-in
+- Global search from Home; from PDP → `/?q=`
+- Header cart label
+- Frozen PDP regression
+- Later Cart/PDP terminology slice if completed
 
-A5: READ ONLY. Targeted surfaces listed in DoD item 15. Do not recertify unrelated historic `#23` contracts.
+Do not recertify unrelated historic `#23` contracts.
 
 ---
 
 ## Do Not Do
 
-- Do not implement UI from this note
+- Do not implement AuthContext or UI from this note
 - Do not assign A1–A6 from this note
-- Do not open NEW 2B–2F
+- Do not touch uncommitted A1 WIP in a docs ticket
+- Do not close/reopen NEW 2A; do not create NEW 2A-2; do not open NEW 2B–2F
+- Do not restore persistent desktop Header Custom text
+- Do not remove Custom from the mobile customer sheet
 - Do not add `/workshop`, `/shop`, or `/search`
-- Do not add a Home Custom CTA
-- Do not redesign frozen Home/PDP
+- Do not redesign frozen Home beyond the headline/CTA stack
 - Do not expand PDP writes beyond the four rail strings
 - Do not rename catalog “컬렉션” (Hero, AnnouncementBar, ProductDetail back)
 - Do not copy Admin hamburger
 - Do not duplicate primary nav into Footer
 - Do not remove LoginModal or `/login`
+- Do not persist Custom intent in storage/URL/cookie/DB
 - Do not restyle Login/Profile/Cart visual systems (2C/2E/2F)
 - Do not mutate Workshop internals, payment, Supabase, deploy, or Rules
 - Do not deploy
+- Do not mix A1 runtime WIP into a docs durability commit
 
-Resume Condition: Orchestration review of this OPEN contract → separate owner implementation tickets. Visual approval then A5.
+Resume Condition: Orchestration review → durability strategy for these docs **while preserving A1 WIP** → then A0 AuthContext controlled write (not started here).
 
 Ownership: A0 (this contract)
 
