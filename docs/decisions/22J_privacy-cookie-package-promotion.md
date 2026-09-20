@@ -4,9 +4,9 @@ Status: DONE
 
 #22J: PRODUCTION VERIFIED
 
-#22 remains open pending final documentation / closure audit.
+Official #22 stage status is recorded in `docs/METALORA_PROJECT_STATE.md` (**CLOSED**). This note remains the #22J promotion evidence; it does not reopen #22.
 
-Decision: Exact tested candidate `metalora-direct-00090-kig` was promoted to production 100% by a TRAFFIC-ONLY update via `scripts/promote-candidate.ps1`. No rebuild. No new revision. No `--to-latest`. Official-host #22J-8 GA/consent smoke PASS. The #22J production package is live and production verified. #22 is not closed.
+Decision: Exact tested candidate `metalora-direct-00090-kig` was promoted to production 100% by a TRAFFIC-ONLY update via `scripts/promote-candidate.ps1`. No rebuild. No new revision. No `--to-latest`. Official-host #22J-8 GA/consent smoke PASS. The #22J production package is live and production verified.
 
 Completed:
 - Production: `metalora-direct-00090-kig` @100%
@@ -63,11 +63,11 @@ Do Not Do:
 - Do not state that a legal specialist approved current wording
 - Do not claim analytics cookies are deleted on revoke
 - Do not grant `ad_storage`
-- Do not state `#22: CLOSED`
+- Do not reopen #22 to resolve deferred legal classification
 
-Resume Condition: Run the #22 final documentation / closure audit. Counsel legal-role follow-up only if separately ticketed.
+Resume Condition: None for #22J. Legal specialist follow-up remains DEFERRED and separately ticketed if counsel is available.
 
-Resume Procedure: Keep rollback target `metalora-direct-00087-voy`. Official-host GA checks already done for this SHA; do not repeat unless source or consent contract changes. Do not close #22 from this note.
+Resume Procedure: Keep rollback target `metalora-direct-00087-voy`. Official-host GA checks already done for this SHA; do not repeat unless source or consent contract changes.
 
 Ownership: A6
 
