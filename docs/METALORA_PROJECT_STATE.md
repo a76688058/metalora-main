@@ -1,6 +1,6 @@
 # METALORA project state
 
-Persistent checkpoint for session handoff. Last updated after **#22 official closure**.
+Persistent checkpoint for session handoff. Last updated after **#23-DEF**.
 
 This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here.
 
@@ -13,13 +13,14 @@ This is the authoritative current-state file. Do **not** create additional overl
 | #20 | **CLOSED WITH DEFERRED RESTORE OBLIGATION** |
 | #21 | **CLOSED** |
 | #22 | **CLOSED** |
-| #23 | **NOT OPENED** |
+| #23-DEF | **DONE** — definition in `docs/decisions/23-DEF_stage-definition.md` |
+| #23 | **NOT OPENED** (OPEN READY **YES**; execution not started) |
 | Production revision | `metalora-direct-00090-kig` |
 | Production traffic | **100%** |
 | Production source SHA | `0bb40e988a019716e748d12874693c247bfc410f` |
 | Production image digest | `sha256:d45a463cc1ec05957c4064b4b2b2bc697161462c8823459115fe8607fea619c9` |
 | Stable rollback | `metalora-direct-00087-voy` |
-| `main` / `origin/main` (docs HEAD) | `b75483e4299206a7e4d23567b84ae6a8469601f4` |
+| Repository baseline observed at #23-DEF | `78b61a99ba81daaeec3f3e8af54d171821fc1ccd` |
 | Expected worktree | clean |
 
 Cloud Run service: `metalora-direct` (`metalora-auth`, `us-west1`).
@@ -46,6 +47,24 @@ Durable evidence (do not duplicate full audits here):
 - `docs/decisions/22J_privacy-cookie-package-promotion.md`
 
 Do **not** reopen #22 for deferred legal classification. Do **not** change GA4 Admin, consent, or analytics source as part of this closure record.
+
+---
+
+## 2b. #23-DEF — DEVICE / RESPONSIVE QA definition
+
+#23-DEF status: **DONE**
+
+Durable definition: `docs/decisions/23-DEF_stage-definition.md`
+
+#23 stage: **NOT OPENED**
+
+Open gate (this ticket): **#23 OPEN READY: YES**
+
+OPEN READY does **not** start A5, remediate, or deploy. Next work requires a separate #23 execution ticket.
+
+#23 is AUDIT-FIRST against `https://metalora.art` using last recorded production `metalora-direct-00090-kig` / source `0bb40e9…`. Do not deploy current repository HEAD to begin #23.
+
+22J A5 MINOR findings remain **ACCEPTED / NON-BLOCKING** (section 4). They are not a #23 fix list.
 
 ---
 
@@ -109,10 +128,11 @@ See `docs/operations.md` section E for the live backup-capability snapshot.
 | #20 | CLOSED WITH DEFERRED RESTORE OBLIGATION |
 | #21 | CLOSED |
 | #22 | CLOSED |
-| #23 | **NOT OPENED** |
+| #23-DEF | DONE |
+| #23 | **NOT OPENED** (OPEN READY YES; execution not started) |
 | #24 | not opened (live payment / restore gate) |
 
-Do **not** automatically open or implement #23. Do not alter #23 scope here.
+Do **not** start A5, remediate, or deploy from this status file. Issue a separate #23 execution ticket. Do not reopen #20/#21/#22. Do not open #24.
 
 ---
 
