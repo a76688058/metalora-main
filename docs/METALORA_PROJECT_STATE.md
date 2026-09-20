@@ -1,8 +1,10 @@
 # METALORA project state
 
-Persistent checkpoint for session handoff. Last updated after **#20F-0 account-side confirmation / timing lock**.
+Persistent checkpoint for session handoff. Last updated after **PRE-LAUNCH HOLD** (2026-09-20 remaining pre-launch pipeline audit).
 
 This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here.
+
+**Current operating state: `PRE-LAUNCH HOLD`.** Ordinary development is complete. Queue A is empty. There is **no** current mandatory source/product work. Do **not** infer that something must be coded next. This is an intentional stable waiting state, not abandonment.
 
 ---
 
@@ -10,12 +12,20 @@ This is the authoritative current-state file. Do **not** create additional overl
 
 | Item | Value |
 |------|--------|
+| Operating state | **PRE-LAUNCH HOLD** |
+| Ordinary development | **COMPLETE** — Queue A empty |
+| DEVELOPMENT COMPLETE | **YES** |
+| PRE-LAUNCH ENGINEERING READY | **YES** |
+| LIVE-COMMERCE READY | **NO / DEFERRED** |
+| LIVE | **NO** |
+| #16–#23 | **CLOSED** |
 | #20 | **CLOSED WITH DEFERRED RESTORE OBLIGATION** |
 | #21 | **CLOSED** |
 | #22 | **CLOSED** |
 | #23-DEF | **DONE** — `docs/decisions/23-DEF_stage-definition.md` |
 | #23 A5 execution | **DONE** |
 | #23 | **CLOSED** |
+| #24 | **NOT OPENED** |
 | Production revision | `metalora-direct-00090-kig` |
 | Production traffic | **100%** |
 | Production source SHA | `0bb40e988a019716e748d12874693c247bfc410f` |
@@ -110,7 +120,7 @@ Do **not** reopen #20.
 
 Production Supabase: **FREE**, confirmed by user Dashboard inspection on **2026-09-20** (scheduled backup / PITR / restore UI unavailable; no upgrade; no restore attempted).
 
-#20F: **DEFERRED / BLOCKED** on current Free capability until live-commerce preparation. It is **not** an ordinary-development blocker and does **not** require a paid upgrade merely because #23 closed.
+#20F: **DEFERRED UNTIL LIVE-COMMERCE PREPARATION**. Restore drill not executed. Storage recovery not documented. It is **not** ordinary-development work and is **not** Queue A. Free remains allowed during this hold. A paid plan that provides the required backup/restore capability is required before #24 / first real payment (do **not** hard-code `Pro`).
 
 Before **#24 live-payment activation** OR **first real production customer payment**, whichever occurs first:
 
@@ -128,18 +138,44 @@ Durable record: `docs/decisions/20F-0_account-side-backup-confirmation.md`. `doc
 
 ---
 
-## 6. Pipeline
+## 6. Pipeline / PRE-LAUNCH HOLD
 
 | Stage | Status |
 |------|--------|
+| #16–#19 | CLOSED |
+| GOV-002 | CLOSED |
 | #20 | CLOSED WITH DEFERRED RESTORE OBLIGATION |
 | #21 | CLOSED |
 | #22 | CLOSED |
 | #23-DEF | DONE |
 | #23 | **CLOSED** |
+| #20F | **DEFERRED UNTIL LIVE-COMMERCE PREPARATION** |
 | #24 | **NOT OPENED** |
+| #25 | no durable stage definition |
+| Queue A (do now) | **EMPTY** |
 
-Do **not** open #24. #20F remains a deferred pre-live-payment hard gate, not the next ordinary-development task. Do not perform #20F from this file. Do not reopen #20/#21/#22/#23.
+### Milestones
+
+| Milestone | Status | Meaning |
+|------|--------|--------|
+| DEVELOPMENT COMPLETE | **YES** | No currently required ordinary development/source/product work. Does **not** mean legal work, restore gate, #24, or LIVE are complete. |
+| PRE-LAUNCH ENGINEERING READY | **YES** | Engineering through #23 is complete. Remaining items are live-commerce gates, legal holds, monitoring, optional UX, or future features. |
+| LIVE-COMMERCE READY | **NO / DEFERRED** | #20F has not executed. Production Supabase remains FREE (2026-09-20). |
+| LIVE | **NO** | #24 is **NOT OPENED**. |
+
+### Resume trigger
+
+Resume mandatory execution **only** when user/orchestration explicitly decides **`ENTER LIVE-COMMERCE PREPARATION`**.
+
+Sequence:
+
+**PRE-LAUNCH HOLD** → explicit live-commerce preparation decision → verify then-current Supabase paid-plan capabilities → **#20F restore gate** → restore gate **PASS** → **#24 may then open**
+
+Do **not** open #24 first. First mandatory work after resume is **#20F**. Do **not** start #20F from this hold record.
+
+#24-associated work stays unopened: live Toss, real payment validation, settlement, cancellation/refund, legal launch, fulfillment, first real production payment.
+
+Legal holds, A5 MINORs, monitoring, optional UX, and future features (including #26) **do not break HOLD** and must **not** be promoted into required work. Do not reopen #16–#23.
 
 ---
 
