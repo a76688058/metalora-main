@@ -1,6 +1,6 @@
 # METALORA project state
 
-Persistent checkpoint for session handoff. Last updated after **#23-DEF**.
+Persistent checkpoint for session handoff. Last updated after **#23 official closure**.
 
 This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here.
 
@@ -13,14 +13,15 @@ This is the authoritative current-state file. Do **not** create additional overl
 | #20 | **CLOSED WITH DEFERRED RESTORE OBLIGATION** |
 | #21 | **CLOSED** |
 | #22 | **CLOSED** |
-| #23-DEF | **DONE** — definition in `docs/decisions/23-DEF_stage-definition.md` |
-| #23 | **NOT OPENED** (OPEN READY **YES**; execution not started) |
+| #23-DEF | **DONE** — `docs/decisions/23-DEF_stage-definition.md` |
+| #23 A5 execution | **DONE** |
+| #23 | **CLOSED** |
 | Production revision | `metalora-direct-00090-kig` |
 | Production traffic | **100%** |
 | Production source SHA | `0bb40e988a019716e748d12874693c247bfc410f` |
 | Production image digest | `sha256:d45a463cc1ec05957c4064b4b2b2bc697161462c8823459115fe8607fea619c9` |
 | Stable rollback | `metalora-direct-00087-voy` |
-| Repository baseline observed at #23-DEF | `78b61a99ba81daaeec3f3e8af54d171821fc1ccd` |
+| Repository baseline observed at #23 closure write | `3722d66d648d0c15fdcb9433bf87871543ba19f7` |
 | Expected worktree | clean |
 
 Cloud Run service: `metalora-direct` (`metalora-auth`, `us-west1`).
@@ -50,21 +51,21 @@ Do **not** reopen #22 for deferred legal classification. Do **not** change GA4 A
 
 ---
 
-## 2b. #23-DEF — DEVICE / RESPONSIVE QA definition
+## 2b. #23 — DEVICE / RESPONSIVE QA — CLOSED
 
-#23-DEF status: **DONE**
+#23-DEF: **DONE** (`docs/decisions/23-DEF_stage-definition.md`)
 
-Durable definition: `docs/decisions/23-DEF_stage-definition.md`
+#23 A5 execution: **DONE** (READ ONLY; Chromium viewport emulation, not physical iOS/Android certification)
 
-#23 stage: **NOT OPENED**
+#23 stage: **CLOSED**
 
-Open gate (this ticket): **#23 OPEN READY: YES**
+Closure record: `docs/decisions/23_device-responsive-qa-closure.md`
 
-OPEN READY does **not** start A5, remediate, or deploy. Next work requires a separate #23 execution ticket.
+A5 verified production `metalora-direct-00090-kig` @ 100%; stable `metalora-direct-00087-voy`. No functional responsive regression in the authorized matrix. Three wrapping observations are **MINOR / NON-BLOCKING** (OPTIONAL FUTURE UX, not the next pipeline task). No remediation tickets. No deploy.
 
-#23 is AUDIT-FIRST against `https://metalora.art` using last recorded production `metalora-direct-00090-kig` / source `0bb40e9…`. Do not deploy current repository HEAD to begin #23.
+22J A5 MINOR findings remain **ACCEPTED / NON-BLOCKING** (section 4).
 
-22J A5 MINOR findings remain **ACCEPTED / NON-BLOCKING** (section 4). They are not a #23 fix list.
+Do **not** reopen #23 for cosmetic wrapping, physical-device certification, Workshop unreachability, or unauthenticated filled-cart depth.
 
 ---
 
@@ -95,9 +96,9 @@ Do **not** invent: `해당없음`, `대한민국 제조`, `Made in Korea`, `KC �
 
 ## 4. A5 MINOR findings
 
-Accepted A5 MINOR findings from #22J remain **ACCEPTED / NON-BLOCKING**. They were **not** fixed in #22.
+Accepted A5 MINOR findings from #22J remain **ACCEPTED / NON-BLOCKING**. They were **not** fixed in #22. See `docs/decisions/22J_privacy-cookie-package-promotion.md`.
 
-See `docs/decisions/22J_privacy-cookie-package-promotion.md`.
+#23 MINOR wrapping observations (`23-A5-F01`–`F03`) are **MINOR / NON-BLOCKING** / OPTIONAL FUTURE UX. They were **not** fixed in #23. See `docs/decisions/23_device-responsive-qa-closure.md`.
 
 ---
 
@@ -105,7 +106,7 @@ See `docs/decisions/22J_privacy-cookie-package-promotion.md`.
 
 #20 status: **CLOSED WITH DEFERRED RESTORE OBLIGATION**
 
-Do **not** reopen #20 because #22 closed.
+Do **not** reopen #20 because #23 closed.
 
 Before **#24 live-payment activation** OR **first real production customer payment**, whichever occurs first:
 
@@ -129,10 +130,10 @@ See `docs/operations.md` section E for the live backup-capability snapshot.
 | #21 | CLOSED |
 | #22 | CLOSED |
 | #23-DEF | DONE |
-| #23 | **NOT OPENED** (OPEN READY YES; execution not started) |
+| #23 | **CLOSED** |
 | #24 | not opened (live payment / restore gate) |
 
-Do **not** start A5, remediate, or deploy from this status file. Issue a separate #23 execution ticket. Do not reopen #20/#21/#22. Do not open #24.
+Do **not** open #24. Next pipeline work is **#20F restore capability / restore-gate preparation** (separate ticket). Do not perform #20F from this file. Do not reopen #20/#21/#22/#23.
 
 ---
 
