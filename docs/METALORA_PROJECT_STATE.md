@@ -1,6 +1,6 @@
 # METALORA project state
 
-Persistent checkpoint for session handoff. Last updated after **#23 official closure**.
+Persistent checkpoint for session handoff. Last updated after **#20F-0 account-side confirmation / timing lock**.
 
 This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here.
 
@@ -106,11 +106,15 @@ Accepted A5 MINOR findings from #22J remain **ACCEPTED / NON-BLOCKING**. They we
 
 #20 status: **CLOSED WITH DEFERRED RESTORE OBLIGATION**
 
-Do **not** reopen #20 because #23 closed.
+Do **not** reopen #20.
+
+Production Supabase: **FREE**, confirmed by user Dashboard inspection on **2026-09-20** (scheduled backup / PITR / restore UI unavailable; no upgrade; no restore attempted).
+
+#20F: **DEFERRED / BLOCKED** on current Free capability until live-commerce preparation. It is **not** an ordinary-development blocker and does **not** require a paid upgrade merely because #23 closed.
 
 Before **#24 live-payment activation** OR **first real production customer payment**, whichever occurs first:
 
-- upgrade paid backup capability
+- move to a paid plan that provides the required #20F backup/restore capability (do **not** hard-code `Pro`)
 - confirm scheduled backups
 - record PITR status if applicable
 - execute and record restore drill
@@ -118,7 +122,9 @@ Before **#24 live-payment activation** OR **first real production customer payme
 
 Until completed: do **not** call production restorable; do **not** enable real payments.
 
-See `docs/operations.md` section E for the live backup-capability snapshot.
+Timing lock: Free during development → paid capability **before** first live payment → restore gate pass → #24 / live commerce. **Not** first real payment then upgrade.
+
+Durable record: `docs/decisions/20F-0_account-side-backup-confirmation.md`. `docs/operations.md` section E remains the runbook snapshot.
 
 ---
 
@@ -131,9 +137,9 @@ See `docs/operations.md` section E for the live backup-capability snapshot.
 | #22 | CLOSED |
 | #23-DEF | DONE |
 | #23 | **CLOSED** |
-| #24 | not opened (live payment / restore gate) |
+| #24 | **NOT OPENED** |
 
-Do **not** open #24. Next pipeline work is **#20F restore capability / restore-gate preparation** (separate ticket). Do not perform #20F from this file. Do not reopen #20/#21/#22/#23.
+Do **not** open #24. #20F remains a deferred pre-live-payment hard gate, not the next ordinary-development task. Do not perform #20F from this file. Do not reopen #20/#21/#22/#23.
 
 ---
 
