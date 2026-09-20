@@ -1,15 +1,16 @@
 # METALORA project state
 
-Persistent checkpoint for session handoff. Last updated after **NEW 2A CLOSED** (customer navigation / IA; no deploy).
+Persistent checkpoint for session handoff. Last updated after **NEW 2B OPEN** (custom creation UX/UI contract; docs-only; no source; no deploy).
 
-This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master migration: `docs/decisions/NEW-1_launch-pipeline-v2.md`. NEW 2A contract: `docs/decisions/NEW-2A_menu-ia-consistency.md`.
+This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master migration: `docs/decisions/NEW-1_launch-pipeline-v2.md`. NEW 2A contract: `docs/decisions/NEW-2A_menu-ia-consistency.md`. NEW 2B contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`.
 
 **Current operating mode: `NEW LAUNCH PIPELINE v2 ACTIVE`.**
 **NEW 1 — ROADMAP / SCOPE LOCK: CLOSED.**
 **NEW 2A: CLOSED.** Implementation, user visual approval, A5 targeted QA, and A5 short-delta QA **PASS**. Orphan `CustomerNavSheet` removed.
-**NEW 2B–2F: NOT OPENED.**
+**NEW 2B: OPEN.** Decision lock complete. Source implementation **not started**. First slice: **2B-1**.
+**NEW 2C–2F: NOT OPENED.**
 
-NEXT: **A0 PRE-STAGE REPORT — NEW 2B** (커스텀 제작 UX/UI). Do **not** open NEW 2B from this file. HARD STOP until user/orchestration review and OPEN READY. Every remaining NEW stage and every NEW 2 substage still requires an **A0 PRE-STAGE REPORT** before writes.
+NEXT: **A2 — NEW 2B-1 WORKSHOP STABILITY / IA FOUNDATION.** Do **not** start 2B-1 from this file. HARD STOP this 2B-0 ticket before source. Every remaining NEW 2 substage (2C–2F) and every remaining NEW stage still requires an **A0 PRE-STAGE REPORT** before writes.
 
 ---
 
@@ -18,9 +19,10 @@ NEXT: **A0 PRE-STAGE REPORT — NEW 2B** (커스텀 제작 UX/UI). Do **not** op
 | Item | Value |
 |------|--------|
 | Operating mode | **NEW LAUNCH PIPELINE v2 ACTIVE** |
-| Current stage | **NEW 2A CLOSED** — next is A0 PRE-STAGE REPORT NEW 2B (not opened) |
-| NEW 2 | family; **2A CLOSED**; 2B–2F not opened |
+| Current stage | **NEW 2B OPEN** — next is A2 2B-1 (source not started) |
+| NEW 2 | family; **2A CLOSED**; **2B OPEN**; 2C–2F not opened |
 | NEW 2A | **CLOSED** — `docs/decisions/NEW-2A_menu-ia-consistency.md` |
+| NEW 2B | **OPEN** — `docs/decisions/NEW-2B_custom-creation-ux-ui.md` |
 | Historical `#16`–`#23` | **CLOSED** |
 | Prior PRE-LAUNCH HOLD | **SUPERSEDED AS CURRENT MODE** (preserved historically) |
 | BASELINE DEVELOPMENT COMPLETE | **YES** (through `#23`) |
@@ -159,19 +161,22 @@ Durable record: `docs/decisions/20F-0_account-side-backup-confirmation.md` (unch
 | Historical `#20F` | MIGRATED → **NEW 6** (not started) |
 | Historical `#24` | NOT OPENED; remaining work → NEW 4 / 7 / 8 / 9 |
 | **NEW 1** | **CLOSED** — roadmap / scope lock |
-| **NEW 2** | family; **2A CLOSED**; 2B–2F **NOT OPENED** |
+| **NEW 2** | family; **2A CLOSED**; **2B OPEN**; 2C–2F **NOT OPENED** |
 | **NEW 2A** | **CLOSED** — customer nav / IA; visual approval + A5 PASS |
-| NEW 2B–2F | **NOT OPENED** |
+| **NEW 2B** | **OPEN** — custom creation UX/UI contract; source not started; next **2B-1** |
+| NEW 2C–2F | **NOT OPENED** |
 | NEW 3–5 | not opened |
 | NEW 6 | not started (hard gate before NEW 7) |
 | NEW 7–9 | not opened |
 | LIVE | **NO** |
 
-Upcoming main path: **A0 PRE-STAGE REPORT — NEW 2B** (not opened) → remaining NEW 2 family ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
+Upcoming main path: **A2 NEW 2B-1** (source; not this ticket) → remaining 2B slices → remaining NEW 2 family (each with its own PRE-STAGE REPORT) ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
 
-**NEW 2A** = **CLOSED.** Final Header: Search / Theme / Logo / Account / Cart on desktop and mobile; no persistent Custom text; no mobile `메뉴` / hamburger / CustomerNavSheet. Primary Custom discovery: Home `커스텀 제작 →` via `requestCustomAccess()`. Cart commerce term = `장바구니`. Global search → `/?q=`. **NEW 2B** = dedicated 커스텀 제작 UX/UI (not opened; not Profile polish). Do not execute NEW 2 as one giant ticket.
+**NEW 2A** = **CLOSED.** Final Header: Search / Theme / Logo / Account / Cart on desktop and mobile; no persistent Custom text; no mobile `메뉴` / hamburger / CustomerNavSheet. Primary Custom discovery: Home `커스텀 제작 →` via `requestCustomAccess()`. Cart commerce term = `장바구니`. Global search → `/?q=`. Do not reopen 2A.
 
-Frozen complete (do not redesign): Home/Hero, PDP Desktop, PDP Mobile Story, Product Truth, Mount/Included, OWC, Product Information, PDP Footer — except the closed NEW 2A Header chrome, Home.tsx headline/CTA stack, and copy-only PDP rail cart-term strings listed in the 2A note.
+**NEW 2B** = **OPEN.** Dedicated 커스텀 제작 UX/UI after the 2A entry point. Contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`. Upload-first 3-step flow; origin-aware exit; M 200×283 mm; SLA 2–5 / 1–3; CTA `장바구니에 담기`; PDP preview reuse; admin-configurable Custom price (2B-5, not 2B-1). Do not execute NEW 2 as one giant ticket.
+
+Frozen complete (do not redesign): Home/Hero, PDP Desktop, PDP Mobile Story, Product Truth, Mount/Included, OWC, Product Information, PDP Footer — except the closed NEW 2A Header chrome, Home.tsx headline/CTA stack, copy-only PDP rail cart-term strings listed in the 2A note, and **NEW 2B-4 shared PDP preview reuse** (not a PDP visual redesign).
 
 Optional pre-launch and post-launch/data branches stay **outside** the blocking path unless explicitly promoted. See `docs/decisions/NEW-1_launch-pipeline-v2.md`.
 
@@ -215,12 +220,12 @@ Do not reintroduce:
 - 벽 손상 없음
 - 벽지 손상 없음
 - 자국 없음
-- AI 업스케일링 quality claims
+- AI 업스케일링 **quality** claims / fake immediate 4K or generative-fill UI
 - 고해상도 guarantee language
 - customer-facing `180℃`
 - customer-facing `승화전사` where easier Korean is preferred
 
-Approved direction: natural Korean, consumer-first, factual.
+Approved direction: natural Korean, consumer-first, factual. NEW 2B may describe **real** production AI upscaling and **real** fit modes (`채우기` / `전체 보기`) only in wording that matches actual behavior.
 
 ---
 
