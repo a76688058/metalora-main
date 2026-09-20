@@ -172,17 +172,19 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     if (pendingCustomAccess) clearPendingCustomAccess();
   };
 
+  useEffect(() => {
+    if (!pendingCustomAccess || currentUser || isLoginModalOpen) return;
+    setHasOpenedLoginModal(true);
+    registerLoginOverlay('login', true);
+    setIsLoginModalOpen(true);
+  }, [pendingCustomAccess, currentUser, isLoginModalOpen, registerLoginOverlay]);
+
   const handleCustom = () => {
     setIsNavOpen(false);
     setIsSearchOpen(false);
     if (isCartOpen) closeCart();
     if (isProfileOpen) closeProfile();
-    const isLoggedIn = Boolean(currentUser);
     requestCustomAccess();
-    if (!isLoggedIn) {
-      if (isWorkshopOpen) closeWorkshop();
-      openLoginModal();
-    }
   };
 
   const handleAccount = () => {
