@@ -33,6 +33,7 @@ interface AuthContextType {
   isProfileEditOpen: boolean;
   isOrdersOpen: boolean;
   isInquiryOpen: boolean;
+  pendingCustomAccess: boolean;
 
   signOut: (options?: SignOutOptions) => Promise<void>;
   refreshProfile: (isAdmin?: boolean) => Promise<void>;
@@ -47,6 +48,8 @@ interface AuthContextType {
   closeOrders: () => void;
   openInquiry: () => void;
   closeInquiry: () => void;
+  requestCustomAccess: () => void;
+  clearPendingCustomAccess: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -69,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
+  const [pendingCustomAccess, setPendingCustomAccess] = useState(false);
 
   const openProfile = () => setIsProfileOpen(true);
   const closeProfile = () => setIsProfileOpen(false);
@@ -87,6 +91,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isProfileResolved, setIsProfileResolved] = useState(false);
   const droppingOrphanRef = useRef(false);
   const signingOutRef = useRef(false);
+  const hadSessionUserRef = useRef(false);
+  const customContinuationLock = useRef(false);
+
+  const clearPendingCustomAccess = useCallback(() => {
+    setPendingCustomAccess(false);
+    customContinuationLock.current = false;
+  }, []);
+
+  const requestCustomAccess = useCallback(() => {
+    if (user || adminUser) {
+      setPendingCustomAccess(false);
+      customContinuationLock.current = false;
+      setIsWorkshopOpen(true);
+      return;
+    }
+    customContinuationLock.current = false;
+    setPendingCustomAccess(true);
+  }, [user, adminUser]);
 
   const clearReactAuthState = () => {
     setSession(null);
@@ -99,6 +121,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profileFetchPromiseRef.current = null;
     profileFetchUserIdRef.current = null;
     setIsProfileResolved(true);
+    setPendingCustomAccess(false);
+    customContinuationLock.current = false;
+    hadSessionUserRef.current = false;
   };
 
   const applyVerifiedSession = (sess: Session) => {
@@ -414,15 +439,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  useEffect(() => {
+    const authenticated = Boolean(user || adminUser);
+
+    if (!authenticated) {
+      if (hadSessionUserRef.current) {
+        setPendingCustomAccess(false);
+        customContinuationLock.current = false;
+      }
+      hadSessionUserRef.current = false;
+      return;
+    }
+
+    const becameAuthenticated = !hadSessionUserRef.current;
+    hadSessionUserRef.current = true;
+
+    if (!pendingCustomAccess || customContinuationLock.current || !becameAuthenticated) {
+      return;
+    }
+
+    customContinuationLock.current = true;
+    setPendingCustomAccess(false);
+    setIsWorkshopOpen(true);
+  }, [user, adminUser, pendingCustomAccess]);
+
   return (
     <AuthContext.Provider value={{
       session, user, profile,
       adminSession, adminUser, adminProfile,
       isLoading, isProfileResolved, isLoggingOut, isProfileOpen, isWorkshopOpen, isProfileEditOpen, isOrdersOpen, isInquiryOpen,
+      pendingCustomAccess,
       signOut, refreshProfile, refreshSession,
       openProfile, closeProfile, openWorkshop, closeWorkshop,
       openProfileEdit, closeProfileEdit, openOrders, closeOrders,
       openInquiry, closeInquiry,
+      requestCustomAccess, clearPendingCustomAccess,
     }}>
       {children}
     </AuthContext.Provider>

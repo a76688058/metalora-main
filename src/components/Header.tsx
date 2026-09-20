@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense, useCallback } from 'react';
 import { Link, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { Search, User, Frame, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +10,7 @@ import { IconButton } from './ui/IconButton';
 import { cn } from '../lib/cn';
 import { zClass } from '../constants/overlays';
 import AnnouncementBar from './AnnouncementBar';
+import CustomerNavSheet from './CustomerNavSheet';
 
 const LoginModal = lazy(() => import('./LoginModal'));
 
@@ -20,6 +21,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [hasOpenedLoginModal, setHasOpenedLoginModal] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isNavOpen, setIsNavOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const {
     user,
@@ -31,6 +33,9 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     closeProfile,
     isWorkshopOpen,
     closeWorkshop,
+    pendingCustomAccess,
+    requestCustomAccess,
+    clearPendingCustomAccess,
   } = useAuth();
   const { cartItems, isCartOpen, openCart, closeCart } = useCart();
   const { theme, toggleTheme } = useTheme();
@@ -45,9 +50,11 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const isComposing = useRef(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const searchToggleRef = useRef<HTMLButtonElement>(null);
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
 
   const currentUser = user || adminUser;
   const isAdmin = profile?.is_admin || adminProfile?.is_admin;
+  const accountLabel = currentUser ? (isAdmin ? '관리자 대시보드' : '내 정보') : '로그인';
 
   useEffect(() => {
     setLocalSearch(searchQuery);
@@ -60,6 +67,10 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const closeCustomerNav = useCallback(() => {
+    setIsNavOpen(false);
   }, []);
 
   useEffect(() => {
@@ -78,28 +89,32 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   }, [isSearchOpen]);
 
   useEffect(() => {
-    if (!isSearchOpen) return;
+    if (!isSearchOpen || isNavOpen) return;
 
     const handleSearchEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
       setIsSearchOpen(false);
-      searchToggleRef.current?.focus();
+      const searchToggle = searchToggleRef.current;
+      if (searchToggle && searchToggle.offsetParent !== null) {
+        searchToggle.focus();
+        return;
+      }
+      menuToggleRef.current?.focus();
     };
 
     document.addEventListener('keydown', handleSearchEscape);
     return () => {
       document.removeEventListener('keydown', handleSearchEscape);
     };
-  }, [isSearchOpen]);
+  }, [isSearchOpen, isNavOpen]);
 
   useEffect(() => {
-    if (location.pathname !== '/') {
-      setIsSearchOpen(false);
-    }
+    setIsSearchOpen(false);
+    setIsNavOpen(false);
   }, [location.pathname]);
 
-  const updateSearch = (value: string) => {
+  const updateHomeSearch = (value: string) => {
     if (value) {
       setSearchParams({ q: value });
     } else {
@@ -107,11 +122,24 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     }
   };
 
+  const submitSearch = (value: string) => {
+    if (location.pathname === '/') {
+      updateHomeSearch(value);
+      return;
+    }
+    if (value) {
+      navigate(`/?q=${encodeURIComponent(value)}`);
+    } else {
+      navigate('/');
+    }
+    setIsSearchOpen(false);
+  };
+
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setLocalSearch(value);
-    if (!isComposing.current) {
-      updateSearch(value);
+    if (!isComposing.current && location.pathname === '/') {
+      updateHomeSearch(value);
     }
   };
 
@@ -120,11 +148,13 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
       isComposing.current = true;
     } else if (e.type === 'compositionend') {
       isComposing.current = false;
-      updateSearch(e.currentTarget.value);
+      if (location.pathname === '/') {
+        updateHomeSearch(e.currentTarget.value);
+      }
     }
   };
 
-  const isHeroTop = isHome && !isScrolled && !isSearchOpen;
+  const isHeroTop = isHome && !isScrolled && !isSearchOpen && !isNavOpen;
   const isDark = theme === 'dark';
 
   const openLoginModal = () => {
@@ -135,6 +165,48 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
 
   const closeLoginModal = () => {
     setIsLoginModalOpen(false);
+  };
+
+  const dismissLoginModal = () => {
+    setIsLoginModalOpen(false);
+    if (pendingCustomAccess) clearPendingCustomAccess();
+  };
+
+  const handleCustom = () => {
+    setIsNavOpen(false);
+    setIsSearchOpen(false);
+    if (isCartOpen) closeCart();
+    if (isProfileOpen) closeProfile();
+    const isLoggedIn = Boolean(currentUser);
+    requestCustomAccess();
+    if (!isLoggedIn) {
+      if (isWorkshopOpen) closeWorkshop();
+      openLoginModal();
+    }
+  };
+
+  const handleAccount = () => {
+    setIsNavOpen(false);
+    clearPendingCustomAccess();
+    if (currentUser) {
+      if (isProfileOpen) {
+        closeProfile();
+      } else {
+        if (isCartOpen) closeCart();
+        if (isWorkshopOpen) closeWorkshop();
+        setIsSearchOpen(false);
+        openProfile();
+      }
+      return;
+    }
+    if (isWorkshopOpen) closeWorkshop();
+    setIsSearchOpen(false);
+    openLoginModal();
+  };
+
+  const handleOpenSearch = () => {
+    setIsNavOpen(false);
+    setIsSearchOpen(true);
   };
 
   const iconTone = isHeroTop
@@ -156,7 +228,16 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
         )}
         style={{ transitionDuration: 'var(--duration-normal)' }}
       >
-        <motion.div className="flex w-full flex-col">
+        {isNavOpen && (
+          <button
+            type="button"
+            aria-label="메뉴 닫기"
+            className="fixed inset-0 bg-overlay-backdrop"
+            onClick={closeCustomerNav}
+          />
+        )}
+
+        <motion.div className="relative flex w-full flex-col">
           <AnnouncementBar />
 
           <div
@@ -165,19 +246,43 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
           >
             {/* Left controls */}
             <div className="flex min-w-0 flex-1 items-center justify-start gap-1 sm:gap-2">
-              {location.pathname === '/' && (
-                <IconButton
-                  ref={searchToggleRef}
-                  variant="ghost"
-                  aria-label={isSearchOpen ? '검색 닫기' : '검색 열기'}
-                  aria-expanded={isSearchOpen}
-                  aria-controls={SEARCH_PANEL_ID}
-                  onClick={() => setIsSearchOpen(!isSearchOpen)}
-                  className={cn('shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
-                >
-                  <Search size={20} strokeWidth={1.5} />
-                </IconButton>
-              )}
+              <button
+                ref={menuToggleRef}
+                type="button"
+                aria-label="메뉴"
+                aria-expanded={isNavOpen}
+                aria-controls="customer-nav-sheet"
+                onClick={() => {
+                  setIsSearchOpen(false);
+                  setIsNavOpen((open) => !open);
+                }}
+                className={cn(
+                  'focus-ring type-label inline-flex min-h-11 shrink-0 items-center border-0 bg-transparent px-2 md:hidden',
+                  iconTone,
+                  isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10',
+                )}
+              >
+                메뉴
+              </button>
+
+              <IconButton
+                ref={searchToggleRef}
+                variant="ghost"
+                aria-label={isSearchOpen ? '검색 닫기' : '검색 열기'}
+                aria-expanded={isSearchOpen}
+                aria-controls={SEARCH_PANEL_ID}
+                onClick={() => {
+                  setIsNavOpen(false);
+                  setIsSearchOpen((open) => !open);
+                }}
+                className={cn(
+                  'hidden shrink-0 md:inline-flex',
+                  iconTone,
+                  isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10',
+                )}
+              >
+                <Search size={20} strokeWidth={1.5} />
+              </IconButton>
 
               <IconButton
                 variant="ghost"
@@ -195,6 +300,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 to="/"
                 className="pointer-events-auto flex items-center justify-center"
                 onClick={(e) => {
+                  closeCustomerNav();
                   if (isCartOpen) closeCart();
                   if (isProfileOpen) closeProfile();
                   if (isWorkshopOpen) closeWorkshop();
@@ -225,17 +331,13 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
               {currentUser ? (
                 <IconButton
                   variant="ghost"
-                  aria-label={isAdmin ? '관리자 대시보드' : '내 정보'}
-                  onClick={() => {
-                    if (isProfileOpen) {
-                      closeProfile();
-                    } else {
-                      if (isCartOpen) closeCart();
-                      if (isWorkshopOpen) closeWorkshop();
-                      openProfile();
-                    }
-                  }}
-                  className={cn('shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
+                  aria-label={accountLabel}
+                  onClick={handleAccount}
+                  className={cn(
+                    'hidden shrink-0 md:inline-flex',
+                    iconTone,
+                    isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10',
+                  )}
                 >
                   <User size={20} strokeWidth={1.5} />
                 </IconButton>
@@ -243,11 +345,12 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 <IconButton
                   variant="ghost"
                   aria-label="로그인"
-                  onClick={() => {
-                    if (isWorkshopOpen) closeWorkshop();
-                    openLoginModal();
-                  }}
-                  className={cn('shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
+                  onClick={handleAccount}
+                  className={cn(
+                    'hidden shrink-0 md:inline-flex',
+                    iconTone,
+                    isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10',
+                  )}
                 >
                   <User size={20} strokeWidth={1.5} />
                 </IconButton>
@@ -255,10 +358,13 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
 
               <IconButton
                 variant="ghost"
-                aria-label="내 컬렉션"
+                aria-label="장바구니"
                 onClick={(e) => {
+                  closeCustomerNav();
+                  setIsSearchOpen(false);
                   if (!currentUser) {
                     e.preventDefault();
+                    clearPendingCustomAccess();
                     if (isWorkshopOpen) closeWorkshop();
                     openLoginModal();
                     return;
@@ -286,8 +392,15 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
             </div>
           </div>
 
-          {/* Search panel — Home only; unmount with route so exit animation cannot linger off-Home */}
-          {location.pathname === '/' && (
+          <CustomerNavSheet
+            isOpen={isNavOpen}
+            onClose={closeCustomerNav}
+            onCustom={handleCustom}
+            onSearch={handleOpenSearch}
+            onAccount={handleAccount}
+            accountLabel={accountLabel}
+          />
+
           <AnimatePresence>
             {isSearchOpen && (
               <motion.div
@@ -297,10 +410,14 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
                 className="w-full overflow-hidden transform-gpu will-change-transform"
               >
-                <div
+                <form
                   id={SEARCH_PANEL_ID}
                   role="search"
                   className="mx-auto max-w-3xl px-4 pb-4 pt-1 sm:px-6 sm:pb-5"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    submitSearch(localSearch);
+                  }}
                 >
                   <input
                     type="search"
@@ -313,11 +430,10 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                     className="focus-ring type-body w-full rounded-md border border-border-subtle bg-surface px-4 py-3 text-text-primary placeholder:text-text-tertiary"
                     autoFocus
                   />
-                </div>
+                </form>
               </motion.div>
             )}
           </AnimatePresence>
-          )}
         </motion.div>
       </header>
 
@@ -325,7 +441,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
         <Suspense fallback={null}>
           <LoginModal
             isOpen={isLoginModalOpen}
-            onClose={closeLoginModal}
+            onClose={dismissLoginModal}
             onSuccess={closeLoginModal}
           />
         </Suspense>
