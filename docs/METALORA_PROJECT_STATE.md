@@ -1,10 +1,14 @@
 # METALORA project state
 
-Persistent checkpoint for session handoff. Last updated after **PRE-LAUNCH HOLD** (2026-09-20 remaining pre-launch pipeline audit).
+Persistent checkpoint for session handoff. Last updated after **NEW 1 CLOSED** (Launch Pipeline v2 scope lock).
 
-This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here.
+This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master migration: `docs/decisions/NEW-1_launch-pipeline-v2.md`.
 
-**Current operating state: `PRE-LAUNCH HOLD`.** Ordinary development is complete. Queue A is empty. There is **no** current mandatory source/product work. Do **not** infer that something must be coded next. This is an intentional stable waiting state, not abandonment.
+**Current operating mode: `NEW LAUNCH PIPELINE v2 ACTIVE`.**
+**NEW 1 — ROADMAP / SCOPE LOCK: CLOSED.**
+**NEW 2 / NEW 2A: NOT OPENED.**
+
+NEXT: **A0 PRE-STAGE REPORT — NEW 2A** (Global Menu / Information Architecture Consistency). Do not implement. Do not assign A1. Every NEW stage and every NEW 2 substage requires an **A0 PRE-STAGE REPORT** before writes.
 
 ---
 
@@ -12,20 +16,23 @@ This is the authoritative current-state file. Do **not** create additional overl
 
 | Item | Value |
 |------|--------|
-| Operating state | **PRE-LAUNCH HOLD** |
-| Ordinary development | **COMPLETE** — Queue A empty |
-| DEVELOPMENT COMPLETE | **YES** |
-| PRE-LAUNCH ENGINEERING READY | **YES** |
-| LIVE-COMMERCE READY | **NO / DEFERRED** |
+| Operating mode | **NEW LAUNCH PIPELINE v2 ACTIVE** |
+| Current stage | **NEW 1 CLOSED** — next is A0 PRE-STAGE REPORT NEW 2A (not opened) |
+| NEW 2 | **NOT OPENED** |
+| NEW 2A | **NOT OPENED** |
+| Historical `#16`–`#23` | **CLOSED** |
+| Prior PRE-LAUNCH HOLD | **SUPERSEDED AS CURRENT MODE** (preserved historically) |
+| BASELINE DEVELOPMENT COMPLETE | **YES** (through `#23`) |
+| MASTER ROADMAP DEVELOPMENT COMPLETE | **NO** |
+| LIVE-COMMERCE READY | **NO** — NEW 6 must PASS before NEW 7 |
 | LIVE | **NO** |
-| #16–#23 | **CLOSED** |
-| #20 | **CLOSED WITH DEFERRED RESTORE OBLIGATION** |
+| #20 | **CLOSED WITH DEFERRED RESTORE OBLIGATION** (execution ID: **NEW 6**) |
 | #21 | **CLOSED** |
 | #22 | **CLOSED** |
 | #23-DEF | **DONE** — `docs/decisions/23-DEF_stage-definition.md` |
 | #23 A5 execution | **DONE** |
 | #23 | **CLOSED** |
-| #24 | **NOT OPENED** |
+| Historical `#24` | **NOT OPENED** — remaining work mapped to NEW 4 / 7 / 8 / 9 |
 | Production revision | `metalora-direct-00090-kig` |
 | Production traffic | **100%** |
 | Production source SHA | `0bb40e988a019716e748d12874693c247bfc410f` |
@@ -120,11 +127,11 @@ Do **not** reopen #20.
 
 Production Supabase: **FREE**, confirmed by user Dashboard inspection on **2026-09-20** (scheduled backup / PITR / restore UI unavailable; no upgrade; no restore attempted).
 
-#20F: **DEFERRED UNTIL LIVE-COMMERCE PREPARATION**. Restore drill not executed. Storage recovery not documented. It is **not** ordinary-development work and is **not** Queue A. Free remains allowed during this hold. A paid plan that provides the required backup/restore capability is required before #24 / first real payment (do **not** hard-code `Pro`).
+#20F (historical): **MIGRATED TO NEW 6**. Restore drill not executed. Storage recovery not documented. Production may remain **FREE** until NEW 6. A paid plan that provides the required backup/restore capability is required **before NEW 7 / first real payment** (do **not** hard-code `Pro`).
 
-Before **#24 live-payment activation** OR **first real production customer payment**, whichever occurs first:
+Before **NEW 7 production payment activation** OR **first real production customer payment**, whichever occurs first:
 
-- move to a paid plan that provides the required #20F backup/restore capability (do **not** hard-code `Pro`)
+- move to a paid plan that provides the required backup/restore capability (do **not** hard-code `Pro`)
 - confirm scheduled backups
 - record PITR status if applicable
 - execute and record restore drill
@@ -132,50 +139,41 @@ Before **#24 live-payment activation** OR **first real production customer payme
 
 Until completed: do **not** call production restorable; do **not** enable real payments.
 
-Timing lock: Free during development → paid capability **before** first live payment → restore gate pass → #24 / live commerce. **Not** first real payment then upgrade.
+Timing lock (unchanged): Free until NEW 6 → paid capability **before** first live payment → restore gate PASS → NEW 7. **Not** first real payment then upgrade.
 
-Durable record: `docs/decisions/20F-0_account-side-backup-confirmation.md`. `docs/operations.md` section E remains the runbook snapshot.
+Durable record: `docs/decisions/20F-0_account-side-backup-confirmation.md` (unchanged). `docs/operations.md` section E remains the runbook snapshot.
 
 ---
 
-## 6. Pipeline / PRE-LAUNCH HOLD
+## 6. Pipeline — NEW Launch Pipeline v2
+
+**PRE-LAUNCH HOLD = SUPERSEDED AS CURRENT OPERATING MODE.** Preserved historically: baseline engineering through `#23` was complete; the hold was valid against the then-incomplete durable SoT. Recovered pre-live roadmap now runs as NEW 1–5. Restore/live-payment gates are NEW 6 then NEW 7.
 
 | Stage | Status |
 |------|--------|
-| #16–#19 | CLOSED |
+| Historical `#16`–`#19` | CLOSED |
 | GOV-002 | CLOSED |
-| #20 | CLOSED WITH DEFERRED RESTORE OBLIGATION |
-| #21 | CLOSED |
-| #22 | CLOSED |
-| #23-DEF | DONE |
-| #23 | **CLOSED** |
-| #20F | **DEFERRED UNTIL LIVE-COMMERCE PREPARATION** |
-| #24 | **NOT OPENED** |
-| #25 | no durable stage definition |
-| Queue A (do now) | **EMPTY** |
+| Historical `#20` | CLOSED WITH DEFERRED RESTORE OBLIGATION |
+| Historical `#21`–`#23` | CLOSED |
+| Historical `#20F` | MIGRATED → **NEW 6** (not started) |
+| Historical `#24` | NOT OPENED; remaining work → NEW 4 / 7 / 8 / 9 |
+| **NEW 1** | **CLOSED** — roadmap / scope lock |
+| **NEW 2** | **NOT OPENED** (family 2A–2F; each needs its own A0 report) |
+| **NEW 2A** | **NOT OPENED** — next action is A0 PRE-STAGE REPORT only |
+| NEW 3–5 | not opened |
+| NEW 6 | not started (hard gate before NEW 7) |
+| NEW 7–9 | not opened |
+| LIVE | **NO** |
 
-### Milestones
+Upcoming main path: **NEW 2A A0 PRE-STAGE REPORT** (not an open/implement ticket) → then remaining NEW 2 family ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
 
-| Milestone | Status | Meaning |
-|------|--------|--------|
-| DEVELOPMENT COMPLETE | **YES** | No currently required ordinary development/source/product work. Does **not** mean legal work, restore gate, #24, or LIVE are complete. |
-| PRE-LAUNCH ENGINEERING READY | **YES** | Engineering through #23 is complete. Remaining items are live-commerce gates, legal holds, monitoring, optional UX, or future features. |
-| LIVE-COMMERCE READY | **NO / DEFERRED** | #20F has not executed. Production Supabase remains FREE (2026-09-20). |
-| LIVE | **NO** | #24 is **NOT OPENED**. |
+**NEW 2A** = required menu / IA consistency. **NEW 2B** = required dedicated 커스텀 제작 UX/UI (not Profile polish). Do not execute NEW 2 as one giant ticket.
 
-### Resume trigger
+Frozen complete (do not redesign): Home/Hero, PDP Desktop, PDP Mobile Story, Product Truth, Mount/Included, OWC, Product Information, PDP Footer.
 
-Resume mandatory execution **only** when user/orchestration explicitly decides **`ENTER LIVE-COMMERCE PREPARATION`**.
+Optional pre-launch and post-launch/data branches stay **outside** the blocking path unless explicitly promoted. See `docs/decisions/NEW-1_launch-pipeline-v2.md`.
 
-Sequence:
-
-**PRE-LAUNCH HOLD** → explicit live-commerce preparation decision → verify then-current Supabase paid-plan capabilities → **#20F restore gate** → restore gate **PASS** → **#24 may then open**
-
-Do **not** open #24 first. First mandatory work after resume is **#20F**. Do **not** start #20F from this hold record.
-
-#24-associated work stays unopened: live Toss, real payment validation, settlement, cancellation/refund, legal launch, fulfillment, first real production payment.
-
-Legal holds, A5 MINORs, monitoring, optional UX, and future features (including #26) **do not break HOLD** and must **not** be promoted into required work. Do not reopen #16–#23.
+Do **not** reopen `#16`–`#23`. Do **not** enable real payments before NEW 6 PASS.
 
 ---
 

@@ -7,6 +7,16 @@ alwaysApply: true
 
 Operating model: Parallel Audit → Directed Decision → Controlled Write → Independent Verification.
 
+## NEW Launch Pipeline — PRE-STAGE REPORT GATE
+
+For every **NEW Launch Pipeline v2** numbered stage (NEW 1–9) and every **NEW 2 substage** (2A–2F):
+
+1. **A0 PRE-STAGE REPORT** is mandatory **before** implementation.
+2. The report **HARD STOP**s. No source writes until user/orchestration review and **OPEN READY**.
+3. Then: STAGE OPEN → IMPLEMENTATION → **USER VISUAL APPROVAL** if visible → **A5 targeted QA** where required → A0 CLOSURE.
+
+This gate **extends** the operating model above. It does **not** replace Controlled Write, visual approval, A5, or A6 RED boundaries. A0 owns the report. Do not paste the full report template into Rules.
+
 ## Working state
 - Preserve dirty WIP. Never reset / checkout / stash / clean user work to make a task easier.
 - No git commit / push / reset / checkout / stash unless the user explicitly requests it.
