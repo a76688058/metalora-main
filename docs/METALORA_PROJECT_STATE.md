@@ -1,16 +1,18 @@
 # METALORA project state
 
-Persistent checkpoint for session handoff. Last updated after **NEW 2B OPEN** (custom creation UX/UI contract; docs-only; no source; no deploy).
+Persistent checkpoint for session handoff. Last updated after **NEW 2B CLOSED** (Custom Creation UX source/UX complete; production rollout not complete; docs closure).
 
 This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master migration: `docs/decisions/NEW-1_launch-pipeline-v2.md`. NEW 2A contract: `docs/decisions/NEW-2A_menu-ia-consistency.md`. NEW 2B contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`.
 
 **Current operating mode: `NEW LAUNCH PIPELINE v2 ACTIVE`.**
 **NEW 1 — ROADMAP / SCOPE LOCK: CLOSED.**
+**NEW 2: IN PROGRESS.**
 **NEW 2A: CLOSED.** Implementation, user visual approval, A5 targeted QA, and A5 short-delta QA **PASS**. Orphan `CustomerNavSheet` removed.
-**NEW 2B: OPEN.** Decision lock complete. Source implementation **not started**. First slice: **2B-1**.
-**NEW 2C–2F: NOT OPENED.**
+**NEW 2B: CLOSED.** Two-step Custom M source/UX complete. Payment-test validated. Production Custom DB/Storage/server **not** rolled out.
+**NEW 2C: NOT OPENED.**
+**NEW 2D–2F: NOT OPENED.**
 
-NEXT: **A2 — NEW 2B-1 WORKSHOP STABILITY / IA FOUNDATION.** Do **not** start 2B-1 from this file. HARD STOP this 2B-0 ticket before source. Every remaining NEW 2 substage (2C–2F) and every remaining NEW stage still requires an **A0 PRE-STAGE REPORT** before writes.
+NEXT: **A0 PRE-STAGE REPORT — NEW 2C** (Global Shell / Component Consistency). Do **not** open or implement NEW 2C from this file. Every remaining NEW 2 substage (2C–2F) and every remaining NEW stage still requires an **A0 PRE-STAGE REPORT** before writes.
 
 ---
 
@@ -19,10 +21,10 @@ NEXT: **A2 — NEW 2B-1 WORKSHOP STABILITY / IA FOUNDATION.** Do **not** start 2
 | Item | Value |
 |------|--------|
 | Operating mode | **NEW LAUNCH PIPELINE v2 ACTIVE** |
-| Current stage | **NEW 2B OPEN** — next is A2 2B-1 (source not started) |
-| NEW 2 | family; **2A CLOSED**; **2B OPEN**; 2C–2F not opened |
+| Current stage | **NEW 2 IN PROGRESS** — next is **A0 PRE-STAGE REPORT — NEW 2C** (not opened) |
+| NEW 2 | family; **2A CLOSED**; **2B CLOSED**; 2C–2F not opened |
 | NEW 2A | **CLOSED** — `docs/decisions/NEW-2A_menu-ia-consistency.md` |
-| NEW 2B | **OPEN** — `docs/decisions/NEW-2B_custom-creation-ux-ui.md` |
+| NEW 2B | **CLOSED** — `docs/decisions/NEW-2B_custom-creation-ux-ui.md` |
 | Historical `#16`–`#23` | **CLOSED** |
 | Prior PRE-LAUNCH HOLD | **SUPERSEDED AS CURRENT MODE** (preserved historically) |
 | BASELINE DEVELOPMENT COMPLETE | **YES** (through `#23`) |
@@ -46,7 +48,7 @@ NEXT: **A2 — NEW 2B-1 WORKSHOP STABILITY / IA FOUNDATION.** Do **not** start 2
 
 Cloud Run service: `metalora-direct` (`metalora-auth`, `us-west1`).
 
-`main` HEAD may be **ahead of production source** with docs-only commits. That drift is intentional. Do **not** deploy or retag solely to align HEAD with `00090-kig`.
+`main` HEAD is **ahead of production source**. That drift is intentional. NEW 2B source/UX is closed at repository HEAD `97f2f1daeecf49342a9f3f12db75728fccd48941`. Production Custom 2B-5A DB, 2B-5C Storage, and new `server.ts` remain **unapplied / undeployed**. Do **not** deploy or retag solely to align HEAD with `00090-kig`.
 
 Workspace: `C:\Users\admin\Desktop\metalora-main-clean-19f3`  
 Branch: `main`
@@ -161,20 +163,23 @@ Durable record: `docs/decisions/20F-0_account-side-backup-confirmation.md` (unch
 | Historical `#20F` | MIGRATED → **NEW 6** (not started) |
 | Historical `#24` | NOT OPENED; remaining work → NEW 4 / 7 / 8 / 9 |
 | **NEW 1** | **CLOSED** — roadmap / scope lock |
-| **NEW 2** | family; **2A CLOSED**; **2B OPEN**; 2C–2F **NOT OPENED** |
+| **NEW 2** | family; **IN PROGRESS**; **2A CLOSED**; **2B CLOSED**; 2C–2F **NOT OPENED** |
 | **NEW 2A** | **CLOSED** — customer nav / IA; visual approval + A5 PASS |
-| **NEW 2B** | **OPEN** — custom creation UX/UI contract; source not started; next **2B-1** |
-| NEW 2C–2F | **NOT OPENED** |
+| **NEW 2B** | **CLOSED** — two-step Custom M source/UX; payment-test PASS; production rollout **not** complete |
+| NEW 2C | **NOT OPENED** — next: A0 PRE-STAGE REPORT |
+| NEW 2D–2F | **NOT OPENED** |
 | NEW 3–5 | not opened |
 | NEW 6 | not started (hard gate before NEW 7) |
 | NEW 7–9 | not opened |
 | LIVE | **NO** |
 
-Upcoming main path: **A2 NEW 2B-1** (source; not this ticket) → remaining 2B slices → remaining NEW 2 family (each with its own PRE-STAGE REPORT) ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
+Upcoming main path: **A0 PRE-STAGE REPORT — NEW 2C** (not opened) → remaining NEW 2 family (each with its own PRE-STAGE REPORT) ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
 
 **NEW 2A** = **CLOSED.** Final Header: Search / Theme / Logo / Account / Cart on desktop and mobile; no persistent Custom text; no mobile `메뉴` / hamburger / CustomerNavSheet. Primary Custom discovery: Home `커스텀 제작 →` via `requestCustomAccess()`. Cart commerce term = `장바구니`. Global search → `/?q=`. Do not reopen 2A.
 
-**NEW 2B** = **OPEN.** Dedicated 커스텀 제작 UX/UI after the 2A entry point. Contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`. Upload-first 3-step flow; origin-aware exit; M 200×283 mm; SLA 2–5 / 1–3; CTA `장바구니에 담기`; PDP preview reuse; admin-configurable Custom price (2B-5, not 2B-1). Do not execute NEW 2 as one giant ticket.
+**NEW 2B** = **CLOSED.** Dedicated 커스텀 제작 UX/UI. Contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`. Final flow: two-step only (`1/2 이미지 편집` → `다음으로` → `2/2 제품 미리보기` → `장바구니에 담기`). Custom **M only**, **200 × 283 mm**, aluminum. No fit-mode UI. Price authority `site_settings.custom_m_price`. Durable original/preview + trusted Cart v1. Source/payment-test complete; production Custom rollout **not** complete. Do not execute NEW 2 as one giant ticket. Do not reopen 2B implementation.
+
+Durable 2B checkpoints: `b37c1f7` (open) → `0a65c24` (two-step UX) → `2e06be9` (trusted cart snapshot) → `97f2f1d` (durable handoff). Visual + payment-test E2E + A5/A0 **PASS**. Production 2B-5A/2B-5C/server **not** applied/deployed.
 
 Frozen complete (do not redesign): Home/Hero, PDP Desktop, PDP Mobile Story, Product Truth, Mount/Included, OWC, Product Information, PDP Footer — except the closed NEW 2A Header chrome, Home.tsx headline/CTA stack, copy-only PDP rail cart-term strings listed in the 2A note, and **NEW 2B-4 shared PDP preview reuse** (not a PDP visual redesign).
 
@@ -225,7 +230,7 @@ Do not reintroduce:
 - customer-facing `180℃`
 - customer-facing `승화전사` where easier Korean is preferred
 
-Approved direction: natural Korean, consumer-first, factual. NEW 2B may describe **real** production AI upscaling and **real** fit modes (`채우기` / `전체 보기`) only in wording that matches actual behavior.
+Approved direction: natural Korean, consumer-first, factual. NEW 2B may describe **real** production AI upscaling only in wording that matches actual behavior. Do **not** present fit/fill/all-view controls or immediate 4K / generative-fill UI. Fit-mode labels from early 2B-0 planning are **SUPERSEDED**.
 
 ---
 

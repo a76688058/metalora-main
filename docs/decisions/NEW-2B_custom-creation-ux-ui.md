@@ -1,12 +1,12 @@
 # NEW 2B — Custom Creation UX/UI
 
-Status: OPEN
+Status: **CLOSED**
 
-Date: 2026-09-21
+Date: 2026-09-22
 
-Decision: NEW 2B is **OPEN**. User/orchestration review of the A0 PRE-STAGE REPORT is complete. Product direction is **locked**. This note is the durable contract.
+Decision: NEW 2B Custom Creation UX is **CLOSED**. Source/UX implementation, user visual approval, payment-test E2E, A5 targeted QA, and A0 checkpoint audits **PASS**. This note is the durable contract.
 
-This note does **not** authorize runtime source writes by itself. First implementation slice is **2B-1** (separate A2 ticket). It does **not** open NEW 2C–2F. It does **not** authorize a public `/workshop` route, live Toss, payment activation, backup/restore, deploy, or Rules edits.
+This note does **not** open NEW 2C–2F. It does **not** authorize production DB/Storage apply, Cloud Run deploy, live Toss, or application-source edits.
 
 ---
 
@@ -14,353 +14,236 @@ This note does **not** authorize runtime source writes by itself. First implemen
 
 | Item | Value |
 |------|--------|
+| NEW 2 | **IN PROGRESS** |
 | NEW 2A | **CLOSED** — preserved |
-| NEW 2B | **OPEN** |
+| NEW 2B | **CLOSED** — source/UX complete; production rollout **not** complete |
 | NEW 2C–2F | **NOT OPENED** |
 | Historical `#16`–`#23` | **CLOSED** |
-| 2B-0 Decision lock | **this note** |
-| Next slice | **2B-1** Workshop stability / IA foundation (A2) |
-| Source implementation | **not started** |
+| Next governance action | **A0 PRE-STAGE REPORT — NEW 2C** (do not open 2C from this note) |
 
 ---
 
-## Locked product decisions
+## Final product contract (CURRENT)
 
-### A. Entry / exit origin
+### Flow
 
-Workshop exit/back returns to the **origin surface**.
+Two numbered steps only. The original 2B-0 **3-step** plan is **SUPERSEDED**.
 
-| Origin | Exit / back |
-|--------|-------------|
-| Home `커스텀 제작 →` | Home |
-| Profile `커스텀 제작` | Profile |
-
-Do **not** always force Profile. Use the minimum in-memory origin state. No URL / cookie / localStorage persistence for origin unless existing architecture already requires it.
-
-2A entry architecture is **frozen**: Home CTA → `requestCustomAccess()` → logged out: Header LoginModal → AuthContext continuation → Workshop. Logged in: Workshop. Auth-gated use. No public `/workshop`. Do **not** move login after upload in NEW 2B.
-
-### B. Custom price
-
-Hardcoded `49000` is **not** the final architecture.
-
-Approved:
-
-- Custom product price is **admin-configurable from `/admin`**
-- Workshop reads the **same** authoritative source
-- Cart receives a **price snapshot** at add-to-cart
-- No duplicated price constants
-- No invented replacement number in UI or docs
-
-**Read-only residual (2B-0):** there is **no** suitable existing admin Custom-price field.
-
-| Current source | Role |
-|----------------|------|
-| `WorkshopView.tsx` `49000` | client display + `custom_config.price` + analytics |
-| `Cart.tsx` / `CartContext` | display snapshot from `custom_config.price` |
-| `server.ts` `SERVER_WORKSHOP_UNIT_PRICE = 49000` | **A6 payment authority** — “never trust client `custom_config.price`” |
-| `/admin/products` | catalog `products.options[].price` only; Custom is **not** a catalog product row |
-
-2B-5 must **audit then design**, not invent a second system. If catalog products cannot be reused without fabricating a `workshop-single` product, a dedicated A6/A3-compatible price-authority ticket is required. Do **not** implement price infrastructure in 2B-1.
-
-### C. Custom size
-
-Current Custom service: **M ONLY**.
-
-Finished size: **200 × 283 mm** (confirmed).
-
-Supersede: A4 **210 × 297 mm**. Do not present size as an active choice. Remove or hide disabled `Custom Size / Coming Soon` unless a later roadmap reintroduces it.
-
-Preferred information (not a picker):
-
-`메탈 프린트 · M`  
-`200 × 283 mm`
-
-### D. AI / image processing
-
-Production AI upscaling is part of the **real output process**.
-
-Browser UI must **not** claim an immediate 4K transformation or generative fill if the UI does not perform that work.
-
-- Remove misleading `4K 변환`
-- Remove misleading generative `AI가 채웁니다` style language
-- Preserve real current fit/space preview behavior
-- Rename with factual Korean matching actual behavior
-
-Preferred customer-facing fit labels (or equivalent factual Korean):
-
-- `채우기`
-- `전체 보기`
-
-Production AI upscaling may be explained only in wording that matches the real production workflow. Do **not** present non-executing toggles as live AI processing. Do **not** reintroduce 4K / 8K / unverified sharpness guarantees.
-
-### E. Crop
-
-Approved **if technically feasible**.
-
-- Customer can position / zoom / crop the uploaded image
-- Crop / aspect reference follows finished product ratio **200:283**
-- Portrait / landscape orientation respected
-- Image-editing UX — do **not** couple to WebGL internals unnecessarily
-- Do **not** silently invent destructive processing
-- If an external library is required: **report before adding a dependency**
-
-Crop is **2B-3**, not 2B-1 (unless trivially present already — it is not).
-
-### F. Flow shape
-
-Keep a **3-step** flow. **Restructure.** Do not keep material/size-selection-first. Do not create a one-page mega-form.
-
-Agreement remains a **gate before numbered steps**, not Step 1. Presentation/layout may improve. Do **not** silently rewrite legal substance (`ML_Legal_v260325`). Legal copy changes need user/counsel/A6 review.
+Agreement remains an **unnumbered gate** before steps (`ML_Legal_v260325`). Do not silently rewrite legal substance.
 
 ```
 AGREEMENT GATE (unnumbered)
   ↓
-STEP 1 — 이미지 만들기
-  orientation · upload · validation · crop · position/zoom · fit · quality guidance
+1/2 이미지 편집
+  upload-first · orientation · pan · zoom · qualitative guidance · authoritative price
+  CTA: 다음으로
   ↓
-STEP 2 — 미리보기
-  final image · product preview · 내 공간에 걸어보기 · 3D로 보기
-  ↓
-STEP 3 — 최종 확인
-  final image · M / 200×283 mm · orientation · current Custom price
-  production 2–5 business days · delivery 1–3 business days
-  장바구니에 담기
+2/2 제품 미리보기
+  same composition · product facts · Room / 3D · authoritative price
+  CTA: 장바구니에 담기
 ```
 
----
+No Step 3. No extra edit button on Step 2. Back from Step 2 returns to Step 1.
 
-## Upload-first principle
+### Product
 
-The first meaningful customer action is **UPLOAD / CREATE**, not fake option selection.
+- Custom **M only**. Not A4. Not a size picker.
+- Finished size: **200 × 283 mm** (portrait **200:283**, landscape **283:200**)
+- Material: **aluminum**
+- Customer identity: `메탈 프린트 · M` / `200 × 283 mm`
+- SLA: production **2–5 business days**; delivery **1–3 business days after dispatch**
+- Workshop CTA: **`장바구니에 담기`** (not `내 컬렉션에 담기`)
 
-Because material is aluminum-only and size is M-only, those are **product information**, not large selection UI.
+### Step 1 (user visual approval: PASS)
 
-Actual interactive selection in 2B:
+Upload-first editor; fixed product-frame composition; pan; zoom; portrait / landscape; rounded visual product frame; qualitative safe-area copy; upload / change image; AI upscale **informational** copy only; excessive-zoom qualitative warning; authoritative Custom M price.
 
-- portrait / landscape
-- uploaded image
-- crop / position
-- fit mode (`채우기` / `전체 보기`)
+**No** fit / fill / all-view / reset product-control set. Original 2B-0 fit-mode labels (`채우기` / `전체 보기`) are **SUPERSEDED** and must not be presented as current UI.
 
----
+### Step 2 (user visual approval: PASS)
 
-## Image quality guidance
+Same canonical composition; product preview; M / 200 × 283 mm; authoritative price; orientation fact; production / delivery SLA; cancellation/final notice; `내 공간에 걸어보기`; `3D로 보기`; Add-to-Cart.
 
-Add validation / quality feedback. Separate:
+### Composition (CURRENT)
 
-1. file type
-2. file size
-3. dimensions / resolution guidance
-4. production quality guidance
+Canonical persisted model:
 
-Example UX (copy may be finalized in implementation):
+```
+CustomComposition {
+  version: 1,
+  orientation,
+  zoom,
+  offsetX,
+  offsetY
+}
+```
 
-- success: `출력에 적합한 이미지입니다.`
-- warning: `이미지 해상도가 낮습니다. 더 큰 원본을 권장합니다.`
+`source_width` / `source_height` stored separately. No persisted CSS-pixel state. No `fitMode`. The same composition drives the persistent customer preview (JPEG, long edge 1600 — UI derivative, not the print master).
 
-Do **not** invent numeric DPI/resolution thresholds. Thresholds require verified production requirements (A6/fact confirmation). 2B-2 may ship the **framework** with type/size checks first.
+### Price (CURRENT)
 
-No production uploads during QA.
+Authority: **`site_settings.custom_m_price`**.
 
----
+- Admin `/admin/products`: reads/writes this key only. User visual approval **PASS**.
+- Workshop Step 1 and Step 2: live display from the same key. User visual approval **PASS**.
+- Cart / payment: DB **trusted snapshot** on complete v1. Client must not author trusted price.
 
-## PDP preview reuse
+Hardcoded `49000` / `SERVER_WORKSHOP_UNIT_PRICE` is **historical 2B-0 residual**, not current behavior.
 
-Custom must use the **same** customer-facing preview capabilities as PDP:
+### Durable handoff (CURRENT)
 
-- `내 공간에 걸어보기`
-- `3D로 보기`
+Original production source:
 
-Do **not** create visually similar Workshop-only duplicates if PDP implementation can be reused.
+`workshop/originals/<uid>/<unique-id>.<ext>`
 
-Preferred architecture: shared product-preview capability; Custom feeds the customer's **final uploaded/cropped image** as artwork source.
+Persistent composed preview:
 
-Requirements: same design language, same icon treatment, same interaction where practical, mobile + desktop, **no Workshop-only 3D engine fork**.
+`workshop/previews/<uid>/<unique-id>.jpg`
 
-A4 owns WebGL internals. A2 owns surrounding Workshop UI. If shared extraction is required, sequence writers so A2 and A4 do **not** edit `WorkshopView.tsx` at the same time.
+Complete v1 Cart row persists: `original_image_url`, `preview_image_url`, composition, `source_width`, `source_height`, orientation, trusted price snapshot.
 
-Room Preview remains **zero WebGL**. Story Canvas / 3D Viewer Canvas coexistence rules in spatial contracts still apply.
+- `custom_image` = `preview_image_url` (Cart/PDP display alias)
+- Production/print master = `original_image_url`
+- Customer display derivative = `preview_image_url`
+- New files: local validate/keep; upload only at Add-to-Cart. No bucket-root upload.
+- Historic remote originals may be reused.
 
----
+### Lifecycle (CURRENT)
 
-## Layout principle
+| Path | Behavior |
+|------|----------|
+| Home → Custom → true exit | Home |
+| Profile → Custom | Profile closes while Workshop is active |
+| Profile origin, true exit/cancel | Profile may restore |
+| Successful Add-to-Cart | non-restoring Workshop completion → Cart opens → Profile does **not** reopen |
 
-Do **not** shrink the desktop layout onto mobile.
+2A entry remains frozen: Home `커스텀 제작 →` → `requestCustomAccess()`; logged out uses Header LoginModal continuation; logged in opens Workshop. Auth-gated. No public `/workshop`.
 
-| Viewport | Pattern |
-|----------|---------|
-| Desktop (~1440) | large preview + side control panel |
-| Mobile (~390) | preview → editing controls → sticky primary CTA |
-
-Same functionality. Different composition. Keep mobile density low. Avoid long neon-style stacked cards.
-
----
-
-## Exit / unsaved work
-
-- No meaningful work → exit immediately to origin.
-- Uploaded/edited meaningful work → lightweight confirm. Intent: `제작을 종료할까요?`
-
-Do **not** promise persistence unless it really exists. Exact copy is finalized after persistence behavior is verified in implementation.
-
----
-
-## Price visibility
-
-Show the current Custom price **early enough** for an informed decision. Do not hide it until the last click. Source must be the authoritative admin-managed value. No duplicated hardcoded numbers. Until 2B-5, 2B-1 must **not** invent a new display constant.
+Payment-test E2E for this lifecycle: **PASS**.
 
 ---
 
-## SLA (confirmed)
+## Checkpoints
 
-| Item | Value |
+| SHA | Message |
+|-----|---------|
+| `b37c1f75afa2171d6f5c48dab7b891952f17cdb5` | `docs(project): open NEW 2B custom creation UX` |
+| `0a65c2415a40ec0d3dd969874056ce21af62326b` | `feat(custom): establish two-step creation workflow` |
+| `2e06be9c71c0376c06697a7e40de0a4036ff90b2` | `feat(custom): add trusted cart snapshot contract` |
+| `97f2f1daeecf49342a9f3f12db75728fccd48941` | `feat(custom): complete durable cart handoff` |
+
+---
+
+## Validation evidence
+
+- Step 1 visual approval **PASS**
+- Step 2 visual approval **PASS**
+- same-canvas behavior **PASS**
+- Admin Custom M price UI **PASS**
+- Workshop Step 1 price **PASS**
+- Workshop Step 2 price **PASS**
+- Profile → Custom → Cart lifecycle **PASS**
+- payment-test 2B-5A contract **PASS**
+- payment-test Storage contract **PASS**
+- real browser Add-to-Cart E2E **PASS**
+- double-submit **PASS**
+- payment-test cleanup **PASS**
+- A5 targeted QA **PASS**
+- A0 checkpoint audit **PASS**
+
+Do **not** claim production validation.
+
+---
+
+## Original slice reconciliation
+
+Planning slices from 2B-0 are **not** still actionable.
+
+| Slice | Closure status |
+|-------|----------------|
+| **2B-0** | COMPLETED — this note (now CLOSED) |
+| **2B-1 – 2B-4** | COMPLETED / superseded into the approved two-step UX checkpoint |
+| **2B-5** | COMPLETED at **source / payment-test** (Admin price, Workshop price, trusted RPC, durable original/preview, Storage contract) |
+| **2B-6** | SATISFIED by approved desktop ~1440 panel + mobile sticky CTA density |
+| **2B-7** | **DEFERRED** — optional Custom `custom_*` funnel events; conversion `add_to_cart` already fires. Not a closure blocker |
+| **2B-8** | **SATISFIED** by accumulated visual + E2E + A5/A0 evidence. Do not invent a new QA ticket |
+
+Do not create a new 2B-6 / 2B-7 / 2B-8 task.
+
+---
+
+## Production rollout — NOT COMPLETE
+
+NEW 2B **source / UX**: COMPLETE / CLOSED.
+
+Production rollout is **later launch-gate work**. Do not write “fully live”, “production complete”, or “payment launched”.
+
+| Item | State |
 |------|--------|
-| Production | **2–5 business days** |
-| Delivery | **1–3 business days after dispatch** |
-
-Replace Workshop copy that conflicts (including Custom-only **14-day** claims). No Custom-only SLA unless a later decision changes this.
-
----
-
-## Cart terminology
-
-Workshop CTA: **`장바구니에 담기`**.
-
-Do **not** use `내 컬렉션에 담기`. Preserve NEW 2A commerce terminology. Catalog language (`컬렉션으로 돌아가기`) is unchanged.
+| Production 2B-5A DB migration | **NOT APPLIED** |
+| Production 2B-5C Storage migration | **NOT APPLIED** |
+| new `server.ts` / payment logic | **NOT DEPLOYED** |
+| Production Cloud Run | **UNCHANGED** |
+| Live Toss | **NOT ACTIVATED** |
 
 ---
 
-## Conversion / funnel goals
+## Deferred / later-stage (not NEW 2B blockers)
 
-- Minimize non-choice steps
-- Move the user to upload quickly
-- Only show controls that actually change the result
-- Remove fake/disabled feature clutter
-- Expose price early
-- Show image quality feedback
-- Use real product previews
-- Preserve progress where technically reliable
-- Reduce mobile density
-- Keep the primary CTA clear at each step
-
-Do **not** invent scarcity, urgency, or deceptive claims.
-
----
-
-## Analytics / funnel plan (2B-7 — not this ticket)
-
-Plan these events **if** they fit the existing `track()` / `AnalyticsEventMap` architecture (`src/lib/analytics.ts`, A6):
-
-`custom_open` · `custom_agreement_complete` · `custom_upload_start` · `custom_upload_success` · `custom_upload_rejected` · `custom_crop_complete` · `custom_room_preview_open` · `custom_3d_preview_open` · `custom_step_2` · `custom_add_to_cart` · `custom_exit`
-
-Current map is commerce-only (`page_view`, `view_item`, `add_to_cart`, checkout/payment). Adding Custom events is **A6** via the existing `track()` contract — no second plumbing. Do **not** implement analytics in 2B-1.
-
----
-
-## Remove / fix targets (bounded)
-
-- dead `navigate('/workshop/single')`
-- unconditional Profile return
-- fake 4K / AI processing wording
-- fake generative-fill wording
-- A4 210 × 297
-- hardcoded price (**display path in later 2B-5; do not invent a new number in 2B-1**)
-- conflicting SLA text
-- `내 컬렉션에 담기`
-- unvalidated upload + weak failure feedback
-- incomplete resume state where feasible
-- unused draft/storage keys if confirmed dead
-- misleading sample / Unsplash placeholder
-- inconsistent `alert()` error handling
-
-Do **not** broaden into generic cleanup.
-
----
-
-## Implementation slices
-
-| Slice | Owner | Focus | Visual | Notes |
-|-------|--------|--------|--------|--------|
-| **2B-0** | A0 | this decision lock / OPEN | no | docs only |
-| **2B-1** | A2 | overlay origin exit; kill dead route; upload-first 3-step IA; cart term; false copy; M + SLA; no Crop; no WebGL internals | **required** | first source slice |
-| **2B-2** | A2 | file validation, errors, quality-feedback framework | yes | A6 fact confirmation for thresholds |
-| **2B-3** | A2 | crop / zoom / position; 200:283; orientation; fit | yes | report before new dependency |
-| **2B-4** | A2 UI; A4 WebGL only if required | PDP `내 공간에 걸어보기` / `3D로 보기` reuse; customer image as source | yes | no simultaneous WorkshopView writers |
-| **2B-5** | A0/A3/A6 per discovered architecture | admin Custom price; Workshop read; cart snapshot | yes if UI | no live payment; no second price system |
-| **2B-6** | A2 | 390 / 1440; sticky CTA; density; no 2C token refactor | **required** | |
-| **2B-7** | A6 | funnel hooks via existing analytics | no | |
-| **2B-8** | A5 **READ ONLY** | full Custom journey QA | after visual | |
-
----
-
-## Ownership / collision
-
-- Max **2** concurrent writers. One file = one writer.
-- `WorkshopView.tsx` default writer = **A2**. A4 must **not** edit it at the same time.
-- A4 only touches WebGL / shared preview internals when explicitly assigned (2B-4).
-- If extraction is needed: extract first, then parallel on disjoint files.
-- A5 READ ONLY.
-- A6 owns RED / storage / production / config / payment authority / `server.ts` / `src/lib/analytics.ts`.
-- A1 Header **frozen**.
-- A0 AuthContext / App.tsx **frozen** unless a real integration blocker appears.
-- Do not change shared `artwork3d` / Hero defaults for Workshop cosmetics.
+- upload MB authority
+- numeric DPI / print-quality threshold
+- HEIC / HEIF policy
+- public-original privacy / signed or private URL architecture
+- orphan Storage lifecycle / retention
+- optional Custom funnel events (original 2B-7)
+- internal `user_progress.selected_size = 'A4'` — non-customer-facing legacy compatibility marker; does **not** drive price, Cart identity, v1 handoff, manufacturing metadata, or visible M identity; optional later cleanup
+- Cart landscape thumbnail geometry
+- Custom item detail routing
+- mobile Cart UX / checkout / **NEW 2E**
+- shared rounded physical 3D geometry
+- production DB / Storage / server rollout
+- live Toss
 
 ---
 
 ## Protected contracts (must not regress)
 
-- NEW 2A CLOSED: Home `커스텀 제작 →`; Header five-icon chrome; no CustomerNavSheet; `requestCustomAccess()`; Header LoginModal bridge; Home typography; cart term `장바구니` on Header / Cart / PDP rail
+- NEW 2A CLOSED: Home `커스텀 제작 →`; Header five-icon chrome; no CustomerNavSheet; `requestCustomAccess()`; Header LoginModal bridge; cart term `장바구니`
 - No public `/workshop`
 - Auth-gated Workshop
-- Aluminum-only current product
+- Aluminum-only current Custom product; **M 200 × 283 mm**
 - `workshop-single` cart identity
 - Historical `#16`–`#23` CLOSED
-- PDP / Home frozen except 2A exceptions and **2B-4 shared preview reuse** (not a PDP redesign)
+- PDP / Home frozen except 2A exceptions and 2B-4 shared preview reuse (not a PDP redesign)
 - Product-truth holds (no 4K/8K/영원히/벽 손상 없음)
 - Payment / Toss / NEW 6 / deploy / secrets
 
 ---
 
-## Out of scope (NEW 2B)
+## Out of scope (unchanged)
 
-NEW 2C global shell cleanup · NEW 2D catalog · NEW 2E checkout redesign · NEW 2F account · NEW 3 admin visual rewrite (except the minimum Custom-price control required by 2B-5) · live Toss · production payment · backup/restore · launch/legal conclusions · broad WebGL refactor · generic code cleanup · login-after-upload experiment
-
----
-
-## Blocker / open item
-
-None that block **2B-1**.
-
-Must be resolved before later slices, not by inventing facts in 2B-1:
-
-1. Admin Custom-price source (2B-5) — none exists today; server already has `SERVER_WORKSHOP_UNIT_PRICE`
-2. Upload dimension/DPI thresholds (2B-2) — need production fact confirmation
-3. Crop library vs in-house (2B-3) — report before dependency
-4. Shared PDP preview extraction vs local reuse (2B-4) — A2/A4 sequencing
-5. `user_progress` completeness vs honest exit copy (2B-1 copy after persistence verified)
+NEW 2C global shell cleanup · NEW 2D catalog · NEW 2E checkout redesign · NEW 2F account · NEW 3 admin visual rewrite (beyond the shipped Custom M price control) · live Toss · production payment · backup/restore · launch/legal conclusions · broad WebGL refactor · generic code cleanup · login-after-upload experiment
 
 ---
 
 ## Do not do
 
-- Start source in this 2B-0 ticket
-- Deploy / Cloud Run / production Supabase mutation / storage-policy change / Toss / secrets
-- Reopen NEW 2A Header / Home CTA / auth architecture
-- Invent crop in 2B-1
-- Touch WebGL internals in 2B-1
-- Invent a replacement price number
-- Claim persistence that does not exist
-- Fork a Workshop-only 3D engine
-- Dual-write `WorkshopView.tsx`
+- Reopen NEW 2B implementation from this closure
+- Open NEW 2C from this note
+- Deploy / apply production 2B-5A or 2B-5C / live Toss
+- Restore 3-step flow or fit-mode UI
+- Present A4 as customer-facing Custom identity
+- Treat hardcoded `49000` as current price authority
+- Claim production rollout complete
 
 ---
 
 ## Resume procedure
 
 1. This note + `docs/METALORA_PROJECT_STATE.md` = SoT
-2. Next: **A2 — 2B-1** Workshop stability / IA foundation
-3. Visual checkpoint after 2B-1
-4. Do not skip slices to jump to Crop / WebGL / price / analytics
+2. Next: **A0 PRE-STAGE REPORT — NEW 2C** (Global Shell / Component Consistency)
+3. Do **not** start NEW 2C until that report is reviewed and OPEN READY
+4. Production Custom DB/Storage/server remain later launch gates
 
 ---
 
@@ -368,10 +251,16 @@ Must be resolved before later slices, not by inventing facts in 2B-1:
 
 A0 — architecture / stage contract.
 
-## Relevant files (implementation; not written in 2B-0)
+## Relevant files (implemented; not written in this closure)
 
 - `src/components/WorkshopOverlay.tsx`
 - `src/components/Workshop/CopyrightPage.tsx`
 - `src/components/Workshop/WorkshopView.tsx`
-- later: Cart / admin / `server.ts` / PDP theatre / `artwork3d` / `src/lib/analytics.ts` per slice
-- 2A frozen: `src/pages/Home.tsx`, `src/components/Header.tsx`, `src/context/AuthContext.tsx`
+- `src/components/Workshop/CustomImageEditor.tsx`
+- `src/lib/customComposition/*`
+- `src/pages/AdminProducts.tsx`
+- `src/context/AuthContext.tsx`
+- `server.ts` (2B-5A source; **not** production-deployed)
+- `supabase/migrations/20260921120000_2b5a_custom_m_price_trusted_snapshot.sql`
+- `supabase/migrations/20260921130000_2b5c_workshop_storage_contract.sql`
+- 2A frozen: `src/pages/Home.tsx`, `src/components/Header.tsx`
