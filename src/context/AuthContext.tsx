@@ -15,6 +15,9 @@ interface SignOutOptions {
   toast?: boolean;
 }
 
+/** In-memory Workshop exit origin. Not persisted. */
+export type WorkshopOrigin = 'home' | 'profile';
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;
@@ -34,6 +37,8 @@ interface AuthContextType {
   isOrdersOpen: boolean;
   isInquiryOpen: boolean;
   pendingCustomAccess: boolean;
+  /** Set only by Custom entry. `null` when idle / dismissed / closed. */
+  workshopOrigin: WorkshopOrigin | null;
 
   signOut: (options?: SignOutOptions) => Promise<void>;
   refreshProfile: (isAdmin?: boolean) => Promise<void>;
@@ -73,11 +78,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [pendingCustomAccess, setPendingCustomAccess] = useState(false);
+  const [workshopOrigin, setWorkshopOrigin] = useState<WorkshopOrigin | null>(null);
 
   const openProfile = () => setIsProfileOpen(true);
   const closeProfile = () => setIsProfileOpen(false);
-  const openWorkshop = () => setIsWorkshopOpen(true);
-  const closeWorkshop = () => setIsWorkshopOpen(false);
+  const openWorkshop = () => {
+    setWorkshopOrigin('profile');
+    setIsProfileOpen(false);
+    setIsWorkshopOpen(true);
+  };
+  const closeWorkshop = () => {
+    setIsWorkshopOpen(false);
+    setWorkshopOrigin(null);
+  };
   const openProfileEdit = () => setIsProfileEditOpen(true);
   const closeProfileEdit = () => setIsProfileEditOpen(false);
   const openOrders = () => setIsOrdersOpen(true);
@@ -97,9 +110,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const clearPendingCustomAccess = useCallback(() => {
     setPendingCustomAccess(false);
     customContinuationLock.current = false;
+    setWorkshopOrigin(null);
   }, []);
 
   const requestCustomAccess = useCallback(() => {
+    setWorkshopOrigin('home');
     if (user || adminUser) {
       setPendingCustomAccess(false);
       customContinuationLock.current = false;
@@ -123,6 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsProfileResolved(true);
     setPendingCustomAccess(false);
     customContinuationLock.current = false;
+    setWorkshopOrigin(null);
     hadSessionUserRef.current = false;
   };
 
@@ -446,6 +462,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (hadSessionUserRef.current) {
         setPendingCustomAccess(false);
         customContinuationLock.current = false;
+        setWorkshopOrigin(null);
       }
       hadSessionUserRef.current = false;
       return;
@@ -460,6 +477,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     customContinuationLock.current = true;
     setPendingCustomAccess(false);
+    setWorkshopOrigin('home');
     setIsWorkshopOpen(true);
   }, [user, adminUser, pendingCustomAccess]);
 
@@ -468,7 +486,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session, user, profile,
       adminSession, adminUser, adminProfile,
       isLoading, isProfileResolved, isLoggingOut, isProfileOpen, isWorkshopOpen, isProfileEditOpen, isOrdersOpen, isInquiryOpen,
-      pendingCustomAccess,
+      pendingCustomAccess, workshopOrigin,
       signOut, refreshProfile, refreshSession,
       openProfile, closeProfile, openWorkshop, closeWorkshop,
       openProfileEdit, closeProfileEdit, openOrders, closeOrders,

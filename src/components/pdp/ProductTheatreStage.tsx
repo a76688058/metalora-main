@@ -39,6 +39,8 @@ interface ProductTheatreStageProps {
   onOpenRoomPreview?: () => void;
   roomPreviewEntryRef?: React.RefObject<HTMLButtonElement | null>;
   onViewerOpenChange?: (open: boolean) => void;
+  /** Custom Workshop only. Catalog omits this and keeps the idle 2D theatre. */
+  startInViewer?: boolean;
 }
 
 function isRealAssetUrl(url: string | null | undefined): url is string {
@@ -165,6 +167,7 @@ export function ProductTheatreStage({
   onOpenRoomPreview,
   roomPreviewEntryRef,
   onViewerOpenChange,
+  startInViewer = false,
 }: ProductTheatreStageProps) {
   const quality = usePdpQualityTier();
   const compact = useCompactTheatre();
@@ -180,7 +183,7 @@ export function ProductTheatreStage({
   const [imageFailed, setImageFailed] = useState(false);
   const [readyForKey, setReadyForKey] = useState<string | null>(null);
   const [failedForKey, setFailedForKey] = useState<string | null>(null);
-  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(startInViewer);
   const [pose, setPose] = useState({ rotationX: 0, rotationY: 0 });
   const [dragging, setDragging] = useState(false);
   const [hintVisible, setHintVisible] = useState(false);
@@ -388,7 +391,13 @@ export function ProductTheatreStage({
   }, [viewerOpen, onViewerOpenChange]);
 
   useEffect(() => {
-    if (!viewerOpen) unlockIfNeeded();
+    if (!viewerOpen) {
+      unlockIfNeeded();
+      return;
+    }
+    if (lockedScrollYRef.current == null) {
+      lockedScrollYRef.current = lockDocumentScroll();
+    }
   }, [viewerOpen, unlockIfNeeded]);
 
   useEffect(() => {

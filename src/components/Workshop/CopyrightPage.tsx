@@ -4,8 +4,8 @@ import { CheckCircle2, Check, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useToast } from '../../context/ToastContext';
 import Header from '../Header';
-import { useNavigate } from 'react-router-dom';
 
 interface CopyrightPageProps {
   onAgree: () => void;
@@ -15,7 +15,7 @@ interface CopyrightPageProps {
 export default function CopyrightPage({ onAgree, hideHeader = false }: CopyrightPageProps) {
   const { user } = useAuth();
   const { theme } = useTheme();
-  const navigate = useNavigate();
+  const { showToast } = useToast();
   const [agreements, setAgreements] = useState({
     article1: false,
     article2: false,
@@ -45,9 +45,7 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
           .single();
 
         if (data && !error) {
-          // Already agreed, redirect
           onAgree();
-          navigate('/workshop/single');
         }
       } catch (err) {
         console.error('Error checking initial agreement:', err);
@@ -58,7 +56,6 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
 
     checkInitialAgreement();
 
-    // Fetch IP address for logging with fallback
     const fetchIp = async () => {
       try {
         const response = await fetch('https://api.ipify.org?format=json');
@@ -66,7 +63,6 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
         const data = await response.json();
         setClientIp(data.ip);
       } catch (err) {
-        // Fallback to Cloudflare if primary fails
         try {
           const cfResponse = await fetch('https://1.1.1.1/cdn-cgi/trace');
           if (cfResponse.ok) {
@@ -84,7 +80,7 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
     };
 
     fetchIp();
-  }, [user, onAgree, navigate]);
+  }, [user, onAgree]);
 
   const toggleAgreement = (key: keyof typeof agreements) => {
     setAgreements(prev => ({ ...prev, [key]: !prev[key] }));
@@ -95,7 +91,6 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
     setIsSubmitting(true);
 
     try {
-      // Log agreement to Supabase (user_agreements table)
       const { error } = await supabase
         .from('user_agreements')
         .insert({
@@ -109,14 +104,10 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
         throw error;
       }
 
-      if (onAgree) {
-        onAgree();
-      } else {
-        navigate('/workshop/single');
-      }
+      onAgree();
     } catch (err) {
       console.error('Error logging agreement:', err);
-      alert('네트워크 오류가 발생했습니다. 다시 시도해 주세요.');
+      showToast('네트워크 오류가 발생했습니다. 다시 시도해 주세요.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -125,7 +116,7 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
   if (isChecking) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
-        <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+        <Loader2 className="w-8 h-8 animate-spin text-text-secondary" />
       </div>
     );
   }
@@ -156,31 +147,29 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
   return (
     <div className={`flex flex-col h-full overflow-hidden ${hideHeader ? '' : 'min-h-screen'} ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
       {!hideHeader && <Header />}
-      
-      {/* Header Area */}
-      <div className={`flex-none px-6 ${hideHeader ? 'pt-16 pb-6' : 'pt-24 pb-6'} ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
-        <div className="max-w-5xl mx-auto">
-          <motion.h1 
+
+      <div className={`flex-none px-6 ${hideHeader ? 'pt-16 pb-6' : 'pt-24 pb-6'}`}>
+        <div className="mx-auto max-w-3xl">
+          <motion.h1
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`text-2xl font-bold leading-tight whitespace-pre-line ${theme === 'dark' ? 'text-white' : 'text-black'}`}
+            className="type-page-title text-pretty text-text-primary [word-break:keep-all]"
           >
             약관을 끝까지 읽고{"\n"}동의를 완료해 주세요
           </motion.h1>
-          <motion.p 
+          <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
-            className={`text-xs mt-2 ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`}
+            className="type-metadata mt-2 text-text-tertiary"
           >
             약관 번호: ML_Legal_v260325
           </motion.p>
         </div>
       </div>
 
-      {/* Article Checkbox List (Scrollable Area) */}
       <div className="flex-1 overflow-y-auto px-6 pb-20 scrollbar-hide overscroll-contain touch-pan-y">
-        <div className="max-w-5xl mx-auto space-y-4">
+        <div className="mx-auto max-w-3xl space-y-3">
           {articles.map((article, index) => (
             <motion.div
               key={article.id}
@@ -188,70 +177,58 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1 * index }}
               onClick={() => toggleAgreement(article.id)}
-              className={`flex gap-4 p-6 rounded-2xl cursor-pointer border transition-all duration-300 ${
-                agreements[article.id] 
-                  ? 'bg-purple-600/10 border-purple-600/30' 
-                  : theme === 'dark' 
-                    ? 'bg-zinc-900/30 border-white/5 hover:border-white/10'
-                    : 'bg-zinc-50 border-black/5 hover:border-black/10'
+              className={`flex cursor-pointer gap-4 rounded-xl border p-5 transition-colors ${
+                agreements[article.id]
+                  ? 'border-text-primary/30 bg-surface'
+                  : 'border-border-subtle hover:border-border-subtle'
               }`}
             >
-              <div className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 mt-0.5 ${
-                agreements[article.id] 
-                  ? 'bg-purple-600' 
-                  : theme === 'dark'
-                    ? 'bg-zinc-800 border border-white/10'
-                    : 'bg-zinc-200 border border-black/5'
-              }`}>
-                {agreements[article.id] && <Check size={14} className="text-white" />}
+              <div
+                className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                  agreements[article.id]
+                    ? 'border-text-primary bg-text-primary text-text-inverse'
+                    : 'border-border-subtle bg-transparent'
+                }`}
+              >
+                {agreements[article.id] && <Check size={14} />}
               </div>
               <div className="space-y-2">
-                <span className={`text-sm font-bold block transition-colors ${
-                  agreements[article.id] 
-                    ? theme === 'dark' ? 'text-white' : 'text-purple-700'
-                    : theme === 'dark' ? 'text-[#E2E2E2]' : 'text-zinc-800'
-                }`}>
+                <span className="type-label block text-text-primary">
                   {article.title}
                 </span>
-                <p className={`text-xs leading-relaxed ${
-                  theme === 'dark' ? 'text-[#E2E2E2]/70' : 'text-zinc-500'
-                }`}>
+                <p className="type-metadata leading-relaxed text-text-secondary">
                   {article.content}
                 </p>
               </div>
             </motion.div>
           ))}
 
-          {/* Progress Indicator & Activation Button */}
-          <div className="pt-10 pb-20">
-            <div className="flex justify-center mb-6">
-              <div className={`px-4 py-1.5 rounded-full border ${
-                theme === 'dark' ? 'bg-zinc-900/50 border-white/5' : 'bg-zinc-100 border-black/5'
-              }`}>
-                <span className={`text-[10px] font-bold tracking-widest ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                  PROGRESS: <span className={agreedCount === 4 ? 'text-purple-500' : theme === 'dark' ? 'text-white' : 'text-black'}>{agreedCount}</span> / 4 COMPLETED
-                </span>
-              </div>
+          <div className="pb-20 pt-8">
+            <div className="mb-6 flex justify-center">
+              <span className="type-metadata text-text-tertiary">
+                동의 진행 <span className="text-text-primary">{agreedCount}</span> / 4
+              </span>
             </div>
 
             <AnimatePresence>
               {allAgreed && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
+                  initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
                 >
-                  <button 
+                  <button
+                    type="button"
                     onClick={handleAgree}
                     disabled={isSubmitting}
-                    className="w-full py-5 rounded-2xl bg-[#8A2BE2] text-white font-bold text-lg shadow-[0_0_30px_rgba(138,43,226,0.4)] transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    className="focus-ring flex w-full min-h-12 items-center justify-center gap-2 rounded-xl bg-text-primary type-label text-text-inverse transition-opacity disabled:opacity-50"
                   >
                     {isSubmitting ? (
-                      <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-text-inverse/30 border-t-text-inverse" />
                     ) : (
-                      <CheckCircle2 size={20} />
+                      <CheckCircle2 size={18} />
                     )}
-                    <span>{isSubmitting ? '기록 중...' : '동의하고 입장하기'}</span>
+                    <span>{isSubmitting ? '기록 중...' : '동의하고 계속하기'}</span>
                   </button>
                 </motion.div>
               )}

@@ -9,6 +9,8 @@ export const getFullImageUrl = (path: string | null | undefined, isWorkshop: boo
   
   // HTTP 링크인 경우 쿼리 파라미터 보존 (Naver 등 외부 이미지의 경우 ?type= 파라미터가 필수)
   if (path.startsWith('http')) return path;
+
+  if (path.startsWith('blob:') || path.startsWith('data:')) return path;
   
   // 내부 Supabase 스토리지 경로인 경우에만 불필요한 쿼리 제거 및 인코딩 처리
   const cleanPath = path.split('?')[0];
