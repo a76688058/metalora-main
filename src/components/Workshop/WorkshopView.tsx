@@ -11,10 +11,23 @@ import type { Product } from '../../data/products';
 import { ProductTheatreStage } from '../pdp/ProductTheatreStage';
 import { ProductTheatreRoomPreview } from '../pdp/ProductTheatreRoomPreview';
 import { CATALOG_M_DIMENSION, CATALOG_M_NAME } from '../pdp/catalogSizeLabel';
+import { track } from '../../lib/analytics';
 import { compositionIsTightCrop } from '../../lib/customComposition/math';
 import { SUPPORTED_IMAGE_ACCEPT, validateCustomImageFile } from '../../lib/customComposition/imageValidation';
 import { revokePreviewUrl } from '../../lib/customComposition/rasterize';
 import { useCustomComposition } from '../../lib/customComposition/useCustomComposition';
+import {
+  fetchCustomMPrice,
+  formatCustomMPrice,
+  PRICE_UNAVAILABLE_MESSAGE,
+} from '../../lib/customComposition/customMPrice';
+import {
+  buildCompleteV1Config,
+  removeWorkshopPaths,
+  uploadWorkshopOriginal,
+  uploadWorkshopPreview,
+  verifyTrustedCustomCartRow,
+} from '../../lib/customComposition/durableHandoff';
 import CustomImageEditor, { CustomCompositionControls, CustomPreviewPanel } from './CustomImageEditor';
 
 const STEPS = [
@@ -82,16 +95,16 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
   const { user } = useAuth();
   const { theme } = useTheme();
   const { showToast } = useToast();
-  const { addToCart, openCart } = useCart();
+  const { refreshCart, openCart } = useCart();
   const [currentStep, setCurrentStep] = useState<WorkshopStep>(1);
   const [direction, setDirection] = useState(1);
   const totalSteps = STEPS.length;
 
   const [materialType, setMaterialType] = useState<'aluminum'>('aluminum');
   const [size, setSize] = useState<SizeType>('A4');
-  const aiUpscale = false;
-  const aiOutpaint = false;
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [customPrice, setCustomPrice] = useState<number | null>(null);
+  const [customPriceStatus, setCustomPriceStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
@@ -111,6 +124,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
   const roomPreviewEntryRef = useRef<HTMLButtonElement>(null);
   const loadedSourceUrlRef = useRef<string | null>(null);
   const uploadedImageRef = useRef<string | null>(null);
+  const cartSubmitLockRef = useRef(false);
 
   const {
     source,
@@ -149,6 +163,25 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
   }, [previewUrl]);
 
   uploadedImageRef.current = uploadedImage;
+
+  useEffect(() => {
+    let cancelled = false;
+    setCustomPriceStatus('loading');
+    setCustomPrice(null);
+    void fetchCustomMPrice().then((amount) => {
+      if (cancelled) return;
+      if (amount === null) {
+        setCustomPrice(null);
+        setCustomPriceStatus('unavailable');
+        return;
+      }
+      setCustomPrice(amount);
+      setCustomPriceStatus('ready');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!uploadedImage) {
@@ -426,94 +459,143 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
   };
 
   const handleActionClick = async () => {
-    if (currentStep === totalSteps) {
-      setIsUploading(true);
-
-      try {
-        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
-
-        if (userError || !currentUser) {
-          showToast('로그인이 필요합니다.', 'error');
-          setIsUploading(false);
-          return;
-        }
-
-        let finalImageUrl = uploadedImage;
-
-        if (uploadedImage?.startsWith('blob:') && uploadedFile) {
-          const fileExt = uploadedFile.name.split('.').pop();
-          const fileName = `${currentUser.id}_${Date.now()}.${fileExt}`;
-
-          const { error: uploadError } = await supabase.storage
-            .from('workshop')
-            .upload(fileName, uploadedFile);
-
-          if (uploadError) {
-            console.error('Storage upload error during checkout:', uploadError);
-            setIsUploading(false);
-            return;
-          }
-
-          const { data: { publicUrl } } = supabase.storage
-            .from('workshop')
-            .getPublicUrl(fileName);
-
-          finalImageUrl = publicUrl;
-        }
-
-        const ok = await addToCart(
-          'workshop-single',
-          size,
-          1,
-          finalImageUrl || undefined,
-          {
-            shaderType: '커스텀 제작',
-            material: materialType,
-            size: size,
-            orientation: orientation,
-            ai_upscale: aiUpscale,
-            ai_outpaint: aiOutpaint,
-            ai_autofill: composition.zoom >= 1,
-            price: 49000,
-            serial_number: `WS-${Date.now()}`
-          },
-          orientation === 'landscape' || orientation === 'portrait' ? orientation : undefined,
-          {
-            item_name: '나만의 커스텀 포스터',
-            price: 49000,
-            item_variant: workshopAnalyticsItemVariant(size, orientation),
-          },
-        );
-
-        if (!ok) {
-          setIsUploading(false);
-          return;
-        }
-
-        setIsFlashing(true);
-        await clearProgress();
-        replaceUploadedImage(null);
-        setUploadedFile(null);
-        setPendingProgress(null);
-        localStorage.removeItem('temp_image_url');
-        localStorage.removeItem('workshop_draft');
-        sessionStorage.removeItem('temp_image_url');
-        sessionStorage.removeItem('workshop_draft');
-        sessionStorage.setItem('workshop_just_finished', 'true');
-
-        setIsFlashing(false);
-        setIsUploading(false);
-
-        if (onComplete) {
-          onComplete();
-        }
-        setTimeout(() => openCart(), 100);
-      } catch (err: any) {
-        console.error('Failed to save to collection:', err);
-        setIsUploading(false);
-      }
-    } else {
+    if (currentStep !== totalSteps) {
       await handleNext();
+      return;
+    }
+
+    if (isUploading || isPreparingPreview || cartSubmitLockRef.current) return;
+
+    if (customPriceStatus !== 'ready' || customPrice === null) {
+      showToast('판매가를 확인할 수 없어 담을 수 없습니다.', 'error');
+      return;
+    }
+
+    if (!source) {
+      showToast('사진을 먼저 업로드해 주세요.', 'error');
+      return;
+    }
+
+    cartSubmitLockRef.current = true;
+    setIsUploading(true);
+    const createdPaths: string[] = [];
+    let rowPersisted = false;
+
+    try {
+      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !currentUser) {
+        showToast('로그인이 필요합니다.', 'error');
+        return;
+      }
+
+      const previewObjectUrl = await ensureCurrentPreview();
+      if (!previewObjectUrl) {
+        showToast('미리보기를 만들지 못했습니다. 다시 시도해 주세요.', 'error');
+        return;
+      }
+
+      const previewBlob = await fetch(previewObjectUrl).then((response) => {
+        if (!response.ok) throw new Error('preview blob fetch failed');
+        return response.blob();
+      });
+
+      let originalUrl: string | null = null;
+      if (uploadedFile) {
+        const original = await uploadWorkshopOriginal(currentUser.id, uploadedFile);
+        createdPaths.push(original.path);
+        originalUrl = original.publicUrl;
+      } else if (uploadedImage && !uploadedImage.startsWith('blob:')) {
+        originalUrl = uploadedImage;
+      }
+
+      if (!originalUrl) {
+        showToast('원본 이미지를 저장하지 못했습니다. 다시 시도해 주세요.', 'error');
+        return;
+      }
+
+      const preview = await uploadWorkshopPreview(currentUser.id, previewBlob);
+      createdPaths.push(preview.path);
+
+      const { data: rpcData, error: rpcError } = await supabase.rpc('add_custom_cart_item', {
+        p_quantity: 1,
+        p_orientation: orientation,
+        p_original_image_url: originalUrl,
+        p_preview_image_url: preview.publicUrl,
+        p_custom_config: buildCompleteV1Config(source, composition),
+      });
+
+      if (rpcError) {
+        console.error('add_custom_cart_item failed:', rpcError);
+        showToast('장바구니에 담지 못했습니다. 다시 시도해 주세요.', 'error');
+        await removeWorkshopPaths(createdPaths).catch(() => undefined);
+        return;
+      }
+
+      rowPersisted = true;
+
+      const row = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as {
+        custom_image?: string | null;
+        custom_config?: Record<string, unknown> | null;
+      } | null;
+      const verified = verifyTrustedCustomCartRow(row, preview.publicUrl);
+      if (verified.ok === false) {
+        showToast('장바구니에 담지 못했습니다. 다시 시도해 주세요.', 'error');
+        return;
+      }
+
+      if (verified.priceSnapshot !== customPrice) {
+        setCustomPrice(verified.priceSnapshot);
+        setCustomPriceStatus('ready');
+        showToast(`판매가가 ${formatCustomMPrice(verified.priceSnapshot)}으로 반영되었습니다.`, 'info');
+      }
+
+      const refreshed = await refreshCart();
+      if (!refreshed) {
+        showToast('장바구니에 담지 못했습니다. 다시 시도해 주세요.', 'error');
+        return;
+      }
+
+      track('add_to_cart', {
+        currency: 'KRW',
+        value: verified.priceSnapshot,
+        items: [
+          {
+            item_id: 'workshop-single',
+            item_name: '나만의 커스텀 포스터',
+            item_variant: workshopAnalyticsItemVariant('M', orientation),
+            price: verified.priceSnapshot,
+            quantity: 1,
+          },
+        ],
+      });
+
+      setIsFlashing(true);
+      await clearProgress();
+      replaceUploadedImage(null);
+      setUploadedFile(null);
+      setPendingProgress(null);
+      localStorage.removeItem('temp_image_url');
+      localStorage.removeItem('workshop_draft');
+      sessionStorage.removeItem('temp_image_url');
+      sessionStorage.removeItem('workshop_draft');
+      sessionStorage.setItem('workshop_just_finished', 'true');
+
+      setIsFlashing(false);
+
+      if (onComplete) {
+        onComplete();
+      }
+      setTimeout(() => openCart(), 100);
+    } catch (err: unknown) {
+      console.error('Failed to save to collection:', err);
+      showToast('장바구니에 담지 못했습니다. 다시 시도해 주세요.', 'error');
+      if (!rowPersisted) {
+        await removeWorkshopPaths(createdPaths).catch(() => undefined);
+      }
+    } finally {
+      cartSubmitLockRef.current = false;
+      setIsUploading(false);
     }
   };
 
@@ -529,42 +611,8 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       return;
     }
 
-    setIsUploading(true);
     setUploadedFile(file);
-
-    const localUrl = validated.objectUrl;
-    let acceptedUrl = localUrl;
-
-    try {
-      if (user) {
-        try {
-          const fileExt = file.name.split('.').pop();
-          const fileName = `${user.id}_${Date.now()}.${fileExt}`;
-
-          const { error: uploadError } = await supabase.storage
-            .from('workshop')
-            .upload(fileName, file);
-
-          if (uploadError) {
-            console.error('Storage upload error:', uploadError);
-          } else {
-            const { data: { publicUrl } } = supabase.storage
-              .from('workshop')
-              .getPublicUrl(fileName);
-            acceptedUrl = publicUrl;
-          }
-        } catch (err) {
-          console.error('Error uploading image:', err);
-        }
-      }
-
-      replaceUploadedImage(acceptedUrl);
-      if (acceptedUrl !== localUrl) {
-        revokePreviewUrl(localUrl);
-      }
-    } finally {
-      setIsUploading(false);
-    }
+    replaceUploadedImage(validated.objectUrl);
   };
 
   const primaryLabel =
@@ -577,7 +625,10 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
         : '장바구니에 담기';
 
   const isButtonDisabled =
-    (currentStep === 1 && (!uploadedImage || !source)) || isUploading || isPreparingPreview;
+    (currentStep === 1 && (!uploadedImage || !source))
+    || (currentStep === 2 && (customPriceStatus !== 'ready' || customPrice === null))
+    || isUploading
+    || isPreparingPreview;
 
   if (isRestoring) {
     return <LoadingScreen />;
@@ -613,6 +664,11 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
     <div className="text-center md:text-left">
       <p className="type-label text-text-primary">{PRODUCT_LINE}</p>
       <p className="type-supporting mt-1 text-text-secondary">{PRODUCT_SIZE}</p>
+      {customPriceStatus === 'loading' ? null : customPriceStatus === 'ready' && customPrice !== null ? (
+        <p className="type-label mt-2 text-text-primary">{formatCustomMPrice(customPrice)}</p>
+      ) : (
+        <p className="type-supporting mt-2 text-text-secondary">{PRICE_UNAVAILABLE_MESSAGE}</p>
+      )}
     </div>
   );
 

@@ -1,15 +1,193 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/admin/AdminLayout';
 import AdminProductForm from '../components/admin/AdminProductForm';
 import { useProducts } from '../context/ProductContext';
 import { Product } from '../data/products';
-import { Plus, Edit, Eye, EyeOff, Search, Filter, Package, AlertTriangle, TrendingUp, GripVertical, Save } from 'lucide-react';
+import { Plus, Edit, Eye, EyeOff, Search, Filter, Package, AlertTriangle, TrendingUp, GripVertical, Save, Loader2 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { Reorder } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { getFullImageUrl } from '../lib/utils';
 
 import LoadingScreen from '../components/LoadingScreen';
+
+const CUSTOM_M_PRICE_KEY = 'custom_m_price';
+
+function parsePositiveKrwInteger(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!/^[1-9]\d*$/.test(trimmed)) return null;
+  const n = Number(trimmed);
+  if (!Number.isSafeInteger(n) || n < 1) return null;
+  return n;
+}
+
+function CustomMPriceControl() {
+  const { showToast } = useToast();
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'setup' | 'error'>('loading');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [savedPrice, setSavedPrice] = useState<number | null>(null);
+  const [draft, setDraft] = useState('');
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const loadPrice = useCallback(async () => {
+    setLoadState('loading');
+    setLoadError(null);
+    setFieldError(null);
+
+    const { data, error } = await supabase
+      .from('site_settings')
+      .select('value')
+      .eq('key', CUSTOM_M_PRICE_KEY)
+      .maybeSingle();
+
+    if (error) {
+      setSavedPrice(null);
+      setDraft('');
+      setLoadError('판매가 정보를 불러오지 못했습니다.');
+      setLoadState('error');
+      return;
+    }
+
+    if (!data || typeof data.value !== 'string') {
+      setSavedPrice(null);
+      setDraft('');
+      setLoadError(null);
+      setLoadState('setup');
+      return;
+    }
+
+    const parsed = parsePositiveKrwInteger(data.value);
+    if (parsed === null) {
+      setSavedPrice(null);
+      setDraft(data.value.trim());
+      setLoadError(null);
+      setLoadState('setup');
+      return;
+    }
+
+    setSavedPrice(parsed);
+    setDraft(String(parsed));
+    setLoadState('ready');
+  }, []);
+
+  useEffect(() => {
+    void loadPrice();
+  }, [loadPrice]);
+
+  const handleSave = async () => {
+    if (loadState === 'error' || loadState === 'loading') return;
+
+    const parsed = parsePositiveKrwInteger(draft);
+    if (parsed === null) {
+      setFieldError('1원 이상의 정수 원화만 입력할 수 있습니다.');
+      return;
+    }
+
+    setIsSaving(true);
+    setFieldError(null);
+
+    const { error } = await supabase
+      .from('site_settings')
+      .upsert(
+        { key: CUSTOM_M_PRICE_KEY, value: String(parsed) },
+        { onConflict: 'key' },
+      );
+
+    setIsSaving(false);
+
+    if (error) {
+      setFieldError('판매가 저장에 실패했습니다.');
+      showToast('판매가 저장에 실패했습니다.', 'error');
+      return;
+    }
+
+    setSavedPrice(parsed);
+    setDraft(String(parsed));
+    setLoadState('ready');
+    setLoadError(null);
+    showToast('커스텀 M 판매가가 저장되었습니다.', 'success');
+  };
+
+  const parsedDraft = parsePositiveKrwInteger(draft);
+  const isReadError = loadState === 'error';
+  const canEdit = loadState === 'ready' || loadState === 'setup';
+  const canSave = canEdit && !isSaving && parsedDraft !== null && parsedDraft !== savedPrice;
+
+  const supportingCopy =
+    loadState === 'loading'
+      ? '불러오는 중'
+      : loadState === 'ready' && savedPrice !== null
+        ? `현재 판매가 ₩${savedPrice.toLocaleString('ko-KR')}`
+        : loadState === 'setup'
+          ? '아직 판매가가 설정되지 않았습니다.'
+          : '판매가 정보를 불러오지 못했습니다.';
+
+  return (
+    <section className="bg-zinc-900 px-4 py-3 rounded-xl border border-zinc-800">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold text-white tracking-tight">커스텀 · M 판매가</h3>
+          <p className="mt-0.5 text-xs text-zinc-500">{supportingCopy}</p>
+        </div>
+
+        {loadState === 'loading' ? (
+          <div className="flex items-center gap-2 text-xs text-zinc-500">
+            <Loader2 size={14} className="animate-spin" />
+            불러오는 중...
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <label className="sr-only" htmlFor="custom-m-price-input">커스텀 M 판매가</label>
+            <input
+              id="custom-m-price-input"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              value={draft}
+              disabled={isSaving || !canEdit}
+              aria-invalid={Boolean(fieldError || isReadError)}
+              aria-describedby="custom-m-price-status"
+              onChange={(e) => {
+                setDraft(e.target.value);
+                setFieldError(null);
+              }}
+              className="w-28 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-zinc-600 disabled:opacity-50"
+              placeholder="0"
+            />
+            <span className="text-sm text-zinc-500 shrink-0">원</span>
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={!canSave}
+              className="flex items-center justify-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-2 rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
+            >
+              {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              {isSaving ? '저장 중...' : '저장'}
+            </button>
+          </div>
+        )}
+      </div>
+      <div id="custom-m-price-status">
+        {isReadError && loadError && (
+          <div className="mt-1.5 flex items-center gap-3">
+            <p className="text-xs text-red-400">{loadError}</p>
+            <button
+              type="button"
+              onClick={() => void loadPrice()}
+              className="text-xs font-medium text-zinc-400 hover:text-white transition-colors"
+            >
+              다시 불러오기
+            </button>
+          </div>
+        )}
+        {fieldError && (
+          <p className="mt-1.5 text-xs text-red-400">{fieldError}</p>
+        )}
+      </div>
+    </section>
+  );
+}
 
 export default function AdminProducts() {
   const { products, addProduct, updateProduct, deleteProduct, fetchProducts, isLoading } = useProducts();
@@ -147,6 +325,8 @@ export default function AdminProducts() {
             </button>
           </div>
         </div>
+
+        <CustomMPriceControl />
 
         {/* 검색 및 필터 */}
         <div className="flex items-center gap-4 bg-zinc-900 p-4 rounded-xl border border-zinc-800 shadow-sm">
