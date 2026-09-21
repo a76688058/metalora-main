@@ -1,18 +1,18 @@
 # METALORA project state
 
-Persistent checkpoint for session handoff. Last updated after **NEW 2B CLOSED** (Custom Creation UX source/UX complete; production rollout not complete; docs closure).
+Persistent checkpoint for session handoff. Last updated after **NEW 2C OPEN** (bounded CookieBanner shell alignment; docs-only stage open; no source).
 
-This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master migration: `docs/decisions/NEW-1_launch-pipeline-v2.md`. NEW 2A contract: `docs/decisions/NEW-2A_menu-ia-consistency.md`. NEW 2B contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`.
+This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master migration: `docs/decisions/NEW-1_launch-pipeline-v2.md`. NEW 2A contract: `docs/decisions/NEW-2A_menu-ia-consistency.md`. NEW 2B contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`. NEW 2C contract: `docs/decisions/NEW-2C_global-shell-component-consistency.md`.
 
 **Current operating mode: `NEW LAUNCH PIPELINE v2 ACTIVE`.**
 **NEW 1 — ROADMAP / SCOPE LOCK: CLOSED.**
 **NEW 2: IN PROGRESS.**
 **NEW 2A: CLOSED.** Implementation, user visual approval, A5 targeted QA, and A5 short-delta QA **PASS**. Orphan `CustomerNavSheet` removed.
 **NEW 2B: CLOSED.** Two-step Custom M source/UX complete. Payment-test validated. Production Custom DB/Storage/server **not** rolled out.
-**NEW 2C: NOT OPENED.**
+**NEW 2C: OPEN.** Bounded residual customer-shell alignment. Implementation write set: `src/components/CookieBanner.tsx` only. Source **not started**.
 **NEW 2D–2F: NOT OPENED.**
 
-NEXT: **A0 PRE-STAGE REPORT — NEW 2C** (Global Shell / Component Consistency). Do **not** open or implement NEW 2C from this file. Every remaining NEW 2 substage (2C–2F) and every remaining NEW stage still requires an **A0 PRE-STAGE REPORT** before writes.
+NEXT: **A1 — NEW 2C COOKIEBANNER SHELL ALIGNMENT IMPLEMENTATION.** Do **not** implement CookieBanner from this file. Do **not** expand the write set. Every remaining NEW 2 substage (2D–2F) and every remaining NEW stage still requires an **A0 PRE-STAGE REPORT** before writes.
 
 ---
 
@@ -21,10 +21,11 @@ NEXT: **A0 PRE-STAGE REPORT — NEW 2C** (Global Shell / Component Consistency).
 | Item | Value |
 |------|--------|
 | Operating mode | **NEW LAUNCH PIPELINE v2 ACTIVE** |
-| Current stage | **NEW 2 IN PROGRESS** — next is **A0 PRE-STAGE REPORT — NEW 2C** (not opened) |
-| NEW 2 | family; **2A CLOSED**; **2B CLOSED**; 2C–2F not opened |
+| Current stage | **NEW 2C OPEN** — next is A1 CookieBanner shell alignment (source not started) |
+| NEW 2 | family; **2A CLOSED**; **2B CLOSED**; **2C OPEN**; 2D–2F not opened |
 | NEW 2A | **CLOSED** — `docs/decisions/NEW-2A_menu-ia-consistency.md` |
 | NEW 2B | **CLOSED** — `docs/decisions/NEW-2B_custom-creation-ux-ui.md` |
+| NEW 2C | **OPEN** — `docs/decisions/NEW-2C_global-shell-component-consistency.md` |
 | Historical `#16`–`#23` | **CLOSED** |
 | Prior PRE-LAUNCH HOLD | **SUPERSEDED AS CURRENT MODE** (preserved historically) |
 | BASELINE DEVELOPMENT COMPLETE | **YES** (through `#23`) |
@@ -163,23 +164,25 @@ Durable record: `docs/decisions/20F-0_account-side-backup-confirmation.md` (unch
 | Historical `#20F` | MIGRATED → **NEW 6** (not started) |
 | Historical `#24` | NOT OPENED; remaining work → NEW 4 / 7 / 8 / 9 |
 | **NEW 1** | **CLOSED** — roadmap / scope lock |
-| **NEW 2** | family; **IN PROGRESS**; **2A CLOSED**; **2B CLOSED**; 2C–2F **NOT OPENED** |
+| **NEW 2** | family; **IN PROGRESS**; **2A CLOSED**; **2B CLOSED**; **2C OPEN**; 2D–2F **NOT OPENED** |
 | **NEW 2A** | **CLOSED** — customer nav / IA; visual approval + A5 PASS |
 | **NEW 2B** | **CLOSED** — two-step Custom M source/UX; payment-test PASS; production rollout **not** complete |
-| NEW 2C | **NOT OPENED** — next: A0 PRE-STAGE REPORT |
+| **NEW 2C** | **OPEN** — CookieBanner `.container-shell` only; Footer out of scope; source not started |
 | NEW 2D–2F | **NOT OPENED** |
 | NEW 3–5 | not opened |
 | NEW 6 | not started (hard gate before NEW 7) |
 | NEW 7–9 | not opened |
 | LIVE | **NO** |
 
-Upcoming main path: **A0 PRE-STAGE REPORT — NEW 2C** (not opened) → remaining NEW 2 family (each with its own PRE-STAGE REPORT) ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
+Upcoming main path: **A1 NEW 2C CookieBanner shell alignment** (source; not this ticket) → remaining NEW 2 family (each with its own PRE-STAGE REPORT) ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
 
 **NEW 2A** = **CLOSED.** Final Header: Search / Theme / Logo / Account / Cart on desktop and mobile; no persistent Custom text; no mobile `메뉴` / hamburger / CustomerNavSheet. Primary Custom discovery: Home `커스텀 제작 →` via `requestCustomAccess()`. Cart commerce term = `장바구니`. Global search → `/?q=`. Do not reopen 2A.
 
 **NEW 2B** = **CLOSED.** Dedicated 커스텀 제작 UX/UI. Contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`. Final flow: two-step only (`1/2 이미지 편집` → `다음으로` → `2/2 제품 미리보기` → `장바구니에 담기`). Custom **M only**, **200 × 283 mm**, aluminum. No fit-mode UI. Price authority `site_settings.custom_m_price`. Durable original/preview + trusted Cart v1. Source/payment-test complete; production Custom rollout **not** complete. Do not execute NEW 2 as one giant ticket. Do not reopen 2B implementation.
 
 Durable 2B checkpoints: `b37c1f7` (open) → `0a65c24` (two-step UX) → `2e06be9` (trusted cart snapshot) → `97f2f1d` (durable handoff). Visual + payment-test E2E + A5/A0 **PASS**. Production 2B-5A/2B-5C/server **not** applied/deployed.
+
+**NEW 2C** = **OPEN.** Residual customer-shell alignment only. Contract: `docs/decisions/NEW-2C_global-shell-component-consistency.md`. A1 write set: `src/components/CookieBanner.tsx` (`.container-shell` for banner + settings). Footer **out of scope**. Tokens / ui primitives / Header IA / Workshop / Cart / account **unchanged**. Source not started. Visual approval required after A1.
 
 Frozen complete (do not redesign): Home/Hero, PDP Desktop, PDP Mobile Story, Product Truth, Mount/Included, OWC, Product Information, PDP Footer — except the closed NEW 2A Header chrome, Home.tsx headline/CTA stack, copy-only PDP rail cart-term strings listed in the 2A note, and **NEW 2B-4 shared PDP preview reuse** (not a PDP visual redesign).
 
