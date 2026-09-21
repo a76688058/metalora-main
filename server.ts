@@ -1050,8 +1050,21 @@ async function resolveSeoForPath(pathname: string): Promise<SeoPayload> {
   return unknownDocumentSeoPayload(path);
 }
 
-/** Workshop unit price — authoritative; never trust client custom_config.price */
-const SERVER_WORKSHOP_UNIT_PRICE = 49000;
+const CUSTOM_M_PRICE_SETTING_KEY = 'custom_m_price';
+const CUSTOM_PRICE_SNAPSHOT_VERSION = '1';
+const CUSTOM_PRICE_SNAPSHOT_SOURCE = 'custom_m_price';
+const CUSTOM_CART_PRODUCT_ID = 'workshop-single';
+const CUSTOM_SHADER_TYPE = '커스텀 제작';
+
+type CustomCartRow = {
+  id: string;
+  product_id: string | null;
+  selected_option: string | null;
+  quantity: number;
+  custom_image: string | null;
+  custom_config: Record<string, unknown> | null;
+  orientation: string | null;
+};
 
 function isWorkshopPendingItem(item: any): boolean {
   if (!item || typeof item !== 'object') return false;
@@ -1059,7 +1072,222 @@ function isWorkshopPendingItem(item: any): boolean {
   if (item.product_id != null || item.option_id != null) return false;
   const cfg = item.custom_config;
   if (!cfg || typeof cfg !== 'object') return false;
-  return cfg.shaderType === '커스텀 제작';
+  return cfg.shaderType === CUSTOM_SHADER_TYPE;
+}
+
+function parsePositiveIntPrice(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 1) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const n = Number(value.trim());
+    if (Number.isInteger(n) && n >= 1) return n;
+  }
+  return null;
+}
+
+function isTrustedCustomPriceSnapshot(cfg: unknown): cfg is Record<string, unknown> {
+  if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) return false;
+  const rec = cfg as Record<string, unknown>;
+  const version = rec.price_snapshot_version;
+  const source = rec.price_snapshot_source;
+  if (String(version) !== CUSTOM_PRICE_SNAPSHOT_VERSION) return false;
+  if (source !== CUSTOM_PRICE_SNAPSHOT_SOURCE) return false;
+  const snapshot = parsePositiveIntPrice(rec.price_snapshot);
+  const price = parsePositiveIntPrice(rec.price);
+  return snapshot != null && price != null && snapshot === price;
+}
+
+function trustedCustomUnitPrice(cfg: unknown): number | null {
+  if (!isTrustedCustomPriceSnapshot(cfg)) return null;
+  return parsePositiveIntPrice((cfg as Record<string, unknown>).price_snapshot);
+}
+
+function isCustomCartRow(row: CustomCartRow): boolean {
+  const productId = typeof row.product_id === 'string' ? row.product_id.trim() : row.product_id;
+  if (productId != null && productId !== CUSTOM_CART_PRODUCT_ID) return false;
+  const cfg = row.custom_config;
+  if (!cfg || typeof cfg !== 'object') return false;
+  return String(cfg.shaderType) === CUSTOM_SHADER_TYPE;
+}
+
+function pickFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function jsonPositiveNumber(value: unknown): number | null {
+  const n = pickFiniteNumber(value);
+  return n != null && n > 0 ? n : null;
+}
+
+function isCustomOrientation(value: unknown): value is 'portrait' | 'landscape' {
+  return value === 'portrait' || value === 'landscape';
+}
+
+function isCompleteCustomV1Production(cfg: unknown, orientation: unknown): boolean {
+  if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) return false;
+  const rec = cfg as Record<string, unknown>;
+  if (!isCustomOrientation(orientation)) return false;
+
+  const original = nonEmptyUrl(rec.original_image_url);
+  const preview = nonEmptyUrl(rec.preview_image_url);
+  if (!original || !preview || original === preview) return false;
+
+  const rawComp = rec.composition;
+  if (!rawComp || typeof rawComp !== 'object' || Array.isArray(rawComp)) return false;
+  const comp = rawComp as Record<string, unknown>;
+  if (comp.version !== 1) return false;
+  if (comp.orientation !== orientation) return false;
+  if (pickFiniteNumber(comp.zoom) == null) return false;
+  if (pickFiniteNumber(comp.offsetX) == null) return false;
+  if (pickFiniteNumber(comp.offsetY) == null) return false;
+  if (jsonPositiveNumber(rec.source_width) == null) return false;
+  if (jsonPositiveNumber(rec.source_height) == null) return false;
+  return true;
+}
+
+function sanitizeCustomComposition(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const src = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  if (src.version != null) out.version = src.version;
+  if (typeof src.orientation === 'string' && src.orientation.trim()) {
+    out.orientation = src.orientation.trim();
+  }
+  const zoom = pickFiniteNumber(src.zoom);
+  if (zoom != null) out.zoom = zoom;
+  const offsetX = pickFiniteNumber(src.offsetX);
+  if (offsetX != null) out.offsetX = offsetX;
+  const offsetY = pickFiniteNumber(src.offsetY);
+  if (offsetY != null) out.offsetY = offsetY;
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+function passthroughCustomConfig(
+  cfg: Record<string, unknown> | null,
+  unitPrice: number,
+): Record<string, unknown> {
+  const src = cfg && typeof cfg === 'object' ? cfg : {};
+  const composition = sanitizeCustomComposition(src.composition);
+  const sizeRaw = typeof src.size === 'string' ? src.size.trim() : '';
+  const size = sizeRaw === 'A4' || sizeRaw === 'M' || sizeRaw === '' ? 'M' : sizeRaw || 'M';
+  const out: Record<string, unknown> = {
+    shaderType: CUSTOM_SHADER_TYPE,
+    size,
+    price: unitPrice,
+    price_snapshot: unitPrice,
+  };
+  if (typeof src.version !== 'undefined') out.version = src.version;
+  if (typeof src.material === 'string') out.material = src.material;
+  if (typeof src.orientation === 'string') out.orientation = src.orientation;
+  if (composition) out.composition = composition;
+  if (src.source_width != null) out.source_width = src.source_width;
+  if (src.source_height != null) out.source_height = src.source_height;
+  if (typeof src.original_image_url === 'string' && src.original_image_url.trim()) {
+    out.original_image_url = src.original_image_url.trim();
+  }
+  if (typeof src.preview_image_url === 'string' && src.preview_image_url.trim()) {
+    out.preview_image_url = src.preview_image_url.trim();
+  }
+  if (src.serial_number != null) out.serial_number = src.serial_number;
+  if (src.ai_upscale != null) out.ai_upscale = !!src.ai_upscale;
+  if (src.ai_outpaint != null) out.ai_outpaint = !!src.ai_outpaint;
+  if (src.ai_autofill != null) out.ai_autofill = !!src.ai_autofill;
+  if (isTrustedCustomPriceSnapshot(src)) {
+    out.price_snapshot_version = CUSTOM_PRICE_SNAPSHOT_VERSION;
+    out.price_snapshot_source = CUSTOM_PRICE_SNAPSHOT_SOURCE;
+  }
+  return out;
+}
+
+async function readLiveCustomMPrice(): Promise<
+  { ok: true; price: number } | { ok: false; reason: 'config_missing' | 'invalid' }
+> {
+  if (!supabaseAdmin) return { ok: false, reason: 'config_missing' };
+  const { data, error } = await supabaseAdmin
+    .from('site_settings')
+    .select('value')
+    .eq('key', CUSTOM_M_PRICE_SETTING_KEY)
+    .maybeSingle();
+  if (error) {
+    console.error('[PAYMENT_ITEM_FAIL] custom_m_price lookup error:', error);
+    return { ok: false, reason: 'config_missing' };
+  }
+  const price = parsePositiveIntPrice(data?.value);
+  if (price == null) return { ok: false, reason: 'invalid' };
+  return { ok: true, price };
+}
+
+async function loadUserCustomCartRows(verifiedUserId: string): Promise<
+  | { ok: true; rows: CustomCartRow[] }
+  | { ok: false; status: number; error: string; payment_event?: PaymentOpsEvent }
+> {
+  if (!supabaseAdmin) {
+    return {
+      ok: false,
+      status: 500,
+      error: '서버 구성 오류가 발생했습니다.',
+      payment_event: 'config_missing',
+    };
+  }
+  const { data, error } = await supabaseAdmin
+    .from('cart_items')
+    .select('id, product_id, selected_option, quantity, custom_image, custom_config, orientation')
+    .eq('user_id', verifiedUserId);
+
+  if (error) {
+    console.error('[PAYMENT_ITEM_FAIL] Custom cart lookup error:', error);
+    return {
+      ok: false,
+      status: 500,
+      error: '주문 상품 정보를 확인할 수 없습니다.',
+      payment_event: 'db_products_lookup',
+    };
+  }
+
+  const rows = ((data || []) as CustomCartRow[]).filter(isCustomCartRow);
+  return { ok: true, rows };
+}
+
+function nonEmptyUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function customRowImageUrls(row: CustomCartRow): string[] {
+  const cfg = row.custom_config && typeof row.custom_config === 'object' ? row.custom_config : {};
+  return [
+    nonEmptyUrl(row.custom_image),
+    nonEmptyUrl(cfg.preview_image_url),
+    nonEmptyUrl(cfg.original_image_url),
+  ].filter((url): url is string => !!url);
+}
+
+function customDisplayImage(row: CustomCartRow): string | null {
+  const cfg = row.custom_config && typeof row.custom_config === 'object' ? row.custom_config : {};
+  return nonEmptyUrl(cfg.preview_image_url) || nonEmptyUrl(row.custom_image);
+}
+
+function claimMatchingCustomCartRow(
+  item: any,
+  rows: CustomCartRow[],
+): CustomCartRow | null {
+  const requestedId = typeof item?.cart_item_id === 'string' ? item.cart_item_id.trim() : '';
+  if (requestedId) {
+    const idx = rows.findIndex((row) => row.id === requestedId);
+    if (idx >= 0) return rows.splice(idx, 1)[0] || null;
+    return null;
+  }
+
+  const image =
+    nonEmptyUrl(item?.user_image_url) ||
+    nonEmptyUrl(item?.image) ||
+    '';
+  if (!image) return null;
+  const idx = rows.findIndex((row) => customRowImageUrls(row).includes(image));
+  if (idx >= 0) return rows.splice(idx, 1)[0] || null;
+  return null;
 }
 
 function parsePositiveIntQuantity(value: unknown): number | null {
@@ -1478,6 +1706,7 @@ function validateTossDonePayment(
 async function validateCheckoutItems(
   pendingItems: unknown,
   orderIdForLog: string,
+  verifiedUserId: string,
 ): Promise<
   | { ok: true; checkout: CheckoutValidationResult }
   | { ok: false; status: number; error: string; payment_event?: PaymentOpsEvent }
@@ -1528,6 +1757,20 @@ async function validateCheckoutItems(
     productMap = new Map((products || []).map((p: any) => [p.id, p]));
   }
 
+  const hasCustomPending = pendingItems.some((item: any) => isWorkshopPendingItem(item));
+  let customCartRows: CustomCartRow[] = [];
+  let liveCustomMPrice: number | null = null;
+  if (hasCustomPending) {
+    const cartResult = await loadUserCustomCartRows(verifiedUserId);
+    if (cartResult.ok === false) return cartResult;
+    customCartRows = cartResult.rows;
+
+    const livePrice = await readLiveCustomMPrice();
+    if (livePrice.ok) {
+      liveCustomMPrice = livePrice.price;
+    }
+  }
+
   for (const item of pendingItems) {
     const quantity = parsePositiveIntQuantity(item?.quantity);
     if (quantity === null) {
@@ -1536,18 +1779,47 @@ async function validateCheckoutItems(
     }
 
     if (isWorkshopPendingItem(item)) {
-      const unit = SERVER_WORKSHOP_UNIT_PRICE;
+      const cartRow = claimMatchingCustomCartRow(item, customCartRows);
+      if (!cartRow) {
+        console.error("[PAYMENT_ITEM_FAIL] Custom cart row not found:", { orderId: orderIdForLog });
+        return { ok: false, status: 400, error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." };
+      }
+      if (cartRow.quantity !== quantity) {
+        console.error("[PAYMENT_ITEM_FAIL] Custom quantity mismatch:", { orderId: orderIdForLog });
+        return { ok: false, status: 400, error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." };
+      }
+
+      const looksTrusted = isTrustedCustomPriceSnapshot(cartRow.custom_config);
+      if (looksTrusted && !isCompleteCustomV1Production(cartRow.custom_config, cartRow.orientation)) {
+        console.error("[PAYMENT_ITEM_FAIL] v1 custom incomplete production snapshot:", { orderId: orderIdForLog });
+        return { ok: false, status: 400, error: "주문 상품 정보와 결제 금액이 일치하지 않습니다." };
+      }
+
+      const trustedUnit = looksTrusted ? trustedCustomUnitPrice(cartRow.custom_config) : null;
+      let unit = trustedUnit;
+      if (unit == null) {
+        if (liveCustomMPrice == null) {
+          console.error("[PAYMENT_ITEM_FAIL] Legacy custom_m_price missing:", { orderId: orderIdForLog });
+          return {
+            ok: false,
+            status: 500,
+            error: "주문 상품 정보를 확인할 수 없습니다.",
+            payment_event: "config_missing",
+          };
+        }
+        unit = liveCustomMPrice;
+      }
+
+      const cfg = passthroughCustomConfig(cartRow.custom_config, unit);
+
       serverExpectedTotal += unit * quantity;
-      const customImage =
-        (typeof item.user_image_url === 'string' && item.user_image_url) ||
-        (typeof item.image === 'string' && item.image) ||
-        null;
+      const customImage = customDisplayImage(cartRow);
       const sizeLabel =
-        (typeof item.custom_config?.size === 'string' && item.custom_config.size) ||
-        (typeof item.option === 'string' && item.option) ||
-        '커스텀';
+        (typeof cfg.size === 'string' && cfg.size) ||
+        (typeof cartRow.selected_option === 'string' && cartRow.selected_option) ||
+        'M';
       validatedSnapshots.push({
-        product_id: 'workshop-single',
+        product_id: CUSTOM_CART_PRODUCT_ID,
         product_title: '커스텀 포스터',
         title: '커스텀 포스터',
         option: sizeLabel,
@@ -1555,17 +1827,8 @@ async function validateCheckoutItems(
         price: unit,
         image: customImage,
         user_image_url: customImage,
-        orientation: item.orientation || item.custom_config?.orientation || null,
-        custom_config: {
-          shaderType: item.custom_config?.shaderType,
-          material: item.custom_config?.material,
-          size: item.custom_config?.size,
-          orientation: item.custom_config?.orientation,
-          ai_upscale: !!item.custom_config?.ai_upscale,
-          ai_outpaint: !!item.custom_config?.ai_outpaint,
-          ai_autofill: !!item.custom_config?.ai_autofill,
-          serial_number: item.custom_config?.serial_number ?? null,
-        },
+        orientation: cartRow.orientation || item.orientation || (typeof cfg.orientation === 'string' ? cfg.orientation : null),
+        custom_config: cfg,
         is_custom: true,
       });
       continue;
@@ -1971,7 +2234,7 @@ ${staticUrls}${productUrls}
     const orderNumber = generatePaymentOrderNumber();
 
     try {
-      const checkoutResult = await validateCheckoutItems(items, orderNumber);
+      const checkoutResult = await validateCheckoutItems(items, orderNumber, verifiedUserId);
       if (checkoutResult.ok === false) {
         if (checkoutResult.status >= 500) {
           await logPaymentOpsFailure({
