@@ -1,8 +1,8 @@
 # METALORA project state
 
-Persistent checkpoint for session handoff. Last updated after **NEW 2D CLOSED** (verification-first; Home-as-catalog retained; no application source; no deploy).
+Persistent checkpoint for session handoff. Last updated after **NEW 2E OPEN** (Cart / Checkout UX; A3 implementation next; TEST payment-start only; no live Toss; no deploy).
 
-This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master migration: `docs/decisions/NEW-1_launch-pipeline-v2.md`. NEW 2A contract: `docs/decisions/NEW-2A_menu-ia-consistency.md`. NEW 2B contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`. NEW 2C contract: `docs/decisions/NEW-2C_global-shell-component-consistency.md`. NEW 2D contract: `docs/decisions/NEW-2D_catalog-general-storefront.md`.
+This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master migration: `docs/decisions/NEW-1_launch-pipeline-v2.md`. NEW 2A contract: `docs/decisions/NEW-2A_menu-ia-consistency.md`. NEW 2B contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`. NEW 2C contract: `docs/decisions/NEW-2C_global-shell-component-consistency.md`. NEW 2D contract: `docs/decisions/NEW-2D_catalog-general-storefront.md`. NEW 2E contract: `docs/decisions/NEW-2E_cart-checkout-ux.md`.
 
 **Current operating mode: `NEW LAUNCH PIPELINE v2 ACTIVE`.**
 **NEW 1 — ROADMAP / SCOPE LOCK: CLOSED.**
@@ -11,10 +11,10 @@ This is the authoritative current-state file. Do **not** create additional overl
 **NEW 2B: CLOSED.** Two-step Custom M source/UX complete. Payment-test validated. Production Custom DB/Storage/server **not** rolled out.
 **NEW 2C: CLOSED.** CookieBanner first-visit and settings inner shells consume `.container-shell`. User visual approval **PASS**. A5 targeted QA **PASS**. Footer out of scope. No deploy.
 **NEW 2D: CLOSED.** Verification-first. Existing Home-as-catalog accepted. Application source **NONE**. User visual approval **PASS**. A5 targeted QA **PASS**. No deploy.
-**NEW 2E: NOT OPENED.**
+**NEW 2E: OPEN.** Cart → Checkout → TEST payment-start → success/fail UX. Owner **A3**. Single slice. Live Toss **PROHIBITED**. Source **not started**.
 **NEW 2F: NOT OPENED.**
 
-NEXT: **A0 PRE-STAGE REPORT — NEW 2E** (Cart / Checkout UX). Do **not** open or implement NEW 2E from this file. Every remaining NEW 2 substage (2E–2F) and every remaining NEW stage still requires an **A0 PRE-STAGE REPORT** before writes.
+NEXT: **A3 — NEW 2E CART / CHECKOUT UX IMPLEMENTATION.** Do **not** implement Cart/Checkout from this file. Do **not** activate live Toss. Do **not** deploy. Every remaining NEW 2 substage (2F) and every remaining NEW stage still requires an **A0 PRE-STAGE REPORT** before writes.
 
 ---
 
@@ -23,12 +23,13 @@ NEXT: **A0 PRE-STAGE REPORT — NEW 2E** (Cart / Checkout UX). Do **not** open o
 | Item | Value |
 |------|--------|
 | Operating mode | **NEW LAUNCH PIPELINE v2 ACTIVE** |
-| Current stage | **NEW 2 IN PROGRESS** — next is **A0 PRE-STAGE REPORT — NEW 2E** (not opened) |
-| NEW 2 | family; **2A CLOSED**; **2B CLOSED**; **2C CLOSED**; **2D CLOSED**; 2E–2F not opened |
+| Current stage | **NEW 2E OPEN** — next is A3 Cart / Checkout UX (source not started) |
+| NEW 2 | family; **2A CLOSED**; **2B CLOSED**; **2C CLOSED**; **2D CLOSED**; **2E OPEN**; 2F not opened |
 | NEW 2A | **CLOSED** — `docs/decisions/NEW-2A_menu-ia-consistency.md` |
 | NEW 2B | **CLOSED** — `docs/decisions/NEW-2B_custom-creation-ux-ui.md` |
 | NEW 2C | **CLOSED** — `docs/decisions/NEW-2C_global-shell-component-consistency.md` |
 | NEW 2D | **CLOSED** — `docs/decisions/NEW-2D_catalog-general-storefront.md` |
+| NEW 2E | **OPEN** — `docs/decisions/NEW-2E_cart-checkout-ux.md` |
 | Historical `#16`–`#23` | **CLOSED** |
 | Prior PRE-LAUNCH HOLD | **SUPERSEDED AS CURRENT MODE** (preserved historically) |
 | BASELINE DEVELOPMENT COMPLETE | **YES** (through `#23`) |
@@ -167,19 +168,19 @@ Durable record: `docs/decisions/20F-0_account-side-backup-confirmation.md` (unch
 | Historical `#20F` | MIGRATED → **NEW 6** (not started) |
 | Historical `#24` | NOT OPENED; remaining work → NEW 4 / 7 / 8 / 9 |
 | **NEW 1** | **CLOSED** — roadmap / scope lock |
-| **NEW 2** | family; **IN PROGRESS**; **2A CLOSED**; **2B CLOSED**; **2C CLOSED**; **2D CLOSED**; 2E–2F **NOT OPENED** |
+| **NEW 2** | family; **IN PROGRESS**; **2A CLOSED**; **2B CLOSED**; **2C CLOSED**; **2D CLOSED**; **2E OPEN**; 2F **NOT OPENED** |
 | **NEW 2A** | **CLOSED** — customer nav / IA; visual approval + A5 PASS |
 | **NEW 2B** | **CLOSED** — two-step Custom M source/UX; payment-test PASS; production rollout **not** complete |
 | **NEW 2C** | **CLOSED** — CookieBanner `.container-shell`; Footer out of scope; no deploy |
 | **NEW 2D** | **CLOSED** — verification-first; Home-as-catalog; source **NONE**; visual + A5 PASS |
-| NEW 2E | **NOT OPENED** — next: A0 PRE-STAGE REPORT |
+| **NEW 2E** | **OPEN** — Cart / Checkout / TEST payment-start UX; live Toss prohibited; source not started |
 | NEW 2F | **NOT OPENED** |
 | NEW 3–5 | not opened |
 | NEW 6 | not started (hard gate before NEW 7) |
 | NEW 7–9 | not opened |
 | LIVE | **NO** |
 
-Upcoming main path: **A0 PRE-STAGE REPORT — NEW 2E** (not opened) → remaining NEW 2 family (each with its own PRE-STAGE REPORT) ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
+Upcoming main path: **A3 NEW 2E Cart / Checkout UX** (source; not this ticket) → remaining NEW 2 family (each with its own PRE-STAGE REPORT) ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
 
 **NEW 2A** = **CLOSED.** Final Header: Search / Theme / Logo / Account / Cart on desktop and mobile; no persistent Custom text; no mobile `메뉴` / hamburger / CustomerNavSheet. Primary Custom discovery: Home `커스텀 제작 →` via `requestCustomAccess()`. Cart commerce term = `장바구니`. Global search → `/?q=`. Do not reopen 2A.
 
@@ -189,7 +190,9 @@ Durable 2B checkpoints: `b37c1f7` (open) → `0a65c24` (two-step UX) → `2e06be
 
 **NEW 2C** = **CLOSED.** Residual customer-shell alignment only. Contract: `docs/decisions/NEW-2C_global-shell-component-consistency.md`. Implementation: `src/components/CookieBanner.tsx` first-visit + settings inner shells now use `.container-shell` (`6ff78fcd64e951d88ab12dc6d88249fb77c8b4d3`). User visual approval **PASS**. A5 targeted QA **PASS**. Footer **out of scope** (#23-A5-F02 remains MINOR / OPTIONAL, not claimed fixed). Header IA / Workshop / tokens / ui primitives / Cart / account **unchanged**. No backend or deploy. Do not reopen 2C.
 
-**NEW 2D** = **CLOSED.** Verification-first. Contract: `docs/decisions/NEW-2D_catalog-general-storefront.md`. Existing Home-as-catalog accepted (catalog = `/`; search = Header → `/?q=`; product = `/product/:id`). No competing `/shop`. Application source **NONE**. No implementation SHA. Stage-open: `ae0f59bbbd47f9a21441d25a7fbf35033bd30d5f`. User visual approval **PASS**. A5 targeted QA **PASS**. Empty-state copy residual and marquee focus-ring remain **NON-BLOCKING / DEFERRED**, not claimed fixed. Header IA / Workshop / shell / Cart / account **unchanged**. No backend or deploy. Do not reopen 2D. Do not open 2E from this file.
+**NEW 2D** = **CLOSED.** Verification-first. Contract: `docs/decisions/NEW-2D_catalog-general-storefront.md`. Existing Home-as-catalog accepted (catalog = `/`; search = Header → `/?q=`; product = `/product/:id`). No competing `/shop`. Application source **NONE**. No implementation SHA. Stage-open: `ae0f59bbbd47f9a21441d25a7fbf35033bd30d5f`. User visual approval **PASS**. A5 targeted QA **PASS**. Empty-state copy residual and marquee focus-ring remain **NON-BLOCKING / DEFERRED**, not claimed fixed. Header IA / Workshop / shell / Cart / account **unchanged**. No backend or deploy. Do not reopen 2D.
+
+**NEW 2E** = **OPEN.** Cart → Checkout → TEST payment-start → success/fail UX. Contract: `docs/decisions/NEW-2E_cart-checkout-ux.md`. Owner **A3**. Single slice. MUST: `Cart.tsx`, `PaymentSuccess.tsx`. MAY: `PaymentFail.tsx`, `CartContext.tsx`. Consume 2B `price_snapshot` and preview; do not reopen Workshop. Do not square-crop landscape Custom thumbs. Remove Cart `A4` leftover and PaymentSuccess 4K/180℃/승화전사/무타공 claims. Mixed-cart consent must not apply Custom-only restrictions to catalog items. Backend **NONE** by default; live Toss **PROHIBITED**. Source not started. Do not open 2F from this file.
 
 Frozen complete (do not redesign): Home/Hero, PDP Desktop, PDP Mobile Story, Product Truth, Mount/Included, OWC, Product Information, PDP Footer — except the closed NEW 2A Header chrome, Home.tsx headline/CTA stack, copy-only PDP rail cart-term strings listed in the 2A note, and **NEW 2B-4 shared PDP preview reuse** (not a PDP visual redesign).
 
