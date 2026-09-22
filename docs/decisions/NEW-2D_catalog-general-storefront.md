@@ -1,14 +1,10 @@
 # NEW 2D — Catalog / General Storefront
 
-Status: **OPEN — VERIFICATION-FIRST**
+Status: **CLOSED**
 
 Date: 2026-09-22
 
-Decision: NEW 2D is **OPEN** as a **verification-first** stage. The existing customer storefront already satisfies the PRE-STAGE architecture. This is **not** an automatic A2 implementation ticket.
-
-Current application implementation: **NONE REQUIRED YET**.
-
-Do **not** edit application source unless a concrete visual/QA defect is later **promoted by orchestration**.
+Decision: NEW 2D is **CLOSED**. This was a **verification-first** stage. Application implementation required: **NO**. Application source changes: **NONE**. The existing storefront already satisfied the accepted contract. This was **not** an A2 implementation ticket.
 
 This note does **not** open NEW 2E–2F. It does **not** authorize Home/PDP redesign, a competing catalog route, Workshop, Cart/checkout/Toss, Profile/account, backend, or deploy.
 
@@ -22,18 +18,25 @@ This note does **not** open NEW 2E–2F. It does **not** authorize Home/PDP rede
 | NEW 2A | **CLOSED** — preserved |
 | NEW 2B | **CLOSED** — preserved |
 | NEW 2C | **CLOSED** — preserved |
-| NEW 2D | **OPEN — VERIFICATION-FIRST** |
+| NEW 2D | **CLOSED** |
 | NEW 2E–2F | **NOT OPENED** |
-| Application write set | **NONE** |
-| Primary owner if a blocker is later promoted | **A2** |
-| Visual approval | **REQUIRED** (current storefront, not a redesign) |
-| A5 QA | **REQUIRED** after user PASS |
+| Application source | **NONE** — no implementation commit |
+| Visual approval | **PASS** (current storefront; not a redesign) |
+| A5 targeted QA | **PASS** |
 | Backend / A6 | **NONE** |
-| Next | **USER — review current Home/PDP storefront visuals** |
+| Next governance action | **A0 PRE-STAGE REPORT — NEW 2E** (do not open 2E from this note) |
 
 ---
 
-## Locked storefront architecture (CURRENT)
+## Closure model
+
+NEW 2D opened as **VERIFICATION-FIRST**. User visual approval **PASS**. A5 targeted QA **PASS**. No concrete defect was promoted. Closure is governance completion of the existing catalog path.
+
+Do **not** invent an implementation SHA. Do **not** imply A2 edited Home, ProductCard, ProductGrid, ProductDetail, or PDP files for this stage.
+
+---
+
+## Accepted storefront architecture
 
 | Role | Route / entry |
 |------|----------------|
@@ -43,138 +46,168 @@ This note does **not** open NEW 2E–2F. It does **not** authorize Home/PDP rede
 
 No `/shop`. No `/catalog`. No `/collection`. No `/search` route.
 
-Home remains the catalog. Do **not** create a competing catalog architecture.
+Home remains the catalog. No competing catalog architecture was created.
 
 ---
 
-## PRE-STAGE source assessment
+## Home-as-catalog — VERIFIED / ACCEPTED
 
-| Area | Finding |
-|------|---------|
-| Home storefront | **ALREADY CONSISTENT** |
-| Catalog / grid | **NO NEW ROUTE REQUIRED** |
-| Product cards | **ALREADY CONSISTENT** |
-| Standard PDP | **ALREADY CONSISTENT** for NEW 2D |
-| Product data authority | **SUFFICIENT** — Supabase `products` |
-| Price consistency | **PASS** |
-| Product routing | **PASS** |
-| Responsive storefront | **SUFFICIENT** |
-| Backend / A6 | **NONE** |
+No Home redesign.
 
-Default implementation source MUST set: **NONE**.
+- product discovery
+- marquee
+- gallery
+- separate Custom entry (`커스텀 제작 →` / `requestCustomAccess()`)
+- title search through `/?q=`
+- latest / random sorting
+- loading skeletons
+- fetch error / retry
+- responsive listing
 
 ---
 
-## Application write set (stage open)
+## Product cards — VERIFIED / ACCEPTED
 
-**NONE.**
-
-Do **not** authorize A2 to edit:
-
-- `src/pages/Home.tsx`
-- `src/components/ProductCard.tsx`
-- `src/components/ProductGrid.tsx`
-- `src/components/ProductDetail.tsx`
-- any `src/components/pdp/*` file
-
-Those files become writable only if a later visual/QA finding is **explicitly promoted by orchestration**.
-
-Do not make optional polish merely because a MAY file was identified in the PRE-STAGE report.
+- existing `ProductCard` links to `/product/:id`
+- no direct Add-to-Cart
+- image fallback exists
+- no mounted demo/mock catalog
+- current image-led treatment accepted
+- price / title / sold-out chrome was **not** required for closure and was **not** added
 
 ---
 
-## Optional residuals — NOT PROMOTED
+## Standard PDP — VERIFIED / ACCEPTED
 
-Not implementation requirements at stage open:
+WebGL/theatre redesign was **not** part of NEW 2D.
 
-| Residual | Classification | Action |
-|----------|----------------|--------|
-| Home empty-state copy may say `검색 결과가 없습니다.` even when `q` is absent and catalog is empty | minor residual | Do **not** change unless visual/QA evidence promotes it |
-| Marquee `focus-ring` | optional a11y | Do **not** promote automatically |
-| Product-card title / price / sold-out chrome | intentional / frozen | Do **not** add |
-| Card aspect `210/297` | frozen Home presentation | Do **not** retune to 200/283 |
-| Hero vs listing unsellable-product filter | no live-catalog defect proven | Do **not** change |
+- title, subtitle
+- selected-option price
+- options / size
+- quantity
+- sold-out handling
+- `장바구니에 담기`
+- production and delivery facts
+- loading, error/retry, not-found
+- login gate where applicable
+
+---
+
+## Product data authority
+
+Supabase `products` remains the accepted general-product authority.
+
+No NEW 2D schema, API, migration, backend service, or mounted demo catalog.
+
+---
+
+## Price contract
+
+| Surface | Rule |
+|---------|------|
+| Hero | option-derived (`resolveHeroPrice`) |
+| PDP | selected-option price |
+| Cards | price intentionally omitted under accepted presentation |
+| Custom | separate `custom_m_price` contract untouched |
+
+No hardcoded general-storefront price blocker.
+
+---
+
+## Routing / search / sort
+
+Canonical product route: `/product/:id`. Search: `/?q=` title match. Sort: latest / random.
+
+**Not** added and **not** claimed complete: categories, collections, faceted filters, subtitle search, extra sort modes.
+
+---
+
+## Visual approval
+
+User visual approval: **PASS**.
+
+User reviewed the current Home / PDP storefront and confirmed no visual issue required NEW 2D source implementation.
+
+This approval applies to **NEW 2D storefront surfaces only**. It does **not** approve NEW 2E, NEW 2F, Cart, checkout, or Profile/account.
+
+---
+
+## QA evidence
+
+- A5 targeted QA: **PASS**
+- A0 final closure audit: **PASS**
+
+A5 concluded: implementation required **NO**; implementation complete **YES** by verification of existing implementation; closure ready **YES**.
+
+Coverage: Home-as-catalog; ProductCard; standard PDP; Supabase product authority; price consistency; routing; search/sort; loading/error/not-found; responsive behavior; relevant a11y/interaction; frozen 2A/2B/2C; NEW 2E/2F boundaries; backend **NONE**; lint **PASS**; `git diff --check` **PASS**; worktree **CLEAN**.
+
+---
+
+## Non-blocking residuals (NOT FIXED)
+
+| Residual | Classification |
+|----------|----------------|
+| Home empty-state copy may say `검색 결과가 없습니다.` when `q` is absent and the catalog is empty | **NON-BLOCKING MINOR COPY RESIDUAL** |
+| Gallery links have `focus-ring`; marquee links do not | **OPTIONAL / DEFERRED A11Y** |
+
+Neither is a NEW 2D closure blocker. Neither was implemented.
 
 ---
 
 ## Frozen boundaries
 
-- **NEW 2A CLOSED.** Header IA, search entry, navigation architecture unchanged.
-- **NEW 2B CLOSED.** Workshop / Custom composition / price / durable handoff / lifecycle unchanged.
-- **NEW 2C CLOSED.** Shared shell, CookieBanner, `.container-shell` unchanged.
+- **NEW 2A CLOSED / unchanged.** Header IA, search entry, navigation architecture.
+- **NEW 2B CLOSED / unchanged.** Workshop / Custom composition / price / durable handoff / lifecycle.
+- **NEW 2C CLOSED / unchanged.** Shared shell, CookieBanner, `.container-shell`.
 - **NEW 2E NOT OPENED.** Cart, checkout, payment, Toss, Custom thumbnail geometry.
 - **NEW 2F NOT OPENED.** Profile, account, order history, Login UI redesign.
 
 ---
 
-## Visual verification gate
+## Explicitly not implemented
 
-Before any source edit, USER reviews the **current** storefront.
-
-Minimum states:
-
-1. Home desktop ~1440
-2. Home mobile ~390
-3. One standard PDP desktop ~1440
-4. One standard PDP mobile ~390
-
-Also verify existing search if practical:
-
-5. Home `/?q=` with a matching product
-6. Home `/?q=` with no match
-
-Purpose: does the **current** implementation satisfy NEW 2D acceptance criteria? Not a redesign.
-
-### If USER PASS
-
-No source implementation. Next: **A5 — NEW 2D TARGETED QA (READ ONLY)**.
-
-### If USER finds a concrete defect
-
-**STOP.** Return the exact defect to orchestration. Do **not** let A2 fix it automatically.
-
-Orchestration decides whether it is a genuine NEW 2D blocker, optional polish, or later-stage work, and authorizes the smallest source write set if needed.
-
-If visual review and A5 QA find no concrete defect: **close NEW 2D with no application-source implementation**.
+- new catalog route / `/shop` / category pages / collection pages
+- faceted filtering / subtitle search / new sort modes
+- product-card price chrome / direct Add-to-Cart from cards / card aspect-ratio redesign
+- Home/Hero redesign / PDP redesign / PDP WebGL redesign
+- Workshop / Cart/checkout / Profile/account changes
+- admin A4 cleanup / `ExperienceGallery` mounting
+- schema / API / backend changes
 
 ---
 
-## Acceptance criteria
+## Checkpoints
 
-1. General products are discovered on Home `/`.
-2. No competing shop/catalog architecture is introduced.
-3. Search remains Header → `/?q=`.
-4. Product cards route to `/product/:id`.
-5. Supabase `products` remains the general-product authority.
-6. Hero/PDP displayed pricing remains option-derived.
-7. Existing loading/error/not-found behavior remains usable.
-8. Current Home and PDP are visually acceptable at ~390 and ~1440.
-9. Frozen 2A/2B/2C remain unchanged.
-10. NEW 2E/2F remain untouched.
-11. User visual approval **PASS**.
-12. A5 targeted QA **PASS**.
-13. `npm run lint` / `git diff --check` **PASS**.
-14. No source change is required merely to claim NEW 2D completion.
+| SHA | Message |
+|-----|---------|
+| `ae0f59bbbd47f9a21441d25a7fbf35033bd30d5f` | `docs(project): open NEW 2D storefront verification` |
+
+There is **no** NEW 2D application implementation commit. This is intentional.
+
+Docs closure commit SHA does not exist yet.
 
 ---
 
 ## Backend / production
 
-**NONE.** No DB, Supabase migration, server, payment, analytics-semantics, or deploy.
+NEW 2D required **NONE**: no DB, Supabase migration, server, payment, analytics-semantics, or deploy.
+
+Closure is source/governance completion only. Production was **not** redeployed for NEW 2D. Broader production rollout status from other stages is unchanged. NEW 2D closure does **not** mean production launch readiness.
+
+---
+
+## Remaining NEW 2D implementation
+
+**NONE.**
 
 ---
 
 ## Do not do
 
-- Assign A2 an implementation ticket from this stage-open
-- Edit Home / ProductCard / ProductGrid / ProductDetail / PDP files
-- Add `/shop`, `/catalog`, `/collection`, or `/search`
-- Add category pages, faceted filtering, a new sort system, or subtitle search
-- Redesign Home/Hero, card chrome, card aspect, or PDP / WebGL
-- Reopen 2A / 2B / 2C
-- Open 2E / 2F
-- Mount or rewrite `ExperienceGallery`
-- Admin A4 cleanup
+- Reopen NEW 2D implementation
+- Invent an implementation SHA
+- Claim a catalog-route or card-chrome redesign
+- Open NEW 2E from this note
 - Deploy
 
 ---
@@ -182,10 +215,8 @@ If visual review and A5 QA find no concrete defect: **close NEW 2D with no appli
 ## Resume procedure
 
 1. This note + `docs/METALORA_PROJECT_STATE.md` = SoT
-2. Next: **USER — review current NEW 2D Home/PDP storefront visuals**
-3. USER PASS → A5 targeted QA (READ ONLY)
-4. USER defect → return to orchestration; no automatic source edit
-5. Do **not** start NEW 2E until its own PRE-STAGE REPORT is reviewed and OPEN READY
+2. Next: **A0 PRE-STAGE REPORT — NEW 2E** (Cart / Checkout UX)
+3. Do **not** start NEW 2E until that report is reviewed and OPEN READY
 
 ---
 
@@ -193,9 +224,7 @@ If visual review and A5 QA find no concrete defect: **close NEW 2D with no appli
 
 A0 — architecture / stage contract.
 
-If a blocker is later promoted: **A2** for Home / cards / listing / PDP non-WebGL, smallest write set only.
-
 ## Relevant files
 
 - Governance: this note; `docs/METALORA_PROJECT_STATE.md`
-- Frozen / not writable at stage open: `src/pages/Home.tsx`, `src/components/ProductCard.tsx`, `src/components/ProductGrid.tsx`, `src/components/ProductDetail.tsx`, `src/components/pdp/*`, `src/components/Header.tsx`, Workshop, Cart, account
+- Unchanged for NEW 2D: `src/pages/Home.tsx`, `src/components/ProductCard.tsx`, `src/components/ProductGrid.tsx`, `src/components/ProductDetail.tsx`, `src/components/pdp/*`, `src/components/Header.tsx`, Workshop, Cart, account

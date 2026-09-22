@@ -1,6 +1,6 @@
 # METALORA project state
 
-Persistent checkpoint for session handoff. Last updated after **NEW 2D OPEN — VERIFICATION-FIRST** (Home-as-catalog lock; no application source write; no deploy).
+Persistent checkpoint for session handoff. Last updated after **NEW 2D CLOSED** (verification-first; Home-as-catalog retained; no application source; no deploy).
 
 This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master migration: `docs/decisions/NEW-1_launch-pipeline-v2.md`. NEW 2A contract: `docs/decisions/NEW-2A_menu-ia-consistency.md`. NEW 2B contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`. NEW 2C contract: `docs/decisions/NEW-2C_global-shell-component-consistency.md`. NEW 2D contract: `docs/decisions/NEW-2D_catalog-general-storefront.md`.
 
@@ -10,10 +10,11 @@ This is the authoritative current-state file. Do **not** create additional overl
 **NEW 2A: CLOSED.** Implementation, user visual approval, A5 targeted QA, and A5 short-delta QA **PASS**. Orphan `CustomerNavSheet` removed.
 **NEW 2B: CLOSED.** Two-step Custom M source/UX complete. Payment-test validated. Production Custom DB/Storage/server **not** rolled out.
 **NEW 2C: CLOSED.** CookieBanner first-visit and settings inner shells consume `.container-shell`. User visual approval **PASS**. A5 targeted QA **PASS**. Footer out of scope. No deploy.
-**NEW 2D: OPEN — VERIFICATION-FIRST.** Home-as-catalog already exists. Application source write set **NONE**. Do **not** assign A2 implementation.
-**NEW 2E–2F: NOT OPENED.**
+**NEW 2D: CLOSED.** Verification-first. Existing Home-as-catalog accepted. Application source **NONE**. User visual approval **PASS**. A5 targeted QA **PASS**. No deploy.
+**NEW 2E: NOT OPENED.**
+**NEW 2F: NOT OPENED.**
 
-NEXT: **USER — review current NEW 2D Home/PDP storefront visuals.** Do **not** edit application source unless a concrete defect is promoted by orchestration. Every remaining NEW 2 substage (2E–2F) and every remaining NEW stage still requires an **A0 PRE-STAGE REPORT** before writes.
+NEXT: **A0 PRE-STAGE REPORT — NEW 2E** (Cart / Checkout UX). Do **not** open or implement NEW 2E from this file. Every remaining NEW 2 substage (2E–2F) and every remaining NEW stage still requires an **A0 PRE-STAGE REPORT** before writes.
 
 ---
 
@@ -22,12 +23,12 @@ NEXT: **USER — review current NEW 2D Home/PDP storefront visuals.** Do **not**
 | Item | Value |
 |------|--------|
 | Operating mode | **NEW LAUNCH PIPELINE v2 ACTIVE** |
-| Current stage | **NEW 2D OPEN — VERIFICATION-FIRST** — next is USER visual review of current Home/PDP |
-| NEW 2 | family; **2A CLOSED**; **2B CLOSED**; **2C CLOSED**; **2D OPEN — VERIFICATION-FIRST**; 2E–2F not opened |
+| Current stage | **NEW 2 IN PROGRESS** — next is **A0 PRE-STAGE REPORT — NEW 2E** (not opened) |
+| NEW 2 | family; **2A CLOSED**; **2B CLOSED**; **2C CLOSED**; **2D CLOSED**; 2E–2F not opened |
 | NEW 2A | **CLOSED** — `docs/decisions/NEW-2A_menu-ia-consistency.md` |
 | NEW 2B | **CLOSED** — `docs/decisions/NEW-2B_custom-creation-ux-ui.md` |
 | NEW 2C | **CLOSED** — `docs/decisions/NEW-2C_global-shell-component-consistency.md` |
-| NEW 2D | **OPEN — VERIFICATION-FIRST** — `docs/decisions/NEW-2D_catalog-general-storefront.md` |
+| NEW 2D | **CLOSED** — `docs/decisions/NEW-2D_catalog-general-storefront.md` |
 | Historical `#16`–`#23` | **CLOSED** |
 | Prior PRE-LAUNCH HOLD | **SUPERSEDED AS CURRENT MODE** (preserved historically) |
 | BASELINE DEVELOPMENT COMPLETE | **YES** (through `#23`) |
@@ -166,18 +167,19 @@ Durable record: `docs/decisions/20F-0_account-side-backup-confirmation.md` (unch
 | Historical `#20F` | MIGRATED → **NEW 6** (not started) |
 | Historical `#24` | NOT OPENED; remaining work → NEW 4 / 7 / 8 / 9 |
 | **NEW 1** | **CLOSED** — roadmap / scope lock |
-| **NEW 2** | family; **IN PROGRESS**; **2A CLOSED**; **2B CLOSED**; **2C CLOSED**; **2D OPEN — VERIFICATION-FIRST**; 2E–2F **NOT OPENED** |
+| **NEW 2** | family; **IN PROGRESS**; **2A CLOSED**; **2B CLOSED**; **2C CLOSED**; **2D CLOSED**; 2E–2F **NOT OPENED** |
 | **NEW 2A** | **CLOSED** — customer nav / IA; visual approval + A5 PASS |
 | **NEW 2B** | **CLOSED** — two-step Custom M source/UX; payment-test PASS; production rollout **not** complete |
 | **NEW 2C** | **CLOSED** — CookieBanner `.container-shell`; Footer out of scope; no deploy |
-| **NEW 2D** | **OPEN — VERIFICATION-FIRST** — Home-as-catalog; no source write; USER visual review next |
-| NEW 2E–2F | **NOT OPENED** |
+| **NEW 2D** | **CLOSED** — verification-first; Home-as-catalog; source **NONE**; visual + A5 PASS |
+| NEW 2E | **NOT OPENED** — next: A0 PRE-STAGE REPORT |
+| NEW 2F | **NOT OPENED** |
 | NEW 3–5 | not opened |
 | NEW 6 | not started (hard gate before NEW 7) |
 | NEW 7–9 | not opened |
 | LIVE | **NO** |
 
-Upcoming main path: **NEW 2D USER visual review** (verification-first; no A2 implementation yet) → remaining NEW 2 family (each with its own PRE-STAGE REPORT) ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
+Upcoming main path: **A0 PRE-STAGE REPORT — NEW 2E** (not opened) → remaining NEW 2 family (each with its own PRE-STAGE REPORT) ∥ NEW 3 ∥ NEW 4 after their own reports → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE.
 
 **NEW 2A** = **CLOSED.** Final Header: Search / Theme / Logo / Account / Cart on desktop and mobile; no persistent Custom text; no mobile `메뉴` / hamburger / CustomerNavSheet. Primary Custom discovery: Home `커스텀 제작 →` via `requestCustomAccess()`. Cart commerce term = `장바구니`. Global search → `/?q=`. Do not reopen 2A.
 
@@ -187,7 +189,7 @@ Durable 2B checkpoints: `b37c1f7` (open) → `0a65c24` (two-step UX) → `2e06be
 
 **NEW 2C** = **CLOSED.** Residual customer-shell alignment only. Contract: `docs/decisions/NEW-2C_global-shell-component-consistency.md`. Implementation: `src/components/CookieBanner.tsx` first-visit + settings inner shells now use `.container-shell` (`6ff78fcd64e951d88ab12dc6d88249fb77c8b4d3`). User visual approval **PASS**. A5 targeted QA **PASS**. Footer **out of scope** (#23-A5-F02 remains MINOR / OPTIONAL, not claimed fixed). Header IA / Workshop / tokens / ui primitives / Cart / account **unchanged**. No backend or deploy. Do not reopen 2C.
 
-**NEW 2D** = **OPEN — VERIFICATION-FIRST.** Contract: `docs/decisions/NEW-2D_catalog-general-storefront.md`. Locked architecture: catalog = Home `/`; search = Header → `/?q=`; product = `/product/:id`. No `/shop` / `/catalog` / `/collection` / `/search`. PRE-STAGE: Home/cards/PDP **ALREADY CONSISTENT**; data authority **SUFFICIENT**; backend **NONE**. Application source write set **NONE**. Do not edit `Home.tsx`, `ProductCard.tsx`, `ProductGrid.tsx`, `ProductDetail.tsx`, or PDP files unless orchestration promotes a concrete visual/QA defect. Optional residuals (empty-state copy, marquee focus-ring, card chrome, 210/297 aspect, Hero unsellable filter) are **not promoted**. Next: USER reviews current Home/PDP at ~1440 and ~390. USER PASS → A5 READ ONLY. USER defect → orchestration, not automatic A2. Do not reopen 2A/2B/2C. Do not open 2E/2F from this file.
+**NEW 2D** = **CLOSED.** Verification-first. Contract: `docs/decisions/NEW-2D_catalog-general-storefront.md`. Existing Home-as-catalog accepted (catalog = `/`; search = Header → `/?q=`; product = `/product/:id`). No competing `/shop`. Application source **NONE**. No implementation SHA. Stage-open: `ae0f59bbbd47f9a21441d25a7fbf35033bd30d5f`. User visual approval **PASS**. A5 targeted QA **PASS**. Empty-state copy residual and marquee focus-ring remain **NON-BLOCKING / DEFERRED**, not claimed fixed. Header IA / Workshop / shell / Cart / account **unchanged**. No backend or deploy. Do not reopen 2D. Do not open 2E from this file.
 
 Frozen complete (do not redesign): Home/Hero, PDP Desktop, PDP Mobile Story, Product Truth, Mount/Included, OWC, Product Information, PDP Footer — except the closed NEW 2A Header chrome, Home.tsx headline/CTA stack, copy-only PDP rail cart-term strings listed in the 2A note, and **NEW 2B-4 shared PDP preview reuse** (not a PDP visual redesign).
 
