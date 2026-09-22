@@ -1,12 +1,12 @@
 # NEW 2C — Global Shell / Component Consistency
 
-Status: **OPEN**
+Status: **CLOSED**
 
 Date: 2026-09-22
 
-Decision: NEW 2C is **OPEN**. User/orchestration review of the A0 PRE-STAGE REPORT is complete. Scope is **bounded residual customer-shell alignment**, not a design-system rewrite.
+Decision: NEW 2C is **CLOSED**. Bounded residual customer-shell alignment is complete. This was **not** a design-system rewrite.
 
-This note does **not** authorize CookieBanner implementation by itself (A1 ticket). It does **not** open NEW 2D–2F. It does **not** authorize Header/Footer source, tokens, ui primitives, overlay z-index migration, Home/PDP redesign, Workshop, Cart/checkout, Profile/account, backend, or deploy.
+This note does **not** open NEW 2D–2F. It does **not** authorize Header/Footer source, tokens, ui primitives, overlay z-index migration, Home/PDP redesign, Workshop, Cart/checkout, Profile/account, backend, or deploy.
 
 ---
 
@@ -17,101 +17,109 @@ This note does **not** authorize CookieBanner implementation by itself (A1 ticke
 | NEW 2 | **IN PROGRESS** |
 | NEW 2A | **CLOSED** — preserved |
 | NEW 2B | **CLOSED** — preserved |
-| NEW 2C | **OPEN** |
+| NEW 2C | **CLOSED** |
 | NEW 2D–2F | **NOT OPENED** |
-| Implementation owner | **A1** |
-| Governance | **A0** |
-| QA | **A5 READ ONLY** |
-| Next | **A1 — NEW 2C COOKIEBANNER SHELL ALIGNMENT IMPLEMENTATION** |
+| Implementation | **COMPLETE** — `src/components/CookieBanner.tsx` only |
+| Next governance action | **A0 PRE-STAGE REPORT — NEW 2D** (do not open 2D from this note) |
 
 ---
 
-## Scope (CURRENT)
+## Final scope (CURRENT)
 
-MUST implement one file:
+One file:
 
 `src/components/CookieBanner.tsx`
 
-Change the customer-facing banner and settings-panel inner layout from residual
+First-visit CookieBanner inner shell and Cookie settings/preferences inner shell now consume the existing canonical `.container-shell` instead of duplicated local classes (`mx-auto`, `max-w-7xl`, `px-4`, `sm:px-6`).
 
-`max-w-7xl px-4 sm:px-6`
+Implementation diff: **1 file, 2 insertions, 2 deletions**.
 
-(or equivalent duplicated shell-width/gutter classes) to the existing canonical
+- existing `.container-shell` reused
+- no new shell token
+- no global gutter retune
+- no shared primitive rewrite
+- Header unchanged
+- Footer unchanged
+- consent logic unchanged
+- cookie/legal copy unchanged
+- no backend work
 
-`.container-shell`
-
-Goal: CookieBanner horizontal width/gutters match Header / Footer / AnnouncementBar at representative mobile (~390) and desktop (~1440) widths.
-
-Consent copy, accept / decline / settings handlers, analytics consent storage, and policy links must **not** change.
+Do not overstate NEW 2C as a site-wide design-system migration.
 
 ---
 
-## Explicit exclusions
+## Footer (OUT OF SCOPE)
 
-- `src/components/Footer.tsx` — **OUT OF SCOPE**. #23-A5-F02 legal-link wrap is MINOR / OPTIONAL, not a 2C closure blocker. Do not polish Footer because it is A1-owned.
-- Header IA, nav labels, ordering, icon set, search behavior, menu hierarchy (NEW 2A CLOSED)
-- `tokens.css`, `foundation.css`
-- `src/components/ui/*` primitives (Button, Input, IconButton, modal/drawer)
-- Overlay numeric z-index migration (`ProfileOverlay`, account modals, `WorkshopOverlay`)
-- Home / PDP content redesign
-- Workshop / Custom composition / price / lifecycle / durable handoff (NEW 2B CLOSED)
-- Catalog / storefront (NEW 2D)
-- Cart / checkout / payment / Toss / `btn-cyberpunk` / Custom thumbnail (NEW 2E)
-- Profile / Login / account UX (NEW 2F)
-- Admin chrome (NEW 3)
-- Supabase, DB, server, analytics semantics, deploy
+`src/components/Footer.tsx` was **not** changed.
 
-If implementation appears to require any file other than `CookieBanner.tsx`: **STOP** and return to orchestration. Do not expand scope.
+#23-A5-F02 legal-link wrapping remains **MINOR / OPTIONAL**. It is **not** a NEW 2C closure blocker and is **not** claimed fixed.
+
+---
+
+## Frozen boundaries
+
+- **NEW 2A CLOSED.** Header / navigation IA unchanged (labels, hierarchy, icons, search, responsive nav).
+- **NEW 2B CLOSED.** Workshop / Custom Step 1–2 / composition / price / durable handoff / lifecycle unchanged.
+- Tokens / primitives unchanged: `tokens.css`, `foundation.css`, Button, IconButton, Input, modal/drawer primitives. No token consolidation occurred.
+- **NEW 2D / 2E / 2F** were not opened or partially completed (no catalog, Cart/checkout/Toss, or Profile/Login/account work).
 
 ---
 
 ## Visual approval
 
-**REQUIRED.**
+User visual approval: **PASS**.
 
-Minimum after A1 implementation:
+User directly reviewed:
 
-1. Home desktop ~1440 with CookieBanner open
-2. Home mobile ~390 with CookieBanner open
-3. Cookie settings panel (desktop or mobile)
+1. First-visit CookieBanner desktop ~1440
+2. First-visit CookieBanner mobile ~390
+3. Cookie settings desktop
+4. Cookie settings mobile
 
-Verify: gutters align with shared customer shell; no consent behavior regression; no clipping; no new horizontal overflow.
-
-Do not recertify every route.
-
----
-
-## Acceptance criteria
-
-1. CookieBanner uses existing `.container-shell` for the shared shell role.
-2. CookieBanner desktop/mobile gutters align with Header/Footer shell.
-3. Consent copy unchanged.
-4. Accept / decline / settings behavior unchanged.
-5. Header / Footer source unchanged.
-6. Tokens / shared primitive files unchanged.
-7. NEW 2A IA unchanged.
-8. NEW 2B Custom UX unchanged.
-9. NEW 2D / 2E / 2F untouched.
-10. User visual approval **PASS**.
-11. `npm run lint` **PASS**.
-12. `git diff --check` **PASS**.
-13. A5 targeted QA **PASS** before closure.
+Approved: shell gutter alignment natural; no horizontal overflow; no clipping; copy readable; buttons usable; settings panel aligned. Every route was **not** re-reviewed.
 
 ---
 
-## Backend / A6
+## QA evidence
 
-**NONE.** No DB, migration, server, payment, consent-storage change, or deploy.
+- A5 targeted QA: **PASS**
+- A0 final checkpoint / closure audit: **PASS**
+
+Findings: one-file minimal diff; canonical `container-shell` consumed; consent and copy unchanged; Footer/Header unchanged; tokens/primitives unchanged; frozen 2A/2B preserved; no 2D/2E/2F crossing; lint **PASS**; `git diff --check` **PASS**.
+
+---
+
+## Checkpoints
+
+| SHA | Message |
+|-----|---------|
+| `14c358c1b6fb81a93fd8673a790596331d9089d6` | `docs(project): open NEW 2C shell consistency` |
+| `6ff78fcd64e951d88ab12dc6d88249fb77c8b4d3` | `feat(shell): align cookie banner container` |
+
+Docs closure commit SHA does not exist yet.
+
+---
+
+## Backend / production
+
+NEW 2C required **NONE**: no DB, Supabase migration, server, payment, analytics-semantics, or deploy.
+
+Closure is source/governance completion only. Production was **not** redeployed for NEW 2C. Broader production rollout status from other stages is unchanged.
+
+---
+
+## Remaining NEW 2C implementation
+
+**NONE.**
 
 ---
 
 ## Do not do
 
-- Implement CookieBanner in this stage-open ticket
-- Treat NEW 2C as a broad design-system rewrite
-- Reopen NEW 2A / NEW 2B
-- Open NEW 2D / 2E / 2F from this note
-- Include Footer wrap polish
+- Reopen NEW 2C implementation
+- Open NEW 2D from this note
+- Claim Footer wrap fixed
+- Claim a site-wide token/primitive migration
 - Deploy
 
 ---
@@ -119,8 +127,8 @@ Do not recertify every route.
 ## Resume procedure
 
 1. This note + `docs/METALORA_PROJECT_STATE.md` = SoT
-2. Next: **A1 — NEW 2C COOKIEBANNER SHELL ALIGNMENT IMPLEMENTATION**
-3. Visual approval → A5 targeted QA → A0 closure
+2. Next: **A0 PRE-STAGE REPORT — NEW 2D** (Catalog / General Storefront)
+3. Do **not** start NEW 2D until that report is reviewed and OPEN READY
 
 ---
 
@@ -130,5 +138,5 @@ A0 — architecture / stage contract.
 
 ## Relevant files
 
-- Implementation (A1, not this ticket): `src/components/CookieBanner.tsx`
-- Frozen: `src/components/Header.tsx`, `src/components/Footer.tsx`, `src/components/AnnouncementBar.tsx`, `src/styles/tokens.css`, `src/styles/foundation.css`, `src/components/ui/*`
+- Implemented: `src/components/CookieBanner.tsx`
+- Unchanged: `src/components/Header.tsx`, `src/components/Footer.tsx`, `src/components/AnnouncementBar.tsx`, `src/styles/tokens.css`, `src/styles/foundation.css`, `src/components/ui/*`
