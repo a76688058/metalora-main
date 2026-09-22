@@ -118,7 +118,7 @@ export default function CookieBanner() {
             )}
             style={{ transitionDuration: 'var(--duration-panel)' }}
           >
-            <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-6 sm:py-5">
+            <div className="container-shell flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:py-5">
               <div className="min-w-0 flex-1 pr-8 sm:pr-0">
                 <p className="type-supporting text-text-secondary">
                   <strong className="type-label text-text-primary">METALORA</strong>
@@ -169,7 +169,7 @@ export default function CookieBanner() {
             )}
             style={{ transitionDuration: 'var(--duration-panel)' }}
           >
-            <div className="relative mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5">
+            <div className="relative container-shell flex flex-col gap-4 py-4 sm:py-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 pr-2">
                   <h2 id="cookie-settings-title" className="type-label text-text-primary">
