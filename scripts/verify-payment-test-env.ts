@@ -112,8 +112,12 @@ assert(fs.existsSync(examplePath), ".env.payment-test.example must exist");
 const example = fs.readFileSync(examplePath, "utf8");
 assert(example.includes("VITE_SUPABASE_URL="), "example must include VITE_SUPABASE_URL");
 assert(example.includes("TOSS_SECRET_KEY="), "example must include TOSS_SECRET_KEY");
+assert(example.includes("PHONE_IDENTITY_KEY="), "example must include PHONE_IDENTITY_KEY");
+assert(example.includes("OTP_PEPPER="), "example must include OTP_PEPPER");
+assert(example.includes("SMS_ADAPTER="), "example must include SMS_ADAPTER");
 assert(!/test_sk_[A-Za-z0-9]{8,}/.test(example), "example must not contain a Toss secret value");
 assert(!/eyJ[A-Za-z0-9_-]+\./.test(example), "example must not contain a JWT");
+assert(!/[0-9a-f]{64}/.test(example), "example must not contain a 64-char hex secret");
 
 const dbExamplePath = path.join(root, ".env.payment-test.db.example");
 assert(fs.existsSync(dbExamplePath), ".env.payment-test.db.example must exist");

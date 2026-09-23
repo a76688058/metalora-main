@@ -4,6 +4,9 @@ export interface Profile {
   user_custom_id: string | null;
   full_name: string | null;
   phone_number: string | null;
+  verified_phone_e164?: string | null;
+  verified_phone_fingerprint?: string | null;
+  phone_verified_at?: string | null;
   zip_code: string | null;
   address: string | null;
   address_detail: string | null;

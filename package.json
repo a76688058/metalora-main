@@ -7,6 +7,7 @@
     "dev": "tsx server.ts",
     "dev:payment-test": "tsx server.ts",
     "verify:payment-test-env": "tsx scripts/verify-payment-test-env.ts",
+    "verify:2f-slice-a": "tsx scripts/verify-2f-slice-a-otp.ts",
     "bootstrap:payment-test-schema": "tsx scripts/bootstrap-payment-test-schema.ts",
     "rebuild:payment-test-schema-from-csv": "tsx scripts/rebuild-payment-test-schema-from-csv.ts",
     "build": "npm run clean && vite build --outDir dist/client",

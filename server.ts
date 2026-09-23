@@ -14,6 +14,8 @@ import {
   refusePaymentTestProductionHost,
   refuseTossTestToProductionSupabase,
 } from "./src/lib/paymentEnvGuard";
+import { registerOtpAuthRoutes } from "./src/lib/otpAuthHandlers";
+import { resolveSmsAdapter } from "./src/lib/smsAdapter";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2188,6 +2190,14 @@ ${staticUrls}${productUrls}
    */
   app.post("/api/payment/webhook", (_req, res) => {
     return res.status(200).json({ received: true });
+  });
+
+  const otpSms = resolveSmsAdapter(process.env);
+  registerOtpAuthRoutes(app, {
+    supabaseAdmin,
+    supabasePublic,
+    getEnv: () => process.env,
+    smsAdapter: otpSms.ok ? otpSms.adapter : null,
   });
 
   /**
