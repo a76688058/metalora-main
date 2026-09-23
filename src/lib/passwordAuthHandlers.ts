@@ -1,12 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Express, Request, Response } from "express";
-import {
-  classifyAccountKind,
-  recoverableUsernameForKind,
-  type AccountKind,
-} from "./accountKind";
+import { classifyAccount, type AccountClassification } from "./accountKind";
 import { isUsableMemberProfile } from "./authIntegrity";
+import { recordAuthSecurityEvent } from "./authSecurityEvents";
 import { hitAuthRateLimit } from "./authRateLimit";
 import { memberUsernameSignupError } from "./memberUsername";
 import {
@@ -14,7 +11,6 @@ import {
   OTP_TICKET_TTL_SECONDS,
   generateProofToken,
   otpNamedTokenHmac,
-  otpRateKeyHmac,
   otpTicketHmac,
 } from "./otpCrypto";
 import { memberPasswordError } from "./passwordPolicy";
@@ -62,28 +58,6 @@ function logAuth(event: string, fields: Record<string, string | boolean | number
   console.info(`[AUTH] ${event}`, fields);
 }
 
-async function recordEvent(
-  admin: SupabaseClient,
-  pepper: string,
-  ip: string,
-  input: {
-    event: string;
-    outcome: string;
-    requestId: string;
-    userId?: string | null;
-    meta?: Record<string, string | boolean | number | null>;
-  },
-): Promise<void> {
-  await admin.from("auth_security_events").insert({
-    event: input.event,
-    outcome: input.outcome,
-    request_id: input.requestId,
-    user_id: input.userId ?? null,
-    ip_hmac: otpRateKeyHmac(pepper, "ip", ip),
-    meta: input.meta ?? {},
-  });
-}
-
 async function readUsableMember(
   deps: PasswordAuthDeps,
   authHeader: string | undefined,
@@ -107,50 +81,11 @@ async function classifyUser(
   admin: SupabaseClient,
   userId: string,
   userCustomId: string | null,
-): Promise<AccountKind> {
+): Promise<AccountClassification> {
   const { data } = await admin.auth.admin.getUserById(userId);
   const email = data.user?.email ?? null;
   const providers = (data.user?.identities ?? []).map((identity) => identity.provider ?? "");
-  return classifyAccountKind({ userCustomId, authEmail: email, providers });
-}
-
-/**
- * supabase-js 2.99 `auth.admin.signOut` takes a user JWT, not a user id.
- * Preferred: GoTrue Admin POST /admin/users/{id}/logout?scope=global.
- * Fallback: DELETE /admin/users/{id}/sessions.
- * Hosted Auth also invalidates refresh tokens on Admin password update;
- * that remains the verified payment-test revocation even if both routes 404.
- */
-async function globalSignOut(
-  env: Record<string, string | undefined>,
-  userId: string,
-): Promise<void> {
-  const supabaseUrl = (env.VITE_SUPABASE_URL ?? "").trim().replace(/\/$/, "");
-  const serviceKey = (env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
-  if (!supabaseUrl || !serviceKey) {
-    logAuth("signout_global_error", { outcome: "config" });
-    return;
-  }
-  const headers = {
-    Authorization: `Bearer ${serviceKey}`,
-    apikey: serviceKey,
-  };
-  const attempts: Array<{ method: string; path: string }> = [
-    { method: "POST", path: `/auth/v1/admin/users/${userId}/logout?scope=global` },
-    { method: "DELETE", path: `/auth/v1/admin/users/${userId}/sessions` },
-  ];
-  for (const attempt of attempts) {
-    const res = await fetch(`${supabaseUrl}${attempt.path}`, {
-      method: attempt.method,
-      headers,
-    });
-    if (res.ok || res.status === 204) return;
-    if (res.status !== 404) {
-      logAuth("signout_global_error", { outcome: "error", status: res.status });
-      return;
-    }
-  }
-  logAuth("signout_global_unavailable", { outcome: "unavailable" });
+  return classifyAccount({ userCustomId, authEmail: email, providers });
 }
 
 async function handleRecoveryResolve(req: Request, res: Response, deps: PasswordAuthDeps): Promise<void> {
@@ -195,9 +130,12 @@ async function handleRecoveryResolve(req: Request, res: Response, deps: Password
     .eq("ticket_hmac", proofHmac)
     .maybeSingle();
 
-  let accountKind: AccountKind = "none";
+  let classification: AccountClassification = {
+    kind: "none",
+    passwordResetAllowed: false,
+    recoverableUsername: null,
+  };
   let userId: string | null = null;
-  let username: string | null = null;
 
   const proofUsable =
     proofRow &&
@@ -214,13 +152,13 @@ async function handleRecoveryResolve(req: Request, res: Response, deps: Password
       .maybeSingle();
     if (profile?.id) {
       userId = profile.id;
-      username = typeof profile.user_custom_id === "string" ? profile.user_custom_id : null;
-      accountKind = await classifyUser(admin, profile.id, username);
+      const username = typeof profile.user_custom_id === "string" ? profile.user_custom_id : null;
+      classification = await classifyUser(admin, profile.id, username);
     }
   }
 
   const sessionToken = generateProofToken();
-  const resetToken = accountKind === "password" ? generateProofToken() : null;
+  const resetToken = classification.passwordResetAllowed ? generateProofToken() : null;
   const expiresAt = new Date(Date.now() + OTP_TICKET_TTL_SECONDS * 1000).toISOString();
 
   const { data, error } = await admin.rpc("recovery_consume_and_open_session", {
@@ -229,14 +167,14 @@ async function handleRecoveryResolve(req: Request, res: Response, deps: Password
     p_reset_ticket_hmac:
       resetToken == null ? null : otpNamedTokenHmac(secrets.otpPepper, "reset", resetToken),
     p_user_id: userId,
-    p_account_kind: accountKind,
+    p_account_kind: classification.kind,
     p_request_id: requestId,
     p_expires_at: expiresAt,
   });
 
   if (error || (data as JsonRpc | null)?.ok !== true) {
     logAuth("recovery_resolve", { request_id: requestId, outcome: "rejected" });
-    await recordEvent(admin, secrets.otpPepper, ip, {
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
       event: "recovery_resolve",
       outcome: "rejected",
       requestId,
@@ -245,23 +183,22 @@ async function handleRecoveryResolve(req: Request, res: Response, deps: Password
     return;
   }
 
-  const recoverable = recoverableUsernameForKind(accountKind, username);
-  logAuth("recovery_resolve", { request_id: requestId, outcome: "accepted", kind: accountKind });
-  await recordEvent(admin, secrets.otpPepper, ip, {
+  logAuth("recovery_resolve", { request_id: requestId, outcome: "accepted", kind: classification.kind });
+  await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
     event: "recovery_resolve",
     outcome: "accepted",
     requestId,
     userId,
-    meta: { account_kind: accountKind },
+    meta: { account_kind: classification.kind },
   });
 
   res.status(200).json({
     ok: true,
     recovery_session_token: sessionToken,
     expires_in: OTP_TICKET_TTL_SECONDS,
-    account_kind: accountKind,
-    recoverable_username: recoverable,
-    password_reset_allowed: accountKind === "password",
+    account_kind: classification.kind,
+    recoverable_username: classification.recoverableUsername,
+    password_reset_allowed: classification.passwordResetAllowed,
   });
 }
 
@@ -313,7 +250,7 @@ async function handlePasswordReset(req: Request, res: Response, deps: PasswordAu
   const rpc = (data ?? {}) as JsonRpc;
   if (error || rpc.ok !== true || typeof rpc.ticket_id !== "string" || typeof rpc.user_id !== "string") {
     logAuth("password_reset", { request_id: requestId, outcome: "rejected" });
-    await recordEvent(admin, secrets.otpPepper, ip, {
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
       event: "password_reset",
       outcome: "rejected",
       requestId,
@@ -331,7 +268,7 @@ async function handlePasswordReset(req: Request, res: Response, deps: PasswordAu
     if (updateError) {
       await admin.rpc("password_reset_finish", { p_ticket_id: ticketId, p_outcome: "failed" });
       logAuth("password_reset", { request_id: requestId, outcome: "failed" });
-      await recordEvent(admin, secrets.otpPepper, ip, {
+      await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
         event: "password_reset",
         outcome: "failed",
         requestId,
@@ -341,10 +278,12 @@ async function handlePasswordReset(req: Request, res: Response, deps: PasswordAu
       return;
     }
 
-    await globalSignOut(deps.getEnv(), userId);
     await admin.rpc("password_reset_finish", { p_ticket_id: ticketId, p_outcome: "completed" });
+    // Session contract: Auth Admin password update is expected to make refresh
+    // tokens unusable. Already-issued access JWTs may remain valid until expiry.
+    // No supported user-id admin logout on hosted GoTrue 2.99 / this project.
     logAuth("password_reset", { request_id: requestId, outcome: "completed" });
-    await recordEvent(admin, secrets.otpPepper, ip, {
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
       event: "password_reset",
       outcome: "completed",
       requestId,
@@ -354,7 +293,7 @@ async function handlePasswordReset(req: Request, res: Response, deps: PasswordAu
   } catch {
     await admin.rpc("password_reset_finish", { p_ticket_id: ticketId, p_outcome: "indeterminate" });
     logAuth("password_reset", { request_id: requestId, outcome: "indeterminate" });
-    await recordEvent(admin, secrets.otpPepper, ip, {
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
       event: "password_reset",
       outcome: "indeterminate",
       requestId,
@@ -413,10 +352,10 @@ async function handlePasswordChange(req: Request, res: Response, deps: PasswordA
     .eq("id", member.userId)
     .maybeSingle();
   const username = typeof profile?.user_custom_id === "string" ? profile.user_custom_id : null;
-  const kind = await classifyUser(admin, member.userId, username);
-  if (kind !== "password") {
+  const classified = await classifyUser(admin, member.userId, username);
+  if (!classified.passwordResetAllowed) {
     logAuth("password_change", { request_id: requestId, outcome: "rejected" });
-    await recordEvent(admin, secrets.otpPepper, ip, {
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
       event: "password_change",
       outcome: "rejected",
       requestId,
@@ -442,7 +381,7 @@ async function handlePasswordChange(req: Request, res: Response, deps: PasswordA
   });
   await isolated.auth.signOut({ scope: "local" }).catch(() => undefined);
   if (reauth.error || !reauth.data.user) {
-    await recordEvent(admin, secrets.otpPepper, ip, {
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
       event: "password_change",
       outcome: "reauth_failed",
       requestId,
@@ -456,7 +395,7 @@ async function handlePasswordChange(req: Request, res: Response, deps: PasswordA
     password: body.new_password,
   });
   if (updateError) {
-    await recordEvent(admin, secrets.otpPepper, ip, {
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
       event: "password_change",
       outcome: "failed",
       requestId,
@@ -466,9 +405,8 @@ async function handlePasswordChange(req: Request, res: Response, deps: PasswordA
     return;
   }
 
-  await globalSignOut(deps.getEnv(), member.userId);
   logAuth("password_change", { request_id: requestId, outcome: "completed" });
-  await recordEvent(admin, secrets.otpPepper, ip, {
+  await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
     event: "password_change",
     outcome: "completed",
     requestId,

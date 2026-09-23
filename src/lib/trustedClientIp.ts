@@ -38,15 +38,39 @@ export function normalizeClientIp(raw: string | null | undefined): string | null
   return value;
 }
 
+function parseForwardedFor(header: unknown): string[] {
+  const raw = Array.isArray(header) ? header.join(",") : typeof header === "string" ? header : "";
+  return raw
+    .split(",")
+    .map((part) => normalizeClientIp(part))
+    .filter((part): part is string => Boolean(part));
+}
+
 /**
- * Production/Cloud Run: use Express `req.ip` after `trust proxy = 1`.
+ * Cloud Run / GFE: trust exactly one proxy hop (the socket peer).
+ * Client IP is the hop immediately left of the socket — never leftmost XFF.
+ * Extra left-hand hops are ignored (no limiter bypass). Missing/unparseable → "unknown".
+ */
+export function selectTrustedProxyClientIp(
+  forwardedFor: unknown,
+  socketRemote: string | null | undefined,
+): string {
+  const socket = normalizeClientIp(socketRemote ?? null);
+  const hops = parseForwardedFor(forwardedFor);
+  const chain = socket ? [...hops, socket] : [...hops];
+  if (chain.length < 2) return UNKNOWN_CLIENT_IP;
+  return chain[chain.length - 2] ?? UNKNOWN_CLIENT_IP;
+}
+
+/**
+ * Production/Cloud Run: explicit one-hop trust from socket + XFF (equivalent to Express trust proxy = 1).
  * Payment-test/local: socket remote address only; ignore client X-Forwarded-For.
  */
 export function trustedClientIp(req: TrustedIpRequest, mode: TrustedIpMode): string {
   if (mode === "local") {
     return normalizeClientIp(req.socket?.remoteAddress ?? null) ?? UNKNOWN_CLIENT_IP;
   }
-  return normalizeClientIp(req.ip ?? null) ?? UNKNOWN_CLIENT_IP;
+  return selectTrustedProxyClientIp(req.headers?.["x-forwarded-for"], req.socket?.remoteAddress ?? null);
 }
 
 export function configureExpressTrustProxy(app: { set: (key: string, value: unknown) => unknown }, mode: TrustedIpMode): void {

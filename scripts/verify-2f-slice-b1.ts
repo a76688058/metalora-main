@@ -233,7 +233,7 @@ async function main(): Promise<void> {
 
   assert("recovery session TTL is 10 minutes", OTP_TICKET_TTL_SECONDS === 600);
   assert(
-    "classifier uses metalora email as password evidence; never recover ml…",
+    "classifier uses metalora email as password evidence; ml prefix is not authority",
     classifyAccountKind({
       userCustomId: "alice",
       authEmail: "alice@metalora.me",
@@ -249,7 +249,7 @@ async function main(): Promise<void> {
         authEmail: "mlabcd12@metalora.me",
         providers: ["email"],
       }) === "password" &&
-      recoverableUsernameForKind("password", "mlabcd12") === null &&
+      recoverableUsernameForKind("password", "mlabcd12") === "mlabcd12" &&
       recoverableUsernameForKind("social", "mlabcd12") === null,
   );
 
@@ -304,6 +304,17 @@ async function main(): Promise<void> {
       },
       "production",
     ) === "2001:db8::9",
+  );
+
+  assert(
+    "production extra XFF hops do not select attacker IP",
+    trustedClientIp(
+      {
+        headers: { "x-forwarded-for": "8.8.8.8, 1.1.1.1, 203.0.113.9" },
+        socket: { remoteAddress: "10.0.0.2" },
+      },
+      "production",
+    ) === "203.0.113.9",
   );
 
   console.log("APPLY B1-1 recovery/password foundation (payment-test only)");
