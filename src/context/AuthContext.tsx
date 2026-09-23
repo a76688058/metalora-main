@@ -8,6 +8,8 @@ import {
   PROFILE_COLUMNS,
   broadcastAuthLogout,
   clearPersistedAuthToken,
+  isDefinitiveAuthRefreshFailure,
+  isTransientAuthTransportFailure,
 } from '../lib/authIntegrity';
 
 interface SignOutOptions {
@@ -300,6 +302,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (!mounted) return;
               void fetchProfile(userId, { force: true });
             }, 0);
+          } else if (!signingOutRef.current) {
+            // Refresh produced no session. Access JWT may still be valid until expiry.
+            clearReactAuthState();
+            clearPersistedAuthToken();
+            setIsLoading(false);
           }
           return;
         }
@@ -348,14 +355,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const handleFocus = () => {
-      void supabase.auth.getSession().then(({ data: { session: sess } }) => {
+      void supabase.auth.getSession().then(({ data: { session: sess }, error }) => {
         if (!mounted) return;
+        if (error) {
+          if (isTransientAuthTransportFailure(error)) {
+            console.warn('Silent session read skipped (transient):', error);
+            return;
+          }
+          if (isDefinitiveAuthRefreshFailure(error) && !signingOutRef.current) {
+            clearReactAuthState();
+            clearPersistedAuthToken();
+            setIsLoading(false);
+            return;
+          }
+          console.warn('Silent session read failed:', error);
+          return;
+        }
         if (sess) {
           applyVerifiedSession(sess);
         } else if (!signingOutRef.current) {
           clearReactAuthState();
         }
-      }).catch((e) => console.warn('Silent refresh failed', e));
+      }).catch((e) => {
+        if (isTransientAuthTransportFailure(e)) {
+          console.warn('Silent session read skipped (transient):', e);
+          return;
+        }
+        if (isDefinitiveAuthRefreshFailure(e) && !signingOutRef.current) {
+          clearReactAuthState();
+          clearPersistedAuthToken();
+          setIsLoading(false);
+          return;
+        }
+        console.warn('Silent refresh failed', e);
+      });
     };
     window.addEventListener('focus', handleFocus);
 
@@ -438,19 +471,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshSession = async () => {
     try {
-      const { data: { session: sess }, error } = await supabase.auth.getSession();
+      // Hits GoTrue refresh. getSession() can keep a stale access JWT in React
+      // after the refresh token is already dead. Access JWTs may remain usable
+      // until expiry; this only corrects local client auth state.
+      const { data, error } = await supabase.auth.refreshSession();
 
       if (error) {
-        throw error;
+        if (isTransientAuthTransportFailure(error)) {
+          console.warn('refreshSession skipped (transient):', error);
+          return;
+        }
+        if (isDefinitiveAuthRefreshFailure(error)) {
+          console.warn('refreshSession: refresh capability unusable; clearing local auth.', error);
+          clearReactAuthState();
+          clearPersistedAuthToken();
+          setIsLoading(false);
+          return;
+        }
+        console.warn('refreshSession failed:', error);
+        return;
       }
 
+      const sess = data.session;
       if (sess) {
         applyVerifiedSession(sess);
         await fetchProfile(sess.user.id, { force: true });
       } else {
         clearReactAuthState();
+        clearPersistedAuthToken();
+        setIsLoading(false);
       }
     } catch (err) {
+      if (isTransientAuthTransportFailure(err)) {
+        console.warn('refreshSession skipped (transient):', err);
+        return;
+      }
+      if (isDefinitiveAuthRefreshFailure(err)) {
+        console.warn('refreshSession: refresh capability unusable; clearing local auth.', err);
+        clearReactAuthState();
+        clearPersistedAuthToken();
+        setIsLoading(false);
+        return;
+      }
       console.warn('refreshSession failed:', err);
     }
   };

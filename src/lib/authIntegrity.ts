@@ -38,6 +38,90 @@ export function clearPersistedAuthToken(): void {
   }
 }
 
+const TRANSIENT_AUTH_CODES = new Set([
+  'request_timeout',
+  'over_request_rate_limit',
+  'hook_timeout',
+  'hook_timeout_after_retry',
+]);
+
+const DEFINITIVE_REFRESH_CODES = new Set([
+  'refresh_token_not_found',
+  'refresh_token_already_used',
+  'session_not_found',
+  'session_expired',
+  'user_not_found',
+  'user_banned',
+  'bad_jwt',
+]);
+
+function authErrorName(error: unknown): string {
+  if (!error || typeof error !== 'object') return '';
+  const name = (error as { name?: unknown }).name;
+  return typeof name === 'string' ? name : '';
+}
+
+function authErrorCode(error: unknown): string {
+  if (!error || typeof error !== 'object') return '';
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' ? code : '';
+}
+
+function authErrorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const status = (error as { status?: unknown }).status;
+  return typeof status === 'number' && Number.isFinite(status) ? status : undefined;
+}
+
+function authErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error ?? '');
+}
+
+/**
+ * Transport/infrastructure failures that must not force logout.
+ * Includes GoTrue AuthRetryableFetchError, timeouts, and 5xx/429-class statuses.
+ */
+export function isTransientAuthTransportFailure(error: unknown): boolean {
+  if (!error) return false;
+  const name = authErrorName(error);
+  if (name === 'AuthRetryableFetchError' || name === 'AbortError' || name === 'TimeoutError') {
+    return true;
+  }
+  if (error instanceof TypeError) return true;
+  const code = authErrorCode(error);
+  if (TRANSIENT_AUTH_CODES.has(code)) return true;
+  const status = authErrorStatus(error);
+  if (status === 408 || status === 429 || (typeof status === 'number' && status >= 500)) {
+    return true;
+  }
+  const message = authErrorMessage(error).toLowerCase();
+  return message.includes('lock was stolen') || message.includes('failed to fetch') || message.includes('networkerror');
+}
+
+/**
+ * Refresh capability is dead/revoked. Clear local React auth only.
+ * Does not mean an already-issued access JWT was remotely revoked.
+ */
+export function isDefinitiveAuthRefreshFailure(error: unknown): boolean {
+  if (!error || isTransientAuthTransportFailure(error)) return false;
+  const name = authErrorName(error);
+  if (name === 'AuthSessionMissingError') return true;
+  const code = authErrorCode(error);
+  if (DEFINITIVE_REFRESH_CODES.has(code)) return true;
+  const message = authErrorMessage(error).toLowerCase();
+  if (
+    message.includes('invalid refresh token')
+    || message.includes('refresh token not found')
+    || message.includes('refresh_token_not_found')
+    || message.includes('auth session missing')
+  ) {
+    return true;
+  }
+  const status = authErrorStatus(error);
+  return status === 401 || status === 403;
+}
+
 export function isUsableMemberProfile(profile: {
   id?: string | null;
   user_custom_id?: string | null;
