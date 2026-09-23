@@ -1,10 +1,10 @@
 # NEW 2E — Cart / Checkout UX
 
-Status: **OPEN**
+Status: **CLOSED**
 
-Date: 2026-09-22
+Date: 2026-09-23
 
-Decision: NEW 2E is **OPEN**. Scope is customer **Cart → Checkout → TEST payment-start → success/fail UX**. This is **not** production Toss activation, a real charge, a real-order dry run, backup/restore, deploy, or account/profile redesign.
+Decision: NEW 2E is **CLOSED**. Customer **Cart → Checkout → TEST payment-start → success/fail UX** is complete at source/UX. This is **not** production Toss activation, a real production charge, a real-order dry run, backup/restore, deploy, or account/profile redesign.
 
 Live payment remains **NEW 7**. NEW 6 remains the backup/restore hard gate before first live payment.
 
@@ -18,197 +18,212 @@ This note does **not** open NEW 2F. It does **not** authorize Workshop, Home/PDP
 |------|--------|
 | NEW 2 | **IN PROGRESS** |
 | NEW 2A–2D | **CLOSED** — preserved |
-| NEW 2E | **OPEN** |
+| NEW 2E | **CLOSED** |
 | NEW 2F | **NOT OPENED** |
 | Implementation shape | **SINGLE SLICE** |
 | Primary owner | **A3** |
-| Secondary owners | **NONE** by default |
-| Backend / A6 | **NONE** by default — consume existing prepare/confirm |
-| Live Toss | **PROHIBITED** in NEW 2E |
-| Visual approval | **REQUIRED** |
-| A5 QA | **REQUIRED** |
-| Next | **A3 — NEW 2E CART / CHECKOUT UX IMPLEMENTATION** (not this ticket) |
+| Backend / A6 | **NONE** — existing prepare/confirm consumed unchanged |
+| Live Toss | **NOT ACTIVATED** |
+| Visual approval | **PASS** |
+| A5 targeted QA | **PASS** |
+| A5 final delta QA | **PASS** |
+| Next governance action | **A5 — NEW 2E CLOSURE PACKAGE QA** then A0 final docs+source commit (not this ticket). Do **not** open 2F from this note. |
 
 ---
 
-## Locked flow
+## 1. Scope
 
-Cart overlay step 1 → Checkout step 2 (same overlay) → TEST payment-start → `/payment/success` or `/payment/fail`.
+NEW 2E = Cart overlay step 1 → Checkout step 2 (same overlay) → TEST payment-start → `/payment/success` or `/payment/fail`.
 
-Do **not** create a new checkout route. Do **not** split 2E-A / 2E-B / 2E-C unless a later real dependency requires it.
+Not in scope: live Toss, production payment, production 2B rollout, NEW 6, NEW 7, NEW 8, NEW 2F, shipping-fee engine, address book, account redesign.
 
 ---
 
-## Application write set
+## 2. Final architecture
+
+Checkout remains Cart overlay step 2. No `/cart` route. No new Checkout route. `App.tsx` and `server.ts` unchanged.
+
+Payment amount authority remains `/api/payment/prepare`. Confirmation authority remains `/api/payment/confirm`. Cart rows clear only after successful confirmation.
+
+---
+
+## 3. Cart contract
+
+- Standard catalog items: product identity, selected option, quantity, remove, option-derived price, same-option merge, existing image authority.
+- Custom identity remains `workshop-single` v1.
+- Custom preview authority = `custom_image` (display artifact). Production master / original is not substituted.
+- Composition is not recomputed in Cart.
+- Quantity/remove preserved. Minus-at-1 does not auto-delete.
+- Loading is distinct from empty. Fetch failure has retry. Quantity/remove failures get visible feedback. No global error framework.
+- Accessible names: Cart close, quantity decrease/increase, remove. Row selection remains; inner controls do not select the row.
+- Usable at representative mobile and desktop sizes.
+
+---
+
+## 4. Custom thumbnail geometry
+
+Portrait uses a portrait frame. Landscape uses a landscape frame. Rendering is orientation-aware `object-contain`. No fixed-square destructive crop. Orientation: `item.orientation` then `custom_config.orientation`.
+
+---
+
+## 5. M size handling
+
+Stale customer-facing `A4` is not shown as the default Custom size. Compatibility display: blank / stale `A4` → **M**. No new size architecture.
+
+---
+
+## 6. Custom `price_snapshot` authority
+
+Customer display/total precedence:
+
+1. trusted `price_snapshot`
+2. legacy `price`
+3. `0`
+
+No live `custom_m_price` recomputation. No snapshot-creation rewrite. Quantity multiplies the stored trusted unit price. Server payment amount remains `/api/payment/prepare`.
+
+---
+
+## 7. Checkout architecture
+
+Required fields unchanged: name, phone, zip, address, addressDetail. Daum postcode preserved. LoginModal consumed as-is. Profile shipping prefill/writeback preserved. No NEW 2F redesign.
+
+---
+
+## 8. Order summary
+
+Checkout step 2 shows thumbnail, title, size/orientation, quantity, and line price. Custom thumbnail follows the same orientation-aware preview contract as Cart.
+
+---
+
+## 9. Mixed-cart consent correction
+
+Custom-only cancellation/refund restriction copy is scoped to **커스텀 제작 상품** (`hasWorkshopItems`). It is not represented as applying to all standard catalog products. No new unsupported legal policy was invented.
+
+Known catalog facts (unchanged, not expanded): change-of-mind within 7 days after receipt; buyer pays that return shipping; damage/defect/wrong item is seller-paid.
+
+---
+
+## 10. PaymentSuccess truth correction
+
+Removed customer-facing unsupported claims: **4K**, **180℃**, **승화전사**, **무타공**, decorative Live. Replacement is factual order-progress language only (`결제가 확인되었습니다` / `주문을 접수했습니다` / `제작 준비를 진행합니다` / `배송 준비 단계입니다`). Confirm authority unchanged.
+
+---
+
+## 11. PaymentSuccess final layout fix
+
+Validated uncommitted delta in `src/pages/PaymentSuccess.tsx` (A3; part of this closure package, **not yet committed**):
+
+- `주문번호` label stays on one line (`shrink-0 whitespace-nowrap`)
+- long `orderId` wraps safely (`break-all`, `min-w-0`)
+- copy control retained (`shrink-0`)
+- no horizontal overflow
+- actual post-confirm success UI visually approved
+
+Do not treat the invalid-parameter `/payment/success` error state as this review.
+
+---
+
+## 12. TEST payment success/fail evidence
+
+- PaymentFail TEST cancellation/recovery: USER verified as normal. `PaymentFail.tsx` unchanged.
+- PaymentSuccess actual successful TEST path: **VERIFIED**. Toss TEST payment completed. `/api/payment/confirm` completed successfully. Real post-confirm screen displayed.
+- No live Toss. No production payment. No deploy.
+
+Implementation checkpoint (Cart + CartContext + initial PaymentSuccess truth copy):
+
+`5ed01ae2b39d93b586e3e3c8846969ba48598e84` — `feat(cart): complete NEW 2E cart checkout UX`
+
+Final layout delta: dirty `src/pages/PaymentSuccess.tsx` (this package).
+
+---
+
+## 13. Payment-test key-pair incident and resolution
+
+During final PaymentSuccess verification, initial TEST confirm failed with provider `INVALID_API_KEY` because payment-test Toss **client/secret merchant pairing** was mismatched (`test_ck` family client vs a different TEST secret family/merchant). This was **payment-test configuration**, not a NEW 2E source/backend defect.
+
+The USER corrected the local gitignored `.env.payment-test.local` secret to the matching TEST secret and restarted payment-test runtime. The TEST success flow then confirmed.
+
+Do **not** write secret values. Do **not** characterize a TEST secret family generically as invalid. No production mutation. No live key. No source/backend fix required.
+
+---
+
+## 14. TEST / live boundary
+
+Toss client remains TEST (`test_ck_`). No live key introduced. `server.ts` unchanged. Production Toss live keys **NOT ACTIVATED**. Real production payment **NOT PERFORMED**. Production DB mutation **NONE**. Deployment **NONE**.
+
+NEW 2E closure does **not** imply production payment readiness. NEW 6 still blocks NEW 7.
+
+---
+
+## 15. Production 2B rollout deferred
+
+**NOT PERFORMED.** Still deferred: trusted Custom RPC production rollout (2B-5A), workshop Storage contract production rollout (2B-5C), related server/runtime production promotion if required.
+
+This does **not** block NEW 2E closure. It **does** remain a later production-launch readiness dependency.
+
+---
+
+## 16. Payment-test artifacts
+
+**MAY REMAIN.** Possible residuals: test Custom cart rows, workshop original/preview objects, payment-test payment/order intent artifacts from normal TEST flow.
+
+Cleanup is **not** a NEW 2E closure blocker. Do not claim KNOWN CLEAN.
+
+---
+
+## 17. USER visual approval
+
+**PASS**
+
+Reviewed: Cart empty; standard Cart; Custom portrait/landscape Cart; Checkout step 2; TEST PaymentFail / cancellation recovery; responsive mobile/desktop; payment-test Custom runtime; **actual post-confirm PaymentSuccess** after successful Toss TEST confirmation (including the order-number layout fix).
+
+Not: production payment approval, production 2B rollout, live Toss, NEW 2F.
+
+---
+
+## 18. A5 QA
+
+- A5 targeted QA (implementation checkpoint): **PASS**
+- A5 final PaymentSuccess delta QA: **PASS**
+
+---
+
+## 19. No deploy / no live payment
+
+No production deploy. No production DB mutation. No live Toss activation. No production payment. Closure is source/UX/governance only.
+
+---
+
+## 20. Closure status
+
+**CLOSED** (docs write; package not yet committed).
+
+Frozen boundaries preserved: NEW 2B Workshop architecture, NEW 2D storefront, Home/Hero, PDP, Header, Account/Profile, Admin, `App.tsx`, `server.ts` — except consuming existing `/api/payment/prepare` and `/api/payment/confirm`.
+
+Do **not** start NEW 2F until its own A0 PRE-STAGE REPORT is reviewed and OPEN READY.
+
+---
+
+## Application write set (completed)
 
 ### MUST
 
-| Path | Purpose |
-|------|---------|
-| `src/components/Cart.tsx` | standard/custom presentation; Custom thumbnail geometry; trusted snapshot display; remove A4 leftover; mixed-cart consent scope; qty/remove a11y; loading vs empty; mobile Cart UX; checkout/order-summary consistency |
-| `src/pages/PaymentSuccess.tsx` | remove unsupported simulation/product claims; keep confirm success UX; product-truth-aligned copy |
-
-### MAY — only if implementation requires it
-
-| Path | Limit |
+| Path | Result |
 |------|--------|
-| `src/pages/PaymentFail.tsx` | fail recovery UX / direct 2E visual consistency — not cosmetic-only |
-| `src/context/CartContext.tsx` | `price_snapshot` display/totals; cart fetch/load error — do not rewrite persistence/identity |
+| `src/components/Cart.tsx` | committed in `5ed01ae` |
+| `src/pages/PaymentSuccess.tsx` | truth copy in `5ed01ae`; final order-number layout delta still dirty in this package |
 
-### Do not write by default
+### MAY
 
-`src/App.tsx`, `server.ts`, Workshop, Home, PDP, Header, WebGL, account/profile surfaces.
-
----
-
-## Custom cart contract (CONSUME NEW 2B)
-
-| Role | Rule |
-|------|------|
-| Identity | `workshop-single` v1 |
-| Display image | `custom_image` / preview artifact |
-| Production master | original image unchanged |
-| Composition | already persisted — do not rebuild in Cart |
-| Customer price | trusted `price_snapshot` |
-| Quantity | may change |
-
-Do **not** recompute Custom price from live `custom_m_price`. Do **not** mutate original. Do **not** redesign Workshop. Do **not** replace snapshot authority. Payment amount remains server `/api/payment/prepare`.
+| Path | Result |
+|------|--------|
+| `src/pages/PaymentFail.tsx` | **UNCHANGED** |
+| `src/context/CartContext.tsx` | committed in `5ed01ae` — loading/error/retry + snapshot totals only |
 
 ---
 
-## Confirmed NEW 2E issues (CURRENT)
-
-### Custom thumbnail
-
-Cart uses a fixed **96 × 96** square with `object-cover`, which crops landscape Custom compositions.
-
-Required: respect portrait vs landscape; do not square-crop landscape artwork; use existing preview; do not recompute Workshop composition; usable at ~390 and ~1440. Do **not** redesign the entire Cart card merely to solve this.
-
-### Custom size copy
-
-Remove/correct stale Cart fallback `A4`. Accepted Custom size is **M**. No new size system.
-
-### Custom price display
-
-Prefer `price_snapshot`. Do not make Cart truth depend solely on `custom_config.price` when snapshot is available.
-
-### Cart loading vs empty
-
-Empty copy exists. Initial fetch/loading may resemble a true empty cart. Distinguish if current state supports it without a new async framework.
-
-### Quantity / remove
-
-Preserve data behavior. Add usable accessible names on + / − / remove. Touch targets practical. Do **not** auto-delete on minus-at-1 unless existing product behavior already requires it. Separate X removal is acceptable. Do not change Custom row identity.
-
-### Mixed-cart consent copy
-
-Refund/custom consent can apply Custom-made restrictions to the **entire** cart, including standard catalog items.
-
-Do **not** overclaim Custom restrictions for standard catalog products. Do **not** invent new legal policy. Correct only inaccurate UI **scope**. If exact wording needs policy authority beyond known facts: **STOP** and report before inventing policy.
-
-Known catalog facts (do not expand): change-of-mind within 7 days after receipt; buyer pays that return shipping; damage/defect/wrong item is seller-paid. Custom/Workshop cancellation is a **separate** policy and must not be silently applied to general catalog rows.
-
-### PaymentSuccess truth copy
-
-Remove unsupported simulation claims including **4K**, **180℃**, **승화전사**, **무타공**. Do not replace with new unsupported technical claims. Do not change confirm authority.
-
----
-
-## Checkout form (keep)
-
-Step 2 of Cart. Required: name, phone, zip, address, addressDetail. Daum postcode remains. Do **not** add email, delivery memo, address book, or account redesign unless an actual blocker appears.
-
-Order summary: customer must verify item, option/orientation, quantity, line price, final-amount context. Custom representation must not contradict Cart. Do **not** invent shipping fees.
-
----
-
-## Shipping / delivery boundary
-
-No shipping-method picker, fee engine, Jeju surcharge calculator, or pickup. Not required for NEW 2E unless a concrete existing checkout blocker appears. Operations/legal fulfillment remains later stages.
-
----
-
-## TEST payment-start (permitted)
-
-Preserve: `/api/payment/prepare`; server-authoritative amount; TEST Toss widget; processing guards; consents; successUrl / failUrl.
-
-Do **not** change to a live key. Do **not** activate production Toss. Do **not** perform a production payment. If implementation requires live Toss: **STOP**.
-
----
-
-## Live Toss hard boundary
-
-NEW 2E = **TEST only**. NEW 7 = live Toss activation.
-
-Do **not**: add a live key; replace `test_ck_`; use a production payment secret; perform a real charge; alter the production payment environment; deploy payment activation.
-
-Payment-test and production Supabase projects must never be confused. NEW 2E stage open **prohibits** production mutation. No environment mutation in this stage-open.
-
----
-
-## Backend / A6
-
-**NONE** by default. Consume existing `/api/payment/prepare` and `/api/payment/confirm`. A3 does **not** own amount validation, intent creation, confirmation, production webhook, or production payment keys.
-
----
-
-## Frozen boundaries
-
-- **NEW 2A CLOSED.** Header IA unchanged. Existing LoginModal may be consumed.
-- **NEW 2B CLOSED.** Workshop Step 1/2, composition, durable upload, original/preview, trusted snapshot **creation**, Custom price authority, Add-to-Cart RPC — consume outputs only.
-- **NEW 2C CLOSED.** Shared shell unchanged.
-- **NEW 2D CLOSED.** Home-as-catalog, ProductCard, standard PDP, search/sort. 2E begins after Add-to-Cart.
-- **NEW 2F NOT OPENED.** Do not redesign LoginModal, Profile, account settings, order history, wishlist, or address book. Existing profile shipping prefill/writeback may be consumed.
-
----
-
-## Visual approval
-
-**REQUIRED.** Minimum post-implementation matrix:
-
-1. Cart empty — mobile ~390
-2. Cart empty — desktop ~1440
-3. Standard Cart item — mobile ~390
-4. Standard Cart item — desktop ~1440
-5. Custom portrait Cart item — mobile ~390
-6. Custom portrait Cart item — desktop ~1440
-7. Custom landscape Cart item — mobile ~390
-8. Custom landscape Cart item — desktop ~1440
-9. Checkout step 2 — mobile ~390
-10. Checkout step 2 — desktop ~1440
-11. PaymentFail — safe non-live state
-12. PaymentSuccess — safe non-live state only
-
-No production payment is required for visual approval.
-
----
-
-## Acceptance criteria
-
-1. Standard Cart item clearly shows product, option, quantity, remove, and option-derived line price.
-2. Custom Cart item uses existing preview and respects portrait/landscape without incorrect square crop.
-3. Custom displayed price uses trusted snapshot semantics; not recomputed from live Custom pricing.
-4. Custom identity remains `workshop-single` v1.
-5. Cart loading and true empty are distinguishable if current state supports it without architecture rewrite.
-6. Quantity/remove remain correct and gain sufficient interaction labeling where missing.
-7. Checkout remains Cart step 2; no new checkout route.
-8. Required shipping fields and consents remain validated before TEST payment-start.
-9. TEST payment-start uses server `/api/payment/prepare` amount.
-10. Toss client remains TEST only.
-11. PaymentSuccess removes unsupported product claims.
-12. Mixed-cart consent copy does not falsely apply Custom-only restrictions to standard catalog products.
-13. Cart/Checkout remain usable at ~390 and ~1440.
-14. NEW 2B and NEW 2D remain frozen.
-15. NEW 2F remains NOT OPENED.
-16. No production DB mutation, live payment activation, or deploy.
-17. User visual approval **PASS**.
-18. A5 targeted QA **PASS**.
-19. `npm run lint` **PASS**.
-20. `git diff --check` **PASS**.
-
----
-
-## Regression guards
+## Regression guards (must not regress)
 
 - Custom display price still matches trusted `price_snapshot`
 - prepare amount authority unchanged
@@ -223,31 +238,32 @@ No production payment is required for visual approval.
 
 ## Do not do
 
-- Implement Cart/Checkout in this stage-open ticket
-- Open NEW 2F
-- Touch `App.tsx` / `server.ts` / Workshop / Home / PDP / Header / WebGL by default
+- Open NEW 2F from this closure
+- Touch `App.tsx` / `server.ts` / Workshop / Home / PDP / Header / WebGL
 - Invent shipping fees or new legal policy
 - Activate live Toss / deploy / mutate production DB
+- Claim production 2B rollout or launch readiness
+- Write MASTER PIPELINE v3 from this note
 
 ---
 
 ## Resume procedure
 
 1. This note + `docs/METALORA_PROJECT_STATE.md` = SoT
-2. Next: **A3 — NEW 2E CART / CHECKOUT UX IMPLEMENTATION**
-3. Visual approval → A5 targeted QA → A0 closure
+2. Next: **A5 — NEW 2E CLOSURE PACKAGE QA** (docs + uncommitted PaymentSuccess delta)
+3. Then A0 final closure commit of the three dirty files (authorized separately)
 4. Do **not** start NEW 2F until its own PRE-STAGE REPORT is reviewed and OPEN READY
 
 ---
 
 ## Ownership (this note)
 
-A0 — architecture / stage contract.
+A0 — architecture / closure record.
 
-Implementation (not this ticket): **A3**.
+Implementation: **A3**.
 
 ## Relevant files
 
-- MUST (A3): `src/components/Cart.tsx`, `src/pages/PaymentSuccess.tsx`
-- MAY (A3): `src/pages/PaymentFail.tsx`, `src/context/CartContext.tsx`
+- Committed: `src/components/Cart.tsx`, `src/context/CartContext.tsx`, `src/pages/PaymentSuccess.tsx` @ `5ed01ae`
+- Uncommitted closure-package delta: `src/pages/PaymentSuccess.tsx` (order-number wrap)
 - Frozen: Workshop, Home, PDP, Header, `src/App.tsx`, `server.ts`

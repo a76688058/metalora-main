@@ -333,13 +333,13 @@ export default function PaymentSuccess() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.2, duration: 0.5 }}
           >
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-zinc-400 text-sm font-medium">주문번호</span>
-              <div className="flex items-center gap-2">
-                <span className={`font-mono whitespace-nowrap text-sm ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{orderId}</span>
+            <div className="flex justify-between items-start gap-3 mb-4">
+              <span className="text-zinc-400 text-sm font-medium shrink-0 whitespace-nowrap">주문번호</span>
+              <div className="flex items-start justify-end gap-2 min-w-0">
+                <span className={`font-mono break-all text-sm text-right min-w-0 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{orderId}</span>
                 <button 
                   onClick={handleCopy}
-                  className={`p-1.5 rounded-md transition-colors ${
+                  className={`p-1.5 rounded-md transition-colors shrink-0 ${
                     theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-black'
                   }`}
                   title="주문번호 복사"
