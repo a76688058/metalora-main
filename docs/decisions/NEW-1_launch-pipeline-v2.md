@@ -1,5 +1,7 @@
 # NEW 1 — Launch Pipeline v2 (roadmap / scope lock)
 
+> **SUPERSEDED AS CURRENT OPERATING MODE.** Historical NEW Launch Pipeline v2 / NEW 1 decision. Current SoT: `docs/decisions/NEW-1_launch-pipeline-v3.md`. Body preserved for audit/history. Do not treat the stage statuses in this body as current.
+
 Status: CLOSED
 
 Date: 2026-09-20

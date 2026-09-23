@@ -7,9 +7,9 @@ alwaysApply: true
 
 Operating model: Parallel Audit → Directed Decision → Controlled Write → Independent Verification.
 
-## NEW Launch Pipeline — PRE-STAGE REPORT GATE
+## MASTER PIPELINE v3 — PRE-STAGE REPORT GATE
 
-For every **NEW Launch Pipeline v2** numbered stage (NEW 1–9) and every **NEW 2 substage** (2A–2F):
+For every **MASTER PIPELINE v3** numbered stage (NEW 1–9) and every **NEW 2 substage** (2A–2F):
 
 1. **A0 PRE-STAGE REPORT** is mandatory **before** implementation.
 2. The report **HARD STOP**s. No source writes until user/orchestration review and **OPEN READY**.
