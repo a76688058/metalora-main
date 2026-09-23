@@ -45,6 +45,10 @@ export function otpTicketHmac(pepper: string, token: string): string {
   return createHmac("sha256", pepper).update(`ticket\n${token}`, "utf8").digest("hex");
 }
 
+export function otpNamedTokenHmac(pepper: string, kind: string, token: string): string {
+  return createHmac("sha256", pepper).update(`${kind}\n${token}`, "utf8").digest("hex");
+}
+
 export function otpRateKeyHmac(pepper: string, scope: string, material: string): string {
   return createHmac("sha256", pepper)
     .update(`rate\n${scope}\n${material}`, "utf8")

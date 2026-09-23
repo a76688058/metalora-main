@@ -15,7 +15,9 @@ import {
   refuseTossTestToProductionSupabase,
 } from "./src/lib/paymentEnvGuard";
 import { registerOtpAuthRoutes } from "./src/lib/otpAuthHandlers";
+import { registerPasswordAuthRoutes } from "./src/lib/passwordAuthHandlers";
 import { resolveSmsAdapter } from "./src/lib/smsAdapter";
+import { configureExpressTrustProxy, resolveTrustedIpMode } from "./src/lib/trustedClientIp";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1921,8 +1923,7 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  // Trust Proxy for GCP environment
-  app.set("trust proxy", true);
+  configureExpressTrustProxy(app, resolveTrustedIpMode(process.env));
   app.disable("x-powered-by");
 
   // Baseline security response headers (no CSP)
@@ -2198,6 +2199,11 @@ ${staticUrls}${productUrls}
     supabasePublic,
     getEnv: () => process.env,
     smsAdapter: otpSms.ok ? otpSms.adapter : null,
+  });
+  registerPasswordAuthRoutes(app, {
+    supabaseAdmin,
+    supabasePublic,
+    getEnv: () => process.env,
   });
 
   /**

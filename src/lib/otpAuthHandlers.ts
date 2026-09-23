@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Express, Request, Response } from "express";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isUsableMemberProfile } from "./authIntegrity";
+import { hitAuthRateLimit } from "./authRateLimit";
 import {
   OTP_RATE_WINDOW_SECONDS,
   OTP_RESEND_COOLDOWN_SECONDS,
@@ -10,7 +11,6 @@ import {
   OTP_TICKET_TTL_SECONDS,
   OTP_TTL_SECONDS,
   OTP_VERIFY_IP_HOUR_CAP,
-  fixedWindowBucketStart,
   generateOtpCode,
   generateProofToken,
   isOtpPurpose,
@@ -23,6 +23,7 @@ import { phoneFingerprint } from "./phoneHmac";
 import { normalizeKrMobilePhone } from "./phoneNormalize";
 import type { SmsAdapter } from "./smsAdapter";
 import { resolveSmsAdapter } from "./smsAdapter";
+import { resolveTrustedIpMode, trustedClientIp } from "./trustedClientIp";
 
 const GENERIC_BAD = "요청을 처리할 수 없습니다.";
 const GENERIC_AUTH = "인증이 필요합니다.";
@@ -38,14 +39,6 @@ export type OtpAuthDeps = {
   smsAdapter?: SmsAdapter | null;
 };
 
-function clientIp(req: Request): string {
-  const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string" && forwarded.trim()) {
-    return forwarded.split(",")[0]!.trim();
-  }
-  return req.ip || req.socket.remoteAddress || "0.0.0.0";
-}
-
 function readSecrets(env: Record<string, string | undefined>): {
   identityKey: string;
   otpPepper: string;
@@ -54,6 +47,10 @@ function readSecrets(env: Record<string, string | undefined>): {
   const otpPepper = (env.OTP_PEPPER ?? "").trim();
   if (identityKey.length < 32 || otpPepper.length < 32) return null;
   return { identityKey, otpPepper };
+}
+
+function requestIp(req: Request, deps: OtpAuthDeps): string {
+  return trustedClientIp(req, resolveTrustedIpMode(deps.getEnv()));
 }
 
 function logOtp(event: string, fields: Record<string, string | boolean | number>): void {
@@ -93,29 +90,6 @@ function resolveAdapter(deps: OtpAuthDeps): SmsAdapter | null {
   if (deps.smsAdapter) return deps.smsAdapter;
   const resolved = resolveSmsAdapter(deps.getEnv());
   return resolved.ok ? resolved.adapter : null;
-}
-
-async function hitRateLimit(
-  admin: SupabaseClient,
-  pepper: string,
-  scope: string,
-  material: string,
-  cap: number,
-): Promise<"ok" | "throttled" | "error"> {
-  const bucket = fixedWindowBucketStart(Date.now(), OTP_RATE_WINDOW_SECONDS);
-  const { data, error } = await admin.rpc("auth_rate_limit_hit", {
-    p_scope: scope,
-    p_key_hmac: otpRateKeyHmac(pepper, scope, material),
-    p_window_seconds: OTP_RATE_WINDOW_SECONDS,
-    p_bucket_started_at: bucket.toISOString(),
-  });
-  if (error) {
-    logOtp("rate_limit_error", { scope, outcome: "error" });
-    return "error";
-  }
-  const count = typeof data === "number" ? data : Number(data);
-  if (!Number.isFinite(count) || count > cap) return "throttled";
-  return "ok";
 }
 
 async function handleOtpSend(req: Request, res: Response, deps: OtpAuthDeps): Promise<void> {
@@ -159,15 +133,17 @@ async function handleOtpSend(req: Request, res: Response, deps: OtpAuthDeps): Pr
   }
 
   const fingerprint = phoneFingerprint(normalized.e164, secrets.identityKey);
-  const ipHmac = otpRateKeyHmac(secrets.otpPepper, "ip", clientIp(req));
+  const ip = requestIp(req, deps);
+  const ipHmac = otpRateKeyHmac(secrets.otpPepper, "ip", ip);
   const challengeUserId = purpose === "signup" || purpose === "recovery" ? null : callerUserId;
 
-  const phoneLimit = await hitRateLimit(
+  const phoneLimit = await hitAuthRateLimit(
     admin,
     secrets.otpPepper,
     "otp_send_phone",
     fingerprint,
     OTP_SEND_PHONE_HOUR_CAP,
+    OTP_RATE_WINDOW_SECONDS,
   );
   if (phoneLimit === "error") {
     res.status(500).json({ ok: false, error: GENERIC_CONFIG });
@@ -179,12 +155,13 @@ async function handleOtpSend(req: Request, res: Response, deps: OtpAuthDeps): Pr
     return;
   }
 
-  const ipLimit = await hitRateLimit(
+  const ipLimit = await hitAuthRateLimit(
     admin,
     secrets.otpPepper,
     "otp_send_ip",
-    clientIp(req),
+    ip,
     OTP_SEND_IP_HOUR_CAP,
+    OTP_RATE_WINDOW_SECONDS,
   );
   if (ipLimit === "error") {
     res.status(500).json({ ok: false, error: GENERIC_CONFIG });
@@ -301,12 +278,13 @@ async function handleOtpVerify(req: Request, res: Response, deps: OtpAuthDeps): 
     callerUserId = user.userId;
   }
 
-  const ipLimit = await hitRateLimit(
+  const ipLimit = await hitAuthRateLimit(
     admin,
     secrets.otpPepper,
     "otp_verify_ip",
-    clientIp(req),
+    requestIp(req, deps),
     OTP_VERIFY_IP_HOUR_CAP,
+    OTP_RATE_WINDOW_SECONDS,
   );
   if (ipLimit === "error") {
     res.status(500).json({ ok: false, error: GENERIC_CONFIG });
