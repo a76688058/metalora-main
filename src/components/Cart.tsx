@@ -30,6 +30,63 @@ interface CartProps {
 
 const TOSS_CLIENT_KEY = 'test_ck_Poxy1XQL8R9nPR9Xn61Xr7nO5Wml';
 
+function parsePositiveKrwAmount(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value) && value >= 1) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!/^[1-9]\d*$/.test(trimmed)) return null;
+    const parsed = Number(trimmed);
+    if (!Number.isSafeInteger(parsed) || parsed < 1) return null;
+    return parsed;
+  }
+  return null;
+}
+
+function isCustomCartRow(item: { product_id?: string; product_type?: string }): boolean {
+  return item.product_id === 'workshop-single' || item.product_type === 'workshop';
+}
+
+function customUnitPrice(item: { custom_config?: { price?: unknown; price_snapshot?: unknown } }): number {
+  return (
+    parsePositiveKrwAmount(item.custom_config?.price_snapshot) ??
+    parsePositiveKrwAmount(item.custom_config?.price) ??
+    0
+  );
+}
+
+function cartRowOrientation(item: {
+  orientation?: string | null;
+  custom_config?: { orientation?: unknown };
+}): 'portrait' | 'landscape' | null {
+  if (item.orientation === 'portrait' || item.orientation === 'landscape') {
+    return item.orientation;
+  }
+  const fromConfig = item.custom_config?.orientation;
+  if (fromConfig === 'portrait' || fromConfig === 'landscape') {
+    return fromConfig;
+  }
+  return null;
+}
+
+function customSizeLabel(size: unknown): string {
+  const raw = typeof size === 'string' ? size.trim() : '';
+  if (!raw || raw === 'A4') return 'M';
+  return raw;
+}
+
+function cartThumbFrameClass(orientation: 'portrait' | 'landscape' | null, compact = false): string {
+  if (orientation === 'landscape') {
+    return compact
+      ? 'w-[4.5rem] h-[3.15rem]'
+      : 'w-[6.75rem] h-[4.75rem] sm:w-[7.5rem] sm:h-[5.25rem]';
+  }
+  return compact
+    ? 'w-[3.15rem] h-[4.5rem]'
+    : 'w-[4.75rem] h-[6.75rem] sm:w-[5.25rem] sm:h-[7.5rem]';
+}
+
 function joinAnalyticsVariant(
   ...fragments: Array<string | null | undefined>
 ): string | undefined {
@@ -74,7 +131,7 @@ function mapSelectedItemsToAnalyticsItems(
     selected_option: string;
     quantity: number;
     orientation?: string | null;
-    custom_config?: { price?: number; size?: string };
+    custom_config?: { price?: number; size?: string; price_snapshot?: unknown };
     product?: Product;
   }>,
 ): AnalyticsItem[] {
@@ -82,7 +139,7 @@ function mapSelectedItemsToAnalyticsItems(
     const orientation = canonicalAnalyticsOrientation(item.orientation);
 
     if (item.product_id === 'workshop-single' || item.product_type === 'workshop') {
-      const unitPrice = item.custom_config?.price || 0;
+      const unitPrice = customUnitPrice(item);
       const size =
         typeof item.custom_config?.size === 'string' ? item.custom_config.size : undefined;
       return buildAnalyticsItem({
@@ -113,7 +170,7 @@ function mapSelectedItemsToAnalyticsItems(
 
 export default function Cart() {
   const navigate = useNavigate();
-  const { cartItems, removeFromCart, updateQuantity, totalPrice, isLoading: isCartLoading, isCartOpen, closeCart } = useCart();
+  const { cartItems, removeFromCart, updateQuantity, totalPrice, isLoading: isCartLoading, cartLoadFailed, refreshCart, isCartOpen, closeCart } = useCart();
   const { theme } = useTheme();
   const isOpen = isCartOpen;
   const onClose = closeCart;
@@ -155,8 +212,8 @@ export default function Cart() {
 
   const selectedItems = cartItems.filter(item => selectedIds.has(item.id));
   const selectedTotalPrice = selectedItems.reduce((sum, item) => {
-    const price = item.product_type === 'workshop' 
-      ? (item.custom_config?.price || 0) 
+    const price = isCustomCartRow(item)
+      ? customUnitPrice(item)
       : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
     return sum + (price * item.quantity);
   }, 0);
@@ -243,8 +300,12 @@ export default function Cart() {
     refund: {
       title: '환불 및 교환 정책 동의',
       items: [
-        '본 상품은 <strong class="text-fuchsia-500">1:1 주문 제작 상품</strong>으로, 제작이 시작된 이후에는 단순 변심에 의한 취소 및 환불이 불가함을 확인하였습니다.',
-        '결제 완료 후 <strong class="text-fuchsia-500">제작 시작 전(결제완료)</strong> 단계에서만 취소가 가능함에 동의합니다.',
+        ...(hasWorkshopItems
+          ? [
+              '커스텀 제작 상품은 <strong class="text-fuchsia-500">1:1 주문 제작</strong>으로, 제작이 시작된 이후에는 단순 변심에 의한 취소 및 환불이 불가함을 확인하였습니다.',
+              '커스텀 제작 상품은 결제 완료 후 <strong class="text-fuchsia-500">제작 시작 전(결제완료)</strong> 단계에서만 취소가 가능함에 동의합니다.',
+            ]
+          : []),
         '상품의 <strong class="text-fuchsia-500">명백한 하자 또는 오배송</strong>의 경우 수령 후 7일 이내에 교환/반품 신청이 가능합니다.',
         '모니터 사양에 따른 <strong class="text-fuchsia-500">색상 차이, 원본 파일의 저화질 및 노이즈</strong>는 환불 사유에 해당하지 않음을 인지하였습니다.'
       ]
@@ -721,6 +782,7 @@ export default function Cart() {
           </h2>
           <button 
             onClick={onClose}
+            aria-label="장바구니 닫기"
             className={`p-2 rounded-full transition-all ${
               theme === 'dark' ? 'bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-black'
             }`}
@@ -750,7 +812,28 @@ export default function Cart() {
                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                 className="py-4 space-y-4"
               >
-                {cartItems.length === 0 ? (
+                {isCartLoading && cartItems.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-32 text-zinc-500 space-y-4">
+                    <Loader2 size={28} className="animate-spin text-zinc-400" />
+                    <p className={`text-lg font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>장바구니를 불러오는 중</p>
+                  </div>
+                ) : cartLoadFailed && cartItems.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-32 text-zinc-500 space-y-4">
+                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${theme === 'dark' ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
+                      <ShoppingBag size={32} className="text-zinc-400" />
+                    </div>
+                    <p className={`text-lg font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>장바구니를 불러오지 못했습니다</p>
+                    <button
+                      type="button"
+                      onClick={() => { void refreshCart(); }}
+                      className={`px-6 py-3 font-medium rounded-2xl transition-colors mt-2 ${
+                        theme === 'dark' ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-zinc-100 text-black hover:bg-zinc-200'
+                      }`}
+                    >
+                      다시 시도
+                    </button>
+                  </div>
+                ) : cartItems.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-32 text-zinc-500 space-y-4">
                     <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${theme === 'dark' ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
                       <ShoppingBag size={32} className="text-zinc-400" />
@@ -784,12 +867,13 @@ export default function Cart() {
                     </div>
 
                       {cartItems.map((item) => {
-                        const isWorkshop = item.product_type === 'workshop';
-                        const title = isWorkshop ? (item.product?.title || '커스텀 포스터') : (item.product?.title || '제품');
-                        
-                        // Extract options
-                        const orientationName = item.orientation ? (item.orientation === 'landscape' ? '가로형' : '세로형') : '';
-                        const sizeName = isWorkshop ? (item.custom_config?.size || 'A4') : (item.product?.options?.find(opt => opt.id === item.selected_option)?.name || '기본 옵션');
+                        const isWorkshop = isCustomCartRow(item);
+                        const title = isWorkshop ? (item.product?.title || '나만의 커스텀 포스터') : (item.product?.title || '제품');
+                        const rowOrientation = cartRowOrientation(item);
+                        const orientationName = rowOrientation === 'landscape' ? '가로형' : rowOrientation === 'portrait' ? '세로형' : '';
+                        const sizeName = isWorkshop
+                          ? customSizeLabel(item.custom_config?.size)
+                          : (item.product?.options?.find(opt => opt.id === item.selected_option)?.name || '기본 옵션');
                         
                         const aiOptions = [];
                         if (isWorkshop && item.custom_config) {
@@ -799,8 +883,14 @@ export default function Cart() {
                         
                         const optionDisplay = [sizeName, orientationName, ...aiOptions].filter(Boolean).join(' • ');
 
-                        const price = isWorkshop ? (item.custom_config?.price || 0) : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
-                        const image = item.custom_image || (item.orientation === 'landscape' && item.product?.landscape_image ? item.product.landscape_image : (item.product?.front_image || item.product?.image || ''));
+                        const price = isWorkshop
+                          ? customUnitPrice(item)
+                          : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
+                        const image = isWorkshop
+                          ? (item.custom_image || '')
+                          : (rowOrientation === 'landscape' && item.product?.landscape_image
+                            ? item.product.landscape_image
+                            : (item.product?.front_image || item.product?.image || ''));
                         const isSelected = selectedIds.has(item.id);
                       
                       const handleItemClick = (e: React.MouseEvent) => {
@@ -817,7 +907,7 @@ export default function Cart() {
                         <div 
                           key={item.id} 
                           onClick={() => toggleItemSelection(item.id)}
-                          className={`p-6 rounded-[32px] flex gap-6 transition-all cursor-pointer border-[1.5px] ${
+                          className={`p-4 sm:p-6 rounded-[32px] flex gap-4 sm:gap-6 transition-all cursor-pointer border-[1.5px] ${
                             theme === 'dark' ? 'bg-[#1C1C1E]' : 'bg-zinc-50'
                           } ${
                             isSelected 
@@ -825,43 +915,50 @@ export default function Cart() {
                               : 'border-transparent'
                           }`}
                         >
-                          <button 
+                          <button
                             type="button"
+                            aria-label={`${title} 상세 보기`}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleItemClick(e);
                             }}
-                            className={`w-24 h-24 rounded-2xl overflow-hidden shrink-0 cursor-pointer hover:opacity-80 transition-opacity ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200'}`}
+                            className={`${cartThumbFrameClass(rowOrientation)} rounded-2xl overflow-hidden shrink-0 hover:opacity-80 transition-opacity ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200'}`}
                           >
-                            <img 
-                              src={image} 
-                              alt={title}
-                              className="w-full h-full object-cover"
-                              referrerPolicy="no-referrer"
-                            />
+                            {image ? (
+                              <img
+                                src={image}
+                                alt=""
+                                className="w-full h-full object-contain"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : null}
                           </button>
-                          <div className="flex-1 flex flex-col justify-between py-1">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h3 className={`font-semibold text-lg leading-tight tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{title}</h3>
+                          <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="min-w-0">
+                                <h3 className={`font-semibold text-lg leading-tight tracking-tight break-words ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{title}</h3>
                                 <p className="text-zinc-500 text-sm mt-2 font-medium">{optionDisplay}</p>
                               </div>
                               <button 
+                                type="button"
+                                aria-label={`${title} 삭제`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  removeFromCart(item.id);
+                                  void removeFromCart(item.id);
                                 }}
-                                className={`p-2 -mr-2 -mt-2 rounded-full transition-colors ${theme === 'dark' ? 'text-zinc-600 hover:text-white hover:bg-zinc-800' : 'text-zinc-400 hover:text-black hover:bg-zinc-100'}`}
+                                className={`p-2 -mr-2 -mt-2 rounded-full transition-colors shrink-0 ${theme === 'dark' ? 'text-zinc-600 hover:text-white hover:bg-zinc-800' : 'text-zinc-400 hover:text-black hover:bg-zinc-100'}`}
                               >
                                 <X size={18} />
                               </button>
                             </div>
-                            <div className="flex justify-between items-end mt-4">
+                            <div className="flex justify-between items-end mt-4 gap-3">
                               <div className={`flex items-center rounded-full p-1 ${theme === 'dark' ? 'bg-zinc-900/80' : 'bg-zinc-200/80'}`}>
                                 <button 
+                                  type="button"
+                                  aria-label={`${title} 수량 줄이기`}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    updateQuantity(item.id, item.quantity - 1);
+                                    void updateQuantity(item.id, item.quantity - 1);
                                   }}
                                   className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${theme === 'dark' ? 'text-zinc-500 hover:text-white hover:bg-zinc-800' : 'text-zinc-500 hover:text-black hover:bg-zinc-300'}`}
                                 >
@@ -869,16 +966,18 @@ export default function Cart() {
                                 </button>
                                 <span className={`w-8 text-center text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{item.quantity}</span>
                                 <button 
+                                  type="button"
+                                  aria-label={`${title} 수량 늘리기`}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    updateQuantity(item.id, item.quantity + 1);
+                                    void updateQuantity(item.id, item.quantity + 1);
                                   }}
                                   className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${theme === 'dark' ? 'text-zinc-500 hover:text-white hover:bg-zinc-800' : 'text-zinc-500 hover:text-black hover:bg-zinc-300'}`}
                                 >
                                   <Plus size={16} />
                                 </button>
                               </div>
-                              <p className={`font-bold text-lg ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{(price * item.quantity).toLocaleString()}</p>
+                              <p className={`font-bold text-lg shrink-0 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{(price * item.quantity).toLocaleString()}</p>
                             </div>
                           </div>
                         </div>
@@ -900,16 +999,42 @@ export default function Cart() {
                   <h3 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>주문 상품</h3>
                   <div className={`rounded-3xl p-5 space-y-3 ${theme === 'dark' ? 'bg-[#1C1C1E]' : 'bg-zinc-50'}`}>
                     {selectedItems.map(item => {
-                      const isWorkshop = item.product_type === 'workshop';
-                      const title = (isWorkshop ? (item.product?.title || '커스텀 포스터') : (item.product?.title || '제품')) + (item.orientation ? ` (${item.orientation === 'landscape' ? '가로형' : '세로형'})` : '');
-                      const price = isWorkshop ? (item.custom_config?.price || 0) : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
+                      const isWorkshop = isCustomCartRow(item);
+                      const rowOrientation = cartRowOrientation(item);
+                      const title = isWorkshop ? (item.product?.title || '나만의 커스텀 포스터') : (item.product?.title || '제품');
+                      const orientationName = rowOrientation === 'landscape' ? '가로형' : rowOrientation === 'portrait' ? '세로형' : '';
+                      const optionName = isWorkshop
+                        ? customSizeLabel(item.custom_config?.size)
+                        : (item.product?.options?.find(opt => opt.id === item.selected_option)?.name || '');
+                      const meta = [optionName, orientationName].filter(Boolean).join(' · ');
+                      const price = isWorkshop
+                        ? customUnitPrice(item)
+                        : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
+                      const image = isWorkshop
+                        ? (item.custom_image || '')
+                        : (rowOrientation === 'landscape' && item.product?.landscape_image
+                          ? item.product.landscape_image
+                          : (item.product?.front_image || item.product?.image || ''));
                       return (
-                        <div key={item.id} className="flex justify-between items-center text-sm">
-                          <div className="flex flex-col">
-                            <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{title}</span>
-                            <span className={`text-sm font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>수량 {item.quantity}개</span>
+                        <div key={item.id} className="flex items-center gap-3 text-sm">
+                          <div className={`${cartThumbFrameClass(rowOrientation, true)} rounded-xl overflow-hidden shrink-0 ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200'}`}>
+                            {image ? (
+                              <img
+                                src={image}
+                                alt=""
+                                className="w-full h-full object-contain"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : null}
                           </div>
-                          <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{(price * item.quantity).toLocaleString()}</span>
+                          <div className="flex-1 min-w-0">
+                            <span className={`font-medium block truncate ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{title}</span>
+                            {meta ? (
+                              <span className={`text-sm font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>{meta}</span>
+                            ) : null}
+                            <span className={`block text-sm font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>수량 {item.quantity}개</span>
+                          </div>
+                          <span className={`font-semibold shrink-0 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{(price * item.quantity).toLocaleString()}</span>
                         </div>
                       );
                     })}
@@ -1213,15 +1338,22 @@ export default function Cart() {
                     <label className="flex items-center gap-4 cursor-pointer flex-1 py-2">
                       <div 
                         onClick={() => setConsents(prev => ({ ...prev, refund: !prev.refund }))}
-                        className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all ${
+                        className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${
                           consents.refund ? 'bg-fuchsia-500 border-fuchsia-500' : (theme === 'dark' ? 'border-zinc-700 hover:border-zinc-500' : 'border-zinc-300 hover:border-zinc-400')
                         }`}
                       >
                         {consents.refund && <Check size={16} className="text-white" />}
                       </div>
-                      <span className={`text-base font-medium ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                        <span className="text-fuchsia-500 mr-1">(필수)</span>
-                        환불 정책 동의
+                      <span className="min-w-0">
+                        <span className={`block text-base font-medium ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                          <span className="text-fuchsia-500 mr-1">(필수)</span>
+                          환불 정책 동의
+                        </span>
+                        {hasWorkshopItems && (
+                          <span className={`block text-xs mt-1 ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                            커스텀 제작 상품에 해당하는 주문 제작 제한이 포함됩니다.
+                          </span>
+                        )}
                       </span>
                     </label>
                     <button 

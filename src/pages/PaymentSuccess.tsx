@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Check, Loader2, Copy, Factory, Printer, Package, Truck, ShieldCheck } from 'lucide-react';
+import { Check, Loader2, Copy, Factory, Package, Truck, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import LoadingScreen from '../components/LoadingScreen';
@@ -51,11 +51,10 @@ export default function PaymentSuccess() {
   const [isSimulationComplete, setIsSimulationComplete] = useState(false);
 
   const SIMULATION_STEPS = [
-    { icon: <Factory size={18} />, text: "메탈로라 팩토리 제작 준비 중", duration: 2500 },
-    { icon: <ShieldCheck size={18} />, text: "1.15mm 프리미엄 알루미늄 패널 검수", duration: 3500 },
-    { icon: <Printer size={18} />, text: "180℃ 이상 고온 승화전사 4K 프린팅", duration: 4500 },
-    { icon: <Package size={18} />, text: "무타공 패키지 및 패널 안전 패키징", duration: 2500 },
-    { icon: <Truck size={18} />, text: "배송 파트너사 전달 대기", duration: 2000 },
+    { icon: <ShieldCheck size={18} />, text: "결제가 확인되었습니다", duration: 2500 },
+    { icon: <Factory size={18} />, text: "주문을 접수했습니다", duration: 2500 },
+    { icon: <Package size={18} />, text: "제작 준비를 진행합니다", duration: 3500 },
+    { icon: <Truck size={18} />, text: "배송 준비 단계입니다", duration: 2000 },
   ];
 
   useEffect(() => {
@@ -383,8 +382,7 @@ export default function PaymentSuccess() {
             className="mb-10 text-left transform-gpu will-change-transform"
           >
             <div className="flex items-center justify-between mb-4 px-1">
-              <h3 className="text-[13px] font-bold text-zinc-800 dark:text-zinc-300 uppercase tracking-[0.15em]">Production Status</h3>
-              <span className="text-[12px] font-medium text-[#3182F6] bg-[#3182F6]/10 px-2 py-0.5 rounded-full">Live</span>
+              <h3 className="text-[13px] font-bold text-zinc-800 dark:text-zinc-300 uppercase tracking-[0.15em]">주문 진행</h3>
             </div>
 
             <div className={`rounded-[28px] p-6 border relative overflow-hidden shadow-inner transition-colors duration-500 ${
@@ -410,7 +408,7 @@ export default function PaymentSuccess() {
                     {SIMULATION_STEPS[activeStep].text}
                   </motion.p>
                   <p className="text-[13px] text-zinc-600 dark:text-zinc-400 mt-1 font-medium">
-                    {isSimulationComplete && selectedStep !== null ? '상세 공정 확인 중' : '메탈로라 프리미엄 공정 진행 중'}
+                    {isSimulationComplete && selectedStep !== null ? '안내 확인' : '주문이 정상적으로 접수되었습니다'}
                   </p>
                 </div>
               </div>
@@ -468,7 +466,7 @@ export default function PaymentSuccess() {
                   animate={{ opacity: 1 }}
                   className="text-center text-[12px] text-zinc-800 dark:text-zinc-200 mt-10 font-medium"
                 >
-                  공정 단계를 클릭하면 상세 내용을 다시 볼 수 있습니다.
+                  단계를 누르면 안내를 다시 볼 수 있습니다.
                 </motion.p>
               )}
             </div>

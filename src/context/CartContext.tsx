@@ -29,6 +29,7 @@ export type AddToCartAnalytics = {
 interface CartContextType {
   cartItems: CartItem[];
   isLoading: boolean;
+  cartLoadFailed: boolean;
   addToCart: (
     productId: string, 
     selectedOption: string, 
@@ -52,7 +53,8 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [cartLoadFailed, setCartLoadFailed] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const { user, adminUser } = useAuth();
   const { showToast } = useToast();
@@ -73,6 +75,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const currentUserId = activeUserId;
     if (!currentUserId) {
       setCartItems([]);
+      setCartLoadFailed(false);
+      setIsLoading(false);
       return true;
     }
 
@@ -93,6 +97,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       
       if (!items || items.length === 0) {
         setCartItems([]);
+        setCartLoadFailed(false);
         return true;
       }
 
@@ -143,14 +148,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       });
 
       setCartItems(hydratedData);
+      setCartLoadFailed(false);
       return true;
     } catch (error) {
       console.error('Error fetching cart:', error);
+      setCartLoadFailed(true);
+      showToast('장바구니를 불러오지 못했습니다.', 'error');
       return false;
     } finally {
       setIsLoading(false);
     }
-  }, [activeUserId, getClient]);
+  }, [activeUserId, getClient, showToast]);
 
   useEffect(() => {
     void refreshCart();
@@ -310,6 +318,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       await refreshCart();
     } catch (error) {
       console.error('Error removing from cart:', error);
+      showToast('상품을 삭제하지 못했습니다.', 'error');
     }
   };
 
@@ -327,6 +336,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       await refreshCart();
     } catch (error) {
       console.error('Error updating quantity:', error);
+      showToast('수량을 변경하지 못했습니다.', 'error');
     }
   };
 
@@ -348,15 +358,30 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const totalPrice = cartItems.reduce((acc, item) => {
+    if (item.product_type === 'workshop' || item.product_id === 'workshop-single') {
+      const snapshotRaw = item.custom_config?.price_snapshot;
+      const snapshot =
+        typeof snapshotRaw === 'number'
+          ? snapshotRaw
+          : typeof snapshotRaw === 'string'
+            ? Number(snapshotRaw)
+            : NaN;
+      const unit =
+        Number.isFinite(snapshot) && snapshot >= 1
+          ? snapshot
+          : (item.custom_config?.price || 0);
+      return acc + (unit * item.quantity);
+    }
     const option = item.product?.options?.find(opt => opt.id === item.selected_option);
-    const price = option ? option.price : (item.custom_config?.price || 0);
+    const price = option ? option.price : 0;
     return acc + (price * item.quantity);
   }, 0);
 
   return (
-    <CartContext.Provider value={{ 
-      cartItems, 
-      isLoading, 
+    <CartContext.Provider value={{
+      cartItems,
+      isLoading,
+      cartLoadFailed,
       addToCart, 
       removeFromCart, 
       updateQuantity, 
