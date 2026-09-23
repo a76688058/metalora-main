@@ -5,7 +5,11 @@ import { classifyAccount, type AccountClassification } from "./accountKind";
 import { isUsableMemberProfile } from "./authIntegrity";
 import { recordAuthSecurityEvent } from "./authSecurityEvents";
 import { hitAuthRateLimit } from "./authRateLimit";
-import { memberUsernameSignupError } from "./memberUsername";
+import {
+  memberAuthEmail,
+  memberStoredUsername,
+  memberUsernameSignupError,
+} from "./memberUsername";
 import {
   OTP_RATE_WINDOW_SECONDS,
   OTP_TICKET_TTL_SECONDS,
@@ -27,8 +31,21 @@ const PASSWORD_RESET_IP_CAP = 10;
 const PASSWORD_CHANGE_CAP = 5;
 const PASSWORD_CHANGE_WINDOW_SECONDS = 300;
 const SIGNUP_USERNAME_CHECK_IP_CAP = 30;
+export const SIGNUP_COMPLETE_IP_CAP = 20;
+const SIGNUP_COMPLETE_TICKET_CAP = 8;
+const SIGNUP_COMPLETE_FINGERPRINT_CAP = 8;
+const SIGNUP_FULL_NAME_MAX_LEN = 100;
+const SIGNUP_USERNAME_UNAVAILABLE = "사용할 수 없는 아이디입니다.";
+const SIGNUP_PHONE_UNAVAILABLE = "이미 가입된 휴대폰 번호입니다.";
 
-type JsonRpc = { ok?: boolean } & Record<string, unknown>;
+type JsonRpc = { ok?: boolean; reason?: string } & Record<string, unknown>;
+
+type SignupCompleteBody = {
+  proofToken: string;
+  username: string;
+  password: string;
+  fullName: string;
+};
 
 export type PasswordAuthDeps = {
   supabaseAdmin: SupabaseClient | null;
@@ -56,6 +73,56 @@ function requestIp(req: Request, deps: PasswordAuthDeps): string {
 
 function logAuth(event: string, fields: Record<string, string | boolean | number>): void {
   console.info(`[AUTH] ${event}`, fields);
+}
+
+function signupConsentsAccepted(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  const consents = raw as { terms?: unknown; privacy?: unknown; cookie?: unknown };
+  return consents.terms === true && consents.privacy === true && consents.cookie === true;
+}
+
+function parseSignupCompleteBody(raw: unknown): SignupCompleteBody | { error: string } {
+  if (!raw || typeof raw !== "object") return { error: GENERIC_BAD };
+  const body = raw as {
+    proof_token?: unknown;
+    username?: unknown;
+    password?: unknown;
+    full_name?: unknown;
+    consents?: unknown;
+  };
+  if (typeof body.proof_token !== "string" || !/^[0-9a-f]{64}$/.test(body.proof_token)) {
+    return { error: GENERIC_BAD };
+  }
+  if (typeof body.username !== "string" || memberUsernameSignupError(body.username)) {
+    return { error: GENERIC_BAD };
+  }
+  if (typeof body.password !== "string" || memberPasswordError(body.password)) {
+    return { error: "비밀번호는 8자 이상이어야 합니다." };
+  }
+  if (typeof body.full_name !== "string") return { error: GENERIC_BAD };
+  const fullName = body.full_name.trim();
+  if (fullName.length < 1 || fullName.length > SIGNUP_FULL_NAME_MAX_LEN) {
+    return { error: GENERIC_BAD };
+  }
+  if (!signupConsentsAccepted(body.consents)) return { error: GENERIC_BAD };
+  return {
+    proofToken: body.proof_token,
+    username: memberStoredUsername(body.username),
+    password: body.password,
+    fullName,
+  };
+}
+
+function isAuthUsernameConflict(error: { code?: string; message?: string } | null | undefined): boolean {
+  const code = (error?.code ?? "").toLowerCase();
+  if (code === "email_exists" || code === "user_already_exists") return true;
+  const message = (error?.message ?? "").toLowerCase();
+  return (
+    message.includes("already registered") ||
+    message.includes("already been registered") ||
+    message.includes("user already exists") ||
+    message.includes("user_custom_id")
+  );
 }
 
 async function readUsableMember(
@@ -415,6 +482,272 @@ async function handlePasswordChange(req: Request, res: Response, deps: PasswordA
   res.status(200).json({ ok: true });
 }
 
+async function handleSignupComplete(req: Request, res: Response, deps: PasswordAuthDeps): Promise<void> {
+  const requestId = randomUUID();
+  const admin = deps.supabaseAdmin;
+  const secrets = readSecrets(deps.getEnv());
+  if (!admin || !secrets) {
+    logAuth("signup_complete", { request_id: requestId, outcome: "config" });
+    res.status(500).json({ ok: false, error: GENERIC_CONFIG });
+    return;
+  }
+
+  const ip = requestIp(req, deps);
+  const ipLimit = await hitAuthRateLimit(
+    admin,
+    secrets.otpPepper,
+    "signup_complete_ip",
+    ip,
+    SIGNUP_COMPLETE_IP_CAP,
+    OTP_RATE_WINDOW_SECONDS,
+  );
+  if (ipLimit === "error") {
+    res.status(500).json({ ok: false, error: GENERIC_CONFIG });
+    return;
+  }
+  if (ipLimit === "throttled") {
+    logAuth("signup_complete", { request_id: requestId, outcome: "throttled" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "signup_complete",
+      outcome: "throttled",
+      requestId,
+    });
+    res.status(429).json({ ok: false, error: GENERIC_RETRY });
+    return;
+  }
+
+  const parsed = parseSignupCompleteBody(req.body);
+  if ("error" in parsed) {
+    logAuth("signup_complete", { request_id: requestId, outcome: "rejected" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "signup_complete",
+      outcome: "rejected",
+      requestId,
+    });
+    res.status(400).json({ ok: false, error: parsed.error });
+    return;
+  }
+
+  const ticketLimit = await hitAuthRateLimit(
+    admin,
+    secrets.otpPepper,
+    "signup_complete_ticket",
+    parsed.proofToken,
+    SIGNUP_COMPLETE_TICKET_CAP,
+    OTP_RATE_WINDOW_SECONDS,
+  );
+  if (ticketLimit === "error") {
+    res.status(500).json({ ok: false, error: GENERIC_CONFIG });
+    return;
+  }
+  if (ticketLimit === "throttled") {
+    logAuth("signup_complete", { request_id: requestId, outcome: "throttled" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "signup_complete",
+      outcome: "throttled",
+      requestId,
+    });
+    res.status(429).json({ ok: false, error: GENERIC_RETRY });
+    return;
+  }
+
+  const proofHmac = otpTicketHmac(secrets.otpPepper, parsed.proofToken);
+  const { data: proofRow } = await admin
+    .from("phone_verification_tickets")
+    .select("purpose, status, expires_at, phone_fingerprint")
+    .eq("ticket_hmac", proofHmac)
+    .maybeSingle();
+
+  const proofIssued =
+    proofRow &&
+    proofRow.purpose === "signup" &&
+    proofRow.status === "issued" &&
+    typeof proofRow.expires_at === "string" &&
+    new Date(proofRow.expires_at).getTime() > Date.now() &&
+    typeof proofRow.phone_fingerprint === "string";
+
+  if (
+    proofRow &&
+    proofRow.purpose === "signup" &&
+    (proofRow.status === "claimed" || proofRow.status === "consumed" || proofRow.status === "failed")
+  ) {
+    logAuth("signup_complete", { request_id: requestId, outcome: "replay" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "signup_complete",
+      outcome: "replay",
+      requestId,
+    });
+    res.status(400).json({ ok: false, error: GENERIC_BAD });
+    return;
+  }
+
+  if (!proofIssued || typeof proofRow.phone_fingerprint !== "string") {
+    logAuth("signup_complete", { request_id: requestId, outcome: "rejected" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "signup_complete",
+      outcome: "rejected",
+      requestId,
+    });
+    res.status(400).json({ ok: false, error: GENERIC_BAD });
+    return;
+  }
+
+  const fingerprintLimit = await hitAuthRateLimit(
+    admin,
+    secrets.otpPepper,
+    "signup_complete_fingerprint",
+    proofRow.phone_fingerprint,
+    SIGNUP_COMPLETE_FINGERPRINT_CAP,
+    OTP_RATE_WINDOW_SECONDS,
+  );
+  if (fingerprintLimit === "error") {
+    res.status(500).json({ ok: false, error: GENERIC_CONFIG });
+    return;
+  }
+  if (fingerprintLimit === "throttled") {
+    logAuth("signup_complete", { request_id: requestId, outcome: "throttled" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "signup_complete",
+      outcome: "throttled",
+      requestId,
+    });
+    res.status(429).json({ ok: false, error: GENERIC_RETRY });
+    return;
+  }
+
+  const { data: usernameTaken, error: usernameError } = await admin.rpc("profiles_username_exists", {
+    username: parsed.username,
+  });
+  if (usernameError) {
+    logAuth("signup_complete", { request_id: requestId, outcome: "rejected" });
+    res.status(500).json({ ok: false, error: GENERIC_CONFIG });
+    return;
+  }
+  if (usernameTaken === true) {
+    logAuth("signup_complete", { request_id: requestId, outcome: "username_conflict" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "signup_complete",
+      outcome: "username_conflict",
+      requestId,
+    });
+    res.status(409).json({ ok: false, error: SIGNUP_USERNAME_UNAVAILABLE, conflict: "username" });
+    return;
+  }
+
+  const { data: phoneOwner } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("verified_phone_fingerprint", proofRow.phone_fingerprint)
+    .maybeSingle();
+  if (phoneOwner?.id) {
+    logAuth("signup_complete", { request_id: requestId, outcome: "phone_conflict" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "signup_complete",
+      outcome: "phone_conflict",
+      requestId,
+    });
+    res.status(409).json({ ok: false, error: SIGNUP_PHONE_UNAVAILABLE, conflict: "phone" });
+    return;
+  }
+
+  const { data: claimData, error: claimError } = await admin.rpc("signup_claim_proof", {
+    p_ticket_hmac: proofHmac,
+  });
+  const claimRpc = (claimData ?? {}) as JsonRpc;
+  if (claimError || claimRpc.ok !== true) {
+    const used = claimRpc.reason === "used";
+    logAuth("signup_complete", { request_id: requestId, outcome: used ? "replay" : "rejected" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "signup_complete",
+      outcome: used ? "replay" : "rejected",
+      requestId,
+    });
+    res.status(400).json({ ok: false, error: GENERIC_BAD });
+    return;
+  }
+
+  const nowIso = new Date().toISOString();
+  const created = await admin.auth.admin.createUser({
+    email: memberAuthEmail(parsed.username),
+    password: parsed.password,
+    email_confirm: true,
+    user_metadata: {
+      user_custom_id: parsed.username,
+      full_name: parsed.fullName,
+      agreed_to_terms_at: nowIso,
+      agreed_to_privacy_at: nowIso,
+      agreed_to_cookie_at: nowIso,
+    },
+  });
+
+  if (created.error || !created.data.user?.id) {
+    await admin.rpc("signup_fail_proof", { p_ticket_hmac: proofHmac });
+    const usernameConflict = isAuthUsernameConflict(created.error);
+    logAuth("signup_complete", {
+      request_id: requestId,
+      outcome: usernameConflict ? "username_conflict" : "auth_failed",
+    });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "signup_complete",
+      outcome: usernameConflict ? "username_conflict" : "auth_failed",
+      requestId,
+    });
+    if (usernameConflict) {
+      res.status(409).json({ ok: false, error: SIGNUP_USERNAME_UNAVAILABLE, conflict: "username" });
+      return;
+    }
+    res.status(400).json({ ok: false, error: GENERIC_BAD });
+    return;
+  }
+
+  const userId = created.data.user.id;
+  const { data: bindData, error: bindError } = await admin.rpc("phone_bind_signup", {
+    p_user_id: userId,
+    p_ticket_hmac: proofHmac,
+  });
+  const bindRpc = (bindData ?? {}) as JsonRpc;
+  if (bindError || bindRpc.ok !== true) {
+    await admin.rpc("signup_fail_proof", { p_ticket_hmac: proofHmac });
+    const deleted = await admin.auth.admin.deleteUser(userId);
+    if (deleted.error) {
+      logAuth("signup_complete", { request_id: requestId, outcome: "cleanup_failed" });
+      await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+        event: "signup_complete",
+        outcome: "cleanup_failed",
+        requestId,
+        userId,
+      });
+      res.status(500).json({ ok: false, error: GENERIC_CONFIG });
+      return;
+    }
+    const phoneConflict = bindRpc.reason === "conflict";
+    logAuth("signup_complete", {
+      request_id: requestId,
+      outcome: phoneConflict ? "phone_conflict" : "bind_failed",
+    });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "signup_complete",
+      outcome: phoneConflict ? "phone_conflict" : "bind_failed",
+      requestId,
+    });
+    if (phoneConflict) {
+      res.status(409).json({ ok: false, error: SIGNUP_PHONE_UNAVAILABLE, conflict: "phone" });
+      return;
+    }
+    res.status(400).json({ ok: false, error: GENERIC_BAD });
+    return;
+  }
+
+  logAuth("signup_complete", { request_id: requestId, outcome: "accepted" });
+  await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+    event: "signup_complete",
+    outcome: "accepted",
+    requestId,
+    userId,
+  });
+  res.status(200).json({ ok: true });
+}
+
 async function handleSignupUsernameCheck(req: Request, res: Response, deps: PasswordAuthDeps): Promise<void> {
   const requestId = randomUUID();
   const admin = deps.supabaseAdmin;
@@ -470,5 +803,8 @@ export function registerPasswordAuthRoutes(app: Express, deps: PasswordAuthDeps)
   });
   app.post("/api/auth/signup/username-check", (req, res) => {
     void handleSignupUsernameCheck(req, res, deps);
+  });
+  app.post("/api/auth/signup/complete", (req, res) => {
+    void handleSignupComplete(req, res, deps);
   });
 }

@@ -10,6 +10,7 @@
     "verify:2f-slice-a": "tsx scripts/verify-2f-slice-a-otp.ts",
     "verify:2f-slice-b1": "tsx scripts/verify-2f-slice-b1.ts",
     "verify:2f-b1-hardening": "tsx scripts/verify-2f-b1-hardening.ts",
+    "verify:2f-slice-b2": "tsx scripts/verify-2f-slice-b2.ts",
     "bootstrap:payment-test-schema": "tsx scripts/bootstrap-payment-test-schema.ts",
     "rebuild:payment-test-schema-from-csv": "tsx scripts/rebuild-payment-test-schema-from-csv.ts",
     "build": "npm run clean && vite build --outDir dist/client",

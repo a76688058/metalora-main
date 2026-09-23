@@ -2,7 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AccountKind } from "./accountKind";
 import { otpRateKeyHmac } from "./otpCrypto";
 
-export type AuthSecurityEventName = "recovery_resolve" | "password_reset" | "password_change";
+export type AuthSecurityEventName =
+  | "recovery_resolve"
+  | "password_reset"
+  | "password_change"
+  | "signup_complete";
 
 type RecoveryResolveInput = {
   event: "recovery_resolve";
@@ -26,7 +30,18 @@ type PasswordChangeInput = {
   userId?: string | null;
 };
 
-export type AuthSecurityEventInput = RecoveryResolveInput | PasswordResetInput | PasswordChangeInput;
+type SignupCompleteInput = {
+  event: "signup_complete";
+  outcome: string;
+  requestId: string;
+  userId?: string | null;
+};
+
+export type AuthSecurityEventInput =
+  | RecoveryResolveInput
+  | PasswordResetInput
+  | PasswordChangeInput
+  | SignupCompleteInput;
 
 const ACCOUNT_KINDS: ReadonlySet<string> = new Set(["password", "social", "none"]);
 
