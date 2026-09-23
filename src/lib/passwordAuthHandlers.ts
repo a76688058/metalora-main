@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Express, Request, Response } from "express";
 import { classifyAccount, type AccountClassification } from "./accountKind";
-import { isUsableMemberProfile } from "./authIntegrity";
+import { isUsableMemberProfile, USABLE_MEMBER_PROFILE_COLUMNS } from "./authIntegrity";
 import { recordAuthSecurityEvent } from "./authSecurityEvents";
 import { hitAuthRateLimit } from "./authRateLimit";
 import {
@@ -137,7 +137,7 @@ async function readUsableMember(
   if (error || !data.user?.id) return null;
   const { data: profile, error: profileError } = await deps.supabaseAdmin
     .from("profiles")
-    .select("id, user_custom_id")
+    .select(USABLE_MEMBER_PROFILE_COLUMNS)
     .eq("id", data.user.id)
     .maybeSingle();
   if (profileError || !isUsableMemberProfile(profile)) return null;

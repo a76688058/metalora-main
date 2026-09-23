@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Express, Request, Response } from "express";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isUsableMemberProfile } from "./authIntegrity";
+import { isUsableMemberProfile, USABLE_MEMBER_PROFILE_COLUMNS } from "./authIntegrity";
 import { hitAuthRateLimit } from "./authRateLimit";
 import {
   OTP_RATE_WINDOW_SECONDS,
@@ -79,7 +79,7 @@ async function readUsableMember(
   if (!user) return null;
   const { data: profile, error } = await deps.supabaseAdmin
     .from("profiles")
-    .select("id, user_custom_id")
+    .select(USABLE_MEMBER_PROFILE_COLUMNS)
     .eq("id", user.userId)
     .maybeSingle();
   if (error || !isUsableMemberProfile(profile)) return null;
