@@ -2,13 +2,13 @@
 
 Status: **OPEN** (sub-workstream of NEW 2F)
 
-Date: 2026-09-28 (B2 live-state sync)
+Date: 2026-09-28 (C1 STAGE OPEN)
 
 Decision: Recovery, verified phone OTP, Google/Kakao/Naver, identity reconciliation, withdrawal, marketing consent, and membership consent history are **LAUNCH-REQUIRED**. They are **not** optional auth expansion.
 
 Parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. This is **not** a new master launch stage. NEW 2F remains **OPEN**. NEW 3 is **NOT OPENED**.
 
-This note is governance. It does **not** authorize SNS implementation, production mutation, or deploy. B2 implementation is already validated and remains **UNCOMMITTED** pending checkpoint.
+This note is governance. B2 is **CHECKPOINTED / COMPLETE**. C1 is **OPEN**: `docs/decisions/NEW-2F_c1-google-kakao.md`. This note does **not** implement C1-0 or authorize production OAuth / deploy. NEW 3 is **NOT OPENED**.
 
 ---
 
@@ -19,16 +19,16 @@ This note is governance. It does **not** authorize SNS implementation, productio
 | NEW 2F | **OPEN** — do **not** close |
 | Auth expansion | **OPEN** — launch-required |
 | B1 | **COMPLETE** |
-| B2 | **COMPLETE / READY FOR CHECKPOINT** |
-| B2a Customer Auth UX | **COMPLETE / USER APPROVED / A5 PASS** (uncommitted) |
-| C1 Google / Kakao | **NOT STARTED** |
+| B2 | **CHECKPOINTED / COMPLETE** |
+| B2a Customer Auth UX | **COMPLETE / USER APPROVED / A5 PASS** |
+| C1 Google / Kakao | **OPEN** — `docs/decisions/NEW-2F_c1-google-kakao.md` |
 | C2 Naver | **NOT STARTED** |
 | D Account security / withdrawal / consent | **NOT STARTED** |
 | E Final Auth / Profile UX integration | **NOT STARTED** |
 | Slice 0b production inventory | **NOT DONE** — not a B2 blocker |
 | Production providers / unique verified-phone | **GATED** |
 | Production | **UNCHANGED** |
-| Next action | **B2 CHECKPOINT** after GPT review — one commit of validated implementation + these docs. Then C1. |
+| Next action | **C1-0 A6** — HARD STOP FOR GPT REVIEW FIRST |
 
 Evidence: A0 PRE-AUDIT COMPLETE. A6 AUTH ARCHITECTURE AUDIT COMPLETE. A6 ARCHITECTURE CLARIFICATION COMPLETE. B2 implementation + A5 integrated QA **PASS**. Blocker / HIGH / MEDIUM: **NONE**.
 
@@ -36,7 +36,7 @@ Evidence: A0 PRE-AUDIT COMPLETE. A6 AUTH ARCHITECTURE AUDIT COMPLETE. A6 ARCHITE
 
 ## B2 live state — CURRENT TRUTH (2026-09-28)
 
-Durable HEAD / origin/main at this sync: `662b71debc13c945a048a1dfd9d7da6ce4164d99`. Substantial validated B2 WIP remains uncommitted. Do not revert it. Do not docs-only commit.
+Durable HEAD at B2 checkpoint: `3586ec732a7556226a23519553165cdafb8dd4b4`. B2 is **CHECKPOINTED / COMPLETE**. Preserved dirty WIP is the five non-B2 A3 Profile/Inquiry/Orders files only.
 
 ### B2a — Customer Auth UX
 
@@ -165,11 +165,15 @@ Canonical customer: `profiles.id` = `auth.users.id`.
 
 Password identity: virtual `{username}@metalora.me` continues to support username/password login. It is **not** a recovery inbox.
 
-Do **not** use provider email as a silent person-merge key.
+Identity / email is a **two-layer** rule. Detail: `docs/decisions/NEW-2F_c1-google-kakao.md`.
 
-Primary reconciliation credential: **VERIFIED NORMALIZED MOBILE PHONE**.
+**AUTH LAYER:** Hosted Supabase may automatically link Google/Kakao identities that share the same **verified** provider email before METALORA callback/onboarding runs. Accepted C1 invariant. Do not undo it in C1.
 
-Social identities may join the same canonical customer only under the reconciliation lifecycle below.
+**METALORA APPLICATION LAYER:** METALORA itself must never merge users by email, skip phone verification because emails match, or use email as payment/member/recovery authority. App-controlled reconciliation uses verified phone only.
+
+Primary application reconciliation credential: **VERIFIED NORMALIZED MOBILE PHONE**.
+
+Social identities may join the same canonical customer only under Hosted verified-email auto-link **or** later explicit linking (not C1). C1 app phone collisions are **R2 fail closed**.
 
 Phone is **NOT** a GoTrue phone-login identity at launch.
 
@@ -315,9 +319,12 @@ OAuth may create a pending auth user/profile. A pending social profile with NULL
 
 Pending user cannot pay or enter normal member flows until:
 
+- required consents: **terms + privacy + cookie** (same class as B2 password Signup)
 - METALORA phone OTP
-- required policy consent
+- no conflicting active phone owner (C1 **R2**)
 - internal username generation
+
+Marketing consent is **OUT** until D.
 
 Pending-social users must have bounded lifetime / cleanup. Suggested TTL: **approximately 24 hours** (A6 may confirm).
 
@@ -331,14 +338,23 @@ Legacy/password users retain their chosen visible username. Do **not** backfill 
 
 ---
 
-## Social reconciliation — LOCKED
+## Social reconciliation — LOCKED (C1 amendment)
 
-Do not silently merge by email. Provider email is only a hint.
+Durable C1 contract: `docs/decisions/NEW-2F_c1-google-kakao.md`.
 
-- Existing member + new SNS: authenticated canonical member → phone OTP `identity_link` proof → link provider identity to same auth user
-- Social first: pending social auth user → new verified phone → consent → internal username → activate same user
-- Verified phone already belongs to another **active** member: **DO NOT** merge automatically. Require login to existing member then link from canonical account
-- Provider identity already attached elsewhere: **REJECT**. Never steal/reassign provider identity in the normal customer flow
+The earlier bullets (“provider email is only a hint and can never merge”; “require login to existing member then link from canonical account”) are **SUPERSEDED** for C1.
+
+**C1 application phone collisions = R2 fail closed.** Do not activate or merge. Do not attach provider. Do not mint/switch canonical session. Direct to original login.
+
+**R1 silent identity transfer: REMOVED.** There is no supported Admin API to move an OAuth identity from pending user A to canonical user B. METALORA OTP cannot mint a canonical session.
+
+**R1-REAUTH / `linkIdentity()` customer linking: OUT OF C1.** `linkIdentity()` needs an already authenticated canonical user and a new OAuth round trip. Consumer connect/disconnect UI remains outside C1.
+
+**Hosted verified-email auto-link:** ACCEPTED Auth-layer invariant. Before User Created does not intercept LinkAccount. If Google/Kakao share a verified email, Supabase may attach to the existing `auth.users` row before METALORA onboarding. Accept that canonical session. Do not undo the link. Usability still requires the existing verified-phone member gate.
+
+Password `{username}@metalora.me` normally does not auto-link to a Google/Kakao mailbox.
+
+Provider identity already attached elsewhere: **REJECT** app-level transfer. Never steal/reassign in METALORA.
 
 ---
 
@@ -446,7 +462,7 @@ Use: restrained magenta → violet → cyan spectral language; directional metal
 
 Avoid: noisy neon; generic SaaS; gaming/cyberpunk dashboard; excessive explanatory copy; always-moving decorative animation.
 
-B2a Login / Signup / Recovery UX is **USER APPROVED / A5 PASS** and remains uncommitted pending the B2 checkpoint. Slice E still owns final Profile / `계정 및 보안` integration. Do not reopen B2a visuals from later SNS/D tickets.
+B2a Login / Signup / Recovery UX is **USER APPROVED / A5 PASS** and **CHECKPOINTED**. Slice E still owns final Profile / `계정 및 보안` integration. Do not reopen B2a visuals from later SNS/D tickets.
 
 ---
 
@@ -456,7 +472,7 @@ B2a Login / Signup / Recovery UX is **USER APPROVED / A5 PASS** and remains unco
 |------|------|
 | **A6** | DB migrations; OTP; recovery tickets; server/RPC auth; rate limiting; verified phone authority; social providers; reconciliation; provider config; consent/marketing ledgers; withdrawal backend; payment-test vs production isolation |
 | **A3** | Login/recovery UI; social controls; OTP UX; `계정 및 보안`; password change/set UX; marketing toggle; withdrawal UX; final visual/interaction |
-| **A0** | App callback route; AuthContext/member gate; ProtectedRoute if needed; governance |
+| **A0** | `AuthCallback.tsx` **only** (no A3 co-write); AuthContext/member gate; ProtectedRoute if needed; governance |
 | **A5** | Targeted QA after each slice |
 | **A1** | **NONE** by default |
 
@@ -466,7 +482,7 @@ Do **not** blend uncommitted A3 visual files into Auth backend slices. Do not co
 
 ## Slices
 
-Live progress (do **not** close NEW 2F): **0b NOT DONE**; **A COMPLETE**; **B1 COMPLETE**; **B2 COMPLETE / READY FOR CHECKPOINT**; **C1 NOT STARTED**; **C2 NOT STARTED**; **D NOT STARTED**; **E NOT STARTED**.
+Live progress (do **not** close NEW 2F): **0b NOT DONE**; **A COMPLETE**; **B1 COMPLETE**; **B2 CHECKPOINTED / COMPLETE**; **C1 OPEN**; **C2 NOT STARTED**; **D NOT STARTED**; **E NOT STARTED**.
 
 ### SLICE 0b — PRODUCTION READ-ONLY INVENTORY
 
@@ -478,11 +494,15 @@ A6 primary. **COMPLETE** on payment-test. Additive verified-phone fields; OTP ch
 
 ### SLICE B — RECOVERY + PASSWORD
 
-A6 + A3. Split as **B1 COMPLETE** and **B2 COMPLETE / READY FOR CHECKPOINT**. Unified ID/password recovery; password reset; password change; anti-enumeration; B2a customer auth UX; verified-phone member/payment gate; B2b hosted ingress. Checkpoint is the next authorized commit of validated WIP + docs. Then C1.
+A6 + A3. Split as **B1 COMPLETE** and **B2 CHECKPOINTED / COMPLETE**. Unified ID/password recovery; password reset; password change; anti-enumeration; B2a customer auth UX; verified-phone member/payment gate; B2b hosted ingress.
 
 ### SLICE C1 — GOOGLE + KAKAO
 
-**NOT STARTED.** A6 + A0 + A3. **Payment-test only first.** Providers; pending-social callback; phone completion; required consent; internal username; manual identity linking; pending cleanup. Hook allow-list for google/kakao is **not** C1 completion.
+**OPEN.** Contract: `docs/decisions/NEW-2F_c1-google-kakao.md`. Payment-test first.
+
+C1 uses Hosted verified-email auto-link as an Auth invariant and **R2** for app phone collisions. No R1 identity transfer. No customer `linkIdentity` / connect UI. Social Signup consents = terms + privacy + cookie. `AuthCallback.tsx` is **A0-only**.
+
+Next implementation: **C1-0 A6** after GPT review of the stage-open checkpoint. Hook allow-list for google/kakao is **not** C1 completion.
 
 ### SLICE C2 — NAVER
 
@@ -555,19 +575,21 @@ Production rollout remains separately gated by launch pipeline stages (NEW 6/7 e
 
 ## Do Not Do
 
-- Implement SNS / C1 / D / E from this docs sync
-- Docs-only commit of B2 (checkpoint is later, with implementation)
-- Mutate DB / enable production providers / edit env / deploy
+- Implement C1-0 / D / E from this docs ticket
+- Mutate DB / enable production providers / edit env / deploy from this note
 - Close NEW 2F
-- Open NEW 3
-- Revert uncommitted validated B2 WIP
+- Open NEW 3 or C2
+- Revert preserved dirty A3 Profile/Inquiry/Orders WIP
 - Auto-promote `profiles.phone_number` to verified
 - Use GoTrue phone login at launch
-- Use provider email as silent merge
+- Merge users in METALORA by email, or skip phone verification because emails match
+- Undo Hosted verified-email auto-link
+- Implement R1 identity transfer or C1 customer `linkIdentity`
 - Unlink SNS identities on withdrawal
 - Account-global login lockout
 - Collapse CookieBanner / checkout consents / Custom `user_agreements` / membership ledger into one table
 - Document current hook state as “not invoked” or “still needs enablement”
+- Co-write `AuthCallback.tsx` (A0 only)
 
 ---
 
@@ -577,6 +599,7 @@ A0 owns this sub-contract and parent status. A6 owns RED slices. A3 owns custome
 
 - `docs/decisions/NEW-2F_auth-expansion.md` (this sub-contract)
 - `docs/decisions/NEW-2F_account-profile-auth-ux.md` (parent)
+- `docs/decisions/NEW-2F_c1-google-kakao.md` (C1 OPEN)
 - `docs/decisions/NEW-2F_b2b-hook-contract.md` (payment-test hosted hook — LIVE)
 - `docs/METALORA_PROJECT_STATE.md`
 - `docs/decisions/NEW-1_launch-pipeline-v3.md`

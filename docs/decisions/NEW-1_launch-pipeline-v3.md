@@ -43,7 +43,7 @@ Live handoff: `docs/METALORA_PROJECT_STATE.md`. NEW 2F auth expansion: `docs/dec
 | NEW 2C | **CLOSED** |
 | NEW 2D | **CLOSED** |
 | NEW 2E | **CLOSED** |
-| NEW 2F | **OPEN** — B1 COMPLETE; B2 COMPLETE / READY FOR CHECKPOINT; C1–E NOT STARTED |
+| NEW 2F | **OPEN** — B1 COMPLETE; B2 CHECKPOINTED / COMPLETE; C1 OPEN |
 | NEW 3 | **NOT OPENED** |
 | NEW 4 | **NOT OPENED** |
 | NEW 5 | **NOT OPENED** |
@@ -53,7 +53,7 @@ Live handoff: `docs/METALORA_PROJECT_STATE.md`. NEW 2F auth expansion: `docs/dec
 | NEW 9 | **NOT OPENED** |
 | LIVE | **NO** |
 
-Next 2F action: **B2 CHECKPOINT** after GPT review, then C1. Do **not** close NEW 2F. Do **not** start SNS from this note.
+Next 2F action: **C1-0 A6** after GPT review of STAGE OPEN. Do **not** close NEW 2F. Do **not** implement C1-0 from this note.
 
 ---
 
@@ -90,7 +90,7 @@ Do **not** reopen `#16`–`#23`.
 | NEW 2C | Global Shell / Component Consistency | **CLOSED** |
 | NEW 2D | Catalog / Storefront | **CLOSED** |
 | NEW 2E | Cart / Checkout / Payment UX/UI | **CLOSED** |
-| NEW 2F | Account / Profile / Auth UX/UI | **OPEN** — B1 COMPLETE; B2 COMPLETE / READY FOR CHECKPOINT; C1–E NOT STARTED |
+| NEW 2F | Account / Profile / Auth UX/UI | **OPEN** — B1 COMPLETE; B2 CHECKPOINTED / COMPLETE; C1 OPEN |
 
 ### NEW 3 — Admin / operations full UX/UI renewal
 
@@ -124,7 +124,7 @@ Do **not** reopen `#16`–`#23`.
 
 ## NEW 2F — Account / Profile / Auth UX/UI (OPEN)
 
-v1 `#25E` migrated here. **LIVE STATUS: OPEN.** Do **not** close from this note. B1 **COMPLETE**. B2 **COMPLETE / READY FOR CHECKPOINT**. C1 / C2 / D / E **NOT STARTED**. Detail: `docs/decisions/NEW-2F_account-profile-auth-ux.md`, `docs/decisions/NEW-2F_auth-expansion.md`.
+v1 `#25E` migrated here. **LIVE STATUS: OPEN.** Do **not** close from this note. B1 **COMPLETE**. B2 **CHECKPOINTED / COMPLETE**. C1 **OPEN** (`docs/decisions/NEW-2F_c1-google-kakao.md`). C2 / D / E **NOT STARTED**. Detail: `docs/decisions/NEW-2F_account-profile-auth-ux.md`, `docs/decisions/NEW-2F_auth-expansion.md`.
 
 The original v3 listing below is preserved as migrated `#25E` scope. Auth expansion (recovery, verified phone, Google/Kakao/Naver, linking) is **LAUNCH-REQUIRED** under NEW 2F and is **not** optional. That supersedes the historical “OUT OF NEW 2F / OPTIONAL AUTH EXPANSION” paragraph at the end of this section.
 
@@ -285,7 +285,7 @@ These requirements were **migrated, not deleted**.
 |----|--------|-----|
 | `#25C` | Cart / Checkout / Payment UX/UI Renewal | **NEW 2E** (CLOSED) |
 | `#25D` | Admin Page Full UX/UI Renewal | **NEW 3** (NOT OPENED) |
-| `#25E` | Existing Account / Profile UI Polish | **NEW 2F** (OPEN; B2 READY FOR CHECKPOINT) |
+| `#25E` | Existing Account / Profile UI Polish | **NEW 2F** (OPEN; C1 OPEN) |
 | `#25F` | Site-wide Visual / Interaction QA | **NEW 5** (NOT OPENED) |
 | `#20F` | Backup / restore | **NEW 6** |
 | `#24` composite (live Toss, settlement, cancel/refund, legal launch, fulfillment) | PARTIALLY MIGRATED | NEW 4 + NEW 7 + NEW 8 + NEW 9. Do **not** invent `#24A–J` history. |
@@ -356,7 +356,7 @@ LIVE
 
 Operational default: **sequential** unless explicitly authorized otherwise.
 
-Current next 2F action: **B2 CHECKPOINT**, then C1. NEW 2F remains **OPEN**.
+Current next 2F action: **C1-0 A6** after GPT review. NEW 2F remains **OPEN**. C1 is **OPEN**. Do not implement C1-0 from this note.
 
 ---
 
@@ -409,7 +409,7 @@ This note does **not** imply launch readiness.
 ## Next stage rule
 
 1. Live 2F status is in `docs/METALORA_PROJECT_STATE.md` and `docs/decisions/NEW-2F_auth-expansion.md`. This v3 note remains the pipeline-definition SoT.
-2. Next: **B2 CHECKPOINT** after GPT review (validated implementation + docs). Then C1. Do **not** close NEW 2F here.
+2. Next: **C1-0 A6** after GPT review of STAGE OPEN. Do **not** close NEW 2F. Do **not** implement C1-0 here.
 3. Do **not** open NEW 3–9 from this note.
 4. Do **not** activate live Toss. Do **not** deploy. Do **not** mutate production DB.
 
@@ -418,7 +418,7 @@ This note does **not** imply launch readiness.
 ## Do not do
 
 - Close NEW 2F from this note
-- Start SNS / C1 from this note
+- Implement C1-0 / start SNS source from this note
 - Rewrite v2 historical body to current statuses
 - Downgrade NEW 3 `#25D` or NEW 5 `#25F`
 - Treat historical OPTIONAL AUTH EXPANSION as the current exclusion
@@ -433,10 +433,10 @@ This note does **not** imply launch readiness.
 ## Resume procedure
 
 1. This note + `docs/METALORA_PROJECT_STATE.md` = pipeline definition + live handoff
-2. Next: **B2 CHECKPOINT** after GPT review
-3. Then C1 (payment-test). Do not start C1 here
+2. Next: **C1-0 A6** after GPT review of `docs/decisions/NEW-2F_c1-google-kakao.md`
+3. Then C1-1 → C1-4. Do not start C1-0 here
 4. Do not close NEW 2F. Do not open NEW 3–9 from this note
 
 Ownership: A0
 
-Relevant files: `docs/decisions/NEW-1_launch-pipeline-v3.md`, `docs/decisions/NEW-1_launch-pipeline-v2.md` (historical), `docs/METALORA_PROJECT_STATE.md`, `docs/decisions/NEW-2F_auth-expansion.md`, `.cursor/rules/00-project-governance.mdc`
+Relevant files: `docs/decisions/NEW-1_launch-pipeline-v3.md`, `docs/decisions/NEW-1_launch-pipeline-v2.md` (historical), `docs/METALORA_PROJECT_STATE.md`, `docs/decisions/NEW-2F_auth-expansion.md`, `docs/decisions/NEW-2F_c1-google-kakao.md`, `.cursor/rules/00-project-governance.mdc`
