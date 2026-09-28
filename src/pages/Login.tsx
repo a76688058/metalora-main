@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import LoginModal from '../components/LoginModal';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { isUsableMemberProfile, safeInternalPath } from '../lib/authIntegrity';
 
 export default function Login() {
@@ -9,6 +10,7 @@ export default function Login() {
   const [searchParams] = useSearchParams();
   const redirectUrl = safeInternalPath(searchParams.get('redirect'));
   const { user, profile, isLoading, isProfileResolved } = useAuth();
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (!isLoading && isProfileResolved && user && isUsableMemberProfile(profile)) {
@@ -30,15 +32,18 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#040D12] flex items-center justify-center relative overflow-hidden">
-      <div className="absolute inset-0 z-0 bg-gradient-to-br from-[#040D12] via-[#2E073F]/20 to-[#040D12]">
-      </div>
-      
-      <LoginModal 
-        isOpen={true} 
-        onClose={() => navigate('/')} 
+    <div
+      className={`min-h-screen ${
+        theme === 'dark'
+          ? 'bg-[#07080a]'
+          : 'bg-[#ebe7ee]'
+      }`}
+    >
+      <LoginModal
+        isOpen={true}
+        onClose={() => navigate('/')}
         onSuccess={handleSuccess}
-        redirectUrl={redirectUrl} 
+        redirectUrl={redirectUrl}
       />
     </div>
   );

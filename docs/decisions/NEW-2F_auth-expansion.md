@@ -2,13 +2,13 @@
 
 Status: **OPEN** (sub-workstream of NEW 2F)
 
-Date: 2026-09-23
+Date: 2026-09-28 (B2 live-state sync)
 
 Decision: Recovery, verified phone OTP, Google/Kakao/Naver, identity reconciliation, withdrawal, marketing consent, and membership consent history are **LAUNCH-REQUIRED**. They are **not** optional auth expansion.
 
 Parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. This is **not** a new master launch stage. NEW 2F remains **OPEN**. NEW 3 is **NOT OPENED**.
 
-This note does **not** authorize application source, DB mutation, provider enablement, env change, or deploy.
+This note is governance. It does **not** authorize SNS implementation, production mutation, or deploy. B2 implementation is already validated and remains **UNCOMMITTED** pending checkpoint.
 
 ---
 
@@ -16,15 +16,97 @@ This note does **not** authorize application source, DB mutation, provider enabl
 
 | Item | Value |
 |------|--------|
-| NEW 2F | **OPEN** |
+| NEW 2F | **OPEN** — do **not** close |
 | Auth expansion | **OPEN** — launch-required |
-| Visual/chrome 2F | **UNCOMMITTED**; USER visual review **not** complete |
-| A6 RED | **REQUIRED** |
-| Implementation | **SLICED** — 0b / A / B / C1 / C2 / D / E |
+| B1 | **COMPLETE** |
+| B2 | **COMPLETE / READY FOR CHECKPOINT** |
+| B2a Customer Auth UX | **COMPLETE / USER APPROVED / A5 PASS** (uncommitted) |
+| C1 Google / Kakao | **NOT STARTED** |
+| C2 Naver | **NOT STARTED** |
+| D Account security / withdrawal / consent | **NOT STARTED** |
+| E Final Auth / Profile UX integration | **NOT STARTED** |
+| Slice 0b production inventory | **NOT DONE** — not a B2 blocker |
 | Production providers / unique verified-phone | **GATED** |
-| Next RED action | **A6 — SLICE 0b** if production read-only SQL is available; else **A6 — SLICE A PAYMENT-TEST FOUNDATION PLAN** |
+| Production | **UNCHANGED** |
+| Next action | **B2 CHECKPOINT** after GPT review — one commit of validated implementation + these docs. Then C1. |
 
-Evidence: A0 PRE-AUDIT COMPLETE. A6 AUTH ARCHITECTURE AUDIT COMPLETE. A6 ARCHITECTURE CLARIFICATION COMPLETE. Architecture blockers for this contract text: **NONE**.
+Evidence: A0 PRE-AUDIT COMPLETE. A6 AUTH ARCHITECTURE AUDIT COMPLETE. A6 ARCHITECTURE CLARIFICATION COMPLETE. B2 implementation + A5 integrated QA **PASS**. Blocker / HIGH / MEDIUM: **NONE**.
+
+---
+
+## B2 live state — CURRENT TRUTH (2026-09-28)
+
+Durable HEAD / origin/main at this sync: `662b71debc13c945a048a1dfd9d7da6ce4164d99`. Substantial validated B2 WIP remains uncommitted. Do not revert it. Do not docs-only commit.
+
+### B2a — Customer Auth UX
+
+**COMPLETE / USER APPROVED / A5 PASS.**
+
+Includes: Login; trusted password Signup; verified-phone OTP Signup; username server check; password minimum 8; Signup password confirmation; Signup stale-state clearing; unified ID/password Recovery; Recovery OTP; recoverable username display; password reset; Recovery password confirmation; Auth mode-exit stale-state clearing; minimal METALORA premium material UX.
+
+Official Signup **no longer** uses browser `supabase.auth.signUp`.
+
+Final A3 mode-exit cleanup: **PASS**. Do **not** treat remaining Profile `계정 및 보안` / D / E as part of this B2 close.
+
+### Verified phone / payment
+
+Usable customer membership requires **all** of:
+
+- nonblank `user_custom_id`
+- nonblank `verified_phone_fingerprint`
+- non-null `phone_verified_at`
+
+`profiles.phone_number` remains contact/shipping only and is **NOT** authority. Do not auto-promote it.
+
+Payment prepare/confirm now use the same verified-phone customer requirement. Payment-gate implementation/tests are **validated WIP**. No payment amount / Toss business semantics changed. Final A6 verification-contract cleanup: **PASS**.
+
+### B2b hosted Auth ingress — LIVE on payment-test
+
+Payment-test project: `bvihpoorwriejybixmoc`. Production project: `qifloweuwyhvukabgnoa`. Production was **NOT** mutated.
+
+Hosted Before User Created hook is **ENABLED and LIVE** in payment-test.
+
+- Function: `public.hook_before_user_created(jsonb)`
+- Hosted Auth mapping: `pg-functions://postgres/public/hook_before_user_created`
+
+Observed live behavior: public `provider=email` `signUp` → **403** `Public password signup is not allowed.` → no user/session leftover. This also blocks non-`@metalora.me` public email signup.
+
+Do **not** document current state as “hook is not invoked”, “hook still needs to be enabled”, or “public signup currently fails only through `handle_new_user` / P0001”. Those are **historical** findings only. Detail: `docs/decisions/NEW-2F_b2b-hook-contract.md`.
+
+Provider policy in the hook: email / empty / anonymous → reject; google / kakao / naver → allow by hook policy. This does **not** mean SNS login is implemented. Google/Kakao = future Slice C1. Naver = future Slice C2. Global signup was **not** disabled. Email/password remains usable for trusted Admin `createUser` and existing password login.
+
+### Username enumeration — CLOSED for B2
+
+Direct `profiles_username_exists` is no longer callable by `anon` or `authenticated`. It remains available only to privileged server roles as required.
+
+Official UI uses `POST /api/auth/signup/username-check`.
+
+### Password minimum
+
+Current password minimum is **8 characters**.
+
+Verified layers: Signup UI; Recovery/reset UI; trusted backend; hosted GoTrue.
+
+Observed hosted Auth: 7 chars → **422** `weak_password`; 8 chars → accepted when otherwise valid.
+
+No mandatory uppercase, number, or symbol. Signup is **not** still 6.
+
+### Payment-test OTP dev observability
+
+Payment-test has `GET /api/auth/dev/otp/latest` only when **all** hold: `METALORA_ENV=payment-test`, `SMS_ADAPTER=dev-capture`, non-production Supabase host, loopback request.
+
+Dev/test observability only. It does **not** return OTP from the normal send endpoint, bypass OTP verification, or exist for production.
+
+### Expected residuals — not B2 blockers
+
+- direct GoTrue `signInWithPassword` remains outside app-local login throttles
+- Google/Kakao customer SNS flow not implemented yet
+- Naver customer SNS flow not implemented yet
+- historical incomplete/raw accounts are not repaired
+- production rollout has not happened
+- production verified-phone unique index still awaits Slice 0b
+- password reset does not guarantee immediate invalidation of already-issued access JWTs
+- production remains unchanged
 
 ---
 
@@ -97,7 +179,7 @@ Phone is **NOT** a GoTrue phone-login identity at launch.
 
 ### A. Account / recovery phone
 
-Conceptual fields (names may match A6): `verified_phone_e164`, `verified_phone_hmac`, `phone_verified_at`.
+Live authority fields: `verified_phone_e164` (sensitive; not ordinary AuthContext select), `verified_phone_fingerprint`, `phone_verified_at`. Conceptual `verified_phone_hmac` in earlier contract text maps to live `verified_phone_fingerprint`.
 
 Authority: A6 trusted OTP / change-phone path **only**.
 
@@ -108,7 +190,7 @@ Authority: A6 trusted OTP / change-phone path **only**.
 - cannot be set by checkout / profile free-text writes
 - unique enforcement **only after** production inventory gate (Slice 0b)
 
-`verified_phone_hmac` remains reserved across withdrawn accounts until NEW 4 defines re-registration policy.
+`verified_phone_fingerprint` remains reserved across withdrawn accounts until NEW 4 defines re-registration policy.
 
 ### B. Contact / shipping phone
 
@@ -272,7 +354,7 @@ Stack:
 - scrub active PII
 - preserve stable profile/auth identity as required
 - clear plaintext `verified_phone_e164`
-- retain `verified_phone_hmac` reservation
+- retain `verified_phone_fingerprint` reservation
 - globally revoke sessions
 - randomize password as defense in depth
 - ban/disable Supabase Auth user
@@ -364,7 +446,7 @@ Use: restrained magenta → violet → cyan spectral language; directional metal
 
 Avoid: noisy neon; generic SaaS; gaming/cyberpunk dashboard; excessive explanatory copy; always-moving decorative animation.
 
-Current Login redesign is **UNCOMMITTED**; USER has **not** finally approved it. Pending visual refinements (remove `로그인` heading/subtitle; logo-only top; simplify signup copy; directional metallic specular instead of round white glow; stronger localized chromatic edge; aluminum/panel character) are **A3**, not this docs ticket.
+B2a Login / Signup / Recovery UX is **USER APPROVED / A5 PASS** and remains uncommitted pending the B2 checkpoint. Slice E still owns final Profile / `계정 및 보안` integration. Do not reopen B2a visuals from later SNS/D tickets.
 
 ---
 
@@ -384,33 +466,35 @@ Do **not** blend uncommitted A3 visual files into Auth backend slices. Do not co
 
 ## Slices
 
+Live progress (do **not** close NEW 2F): **0b NOT DONE**; **A COMPLETE**; **B1 COMPLETE**; **B2 COMPLETE / READY FOR CHECKPOINT**; **C1 NOT STARTED**; **C2 NOT STARTED**; **D NOT STARTED**; **E NOT STARTED**.
+
 ### SLICE 0b — PRODUCTION READ-ONLY INVENTORY
 
-A6. READ ONLY. Required before production unique verified-phone enforcement. No implementation.
+A6. READ ONLY. Required before production unique verified-phone enforcement. **NOT DONE.** Not a B2 blocker.
 
 ### SLICE A — VERIFIED PHONE / OTP FOUNDATION
 
-A6 primary. **Payment-test first.** Additive verified-phone fields; OTP challenge; rate-limit foundation; recovery identity authority; stop conflating contact phone with recovery phone; write-path authority enforcement. **No SNS.** Checkpoint/report before B.
+A6 primary. **COMPLETE** on payment-test. Additive verified-phone fields; OTP challenge; rate-limit foundation; recovery identity authority; contact phone is not recovery phone. **No SNS.**
 
 ### SLICE B — RECOVERY + PASSWORD
 
-A6 + A3. Unified ID/password recovery; password reset ticket; password change; social-user password set foundation; anti-enumeration; visual review. Checkpoint/report before C1.
+A6 + A3. Split as **B1 COMPLETE** and **B2 COMPLETE / READY FOR CHECKPOINT**. Unified ID/password recovery; password reset; password change; anti-enumeration; B2a customer auth UX; verified-phone member/payment gate; B2b hosted ingress. Checkpoint is the next authorized commit of validated WIP + docs. Then C1.
 
 ### SLICE C1 — GOOGLE + KAKAO
 
-A6 + A0 + A3. **Payment-test only first.** Providers; pending-social callback; phone completion; required consent; internal username; manual identity linking; pending cleanup. Checkpoint/report required.
+**NOT STARTED.** A6 + A0 + A3. **Payment-test only first.** Providers; pending-social callback; phone completion; required consent; internal username; manual identity linking; pending cleanup. Hook allow-list for google/kakao is **not** C1 completion.
 
 ### SLICE C2 — NAVER
 
-Separate. `custom:naver` first. Fallback server proxy only if required. Do **not** merge into C1 checkpoint.
+**NOT STARTED.** Separate. `custom:naver` first. Fallback server proxy only if required. Do **not** merge into C1 checkpoint. Hook allow-list for naver is **not** C2 completion.
 
 ### SLICE D — ACCOUNT SECURITY / WITHDRAWAL / CONSENT
 
-A6 + A3. `계정 및 보안`; withdrawal; `account_status` gates; consent ledger; marketing history/toggle; `user_agreements` hardening. Checkpoint/report required.
+**NOT STARTED.** A6 + A3. `계정 및 보안`; withdrawal; `account_status` gates; consent ledger; marketing history/toggle; `user_agreements` hardening. Checkpoint/report required.
 
 ### SLICE E — FINAL AUTH / PROFILE UX INTEGRATION
 
-A3 primary. Final Login signature; Profile/account integration; minimal Toss-like text; METALORA interactive material language; USER visual approval. Then A5 targeted QA → A0 closure.
+**NOT STARTED.** A3 primary. Final Profile/account integration; remaining chrome; USER visual approval of leftover 2F surfaces. Then A5 targeted QA → A0 closure. B2a Login/Signup/Recovery is already USER-approved.
 
 ---
 
@@ -471,16 +555,19 @@ Production rollout remains separately gated by launch pipeline stages (NEW 6/7 e
 
 ## Do Not Do
 
-- Implement from this amendment
-- Mutate DB / enable providers / edit env / deploy
+- Implement SNS / C1 / D / E from this docs sync
+- Docs-only commit of B2 (checkpoint is later, with implementation)
+- Mutate DB / enable production providers / edit env / deploy
+- Close NEW 2F
 - Open NEW 3
-- Commit or revert A3 uncommitted visual files
+- Revert uncommitted validated B2 WIP
 - Auto-promote `profiles.phone_number` to verified
 - Use GoTrue phone login at launch
 - Use provider email as silent merge
 - Unlink SNS identities on withdrawal
 - Account-global login lockout
 - Collapse CookieBanner / checkout consents / Custom `user_agreements` / membership ledger into one table
+- Document current hook state as “not invoked” or “still needs enablement”
 
 ---
 
@@ -490,4 +577,6 @@ A0 owns this sub-contract and parent status. A6 owns RED slices. A3 owns custome
 
 - `docs/decisions/NEW-2F_auth-expansion.md` (this sub-contract)
 - `docs/decisions/NEW-2F_account-profile-auth-ux.md` (parent)
+- `docs/decisions/NEW-2F_b2b-hook-contract.md` (payment-test hosted hook — LIVE)
 - `docs/METALORA_PROJECT_STATE.md`
+- `docs/decisions/NEW-1_launch-pipeline-v3.md`

@@ -18,6 +18,7 @@ import { registerOtpAuthRoutes } from "./src/lib/otpAuthHandlers";
 import { registerPasswordAuthRoutes } from "./src/lib/passwordAuthHandlers";
 import { resolveSmsAdapter } from "./src/lib/smsAdapter";
 import { configureExpressTrustProxy, resolveTrustedIpMode } from "./src/lib/trustedClientIp";
+import { verifyPaymentMember } from "./src/lib/paymentMemberAuth";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1555,51 +1556,7 @@ async function verifyPaymentBearer(
   | { ok: true; user: VerifiedPaymentUser }
   | { ok: false; status: number; error: string }
 > {
-  if (!supabaseAdmin || !supabasePublic) {
-    console.error("[CRITICAL] Supabase is not configured for payment endpoints.");
-    return { ok: false, status: 500, error: "서버 구성 오류가 발생했습니다." };
-  }
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return { ok: false, status: 401, error: "인증이 필요합니다." };
-  }
-
-  const accessToken = authHeader.slice(7).trim();
-  if (!accessToken) {
-    return { ok: false, status: 401, error: "인증이 필요합니다." };
-  }
-
-  const { data: authData, error: authError } = await supabasePublic.auth.getUser(accessToken);
-  if (authError || !authData.user) {
-    console.error("[PAYMENT_AUTH_FAIL] Invalid or expired token.");
-    return { ok: false, status: 401, error: "인증이 필요합니다." };
-  }
-
-  const { data: ownerProfile, error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .select('user_custom_id')
-    .eq('id', authData.user.id)
-    .maybeSingle();
-
-  if (profileError || !ownerProfile) {
-    console.error("[PAYMENT_PROFILE_FAIL] Profile missing for verified user.");
-    return { ok: false, status: 400, error: "회원 정보를 확인할 수 없습니다." };
-  }
-
-  const verifiedUserCustomId =
-    typeof ownerProfile.user_custom_id === 'string' ? ownerProfile.user_custom_id.trim() : '';
-  if (!verifiedUserCustomId) {
-    console.error("[PAYMENT_PROFILE_FAIL] user_custom_id missing for verified user.");
-    return { ok: false, status: 400, error: "회원 정보를 확인할 수 없습니다." };
-  }
-
-  return {
-    ok: true,
-    user: {
-      verifiedUserId: authData.user.id,
-      verifiedUserCustomId,
-    },
-  };
+  return verifyPaymentMember(supabaseAdmin, supabasePublic, authHeader);
 }
 
 function getTossBasicAuthHeader(secretKey: string): string {

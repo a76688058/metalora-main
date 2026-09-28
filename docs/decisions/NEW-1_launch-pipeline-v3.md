@@ -2,11 +2,11 @@
 
 Status: **ACTIVE** (current operating-mode SoT)
 
-Date: 2026-09-23
+Date: 2026-09-28 (live-status overlay; original v3 body preserved)
 
-Decision: Current operating mode is **MASTER PIPELINE v3 ACTIVE**. This note is the successor to `docs/decisions/NEW-1_launch-pipeline-v2.md`. Historical `#16`–`#23` and NEW 1 remain closed. NEW 2A–2E remain closed. NEW 2F is **NOT OPENED**.
+Decision: Current operating mode is **MASTER PIPELINE v3 ACTIVE**. This note is the successor to `docs/decisions/NEW-1_launch-pipeline-v2.md`. Historical `#16`–`#23` and NEW 1 remain closed. NEW 2A–2E remain closed. NEW 2F is **OPEN**. Live 2F slice state lives in `docs/METALORA_PROJECT_STATE.md` and `docs/decisions/NEW-2F_auth-expansion.md`.
 
-This note does **not** open NEW 2F. It does **not** authorize application implementation, deploy, production DB mutation, or live Toss.
+This note does **not** close NEW 2F. It does **not** authorize SNS implementation, deploy, production DB mutation, or live Toss.
 
 ---
 
@@ -32,6 +32,8 @@ Do **not** rewrite the v2 body to current stage status.
 
 ## Current statuses
 
+Live handoff: `docs/METALORA_PROJECT_STATE.md`. NEW 2F auth expansion: `docs/decisions/NEW-2F_auth-expansion.md`.
+
 | Stage | Status |
 |------|--------|
 | NEW 1 | **CLOSED** |
@@ -41,7 +43,7 @@ Do **not** rewrite the v2 body to current stage status.
 | NEW 2C | **CLOSED** |
 | NEW 2D | **CLOSED** |
 | NEW 2E | **CLOSED** |
-| NEW 2F | **NOT OPENED** |
+| NEW 2F | **OPEN** — B1 COMPLETE; B2 COMPLETE / READY FOR CHECKPOINT; C1–E NOT STARTED |
 | NEW 3 | **NOT OPENED** |
 | NEW 4 | **NOT OPENED** |
 | NEW 5 | **NOT OPENED** |
@@ -51,7 +53,7 @@ Do **not** rewrite the v2 body to current stage status.
 | NEW 9 | **NOT OPENED** |
 | LIVE | **NO** |
 
-Next unopened customer UX substage: **NEW 2F**. Do **not** open it from this note.
+Next 2F action: **B2 CHECKPOINT** after GPT review, then C1. Do **not** close NEW 2F. Do **not** start SNS from this note.
 
 ---
 
@@ -88,7 +90,7 @@ Do **not** reopen `#16`–`#23`.
 | NEW 2C | Global Shell / Component Consistency | **CLOSED** |
 | NEW 2D | Catalog / Storefront | **CLOSED** |
 | NEW 2E | Cart / Checkout / Payment UX/UI | **CLOSED** |
-| NEW 2F | Account / Profile / Auth UX/UI | **NOT OPENED** |
+| NEW 2F | Account / Profile / Auth UX/UI | **OPEN** — B1 COMPLETE; B2 COMPLETE / READY FOR CHECKPOINT; C1–E NOT STARTED |
 
 ### NEW 3 — Admin / operations full UX/UI renewal
 
@@ -120,9 +122,11 @@ Do **not** reopen `#16`–`#23`.
 
 ---
 
-## NEW 2F — Account / Profile / Auth UX/UI (NOT OPENED)
+## NEW 2F — Account / Profile / Auth UX/UI (OPEN)
 
-v1 `#25E` migrated here. Do **not** open from this note.
+v1 `#25E` migrated here. **LIVE STATUS: OPEN.** Do **not** close from this note. B1 **COMPLETE**. B2 **COMPLETE / READY FOR CHECKPOINT**. C1 / C2 / D / E **NOT STARTED**. Detail: `docs/decisions/NEW-2F_account-profile-auth-ux.md`, `docs/decisions/NEW-2F_auth-expansion.md`.
+
+The original v3 listing below is preserved as migrated `#25E` scope. Auth expansion (recovery, verified phone, Google/Kakao/Naver, linking) is **LAUNCH-REQUIRED** under NEW 2F and is **not** optional. That supersedes the historical “OUT OF NEW 2F / OPTIONAL AUTH EXPANSION” paragraph at the end of this section.
 
 ### Login
 
@@ -171,11 +175,11 @@ v1 `#25E` migrated here. Do **not** open from this note.
 - USER visual approval
 - A5 targeted QA
 
-### Explicitly OUT OF NEW 2F
+### Explicitly OUT OF NEW 2F (historical v3 listing — SUPERSEDED AS CURRENT CLASSIFICATION)
 
-SNS signup/login; password reset; account recovery; phone verification; account linking.
+The original v3 listing placed SNS signup/login, password reset, account recovery, phone verification, and account linking **OUT OF NEW 2F / OPTIONAL AUTH EXPANSION**.
 
-These remain **OPTIONAL AUTH EXPANSION**. They are **not** launch blockers and must **not** be merged into NEW 2F automatically.
+That classification is **SUPERSEDED**. Those items are **LAUNCH-REQUIRED** under NEW 2F. Current contract: `docs/decisions/NEW-2F_auth-expansion.md`. Apple, MFA, recovery email, and consumer SNS connect/disconnect UI remain out for launch there.
 
 ---
 
@@ -281,13 +285,13 @@ These requirements were **migrated, not deleted**.
 |----|--------|-----|
 | `#25C` | Cart / Checkout / Payment UX/UI Renewal | **NEW 2E** (CLOSED) |
 | `#25D` | Admin Page Full UX/UI Renewal | **NEW 3** (NOT OPENED) |
-| `#25E` | Existing Account / Profile UI Polish | **NEW 2F** (NOT OPENED) |
+| `#25E` | Existing Account / Profile UI Polish | **NEW 2F** (OPEN; B2 READY FOR CHECKPOINT) |
 | `#25F` | Site-wide Visual / Interaction QA | **NEW 5** (NOT OPENED) |
 | `#20F` | Backup / restore | **NEW 6** |
 | `#24` composite (live Toss, settlement, cancel/refund, legal launch, fulfillment) | PARTIALLY MIGRATED | NEW 4 + NEW 7 + NEW 8 + NEW 9. Do **not** invent `#24A–J` history. |
 | `#25A` | | NEW 2A + 2C (CLOSED) |
 | `#25B` | | NEW 2D (CLOSED) |
-| `#26` | | Login/signup/account visual → NEW 2F; expansion → OPTIONAL AUTH EXPANSION |
+| `#26` | | Login/signup/account visual → NEW 2F; expansion → **LAUNCH-REQUIRED** under NEW 2F (`NEW-2F_auth-expansion.md`; historical OPTIONAL AUTH EXPANSION **SUPERSEDED**) |
 
 ---
 
@@ -301,9 +305,9 @@ Shared-chrome compatibility fixes remain allowed with evidence. v3 migration mus
 
 ---
 
-## OPTIONAL AUTH EXPANSION
+## OPTIONAL AUTH EXPANSION — SUPERSEDED AS CURRENT CLASSIFICATION
 
-Separate from launch-critical v3 and **out of NEW 2F**:
+The original v3 listing treated the following as separate from launch-critical v3 and out of NEW 2F:
 
 - SNS signup/login
 - password reset
@@ -311,7 +315,7 @@ Separate from launch-critical v3 and **out of NEW 2F**:
 - phone verification
 - account linking
 
-Do **not** merge into NEW 2F automatically. Do **not** call them launch blockers.
+That classification is **SUPERSEDED**. They are **LAUNCH-REQUIRED** under NEW 2F. Current contract: `docs/decisions/NEW-2F_auth-expansion.md`. Google/Kakao = C1 **NOT STARTED**. Naver = C2 **NOT STARTED**. Do **not** treat this historical heading as an active exclusion.
 
 ---
 
@@ -352,7 +356,7 @@ LIVE
 
 Operational default: **sequential** unless explicitly authorized otherwise.
 
-Current next unopened customer UX substage: **NEW 2F**.
+Current next 2F action: **B2 CHECKPOINT**, then C1. NEW 2F remains **OPEN**.
 
 ---
 
@@ -404,8 +408,8 @@ This note does **not** imply launch readiness.
 
 ## Next stage rule
 
-1. Close this MASTER PIPELINE v3 governance write (A5 package QA, then authorized A0 commit). Do **not** treat this write as already committed.
-2. After v3 migration closes: **A0 PRE-STAGE REPORT — NEW 2F**. NEW 2F remains **NOT OPENED** until that report is reviewed and **OPEN READY**.
+1. Live 2F status is in `docs/METALORA_PROJECT_STATE.md` and `docs/decisions/NEW-2F_auth-expansion.md`. This v3 note remains the pipeline-definition SoT.
+2. Next: **B2 CHECKPOINT** after GPT review (validated implementation + docs). Then C1. Do **not** close NEW 2F here.
 3. Do **not** open NEW 3–9 from this note.
 4. Do **not** activate live Toss. Do **not** deploy. Do **not** mutate production DB.
 
@@ -413,10 +417,11 @@ This note does **not** imply launch readiness.
 
 ## Do not do
 
-- Open NEW 2F from this note
+- Close NEW 2F from this note
+- Start SNS / C1 from this note
 - Rewrite v2 historical body to current statuses
 - Downgrade NEW 3 `#25D` or NEW 5 `#25F`
-- Merge OPTIONAL AUTH EXPANSION into NEW 2F
+- Treat historical OPTIONAL AUTH EXPANSION as the current exclusion
 - Promote `#27`–`#30` into launch-critical path automatically
 - Redesign frozen Home/PDP
 - Claim production 2B rollout, live Toss, production payment, or deploy
@@ -427,11 +432,11 @@ This note does **not** imply launch readiness.
 
 ## Resume procedure
 
-1. This note + `docs/METALORA_PROJECT_STATE.md` = current SoT
-2. Next: **A5 — MASTER PIPELINE v3 GOVERNANCE PACKAGE QA**
-3. Then authorized A0 commit of this four-file package
-4. Then **A0 PRE-STAGE REPORT — NEW 2F** (do not open 2F here)
+1. This note + `docs/METALORA_PROJECT_STATE.md` = pipeline definition + live handoff
+2. Next: **B2 CHECKPOINT** after GPT review
+3. Then C1 (payment-test). Do not start C1 here
+4. Do not close NEW 2F. Do not open NEW 3–9 from this note
 
 Ownership: A0
 
-Relevant files: `docs/decisions/NEW-1_launch-pipeline-v3.md`, `docs/decisions/NEW-1_launch-pipeline-v2.md` (historical), `docs/METALORA_PROJECT_STATE.md`, `.cursor/rules/00-project-governance.mdc`
+Relevant files: `docs/decisions/NEW-1_launch-pipeline-v3.md`, `docs/decisions/NEW-1_launch-pipeline-v2.md` (historical), `docs/METALORA_PROJECT_STATE.md`, `docs/decisions/NEW-2F_auth-expansion.md`, `.cursor/rules/00-project-governance.mdc`

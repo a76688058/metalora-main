@@ -1,22 +1,34 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { Loader2, X, Check } from 'lucide-react';
+import { Loader2, X, Check, ChevronLeft } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import PolicyModal from './PolicyModal';
-import { policies } from './Footer';
+import { policies } from '../constants/policies';
 import { cn } from '../lib/cn';
 import { zClass } from '../constants/overlays';
 import { useShellOverlay } from '../context/ShellOverlayContext';
 import {
   memberAuthEmail,
-  memberStoredUsername,
   memberUsernameSignupError,
   normalizeMemberUsername,
 } from '../lib/memberUsername';
 import { isUsableMemberProfile, PROFILE_COLUMNS } from '../lib/authIntegrity';
+import { memberPasswordError } from '../lib/passwordPolicy';
+import { normalizeKrMobilePhone } from '../lib/phoneNormalize';
+import PasswordVisibilityToggle from './auth/PasswordVisibilityToggle';
+import {
+  mapOtpSendError,
+  mapOtpVerifyError,
+  mapPasswordResetError,
+  mapRecoveryResolveError,
+  mapSignupCompleteError,
+  postCustomerAuth,
+  readProofToken,
+  readRecoverySessionToken,
+} from './auth/customerAuthRequests';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -25,58 +37,63 @@ interface LoginModalProps {
   redirectUrl?: string;
 }
 
-const CheckboxRow = ({ 
-  label, 
-  required, 
-  checked, 
-  onChange, 
+type AuthView = 'login' | 'signup' | 'recovery' | 'reset';
+
+const EMPTY_AUTH_FORM = {
+  username: '',
+  password: '',
+  passwordConfirm: '',
+  full_name: '',
+  phone_number: '',
+};
+
+const OTP_RESEND_SECONDS = 60;
+const USERNAME_CHECK_MS = 550;
+
+const CheckboxRow = ({
+  label,
+  required,
+  checked,
+  onChange,
   onView,
-  theme
-}: { 
-  label: string; 
-  required?: boolean; 
-  checked: boolean; 
-  onChange: () => void; 
+  theme,
+}: {
+  label: string;
+  required?: boolean;
+  checked: boolean;
+  onChange: () => void;
   onView?: () => void;
   theme?: string;
 }) => (
-  <div className="flex items-center gap-3 py-2">
+  <div className="flex items-center gap-3 py-1">
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      aria-label={required ? `${label} (필수)` : label}
+      onClick={onChange}
+      className={cn(
+        'w-5 h-5 rounded-md flex items-center justify-center transition-colors flex-shrink-0 focus-ring border',
+        checked
+          ? (theme === 'dark' ? 'border-transparent bg-zinc-300' : 'border-transparent bg-zinc-800')
+          : (theme === 'dark' ? 'bg-zinc-800 border-white/10' : 'bg-zinc-100 border-black/10'),
+      )}
+    >
+      {checked && <Check size={12} className={theme === 'dark' ? 'text-zinc-900' : 'text-white'} strokeWidth={3} />}
+    </button>
     <button
       type="button"
       onClick={onChange}
-      className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
-        checked 
-          ? 'bg-purple-600' 
-          : (theme === 'dark' ? 'bg-zinc-800 border border-white/10' : 'bg-zinc-100 border border-black/10')
-      }`}
+      className="flex-1 text-left flex items-center gap-1.5 min-w-0 focus-ring rounded-md"
     >
-      <AnimatePresence mode="wait">
-        {checked && (
-          <motion.div
-            key="check"
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ type: 'spring', damping: 15, stiffness: 300 }}
-          >
-            <Check size={14} className="text-white" strokeWidth={3} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </button>
-    <button 
-      type="button" 
-      onClick={onChange}
-      className="flex-1 text-left flex items-center gap-1.5"
-    >
-      {required && <span className="text-purple-500 text-[15px] font-bold">[필수]</span>}
-      <span className={`text-[15px] font-medium ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>{label}</span>
+      {required && <span className="text-zinc-500 text-[13px] font-medium shrink-0">[필수]</span>}
+      <span className={`text-[13px] font-medium ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>{label}</span>
     </button>
     {onView && (
       <button
         type="button"
         onClick={onView}
-        className={`text-[13px] underline ml-auto px-2 py-1 font-medium ${theme === 'dark' ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600'}`}
+        className={`text-[12px] underline underline-offset-4 ml-auto px-2 py-1 font-medium focus-ring rounded-md ${theme === 'dark' ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600'}`}
       >
         보기
       </button>
@@ -84,22 +101,33 @@ const CheckboxRow = ({
   </div>
 );
 
+function dialogLabel(view: AuthView): string {
+  if (view === 'signup') return '회원가입';
+  if (view === 'recovery') return '계정 찾기';
+  if (view === 'reset') return '비밀번호 재설정';
+  return '로그인';
+}
+
 export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '/' }: LoginModalProps) {
   const { user, profile, refreshSession, signOut } = useAuth();
   const { showToast } = useToast();
   const { theme } = useTheme();
   const { registerLoginOverlay } = useShellOverlay();
-  const [isLoginMode, setIsLoginMode] = useState(true);
-  const [isConsentOpen, setIsConsentOpen] = useState(false);
+  const [view, setView] = useState<AuthView>('login');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
-  const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    full_name: '',
-    phone_number: '',
-  });
+  const [formData, setFormData] = useState(EMPTY_AUTH_FORM);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showResetPasswordConfirm, setShowResetPasswordConfirm] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState('');
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [fieldFocus, setFieldFocus] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef(0);
+  const leaveTimerRef = useRef<number | null>(null);
 
   const [agreements, setAgreements] = useState({
     terms: false,
@@ -111,7 +139,44 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     key: null,
   });
 
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [usernameChecking, setUsernameChecking] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
+  const [signupProof, setSignupProof] = useState<string | null>(null);
+  const [recoveryProof, setRecoveryProof] = useState<string | null>(null);
+  const [recoverySession, setRecoverySession] = useState<string | null>(null);
+  const [recoverableUsername, setRecoverableUsername] = useState<string | null>(null);
+  const [passwordResetAllowed, setPasswordResetAllowed] = useState(false);
+  const [recoveryResolved, setRecoveryResolved] = useState(false);
+
   const allChecked = agreements.terms && agreements.privacy && agreements.cookie;
+  const isDark = theme === 'dark';
+
+  const setPanelVars = useCallback((xPct: number, yPct: number, live: number, tiltX: number, tiltY: number) => {
+    const el = panelRef.current;
+    if (!el) return;
+    const nx = xPct / 100;
+    const ny = yPct / 100;
+    el.style.setProperty('--lx', `${xPct}%`);
+    el.style.setProperty('--ly', `${yPct}%`);
+    el.style.setProperty('--live', String(live));
+    el.style.setProperty('--tx', String(tiltX));
+    el.style.setProperty('--ty', String(tiltY));
+    el.style.setProperty('--rot', `${26 + (nx - 0.5) * 8 + (ny - 0.5) * 4}deg`);
+  }, []);
+
+  const resetPanelLight = useCallback((live = 0) => {
+    setPanelVars(52, 22, live, 0, 0);
+  }, [setPanelVars]);
+
+  const wakeSurface = useCallback(() => {
+    if (!reduceMotion) setPanelVars(48, 28, 0.32, 0, 0);
+  }, [reduceMotion, setPanelVars]);
 
   const handleSelectAll = () => {
     const newValue = !allChecked;
@@ -124,6 +189,69 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
 
   const toggleAgreement = (key: keyof typeof agreements) => {
     setAgreements(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const clearAlerts = () => setErrorMsg('');
+
+  const resetTransientAuth = () => {
+    setOtpCode('');
+    setOtpSent(false);
+    setOtpVerified(false);
+    setOtpSending(false);
+    setOtpVerifying(false);
+    setResendIn(0);
+    setSignupProof(null);
+    setRecoveryProof(null);
+    setRecoverySession(null);
+    setRecoverableUsername(null);
+    setPasswordResetAllowed(false);
+    setRecoveryResolved(false);
+    setResetPassword('');
+    setResetPasswordConfirm('');
+    setShowPassword(false);
+    setShowPasswordConfirm(false);
+    setShowResetPassword(false);
+    setShowResetPasswordConfirm(false);
+    setUsernameAvailable(null);
+    setUsernameChecking(false);
+    clearAlerts();
+  };
+
+  const resetAuthSurface = () => {
+    setView('login');
+    setIsLoading(false);
+    setFormData(EMPTY_AUTH_FORM);
+    setAgreements({ terms: false, privacy: false, cookie: false });
+    setPolicyModalState({ isOpen: false, key: null });
+    resetTransientAuth();
+  };
+
+  const goView = (next: AuthView) => {
+    if (next === 'login' && view === 'signup') {
+      setFormData(EMPTY_AUTH_FORM);
+      setAgreements({ terms: false, privacy: false, cookie: false });
+      setPolicyModalState({ isOpen: false, key: null });
+      setIsLoading(false);
+    } else if (next === 'login' && (view === 'recovery' || view === 'reset')) {
+      setFormData((prev) => ({ ...prev, phone_number: '' }));
+    }
+    setView(next);
+    resetTransientAuth();
+    wakeSurface();
+  };
+
+  const goBack = () => {
+    if (view === 'reset') {
+      setView('recovery');
+      setResetPassword('');
+      setResetPasswordConfirm('');
+      setShowResetPassword(false);
+      setShowResetPasswordConfirm(false);
+      clearAlerts();
+      wakeSurface();
+      return;
+    }
+    goView('login');
   };
 
   useLayoutEffect(() => {
@@ -147,11 +275,118 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
+      resetAuthSurface();
     }
     return () => {
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      if (policyModalState.isOpen) return;
+      if (view !== 'login') {
+        goBack();
+        return;
+      }
+      onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, view, policyModalState.isOpen, onClose]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const apply = () => setReduceMotion(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    resetPanelLight(reduceMotion ? 0.08 : 0.16);
+    if (reduceMotion) return undefined;
+    const settle = window.setTimeout(() => resetPanelLight(0), 800);
+    return () => window.clearTimeout(settle);
+  }, [isOpen, reduceMotion, resetPanelLight]);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (leaveTimerRef.current !== null) window.clearTimeout(leaveTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (resendIn <= 0) return undefined;
+    const id = window.setInterval(() => {
+      setResendIn((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [resendIn]);
+
+  useEffect(() => {
+    if (view !== 'signup') return undefined;
+    const signupError = memberUsernameSignupError(formData.username);
+    if (signupError) {
+      setUsernameAvailable(null);
+      setUsernameChecking(false);
+      return undefined;
+    }
+    setUsernameChecking(false);
+    setUsernameAvailable(null);
+    let cancelled = false;
+    const handle = window.setTimeout(async () => {
+      setUsernameChecking(true);
+      const result = await postCustomerAuth('/api/auth/signup/username-check', {
+        username: normalizeMemberUsername(formData.username),
+      });
+      if (cancelled) return;
+      setUsernameChecking(false);
+      if (result.status !== 200) {
+        setUsernameAvailable(null);
+        return;
+      }
+      setUsernameAvailable(result.json.available === true);
+    }, USERNAME_CHECK_MS);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [formData.username, view]);
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (reduceMotion) return;
+    const el = panelRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return;
+    const nx = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const ny = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+    const tiltY = (nx - 0.5) * 0.45;
+    const tiltX = (0.5 - ny) * 0.45;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      setPanelVars(nx * 100, ny * 100, fieldFocus ? 0.48 : 0.36, tiltX, tiltY);
+    });
+  };
+
+  const handlePointerLeave = () => {
+    if (reduceMotion) return;
+    if (leaveTimerRef.current !== null) window.clearTimeout(leaveTimerRef.current);
+    leaveTimerRef.current = window.setTimeout(() => {
+      if (!fieldFocus) resetPanelLight(0);
+    }, 160);
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (reduceMotion) return;
+    if (event.pointerType === 'touch') handlePointerMove(event);
+  };
 
   const handleClose = (e?: React.MouseEvent) => {
     if (e) {
@@ -161,473 +396,1007 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     onClose();
   };
 
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isLoading) return;
+  const finishAuthenticated = async (userId: string) => {
+    await refreshSession();
+    const { data: profileRow, error: memberProfileError } = await supabase
+      .from('profiles')
+      .select(PROFILE_COLUMNS)
+      .eq('id', userId)
+      .maybeSingle();
 
-    const username = normalizeMemberUsername(formData.username);
-    if (username.length < 4) {
-      setErrorMsg('아이디는 4자 이상으로 입력해주세요.');
-      return;
+    if (memberProfileError || !isUsableMemberProfile(profileRow)) {
+      await signOut({ redirect: false, toast: false });
+      throw new Error('계정 정보를 불러올 수 없습니다. 관리자에게 문의해주세요.');
     }
 
-    if (!isLoginMode) {
-      const signupError = memberUsernameSignupError(formData.username);
-      if (signupError) {
-        setErrorMsg(signupError);
-        return;
-      }
-    }
-
-    if (formData.password.length < 6) {
-      setErrorMsg('비밀번호는 6자 이상이어야 합니다.');
-      return;
-    }
-    
-    setIsLoading(true);
-    setErrorMsg('');
-    setSuccessMsg('');
-
-    try {
-      if (isLoginMode) {
-        const { data: usernameExists, error: profileError } = await supabase.rpc(
-          'profiles_username_exists',
-          { username },
-        );
-
-        if (profileError) {
-          throw new Error('아이디 확인 중 오류가 발생했습니다.');
-        }
-
-        if (!usernameExists) {
-          throw new Error('존재하지 않는 아이디입니다.');
-        }
-
-        const virtualEmail = memberAuthEmail(username);
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: virtualEmail,
-          password: formData.password,
-        });
-        
-        if (signInError) {
-          let errMsg = '인증 중 오류가 발생했습니다.';
-          if (signInError.message.includes('Invalid login credentials')) {
-            errMsg = '아이디 또는 비밀번호가 올바르지 않습니다.';
-          }
-          throw new Error(errMsg);
-        }
-
-        if (!signInData.session?.user) {
-          throw new Error('인증 중 오류가 발생했습니다.');
-        }
-
-        await refreshSession();
-
-        const { data: profileRow, error: memberProfileError } = await supabase
-          .from('profiles')
-          .select(PROFILE_COLUMNS)
-          .eq('id', signInData.session.user.id)
-          .maybeSingle();
-
-        if (memberProfileError || !isUsableMemberProfile(profileRow)) {
-          await signOut({ redirect: false, toast: false });
-          throw new Error('계정 정보를 불러올 수 없습니다. 관리자에게 문의해주세요.');
-        }
-
-        if (onSuccess) {
-          onSuccess();
-        } else {
-          onClose();
-        }
-      } else {
-        // Step 1: Validation before showing consent overlay
-        if (!username || !formData.full_name || !formData.phone_number) {
-          throw new Error('필수 정보가 누락되었습니다.');
-        }
-
-        // Check username availability via RPC (no direct profiles SELECT)
-        const { data: usernameExists, error: usernameCheckError } = await supabase.rpc(
-          'profiles_username_exists',
-          { username },
-        );
-
-        if (usernameCheckError) {
-          throw new Error('아이디 확인 중 오류가 발생했습니다.');
-        }
-
-        if (usernameExists) {
-          throw new Error('이미 사용 중인 아이디입니다.');
-        }
-
-        // If valid, open consent overlay
-        setIsConsentOpen(true);
-        setIsLoading(false);
-      }
-    } catch (error: any) {
-      setErrorMsg(error.message || '인증 중 오류가 발생했습니다.');
-      setIsLoading(false);
-    }
+    if (onSuccess) onSuccess();
+    else onClose();
   };
 
-  const handleFinalSignUp = async () => {
-    if (isLoading || !allChecked) return;
-    
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLoading) return;
+    const username = normalizeMemberUsername(formData.username);
+    if (username.length < 4 || !formData.password) {
+      setErrorMsg('아이디 또는 비밀번호를 확인해주세요.');
+      return;
+    }
+
     setIsLoading(true);
-    setErrorMsg('');
-
+    clearAlerts();
     try {
-      const username = normalizeMemberUsername(formData.username);
-      const signupError = memberUsernameSignupError(formData.username);
-      if (signupError) {
-        throw new Error(signupError);
-      }
-      const email = memberAuthEmail(username);
-      
-      let authUser = null;
-      let authSession = null;
-
-      const { data, error } = await supabase.auth.signUp({
-        email,
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: memberAuthEmail(username),
         password: formData.password,
-        options: {
-          data: {
-            full_name: formData.full_name,
-            phone_number: formData.phone_number,
-            user_custom_id: memberStoredUsername(username),
-            agreed_to_terms_at: new Date().toISOString(),
-            agreed_to_privacy_at: new Date().toISOString(),
-            agreed_to_cookie_at: new Date().toISOString(),
-          },
-        },
       });
-      
-      if (error) {
-        console.error('Supabase SignUp Error:', error);
-        
-        if (error.message?.includes('User already registered')) {
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email,
-            password: formData.password,
-          });
 
-          if (signInError) {
-            throw new Error('이미 사용 중인 아이디입니다. 비밀번호를 확인해주세요.');
-          }
-          
-          authUser = signInData.user;
-          authSession = signInData.session;
-        } else {
-          let errMsg = error.message || "정보를 저장하는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요";
-          if (error.message?.includes('Email address is invalid')) {
-            errMsg = '올바른 아이디 형식이 아닙니다.';
-          } else if (error.message?.includes('Password should be at least')) {
-            errMsg = '비밀번호가 너무 짧습니다. 6자 이상으로 설정해주세요.';
-          }
-          throw new Error(errMsg);
-        }
-      } else {
-        authUser = data?.user;
-        authSession = data?.session;
+      if (signInError || !signInData.session?.user) {
+        throw new Error('아이디 또는 비밀번호를 확인해주세요.');
       }
 
-      if (!authUser) {
-        throw new Error('가입 중 오류가 발생했습니다.');
-      }
-
-      if (authSession) {
-        await refreshSession();
-      } else {
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password: formData.password,
-        });
-
-        if (signInError) {
-          if (signInError.message.includes('Email not confirmed')) {
-            showToast('회원가입은 완료되었으나 이메일 인증이 필요합니다.', 'info');
-            setIsConsentOpen(false);
-            return;
-          }
-          throw new Error('회원가입은 완료되었으나 자동 로그인에 실패했습니다.');
-        }
-
-        if (signInData.session) {
-          await refreshSession();
-        }
-      }
-
-      const { data: profileRow, error: profileError } = await supabase
-        .from('profiles')
-        .select(PROFILE_COLUMNS)
-        .eq('id', authUser.id)
-        .maybeSingle();
-
-      if (profileError || !isUsableMemberProfile(profileRow)) {
-        await signOut({ redirect: false, toast: false });
-        throw new Error('계정 정보를 불러올 수 없습니다. 관리자에게 문의해주세요.');
-      }
-
-      showToast('METALORA 멤버십 가입을 환영합니다!', 'purple');
-      setIsConsentOpen(false);
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        onClose();
-      }
-    } catch (error: any) {
-      setErrorMsg(error.message || '가입 중 오류가 발생했습니다.');
+      await finishAuthenticated(signInData.session.user.id);
+      resetAuthSurface();
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : '아이디 또는 비밀번호를 확인해주세요.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const sendOtp = async (purpose: 'signup' | 'recovery') => {
+    const phone = formData.phone_number;
+    if (!normalizeKrMobilePhone(phone).ok) {
+      setErrorMsg('휴대폰 번호를 확인해주세요.');
+      return;
+    }
+    setOtpSending(true);
+    clearAlerts();
+    setOtpVerified(false);
+    setSignupProof(null);
+    setRecoveryProof(null);
+    const result = await postCustomerAuth('/api/auth/otp/send', { purpose, phone });
+    setOtpSending(false);
+    if (result.status !== 200 || result.json.ok !== true) {
+      setErrorMsg(mapOtpSendError(result.status));
+      return;
+    }
+    setOtpSent(true);
+    setOtpCode('');
+    setResendIn(OTP_RESEND_SECONDS);
+  };
+
+  const verifyOtp = async (purpose: 'signup' | 'recovery') => {
+    if (!/^\d{6}$/.test(otpCode.trim())) {
+      setErrorMsg('인증번호를 확인해주세요.');
+      return;
+    }
+    setOtpVerifying(true);
+    clearAlerts();
+    const result = await postCustomerAuth('/api/auth/otp/verify', {
+      purpose,
+      phone: formData.phone_number,
+      code: otpCode.trim(),
+    });
+    setOtpVerifying(false);
+    const token = readProofToken(result.json);
+    if (result.status !== 200 || result.json.ok !== true || !token) {
+      setErrorMsg(mapOtpVerifyError(result.status, result.json));
+      return;
+    }
+    setOtpVerified(true);
+    if (purpose === 'signup') {
+      setSignupProof(token);
+      return;
+    }
+    setRecoveryProof(token);
+    const resolved = await postCustomerAuth('/api/auth/recovery/resolve', { proof_token: token });
+    if (resolved.status !== 200 || resolved.json.ok !== true) {
+      setErrorMsg(mapRecoveryResolveError(resolved.status));
+      return;
+    }
+    const session = readRecoverySessionToken(resolved.json);
+    setRecoverySession(session);
+    setRecoveryResolved(true);
+    const kind = resolved.json.account_kind;
+    const allowed = resolved.json.password_reset_allowed === true;
+    const username = typeof resolved.json.recoverable_username === 'string'
+      ? resolved.json.recoverable_username
+      : null;
+    if (kind === 'password' && allowed && username) {
+      setPasswordResetAllowed(true);
+      setRecoverableUsername(username);
+    } else {
+      setPasswordResetAllowed(false);
+      setRecoverableUsername(null);
+    }
+  };
+
+  const handleSignupComplete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLoading) return;
+
+    const usernameError = memberUsernameSignupError(formData.username);
+    if (usernameError) {
+      setErrorMsg(usernameError);
+      return;
+    }
+    const passwordError = memberPasswordError(formData.password);
+    if (passwordError) {
+      setErrorMsg(passwordError);
+      return;
+    }
+    if (formData.password !== formData.passwordConfirm) {
+      setErrorMsg('비밀번호가 일치하지 않습니다.');
+      return;
+    }
+    if (!formData.full_name.trim()) {
+      setErrorMsg('필수 정보가 누락되었습니다.');
+      return;
+    }
+    if (usernameAvailable === false) {
+      setErrorMsg('사용할 수 없는 아이디입니다.');
+      return;
+    }
+    if (!signupProof) {
+      setErrorMsg('휴대폰 인증을 완료해 주세요.');
+      return;
+    }
+    if (!allChecked) {
+      setErrorMsg('필수 약관에 동의해 주세요.');
+      return;
+    }
+
+    setIsLoading(true);
+    clearAlerts();
+    try {
+      const complete = await postCustomerAuth('/api/auth/signup/complete', {
+        proof_token: signupProof,
+        username: normalizeMemberUsername(formData.username),
+        password: formData.password,
+        full_name: formData.full_name.trim(),
+        consents: {
+          terms: agreements.terms,
+          privacy: agreements.privacy,
+          cookie: agreements.cookie,
+        },
+      });
+      if (complete.status !== 200 || complete.json.ok !== true) {
+        setErrorMsg(mapSignupCompleteError(complete.status, complete.json));
+        return;
+      }
+
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: memberAuthEmail(normalizeMemberUsername(formData.username)),
+        password: formData.password,
+      });
+      if (signInError || !signInData.session?.user) {
+        throw new Error('가입은 완료되었습니다. 로그인해 주세요.');
+      }
+      showToast('가입되었습니다.', 'success');
+      await finishAuthenticated(signInData.session.user.id);
+      resetAuthSurface();
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : '요청을 처리할 수 없습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLoading || !recoverySession) return;
+    const passwordError = memberPasswordError(resetPassword);
+    if (passwordError) {
+      setErrorMsg(passwordError);
+      return;
+    }
+    if (resetPassword !== resetPasswordConfirm) {
+      setErrorMsg('비밀번호가 일치하지 않습니다.');
+      return;
+    }
+    setIsLoading(true);
+    clearAlerts();
+    const result = await postCustomerAuth('/api/auth/password-reset', {
+      recovery_session_token: recoverySession,
+      new_password: resetPassword,
+    });
+    setIsLoading(false);
+    if (result.status !== 200 || result.json.ok !== true) {
+      setErrorMsg(mapPasswordResetError(result.status, result.json));
+      return;
+    }
+    showToast('비밀번호가 변경되었습니다.', 'success');
+    goView('login');
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    if (errorMsg) setErrorMsg('');
+    if (errorMsg) clearAlerts();
+    if (name === 'phone_number') {
+      setOtpSent(false);
+      setOtpVerified(false);
+      setSignupProof(null);
+    }
   };
 
-  const isSignUpValid = Boolean(formData.full_name && formData.phone_number && formData.username && formData.password);
   const isLoginValid = Boolean(formData.username && formData.password);
+  const signupPasswordsMatch = formData.password === formData.passwordConfirm;
+  const signupReady = Boolean(signupProof) && allChecked && signupPasswordsMatch && formData.passwordConfirm.length >= 8;
+  const resetPasswordsMatch = resetPassword === resetPasswordConfirm;
+  const resetReady = Boolean(recoverySession) && resetPassword.length >= 8 && resetPasswordsMatch;
+  const fieldClass = cn(
+    'ml-auth-field w-full rounded-[14px] px-5 py-3.5 text-base tracking-tight focus:outline-none',
+    isDark ? 'text-zinc-100 placeholder:text-zinc-500' : 'text-zinc-900 placeholder:text-zinc-400',
+  );
+  const labelClass = `block text-[13px] font-medium mb-2 ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`;
+  const ctaClass = (ready: boolean) =>
+    cn(
+      'ml-auth-cta w-full font-semibold py-4 rounded-[14px] flex items-center justify-center gap-2 text-base tracking-tight focus-ring',
+      ready ? 'ml-auth-cta--ready' : 'ml-auth-cta--idle cursor-not-allowed',
+    );
+
+  const sideBtn = 'ml-auth-side focus-ring';
+  const revealMotion = reduceMotion
+    ? { duration: 0 }
+    : {
+      height: { type: 'tween' as const, duration: 0.32, ease: [0.22, 1, 0.36, 1] },
+      opacity: { type: 'tween' as const, duration: 0.22, ease: [0.22, 1, 0.36, 1] },
+    };
+  const statusQuiet = isDark ? 'text-zinc-500' : 'text-zinc-400';
+  const statusError = isDark ? 'text-red-400' : 'text-red-500';
 
   return (
     <>
+    <style>{`
+      .ml-auth-env--light {
+        background:
+          radial-gradient(ellipse 55% 40% at 6% 92%, rgba(120, 70, 150, 0.05), transparent 62%),
+          radial-gradient(ellipse 50% 38% at 96% 8%, rgba(70, 130, 150, 0.045), transparent 58%),
+          #ebe7ee;
+      }
+      .ml-auth-env--dark {
+        background:
+          radial-gradient(ellipse 52% 42% at 4% 96%, rgba(88, 46, 92, 0.055), transparent 64%),
+          radial-gradient(ellipse 48% 38% at 98% 6%, rgba(28, 72, 88, 0.05), transparent 60%),
+          #07080a;
+      }
+      .ml-auth-panel {
+        --lx: 42%;
+        --ly: 18%;
+        --live: 0;
+        --tx: 0;
+        --ty: 0;
+        --rot: 28deg;
+        transform: perspective(1800px) rotateX(calc(var(--tx) * 1deg)) rotateY(calc(var(--ty) * 1deg));
+        transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+        isolation: isolate;
+      }
+      .ml-auth-env--dark .ml-auth-panel {
+        background:
+          linear-gradient(180deg, #24252c 0%, #1c1d23 48%, #17181d 100%);
+        box-shadow:
+          inset 0 1px 0 rgba(232, 236, 242, 0.10),
+          inset 0 -1px 0 rgba(0,0,0,0.38),
+          0 1px 0 rgba(210, 216, 224, 0.05),
+          0 32px 56px rgba(0,0,0,0.50);
+      }
+      .ml-auth-env--light .ml-auth-panel {
+        background:
+          linear-gradient(180deg, #f8f6f9 0%, #efeaf2 52%, #e6e1ea 100%);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.82),
+          inset 0 -1px 0 rgba(40,30,50,0.06),
+          0 24px 56px rgba(40, 28, 48, 0.10);
+      }
+      .ml-auth-panel::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        padding: 1px;
+        background: linear-gradient(165deg, rgba(214, 220, 228, 0.28), rgba(255,255,255,0.05) 34%, rgba(0,0,0,0.55));
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        mask-composite: exclude;
+        opacity: 0.72;
+        pointer-events: none;
+        z-index: 4;
+      }
+      .ml-auth-env--light .ml-auth-panel::before {
+        background: linear-gradient(165deg, rgba(255,255,255,0.9), rgba(180,170,190,0.18) 48%, rgba(40,30,50,0.12));
+        opacity: 0.7;
+      }
+      .ml-auth-panel::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        padding: 1px;
+        background: radial-gradient(
+          26% 20% at var(--lx) var(--ly),
+          rgba(196, 82, 196, 0.42),
+          rgba(124, 58, 180, 0.16) 42%,
+          rgba(40, 150, 168, 0.12) 62%,
+          transparent 78%
+        );
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        mask-composite: exclude;
+        opacity: calc(var(--live) * 0.55);
+        pointer-events: none;
+        z-index: 5;
+      }
+      .ml-auth-grain {
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        opacity: 0.045;
+        mix-blend-mode: overlay;
+        pointer-events: none;
+      }
+      .ml-auth-env--light .ml-auth-grain { opacity: 0.03; }
+      .ml-auth-spec {
+        overflow: hidden;
+        pointer-events: none;
+        opacity: calc(0.18 + (var(--live) * 0.40));
+      }
+      .ml-auth-spec::before {
+        content: '';
+        position: absolute;
+        width: 34%;
+        height: 240%;
+        left: var(--lx);
+        top: var(--ly);
+        transform: translate(-50%, -50%) rotate(var(--rot));
+        background: linear-gradient(
+          90deg,
+          transparent 0%,
+          rgba(186, 196, 208, 0.0) 32%,
+          rgba(214, 222, 230, 0.24) 50%,
+          rgba(168, 188, 198, 0.05) 62%,
+          transparent 78%
+        );
+        filter: blur(16px);
+        pointer-events: none;
+      }
+      .ml-auth-env--light .ml-auth-spec::before {
+        background: linear-gradient(
+          90deg,
+          transparent 0%,
+          rgba(255,255,255,0.0) 34%,
+          rgba(255,255,255,0.34) 50%,
+          rgba(210, 190, 220, 0.06) 62%,
+          transparent 78%
+        );
+      }
+      .ml-auth-field {
+        border: 1px solid rgba(255,255,255,0.06);
+        background: linear-gradient(180deg, #191a1f 0%, #1d1e24 100%);
+        box-shadow:
+          inset 0 1px 2px rgba(0,0,0,0.28),
+          inset 0 0 0 1px rgba(255,255,255,0.03);
+      }
+      .ml-auth-env--light .ml-auth-field {
+        border: 1px solid rgba(40, 30, 50, 0.08);
+        background: linear-gradient(180deg, rgba(255,255,255,0.62), rgba(236, 232, 240, 0.9));
+        box-shadow: inset 0 1px 1px rgba(40, 30, 50, 0.06);
+      }
+      .ml-auth-field:focus-visible {
+        border-color: rgba(214, 220, 228, 0.28);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.08),
+          0 0 0 1px rgba(214, 220, 228, 0.18);
+      }
+      .ml-auth-env--light .ml-auth-field:focus-visible {
+        border-color: rgba(70, 60, 80, 0.28);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.7),
+          0 0 0 1px rgba(70, 60, 80, 0.16);
+      }
+      .ml-auth-cta {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.06);
+      }
+      .ml-auth-cta--idle {
+        color: rgba(232, 234, 238, 0.50);
+        background: linear-gradient(180deg, #2c2d34 0%, #22232a 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+      }
+      .ml-auth-cta--ready {
+        color: #f4f5f7;
+        background: linear-gradient(180deg, #3a3c45 0%, #27282f 100%);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.14),
+          0 1px 0 rgba(0,0,0,0.28);
+      }
+      .ml-auth-cta--ready:hover,
+      .ml-auth-cta--ready:focus-visible {
+        background: linear-gradient(180deg, #42444e 0%, #2b2c34 100%);
+      }
+      .ml-auth-cta--ready:active { transform: translateY(1px); }
+      .ml-auth-env--light .ml-auth-cta {
+        border-color: rgba(40, 30, 50, 0.08);
+      }
+      .ml-auth-env--light .ml-auth-cta--idle {
+        color: rgba(40, 32, 48, 0.38);
+        background: linear-gradient(180deg, #ece8ef 0%, #ddd8e2 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+      }
+      .ml-auth-env--light .ml-auth-cta--ready {
+        color: #f7f6f8;
+        background: linear-gradient(180deg, #3a3344 0%, #2a2432 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.14);
+      }
+      .ml-auth-env--light .ml-auth-cta--ready:hover,
+      .ml-auth-env--light .ml-auth-cta--ready:focus-visible {
+        background: linear-gradient(180deg, #443c50 0%, #2f2838 100%);
+      }
+      .ml-auth-side {
+        height: 3.25rem;
+        padding: 0 1rem;
+        border-radius: 14px;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        flex-shrink: 0;
+        border: 1px solid rgba(255,255,255,0.06);
+        background: linear-gradient(180deg, #2c2d34 0%, #22232a 100%);
+        color: rgba(244, 245, 247, 0.82);
+      }
+      .ml-auth-side:disabled { color: rgba(244, 245, 247, 0.42); }
+      .ml-auth-env--light .ml-auth-side {
+        border-color: rgba(40, 30, 50, 0.08);
+        background: linear-gradient(180deg, #ece8ef 0%, #ddd8e2 100%);
+        color: rgba(40, 32, 48, 0.72);
+      }
+      .ml-auth-status {
+        margin-top: 0.375rem;
+        font-size: 0.75rem;
+        line-height: 1.3;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .ml-auth-panel { transform: none !important; transition: none !important; }
+        .ml-auth-spec::before {
+          left: 42% !important;
+          top: 18% !important;
+          transform: translate(-50%, -50%) rotate(28deg) !important;
+          filter: blur(18px);
+        }
+        .ml-auth-spec { opacity: 0.2; }
+        .ml-auth-panel::after { opacity: 0 !important; }
+        .ml-auth-cta--ready:active { transform: none; }
+      }
+    `}</style>
     <AnimatePresence onExitComplete={handleLoginOverlayExit}>
       {isOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={dialogLabel(view)}
             className={cn(
-              'fixed inset-0 flex items-center justify-center transform-gpu will-change-transform motion-safe-transition',
+              'fixed inset-0 flex items-center justify-center p-4 sm:p-8 overflow-y-auto',
               zClass('dialog'),
-              theme === 'dark' ? 'bg-canvas' : 'bg-canvas',
+              isDark ? 'ml-auth-env--dark' : 'ml-auth-env--light',
             )}
           >
-            {/* Close Button - Moved outside scrolling container for visibility */}
-            <button 
-              onClick={handleClose}
-              className={cn(
-                'absolute right-4 top-4 z-10 p-2 motion-safe-transition sm:right-6 sm:top-6',
-                'focus-ring text-text-secondary hover:text-text-primary',
-              )}
-              aria-label="닫기"
+            <motion.div
+              ref={panelRef}
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.985 }}
+              animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              onPointerMove={handlePointerMove}
+              onPointerLeave={handlePointerLeave}
+              onPointerDown={handlePointerDown}
+              className="ml-auth-panel relative my-auto w-full max-w-[34rem] rounded-[26px] overflow-hidden"
             >
-              <X size={24} strokeWidth={2} />
-            </button>
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className={cn(
-                'relative flex h-full w-full max-w-lg flex-col items-center justify-center overflow-y-auto border border-border-subtle px-6 pb-6 pt-20 md:pb-10',
-                'surface-raised scrollbar-hide transform-gpu will-change-transform',
-              )}
-            >
-            <div className="w-full flex flex-col items-center -mt-16 md:-mt-24">
-            <div className="flex flex-col items-center mb-10">
-              <img 
-                src="/logo/metalora-wordmark.webp" 
-                alt="METALORA" 
-                width={384}
-                height={124}
-                className={`w-36 md:w-44 object-contain mb-6 ${theme === 'dark' ? 'filter invert' : ''}`} 
-                referrerPolicy="no-referrer"
-              />
-              <p className="text-zinc-400 font-medium tracking-tight">프리미엄 메탈 포스터 멤버십</p>
-            </div>
-
-            <form onSubmit={handleAuth} className="space-y-6 w-full">
-              {!isLoginMode && (
-                <>
-                  <div>
-                    <input
-                      type="text"
-                      name="full_name"
-                      required
-                      value={formData.full_name}
-                      onChange={handleInputChange}
-                      placeholder="실명"
-                      className={`w-full border rounded-2xl px-6 py-5 placeholder:text-zinc-600 focus:outline-none transition-colors text-lg tracking-tight ${
-                        theme === 'dark' ? 'bg-zinc-900 border-white/5 text-white focus:border-white/20' : 'bg-zinc-50 border-black/5 text-black focus:border-black/20'
-                      }`}
+              <div className="ml-auth-grain absolute inset-0 z-[1]" aria-hidden="true" />
+              <div className="ml-auth-spec absolute inset-0 z-[2]" aria-hidden="true" />
+              <div className="relative z-[3] flex flex-col px-6 pt-7 pb-8 sm:px-10 sm:pt-8 sm:pb-10">
+                <div className="flex items-center justify-between gap-4 mb-11 sm:mb-12">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {view !== 'login' && (
+                      <button
+                        type="button"
+                        onClick={goBack}
+                        aria-label={view === 'reset' ? '아이디 확인으로 돌아가기' : '로그인으로 돌아가기'}
+                        className={cn(
+                          'p-2 rounded-full focus-ring -ml-2',
+                          isDark ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-black',
+                        )}
+                      >
+                        <ChevronLeft size={20} />
+                      </button>
+                    )}
+                    <img
+                      src="/logo/metalora-wordmark.webp"
+                      alt="METALORA"
+                      width={384}
+                      height={124}
+                      className={`w-[6.75rem] sm:w-[7.75rem] object-contain ${isDark ? 'filter invert' : ''}`}
+                      referrerPolicy="no-referrer"
                     />
                   </div>
-                  <div>
-                    <input
-                      type="tel"
-                      name="phone_number"
-                      required
-                      value={formData.phone_number}
-                      onChange={handleInputChange}
-                      placeholder="휴대폰 번호 (010-0000-0000)"
-                      className={`w-full border rounded-2xl px-6 py-5 placeholder:text-zinc-600 focus:outline-none transition-colors text-lg tracking-tight ${
-                        theme === 'dark' ? 'bg-zinc-900 border-white/5 text-white focus:border-white/20' : 'bg-zinc-50 border-black/5 text-black focus:border-black/20'
-                      }`}
-                    />
-                  </div>
-                </>
-              )}
-              <div>
-                <input
-                  type="text"
-                  name="username"
-                  required
-                  value={formData.username}
-                  onChange={handleInputChange}
-                  placeholder="아이디"
-                  className={`w-full border rounded-2xl px-6 py-5 placeholder:text-zinc-600 focus:outline-none transition-colors text-lg tracking-tight ${
-                    theme === 'dark' ? 'bg-zinc-900 border-white/5 text-white focus:border-white/20' : 'bg-zinc-50 border-black/5 text-black focus:border-black/20'
-                  }`}
-                />
-              </div>
-              <div>
-                <input
-                  type="password"
-                  name="password"
-                  required
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  placeholder="비밀번호"
-                  className={`w-full border rounded-2xl px-6 py-5 placeholder:text-zinc-600 focus:outline-none transition-colors text-lg tracking-tight ${
-                    theme === 'dark' ? 'bg-zinc-900 border-white/5 text-white focus:border-white/20' : 'bg-zinc-50 border-black/5 text-black focus:border-black/20'
-                  }`}
-                />
-              </div>
-
-              {errorMsg && (
-                <div className="text-red-500 text-sm px-2 pt-1 font-bold tracking-tight text-center">
-                  {errorMsg}
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className={cn(
+                      'shrink-0 p-2 rounded-full focus-ring transition-colors',
+                      isDark
+                        ? 'text-zinc-400 hover:text-white hover:bg-white/5'
+                        : 'text-zinc-500 hover:text-black hover:bg-black/5',
+                    )}
+                    aria-label="닫기"
+                  >
+                    <X size={20} strokeWidth={2} />
+                  </button>
                 </div>
-              )}
 
-              {successMsg && (
-                <div className="text-emerald-400 text-sm px-2 pt-1 font-bold tracking-tight text-center">
-                  {successMsg}
-                </div>
-              )}
+                <AnimatePresence mode="wait" initial={false}>
+                  {view === 'login' && (
+                    <motion.form
+                      key="login"
+                      onSubmit={handleLogin}
+                      initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -8 }}
+                      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                      className="space-y-4"
+                    >
+                      <div>
+                        <label htmlFor="auth-username" className={labelClass}>아이디</label>
+                        <input
+                          id="auth-username"
+                          type="text"
+                          name="username"
+                          autoComplete="username"
+                          required
+                          value={formData.username}
+                          onChange={handleInputChange}
+                          onFocus={() => setFieldFocus(true)}
+                          onBlur={() => setFieldFocus(false)}
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="auth-password" className={labelClass}>비밀번호</label>
+                        <div className="relative">
+                          <input
+                            id="auth-password"
+                            type={showPassword ? 'text' : 'password'}
+                            name="password"
+                            autoComplete="current-password"
+                            required
+                            value={formData.password}
+                            onChange={handleInputChange}
+                            onFocus={() => setFieldFocus(true)}
+                            onBlur={() => setFieldFocus(false)}
+                            className={cn(fieldClass, 'pr-12')}
+                          />
+                          <PasswordVisibilityToggle
+                            visible={showPassword}
+                            onToggle={() => setShowPassword((v) => !v)}
+                            dark={isDark}
+                          />
+                        </div>
+                      </div>
+                      {errorMsg && (
+                        <div role="alert" className="text-red-500 text-sm font-medium">{errorMsg}</div>
+                      )}
+                      <button type="submit" disabled={isLoading || !isLoginValid} className={ctaClass(!isLoading && isLoginValid)}>
+                        {isLoading ? <Loader2 className="animate-spin" size={20} /> : null}
+                        {isLoading ? '로그인 중...' : '로그인'}
+                      </button>
+                      <div className="flex flex-col items-center gap-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => goView('recovery')}
+                          className={`text-sm font-medium focus-ring rounded-md px-2 py-1 ${isDark ? 'text-zinc-400 hover:text-zinc-200' : 'text-zinc-500 hover:text-zinc-800'}`}
+                        >
+                          아이디/비밀번호를 모르겠어요
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => goView('signup')}
+                          className={`text-[13px] font-medium focus-ring rounded-md px-2 py-1 ${isDark ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-500 hover:text-zinc-800'}`}
+                        >
+                          계정이 없으신가요? 회원가입
+                        </button>
+                      </div>
+                    </motion.form>
+                  )}
 
-              <button
-                type="submit"
-                disabled={isLoading || (isLoginMode ? !isLoginValid : !isSignUpValid)}
-                className={`w-full font-bold py-6 rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-xl mt-8 shadow-2xl tracking-tight ${
-                  isLoginMode 
-                    ? (theme === 'dark' ? 'bg-white text-black hover:bg-zinc-200 shadow-white/5' : 'bg-black text-white hover:bg-zinc-800 shadow-black/5')
-                    : 'btn-cyberpunk text-white'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                {isLoading ? <Loader2 className="animate-spin" size={24} /> : null}
-                {isLoginMode ? '로그인' : '가입하기'}
-              </button>
-            </form>
+                  {view === 'signup' && (
+                    <motion.form
+                      key="signup"
+                      onSubmit={handleSignupComplete}
+                      initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -8 }}
+                      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                      className="space-y-3.5"
+                    >
+                      <div>
+                        <label htmlFor="signup-full-name" className={labelClass}>이름</label>
+                        <input
+                          id="signup-full-name"
+                          type="text"
+                          name="full_name"
+                          autoComplete="name"
+                          required
+                          value={formData.full_name}
+                          onChange={handleInputChange}
+                          onFocus={() => setFieldFocus(true)}
+                          onBlur={() => setFieldFocus(false)}
+                          className={fieldClass}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="signup-username" className={labelClass}>아이디</label>
+                        <input
+                          id="signup-username"
+                          type="text"
+                          name="username"
+                          autoComplete="username"
+                          required
+                          value={formData.username}
+                          onChange={handleInputChange}
+                          onFocus={() => setFieldFocus(true)}
+                          onBlur={() => setFieldFocus(false)}
+                          className={fieldClass}
+                          aria-describedby={usernameChecking || usernameAvailable !== null ? 'signup-username-status' : undefined}
+                        />
+                        {(usernameChecking || usernameAvailable !== null) && (
+                          <p id="signup-username-status" className={cn('ml-auth-status', usernameAvailable === false ? statusError : statusQuiet)} role="status">
+                            {usernameChecking ? '확인 중' : usernameAvailable === false ? '사용할 수 없는 아이디입니다.' : '사용 가능'}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label htmlFor="signup-password" className={labelClass}>비밀번호</label>
+                        <div className="relative">
+                          <input
+                            id="signup-password"
+                            type={showPassword ? 'text' : 'password'}
+                            name="password"
+                            autoComplete="new-password"
+                            required
+                            minLength={8}
+                            value={formData.password}
+                            onChange={handleInputChange}
+                            onFocus={() => setFieldFocus(true)}
+                            onBlur={() => setFieldFocus(false)}
+                            className={cn(fieldClass, 'pr-12')}
+                          />
+                          <PasswordVisibilityToggle
+                            visible={showPassword}
+                            onToggle={() => setShowPassword((v) => !v)}
+                            dark={isDark}
+                          />
+                        </div>
+                        <p className={`ml-auth-status ${statusQuiet}`}>8자 이상</p>
+                      </div>
+                      <div>
+                        <label htmlFor="signup-password-confirm" className={labelClass}>비밀번호 확인</label>
+                        <div className="relative">
+                          <input
+                            id="signup-password-confirm"
+                            type={showPasswordConfirm ? 'text' : 'password'}
+                            name="passwordConfirm"
+                            autoComplete="new-password"
+                            required
+                            minLength={8}
+                            value={formData.passwordConfirm}
+                            onChange={handleInputChange}
+                            onFocus={() => setFieldFocus(true)}
+                            onBlur={() => setFieldFocus(false)}
+                            className={cn(fieldClass, 'pr-12')}
+                          />
+                          <PasswordVisibilityToggle
+                            visible={showPasswordConfirm}
+                            onToggle={() => setShowPasswordConfirm((v) => !v)}
+                            dark={isDark}
+                          />
+                        </div>
+                        {formData.passwordConfirm.length > 0 && formData.password !== formData.passwordConfirm && (
+                          <p className={cn('ml-auth-status', statusError)} role="alert">비밀번호가 일치하지 않습니다.</p>
+                        )}
+                      </div>
+                      <div>
+                        <label htmlFor="signup-phone" className={labelClass}>전화번호</label>
+                        <div className="flex gap-2">
+                          <input
+                            id="signup-phone"
+                            type="tel"
+                            name="phone_number"
+                            autoComplete="tel"
+                            required
+                            value={formData.phone_number}
+                            onChange={handleInputChange}
+                            onFocus={() => setFieldFocus(true)}
+                            onBlur={() => setFieldFocus(false)}
+                            disabled={otpVerified}
+                            className={cn(fieldClass, 'min-w-0')}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => { void sendOtp('signup'); }}
+                            disabled={otpSending || resendIn > 0 || otpVerified}
+                            className={sideBtn}
+                          >
+                            {otpSending ? <Loader2 className="animate-spin mx-auto" size={16} /> : (otpVerified ? '확인됨' : (otpSent && resendIn > 0 ? `${resendIn}s` : '인증'))}
+                          </button>
+                        </div>
+                      </div>
+                      <AnimatePresence initial={false}>
+                        {otpSent && !otpVerified && (
+                          <motion.div
+                            key="signup-otp"
+                            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={reduceMotion ? { opacity: 1 } : { opacity: 0, height: 0 }}
+                            transition={revealMotion}
+                            className="overflow-hidden"
+                          >
+                            <label htmlFor="signup-otp" className={labelClass}>인증번호</label>
+                            <div className="flex gap-2">
+                              <input
+                                id="signup-otp"
+                                type="text"
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                maxLength={6}
+                                value={otpCode}
+                                onChange={(e) => { setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6)); clearAlerts(); }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    void verifyOtp('signup');
+                                  }
+                                }}
+                                className={cn(fieldClass, 'min-w-0 tracking-[0.3em]')}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => { void verifyOtp('signup'); }}
+                                disabled={otpVerifying || otpVerified}
+                                className={sideBtn}
+                              >
+                                {otpVerifying ? <Loader2 className="animate-spin mx-auto" size={16} /> : '확인'}
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
 
-            <div className="mt-10 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsLoginMode(!isLoginMode);
-                  setErrorMsg('');
-                  setSuccessMsg('');
-                }}
-                className={`text-sm font-bold transition-colors tracking-tight ${
-                  theme === 'dark' ? 'text-zinc-400 hover:text-white' : 'text-zinc-500 hover:text-black'
-                }`}
-              >
-                {isLoginMode ? '계정이 없으신가요? 간편 가입하기' : '이미 계정이 있으신가요? 로그인하기'}
-              </button>
-            </div>
+                      <AnimatePresence initial={false}>
+                        {otpVerified && (
+                          <motion.div
+                            key="signup-consent"
+                            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={reduceMotion ? { opacity: 1 } : { opacity: 0, height: 0 }}
+                            transition={revealMotion}
+                            className="overflow-hidden pt-0.5"
+                          >
+                            <CheckboxRow label="이용약관 동의" required checked={agreements.terms} onChange={() => toggleAgreement('terms')} onView={() => setPolicyModalState({ isOpen: true, key: 'terms' })} theme={theme} />
+                            <CheckboxRow label="개인정보처리방침 동의" required checked={agreements.privacy} onChange={() => toggleAgreement('privacy')} onView={() => setPolicyModalState({ isOpen: true, key: 'privacy' })} theme={theme} />
+                            <CheckboxRow label="쿠키 정책 동의" required checked={agreements.cookie} onChange={() => toggleAgreement('cookie')} onView={() => setPolicyModalState({ isOpen: true, key: 'cookie' })} theme={theme} />
+                            <div className={`h-px my-2 ${isDark ? 'bg-white/5' : 'bg-black/5'}`} />
+                            <CheckboxRow label="필수 항목 전체 동의" required checked={allChecked} onChange={handleSelectAll} theme={theme} />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
 
-            <p className="text-center text-zinc-500 text-[12px] mt-12 font-bold tracking-tight">
-              가입 시 METALORA의 이용약관 및 개인정보처리방침에 동의하게 됩니다.
-            </p>
-            </div>
+                      {errorMsg && (
+                        <div role="alert" className="text-red-400 text-sm font-medium">{errorMsg}</div>
+                      )}
+                      <button
+                        type="submit"
+                        disabled={isLoading || !signupReady}
+                        className={ctaClass(!isLoading && signupReady)}
+                      >
+                        {isLoading ? <Loader2 className="animate-spin" size={20} /> : null}
+                        {isLoading ? '가입 중...' : '가입하기'}
+                      </button>
+                      <div className="text-center pt-1">
+                        <button
+                          type="button"
+                          onClick={() => goView('login')}
+                          className={`text-[13px] font-medium focus-ring rounded-md px-2 py-1 ${isDark ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-500 hover:text-zinc-800'}`}
+                        >
+                          이미 계정이 있으신가요? 로그인
+                        </button>
+                      </div>
+                    </motion.form>
+                  )}
+
+                  {view === 'recovery' && (
+                    <motion.form
+                      key="recovery"
+                      onSubmit={(e) => { e.preventDefault(); void (otpSent ? verifyOtp('recovery') : sendOtp('recovery')); }}
+                      initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -8 }}
+                      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                      className="space-y-3.5"
+                    >
+                      {!recoveryResolved && (
+                        <>
+                          <div>
+                            <label htmlFor="recovery-phone" className={labelClass}>전화번호</label>
+                            <div className="flex gap-2">
+                              <input
+                                id="recovery-phone"
+                                type="tel"
+                                name="phone_number"
+                                autoComplete="tel"
+                                value={formData.phone_number}
+                                onChange={handleInputChange}
+                                onFocus={() => setFieldFocus(true)}
+                                onBlur={() => setFieldFocus(false)}
+                                className={cn(fieldClass, 'min-w-0')}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => { void sendOtp('recovery'); }}
+                                disabled={otpSending || resendIn > 0}
+                                className={sideBtn}
+                              >
+                                {otpSending ? <Loader2 className="animate-spin mx-auto" size={16} /> : (otpSent && resendIn > 0 ? `${resendIn}s` : '인증')}
+                              </button>
+                            </div>
+                          </div>
+                          <AnimatePresence initial={false}>
+                            {otpSent && (
+                              <motion.div
+                                key="recovery-otp"
+                                initial={reduceMotion ? { opacity: 1 } : { opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={reduceMotion ? { opacity: 1 } : { opacity: 0, height: 0 }}
+                                transition={revealMotion}
+                                className="overflow-hidden"
+                              >
+                                <label htmlFor="recovery-otp" className={labelClass}>인증번호</label>
+                                <div className="flex gap-2">
+                                  <input
+                                    id="recovery-otp"
+                                    type="text"
+                                    inputMode="numeric"
+                                    autoComplete="one-time-code"
+                                    maxLength={6}
+                                    value={otpCode}
+                                    onChange={(e) => { setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6)); clearAlerts(); }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        void verifyOtp('recovery');
+                                      }
+                                    }}
+                                    className={cn(fieldClass, 'min-w-0 tracking-[0.3em]')}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => { void verifyOtp('recovery'); }}
+                                    disabled={otpVerifying}
+                                    className={sideBtn}
+                                  >
+                                    {otpVerifying ? <Loader2 className="animate-spin mx-auto" size={16} /> : '확인'}
+                                  </button>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </>
+                      )}
+
+                      {recoveryResolved && passwordResetAllowed && recoverableUsername && (
+                        <div className="space-y-5">
+                          <div>
+                            <p className={labelClass}>아이디</p>
+                            <p className={`text-[17px] font-medium tracking-tight ${isDark ? 'text-zinc-100' : 'text-zinc-900'}`}>{recoverableUsername}</p>
+                          </div>
+                          <button type="button" onClick={() => { setView('reset'); clearAlerts(); wakeSurface(); }} className={ctaClass(true)}>
+                            비밀번호 재설정
+                          </button>
+                        </div>
+                      )}
+
+                      {recoveryResolved && !passwordResetAllowed && (
+                        <div className="space-y-5">
+                          <p className={`text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>비밀번호로 찾을 수 없는 계정입니다.</p>
+                          <button type="button" onClick={() => goView('login')} className={ctaClass(true)}>
+                            로그인
+                          </button>
+                        </div>
+                      )}
+
+                      {errorMsg && (
+                        <div role="alert" className="text-red-400 text-sm font-medium">{errorMsg}</div>
+                      )}
+                    </motion.form>
+                  )}
+
+                  {view === 'reset' && (
+                    <motion.form
+                      key="reset"
+                      onSubmit={handlePasswordReset}
+                      initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -8 }}
+                      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                      className="space-y-3.5"
+                    >
+                      <div>
+                        <label htmlFor="reset-password" className={labelClass}>새 비밀번호</label>
+                        <div className="relative">
+                          <input
+                            id="reset-password"
+                            type={showResetPassword ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            minLength={8}
+                            value={resetPassword}
+                            onChange={(e) => { setResetPassword(e.target.value); clearAlerts(); }}
+                            onFocus={() => setFieldFocus(true)}
+                            onBlur={() => setFieldFocus(false)}
+                            className={cn(fieldClass, 'pr-12')}
+                          />
+                          <PasswordVisibilityToggle
+                            visible={showResetPassword}
+                            onToggle={() => setShowResetPassword((v) => !v)}
+                            dark={isDark}
+                          />
+                        </div>
+                        <p className={`ml-auth-status ${statusQuiet}`}>8자 이상</p>
+                      </div>
+                      <div>
+                        <label htmlFor="reset-password-confirm" className={labelClass}>새 비밀번호 확인</label>
+                        <div className="relative">
+                          <input
+                            id="reset-password-confirm"
+                            type={showResetPasswordConfirm ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            minLength={8}
+                            value={resetPasswordConfirm}
+                            onChange={(e) => { setResetPasswordConfirm(e.target.value); clearAlerts(); }}
+                            onFocus={() => setFieldFocus(true)}
+                            onBlur={() => setFieldFocus(false)}
+                            className={cn(fieldClass, 'pr-12')}
+                          />
+                          <PasswordVisibilityToggle
+                            visible={showResetPasswordConfirm}
+                            onToggle={() => setShowResetPasswordConfirm((v) => !v)}
+                            dark={isDark}
+                          />
+                        </div>
+                        {resetPasswordConfirm.length > 0 && resetPassword !== resetPasswordConfirm && (
+                          <p className={cn('ml-auth-status', statusError)} role="alert">비밀번호가 일치하지 않습니다.</p>
+                        )}
+                      </div>
+                      {errorMsg && (
+                        <div role="alert" className="text-red-400 text-sm font-medium">{errorMsg}</div>
+                      )}
+                      <button
+                        type="submit"
+                        disabled={isLoading || !resetReady}
+                        className={ctaClass(!isLoading && resetReady)}
+                      >
+                        {isLoading ? <Loader2 className="animate-spin" size={20} /> : null}
+                        {isLoading ? '변경 중...' : '비밀번호 변경'}
+                      </button>
+                    </motion.form>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
       )}
     </AnimatePresence>
 
-    {/* Consent Overlay */}
-    <AnimatePresence>
-      {isConsentOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className={cn(
-            'fixed inset-0 flex items-end justify-center sm:items-center transform-gpu will-change-transform',
-            zClass('dialog'),
-            theme === 'dark' ? 'bg-overlay-backdrop-heavy' : 'bg-overlay-backdrop backdrop-blur-sm',
-          )}
-        >
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={cn(
-              'relative w-full max-w-md rounded-t-lg border border-border-subtle p-8 sm:rounded-lg sm:-translate-y-8',
-              'surface-modal transform-gpu will-change-transform',
-            )}
-          >
-            <button 
-              onClick={() => setIsConsentOpen(false)}
-              className="absolute top-8 right-8 text-zinc-500 hover:text-zinc-400 transition-colors"
-            >
-              <X size={24} />
-            </button>
-
-            <h3 className="text-xl font-bold mb-8 tracking-tight">[서비스 이용을 위한 약관 동의]</h3>
-
-            <div className="space-y-1">
-              <CheckboxRow
-                label="이용약관 동의"
-                required
-                checked={agreements.terms}
-                onChange={() => toggleAgreement('terms')}
-                onView={() => setPolicyModalState({ isOpen: true, key: 'terms' })}
-                theme={theme}
-              />
-              <CheckboxRow
-                label="개인정보처리방침 동의"
-                required
-                checked={agreements.privacy}
-                onChange={() => toggleAgreement('privacy')}
-                onView={() => setPolicyModalState({ isOpen: true, key: 'privacy' })}
-                theme={theme}
-              />
-              <CheckboxRow
-                label="쿠키 정책 동의"
-                required
-                checked={agreements.cookie}
-                onChange={() => toggleAgreement('cookie')}
-                onView={() => setPolicyModalState({ isOpen: true, key: 'cookie' })}
-                theme={theme}
-              />
-
-              <div className={`h-[1px] my-6 ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'}`} />
-
-              <CheckboxRow
-                label="전체 동의 (선택)"
-                checked={allChecked}
-                onChange={handleSelectAll}
-                theme={theme}
-              />
-            </div>
-
-            <button
-              onClick={handleFinalSignUp}
-              disabled={isLoading || !allChecked}
-              className="w-full font-bold py-5 rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-lg mt-10 shadow-2xl tracking-tight btn-cyberpunk text-white"
-            >
-              {isLoading ? <Loader2 className="animate-spin" size={20} /> : null}
-              동의하고 가입하기
-            </button>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-    
     <PolicyModal
       isOpen={policyModalState.isOpen}
       onClose={() => setPolicyModalState({ isOpen: false, key: null })}

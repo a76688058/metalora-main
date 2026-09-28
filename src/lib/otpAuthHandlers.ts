@@ -22,7 +22,11 @@ import {
 import { phoneFingerprint } from "./phoneHmac";
 import { normalizeKrMobilePhone } from "./phoneNormalize";
 import type { SmsAdapter } from "./smsAdapter";
-import { resolveSmsAdapter } from "./smsAdapter";
+import {
+  isDevCaptureSmsAdapter,
+  isPaymentTestDevCaptureEnv,
+  resolveSmsAdapter,
+} from "./smsAdapter";
 import { resolveTrustedIpMode, trustedClientIp } from "./trustedClientIp";
 
 const GENERIC_BAD = "요청을 처리할 수 없습니다.";
@@ -90,6 +94,42 @@ function resolveAdapter(deps: OtpAuthDeps): SmsAdapter | null {
   if (deps.smsAdapter) return deps.smsAdapter;
   const resolved = resolveSmsAdapter(deps.getEnv());
   return resolved.ok ? resolved.adapter : null;
+}
+
+function rejectDevOtpPeek(res: Response): void {
+  res.status(404).json({ ok: false });
+}
+
+function handleDevOtpLatest(req: Request, res: Response, deps: OtpAuthDeps): void {
+  const env = deps.getEnv();
+  if (!isPaymentTestDevCaptureEnv(env)) {
+    rejectDevOtpPeek(res);
+    return;
+  }
+  const ip = requestIp(req, deps);
+  if (ip !== "127.0.0.1") {
+    rejectDevOtpPeek(res);
+    return;
+  }
+  const adapter = resolveAdapter(deps);
+  if (!isDevCaptureSmsAdapter(adapter)) {
+    rejectDevOtpPeek(res);
+    return;
+  }
+  const captured = adapter.peekForTests();
+  if (!captured || !/^\d{6}$/.test(captured.otp)) {
+    rejectDevOtpPeek(res);
+    return;
+  }
+  const phoneRaw = req.query.phone;
+  if (typeof phoneRaw === "string" && phoneRaw.trim()) {
+    const normalized = normalizeKrMobilePhone(phoneRaw);
+    if (!normalized.ok || normalized.e164 !== captured.e164) {
+      rejectDevOtpPeek(res);
+      return;
+    }
+  }
+  res.status(200).json({ ok: true, code: captured.otp });
 }
 
 async function handleOtpSend(req: Request, res: Response, deps: OtpAuthDeps): Promise<void> {
@@ -395,5 +435,8 @@ export function registerOtpAuthRoutes(app: Express, deps: OtpAuthDeps): void {
   });
   app.post("/api/auth/phone/bind", (req, res) => {
     void handlePhoneBind(req, res, deps);
+  });
+  app.get("/api/auth/dev/otp/latest", (req, res) => {
+    handleDevOtpLatest(req, res, deps);
   });
 }

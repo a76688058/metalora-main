@@ -34,7 +34,10 @@ export class DevCaptureSmsAdapter implements SmsAdapter {
     return { ok: true, providerMessageId: `dev-${input.requestId}` };
   }
 
-  /** Payment-test script only. Never log. Never expose over HTTP. */
+  /**
+   * Payment-test dest-capture peek. Never log.
+   * HTTP only via gated GET /api/auth/dev/otp/latest.
+   */
   peekForTests(): { e164: string; otp: string; requestId: string } | null {
     if (!this.last) return null;
     return {
@@ -43,6 +46,26 @@ export class DevCaptureSmsAdapter implements SmsAdapter {
       requestId: this.last.requestId,
     };
   }
+}
+
+export function isDevCaptureSmsAdapter(
+  adapter: SmsAdapter | null | undefined,
+): adapter is DevCaptureSmsAdapter {
+  return adapter instanceof DevCaptureSmsAdapter;
+}
+
+/** Mandatory dest-capture HTTP peek gate. Production host always fails closed. */
+export function isPaymentTestDevCaptureEnv(
+  env: Record<string, string | undefined>,
+): boolean {
+  const metaloraEnv = (env.METALORA_ENV ?? "").trim();
+  const adapterName = (env.SMS_ADAPTER ?? "").trim();
+  if (metaloraEnv !== PAYMENT_TEST_ENV_NAME || adapterName !== "dev-capture") {
+    return false;
+  }
+  const host = supabaseHostFromUrl((env.VITE_SUPABASE_URL ?? "").trim());
+  if (isProductionSupabaseHost(host)) return false;
+  return true;
 }
 
 export type SmsAdapterResolve =

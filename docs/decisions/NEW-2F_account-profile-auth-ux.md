@@ -2,16 +2,16 @@
 
 Status: **OPEN**
 
-Date: 2026-09-23 (amended)
+Date: 2026-09-28 (B2 live-state sync)
 
-Decision: NEW 2F is **OPEN**. Parent customer Account / Profile / Auth stage.
+Decision: NEW 2F is **OPEN**. Parent customer Account / Profile / Auth stage. Do **not** close NEW 2F.
 
 Two concurrent workstreams:
 
-1. **Visual / chrome UX** — A3. Currently **UNCOMMITTED**. USER visual review is **not** complete.
-2. **Auth expansion** — launch-required. Durable sub-contract: `docs/decisions/NEW-2F_auth-expansion.md`. **A6 RED** required. Sliced implementation.
+1. **Customer Auth UX (B2a)** — Login / Signup / Recovery. **COMPLETE / USER APPROVED / A5 PASS.** Validated implementation remains **UNCOMMITTED** pending the B2 checkpoint.
+2. **Auth expansion remainder** — launch-required. Durable sub-contract: `docs/decisions/NEW-2F_auth-expansion.md`. **B1 COMPLETE. B2 COMPLETE / READY FOR CHECKPOINT. C1–E NOT STARTED.**
 
-This is **not** optional auth expansion, Admin CS renewal, Cart/Checkout redesign, Workshop reopening, deploy, or live payment. It does **not** open NEW 3. It does **not** create a new master launch stage outside v3.
+This is **not** Admin CS renewal, Cart/Checkout redesign, Workshop reopening, deploy, or live payment. It does **not** open NEW 3. It does **not** create a new master launch stage outside v3. It does **not** open SNS implementation.
 
 ---
 
@@ -21,13 +21,15 @@ This is **not** optional auth expansion, Admin CS renewal, Cart/Checkout redesig
 |------|--------|
 | NEW 2 | **IN PROGRESS** |
 | NEW 2A–2E | **CLOSED** — preserved |
-| NEW 2F | **OPEN** |
+| NEW 2F | **OPEN** — do **not** close |
 | Auth expansion | **OPEN** — `docs/decisions/NEW-2F_auth-expansion.md` |
+| B1 | **COMPLETE** |
+| B2 | **COMPLETE / READY FOR CHECKPOINT** |
+| B2a | **COMPLETE / USER APPROVED / A5 PASS** |
+| C1 / C2 / D / E | **NOT STARTED** |
 | NEW 3–9 | **NOT OPENED** |
-| Visual/chrome | **UNCOMMITTED**; USER visual approval **pending** |
-| A6 RED | **REQUIRED** for auth expansion |
-| Implementation | **SLICED** (not one giant write) |
-| Next RED action | **A6 — SLICE 0b** if production read-only SQL is available; else **A6 — SLICE A PAYMENT-TEST FOUNDATION PLAN** |
+| Production | **UNCHANGED** |
+| Next | **B2 CHECKPOINT** after GPT review, then C1. Do **not** open SNS here. |
 
 ---
 
@@ -62,22 +64,21 @@ Source truth of the current customer journey (visual workstream):
 
 ## Visual / chrome scope (A3)
 
-Still required:
+B2a Login / Signup / Recovery: **COMPLETE / USER APPROVED / A5 PASS.** Official Signup no longer uses browser `supabase.auth.signUp`. Password minimum is 8. Mode-exit stale-state clearing **PASS**.
 
-- Header LoginModal and `/login` shell coherence
-- Signup hierarchy, validation, required-consent **copy** (including the `전체 동의 (선택)` vs required items defect)
-- ProfileOverlay customer visual language (remove legacy purple/neon membership chrome)
-- Profile edit / complete usable feedback
+Still remaining for later 2F slices (do **not** treat as B2 incomplete):
+
+- ProfileOverlay customer visual language / `계정 및 보안` (Slice D / E)
+- Profile edit / complete usable feedback beyond B2a
 - Inquiry overlay coherence
 - OrdersModal chrome MAY
-- Responsive ~390 / ~1440, light/dark, a11y/keyboard baseline
-- Profile hub IA including future **계정 및 보안** (do **not** invent `/account`)
+- Responsive / a11y leftover on non-B2a surfaces
 
 Preserve NEW 2B / NEW 2E / Admin / Home / PDP frozen boundaries for **visual** work. Do **not** reopen Workshop internals or Cart/Checkout UX.
 
-Checkout/profile **contact** `phone_number` remains unverified shipping data. Auth expansion owns **verified** recovery phone separately. Visual 2F must not auto-promote shipping phone to verified.
+Checkout/profile **contact** `phone_number` remains unverified shipping data. Verified recovery phone is `verified_phone_fingerprint` + `phone_verified_at`. Visual 2F must not auto-promote shipping phone to verified.
 
-Current uncommitted Login refinements (do **not** implement from governance tickets): remove `로그인` heading and explanatory subtitle; logo-only top; simplify signup copy; directional metallic/specular instead of round white glow; stronger localized chromatic edge; aluminum/panel character.
+B2a approved UX remains uncommitted until the B2 checkpoint. Do **not** revert that WIP from docs tickets.
 
 ---
 
@@ -103,12 +104,14 @@ Details in the auth-expansion sub-contract.
 
 ## Ownership / write sets
 
-### Visual / chrome (current uncommitted A3)
+### Visual / chrome (validated uncommitted B2 WIP)
+
+B2a Login / Signup / Recovery is **USER APPROVED**. The dirty A3 set still includes Profile/Inquiry/Orders/ProfileComplete. Preserve until the B2 checkpoint. Do **not** commit or revert these files from docs tickets.
 
 **MUST:** `LoginModal.tsx`, `Login.tsx`, `ProfileOverlay.tsx`, `ProfileEditModal.tsx`, `ProfileComplete.tsx`, `InquiryModal.tsx`
 **MAY:** `OrdersModal.tsx` (chrome only)
 
-Do **not** blend these dirty files into A6 backend slices. Do **not** commit them from A0/A6 tickets.
+Do **not** blend these dirty files into later A6 backend slices ad hoc. Checkpoint will include them with the rest of validated B2 WIP.
 
 ### Auth expansion slices
 
@@ -120,9 +123,9 @@ A1: **NONE** by default. A5: targeted QA after each visible slice.
 
 ## Slices (auth expansion)
 
-0b Production read-only inventory → A payment-test OTP foundation → B recovery+password → C1 Google+Kakao (payment-test) → C2 Naver separate → D account security/withdrawal/consent → E final Login/Profile UX.
+0b Production read-only inventory (**NOT DONE**; not a B2 blocker) → A payment-test OTP foundation (**COMPLETE**) → B recovery+password (**B1 COMPLETE**; **B2 COMPLETE / READY FOR CHECKPOINT**) → C1 Google+Kakao (**NOT STARTED**; payment-test) → C2 Naver (**NOT STARTED**) → D account security/withdrawal/consent (**NOT STARTED**) → E final Profile UX (**NOT STARTED**).
 
-Production unique verified-phone and production providers are **gated**. Payment-test (`bvihpoorwriejybixmoc`) first. Production (`qifloweuwyhvukabgnoa`) never mixed.
+Production unique verified-phone and production providers are **gated**. Payment-test (`bvihpoorwriejybixmoc`) first. Production (`qifloweuwyhvukabgnoa`) never mixed. Hosted Before User Created is **LIVE** on payment-test only.
 
 ---
 
@@ -159,12 +162,13 @@ Production rollout remains separately gated by NEW 6/7 and later explicit provid
 
 ## Resume
 
-1. Preserve uncommitted A3 visual work
-2. **A6 — SLICE 0b** (production read-only inventory) if SQL available; otherwise **A6 — SLICE A PAYMENT-TEST FOUNDATION PLAN** without production unique-phone enforcement
-3. Continue slices B–E per sub-contract
-4. USER visual approval (visual + auth UX)
-5. A5 targeted QA
-6. A0 closure (separate ticket)
+1. Preserve uncommitted validated B2 WIP (A3 + A6). Do not revert or format it from docs tickets
+2. **B2 CHECKPOINT** after GPT review — one commit of implementation + current docs. Not a docs-only commit
+3. Then **C1 Google + Kakao** (payment-test). Do not start C1 from this docs ticket
+4. Slice 0b remains required before production unique-phone enforcement
+5. USER visual approval for leftover D/E surfaces
+6. A5 targeted QA per remaining slice
+7. A0 closure of NEW 2F (separate later ticket; not now)
 
 ---
 
@@ -172,5 +176,6 @@ Production rollout remains separately gated by NEW 6/7 and later explicit provid
 
 - `docs/decisions/NEW-2F_account-profile-auth-ux.md` (this parent)
 - `docs/decisions/NEW-2F_auth-expansion.md` (auth-expansion sub-contract)
+- `docs/decisions/NEW-2F_b2b-hook-contract.md` (payment-test hosted hook — LIVE)
 - `docs/METALORA_PROJECT_STATE.md`
-- `docs/decisions/NEW-1_launch-pipeline-v3.md` (pipeline family SoT; not rewritten here)
+- `docs/decisions/NEW-1_launch-pipeline-v3.md` (pipeline family SoT; live 2F overlay synced 2026-09-28)

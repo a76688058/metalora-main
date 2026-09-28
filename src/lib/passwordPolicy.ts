@@ -1,4 +1,4 @@
-/** Shared password length contract. Signup UI still 6 until B2; reset/change enforce 8 now. */
+/** Shared password length contract. Signup UI, recovery/reset, trusted backend, and hosted GoTrue all enforce >= 8. */
 
 export const MEMBER_PASSWORD_MIN_LEN = 8;
 

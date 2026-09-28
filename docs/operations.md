@@ -651,7 +651,7 @@ Do not redesign #16 / #17. There are **no role tiers** beyond boolean `profiles.
 | Client Admin UI | **Not** an authorization source. `AdminUsers` does not toggle `is_admin`. |
 | `AdminLogin` | Signs in with Auth password, then **reads** `profiles.is_admin`. Non-admin keeps the member session (`#17`) and is denied `/admin`. |
 | `ProtectedRoute(requireAdmin)` | Requires a session **and** `resolved.is_admin === true`. Does **not** require `user_custom_id`. |
-| Member usable-profile | `isUsableMemberProfile` (non-blank `user_custom_id`) applies to member checkout/routes, **not** to admin routes. NULL username on an admin-provisioned profile is intentional (`#16C-1`). |
+| Member usable-profile | `isUsableMemberProfile` requires non-blank `user_custom_id`, non-blank `verified_phone_fingerprint`, and non-blank `phone_verified_at`. It applies to member checkout/routes, **not** to admin routes. `profiles.phone_number` is contact/shipping only and is **not** member authority. NULL username on an admin-provisioned profile is intentional (`#16C-1`). |
 | RLS | Table policies / `profiles_is_current_user_admin()` consult the same `is_admin` column. |
 | `server.ts` | No admin grant/revoke API and no `is_admin` checks. |
 
