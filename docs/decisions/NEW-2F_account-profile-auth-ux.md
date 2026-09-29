@@ -2,16 +2,16 @@
 
 Status: **OPEN**
 
-Date: 2026-09-28 (C1 STAGE OPEN)
+Date: 2026-09-28 (C1 STAGE OPEN); status updated 2026-09-29 (C2 OPEN)
 
-Decision: NEW 2F is **OPEN**. Parent customer Account / Profile / Auth stage. Do **not** close NEW 2F. C1 is **OPEN**. Do **not** open C2 from this note.
+Decision: NEW 2F is **OPEN**. Parent customer Account / Profile / Auth stage. Do **not** close NEW 2F. C1 is **OPEN** (USER FINAL visual **DEFERRED**). C2 is **OPEN** (`docs/decisions/NEW-2F_c2-naver.md`). Naver is **IMPLEMENT NOW**.
 
 Two concurrent workstreams:
 
 1. **Customer Auth UX (B2a)** — Login / Signup / Recovery. **COMPLETE / USER APPROVED / A5 PASS / CHECKPOINTED.**
-2. **Auth expansion remainder** — launch-required. Durable sub-contract: `docs/decisions/NEW-2F_auth-expansion.md`. **B1 COMPLETE. B2 CHECKPOINTED / COMPLETE. C1 OPEN** (`docs/decisions/NEW-2F_c1-google-kakao.md`). C2–E **NOT STARTED.**
+2. **Auth expansion remainder** — launch-required. Durable sub-contract: `docs/decisions/NEW-2F_auth-expansion.md`. **B1 COMPLETE. B2 CHECKPOINTED / COMPLETE. C1 OPEN** (`docs/decisions/NEW-2F_c1-google-kakao.md`). **C2 OPEN** (`docs/decisions/NEW-2F_c2-naver.md`). D–E **NOT STARTED.**
 
-This is **not** Admin CS renewal, Cart/Checkout redesign, Workshop reopening, deploy, or live payment. It does **not** open NEW 3. It does **not** create a new master launch stage outside v3. It does **not** implement C1-0.
+This is **not** Admin CS renewal, Cart/Checkout redesign, Workshop reopening, deploy, or live payment. It does **not** open NEW 3. It does **not** create a new master launch stage outside v3. It does **not** implement C2-0.
 
 ---
 
@@ -26,11 +26,12 @@ This is **not** Admin CS renewal, Cart/Checkout redesign, Workshop reopening, de
 | B1 | **COMPLETE** |
 | B2 | **CHECKPOINTED / COMPLETE** |
 | B2a | **COMPLETE / USER APPROVED / A5 PASS** |
-| C1 | **OPEN** — `docs/decisions/NEW-2F_c1-google-kakao.md` |
-| C2 / D / E | **NOT STARTED** |
+| C1 | **OPEN** — visual **DEFERRED** — `docs/decisions/NEW-2F_c1-google-kakao.md` |
+| C2 | **OPEN** — IMPLEMENT NOW — `docs/decisions/NEW-2F_c2-naver.md` |
+| D / E | **NOT STARTED** |
 | NEW 3–9 | **NOT OPENED** |
 | Production | **UNCHANGED** |
-| Next | **C1-0 A6** — HARD STOP FOR GPT REVIEW FIRST |
+| Next | **C2-0 A6** — HARD STOP FOR GPT REVIEW FIRST |
 
 ---
 
@@ -124,7 +125,7 @@ A1: **NONE** by default. A5: targeted QA after each visible slice.
 
 ## Slices (auth expansion)
 
-0b Production read-only inventory (**NOT DONE**; not a B2 blocker) → A payment-test OTP foundation (**COMPLETE**) → B recovery+password (**B1 COMPLETE**; **B2 CHECKPOINTED / COMPLETE**) → C1 Google+Kakao (**OPEN**) → C2 Naver (**NOT STARTED**) → D account security/withdrawal/consent (**NOT STARTED**) → E final Profile UX (**NOT STARTED**).
+0b Production read-only inventory (**NOT DONE**; not a B2 blocker) → A payment-test OTP foundation (**COMPLETE**) → B recovery+password (**B1 COMPLETE**; **B2 CHECKPOINTED / COMPLETE**) → C1 Google+Kakao (**OPEN**, visual DEFERRED) → C2 Naver (**OPEN**, IMPLEMENT NOW) → D account security/withdrawal/consent (**NOT STARTED**) → E final Profile UX (**NOT STARTED**).
 
 Production unique verified-phone and production providers are **gated**. Payment-test (`bvihpoorwriejybixmoc`) first. Production (`qifloweuwyhvukabgnoa`) never mixed. Hosted Before User Created is **LIVE** on payment-test only.
 
@@ -152,8 +153,8 @@ Production rollout remains separately gated by NEW 6/7 and later explicit provid
 
 ## Do Not Do
 
-- Close NEW 2F from this amendment
-- Open C2 or NEW 3
+- Close NEW 2F or C1 from this amendment
+- Open NEW 3
 - Implement application source, mutate DB, enable production providers, edit env, or deploy from this docs ticket
 - Stage or revert preserved dirty A3 Profile/Inquiry/Orders files
 - Treat old OPTIONAL AUTH EXPANSION exclusions as current
@@ -165,10 +166,10 @@ Production rollout remains separately gated by NEW 6/7 and later explicit provid
 ## Resume
 
 1. Preserve dirty non-B2 A3 Profile/Inquiry/Orders WIP. Do not revert it from docs tickets
-2. GPT review of C1 STAGE OPEN
-3. **C1-0 A6** — do not start from this parent note
+2. GPT review of C2 OPEN
+3. **C2-0 A6** — do not start from this parent note
 4. Slice 0b remains required before production unique-phone enforcement
-5. USER visual approval for C1-2 and leftover D/E surfaces
+5. Unified Auth UX polish (Google + Kakao + Naver) after C2 functional completion; then USER visual approval. Do **not** close C1 before that
 6. A5 targeted QA per remaining slice
 7. A0 closure of NEW 2F (separate later ticket; not now)
 
@@ -179,6 +180,7 @@ Production rollout remains separately gated by NEW 6/7 and later explicit provid
 - `docs/decisions/NEW-2F_account-profile-auth-ux.md` (this parent)
 - `docs/decisions/NEW-2F_auth-expansion.md` (auth-expansion sub-contract)
 - `docs/decisions/NEW-2F_c1-google-kakao.md` (C1 OPEN)
+- `docs/decisions/NEW-2F_c2-naver.md` (C2 OPEN)
 - `docs/decisions/NEW-2F_b2b-hook-contract.md` (payment-test hosted hook — LIVE)
 - `docs/METALORA_PROJECT_STATE.md`
 - `docs/decisions/NEW-1_launch-pipeline-v3.md` (pipeline family SoT; live 2F overlay synced 2026-09-28)

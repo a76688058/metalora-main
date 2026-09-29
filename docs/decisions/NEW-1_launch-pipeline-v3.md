@@ -53,7 +53,7 @@ Live handoff: `docs/METALORA_PROJECT_STATE.md`. NEW 2F auth expansion: `docs/dec
 | NEW 9 | **NOT OPENED** |
 | LIVE | **NO** |
 
-Next 2F action: **C1-0 A6** after GPT review of STAGE OPEN. Do **not** close NEW 2F. Do **not** implement C1-0 from this note.
+Next 2F action: **C2-0 A6** after GPT review of C2 OPEN. Do **not** close NEW 2F or C1. Do **not** implement C2-0 from this note.
 
 ---
 
@@ -124,7 +124,7 @@ Do **not** reopen `#16`–`#23`.
 
 ## NEW 2F — Account / Profile / Auth UX/UI (OPEN)
 
-v1 `#25E` migrated here. **LIVE STATUS: OPEN.** Do **not** close from this note. B1 **COMPLETE**. B2 **CHECKPOINTED / COMPLETE**. C1 **OPEN** (`docs/decisions/NEW-2F_c1-google-kakao.md`). C2 / D / E **NOT STARTED**. Detail: `docs/decisions/NEW-2F_account-profile-auth-ux.md`, `docs/decisions/NEW-2F_auth-expansion.md`.
+v1 `#25E` migrated here. **LIVE STATUS: OPEN.** Do **not** close from this note. B1 **COMPLETE**. B2 **CHECKPOINTED / COMPLETE**. C1 **OPEN** visual **DEFERRED** (`docs/decisions/NEW-2F_c1-google-kakao.md`). C2 **OPEN** IMPLEMENT NOW (`docs/decisions/NEW-2F_c2-naver.md`). D / E **NOT STARTED**. Detail: `docs/decisions/NEW-2F_account-profile-auth-ux.md`, `docs/decisions/NEW-2F_auth-expansion.md`.
 
 The original v3 listing below is preserved as migrated `#25E` scope. Auth expansion (recovery, verified phone, Google/Kakao/Naver, linking) is **LAUNCH-REQUIRED** under NEW 2F and is **not** optional. That supersedes the historical “OUT OF NEW 2F / OPTIONAL AUTH EXPANSION” paragraph at the end of this section.
 
@@ -315,7 +315,7 @@ The original v3 listing treated the following as separate from launch-critical v
 - phone verification
 - account linking
 
-That classification is **SUPERSEDED**. They are **LAUNCH-REQUIRED** under NEW 2F. Current contract: `docs/decisions/NEW-2F_auth-expansion.md`. Google/Kakao = C1 **NOT STARTED**. Naver = C2 **NOT STARTED**. Do **not** treat this historical heading as an active exclusion.
+That classification is **SUPERSEDED**. They are **LAUNCH-REQUIRED** under NEW 2F. Current contract: `docs/decisions/NEW-2F_auth-expansion.md`. Google/Kakao = C1 **OPEN** (visual DEFERRED). Naver = C2 **OPEN**. Do **not** treat this historical heading as an active exclusion.
 
 ---
 
@@ -356,7 +356,7 @@ LIVE
 
 Operational default: **sequential** unless explicitly authorized otherwise.
 
-Current next 2F action: **C1-0 A6** after GPT review. NEW 2F remains **OPEN**. C1 is **OPEN**. Do not implement C1-0 from this note.
+Current next 2F action: **C2-0 A6** after GPT review of C2 OPEN. NEW 2F remains **OPEN**. C1 remains **OPEN** (visual DEFERRED). C2 is **OPEN**. Do not implement C2-0 from this note.
 
 ---
 
@@ -409,7 +409,7 @@ This note does **not** imply launch readiness.
 ## Next stage rule
 
 1. Live 2F status is in `docs/METALORA_PROJECT_STATE.md` and `docs/decisions/NEW-2F_auth-expansion.md`. This v3 note remains the pipeline-definition SoT.
-2. Next: **C1-0 A6** after GPT review of STAGE OPEN. Do **not** close NEW 2F. Do **not** implement C1-0 here.
+2. Next: **C2-0 A6** after GPT review of C2 OPEN. Do **not** close NEW 2F or C1. Do **not** implement C2-0 here.
 3. Do **not** open NEW 3–9 from this note.
 4. Do **not** activate live Toss. Do **not** deploy. Do **not** mutate production DB.
 
@@ -418,7 +418,7 @@ This note does **not** imply launch readiness.
 ## Do not do
 
 - Close NEW 2F from this note
-- Implement C1-0 / start SNS source from this note
+- Implement C2-0 / start Naver source from this note
 - Rewrite v2 historical body to current statuses
 - Downgrade NEW 3 `#25D` or NEW 5 `#25F`
 - Treat historical OPTIONAL AUTH EXPANSION as the current exclusion
@@ -433,10 +433,10 @@ This note does **not** imply launch readiness.
 ## Resume procedure
 
 1. This note + `docs/METALORA_PROJECT_STATE.md` = pipeline definition + live handoff
-2. Next: **C1-0 A6** after GPT review of `docs/decisions/NEW-2F_c1-google-kakao.md`
-3. Then C1-1 → C1-4. Do not start C1-0 here
-4. Do not close NEW 2F. Do not open NEW 3–9 from this note
+2. Next: **C2-0 A6** after GPT review of `docs/decisions/NEW-2F_c2-naver.md`
+3. Then C2-1 → C2-6 on payment-test. Do not start C2-0 here
+4. Do not close NEW 2F or C1. Do not open NEW 3–9 from this note
 
 Ownership: A0
 
-Relevant files: `docs/decisions/NEW-1_launch-pipeline-v3.md`, `docs/decisions/NEW-1_launch-pipeline-v2.md` (historical), `docs/METALORA_PROJECT_STATE.md`, `docs/decisions/NEW-2F_auth-expansion.md`, `docs/decisions/NEW-2F_c1-google-kakao.md`, `.cursor/rules/00-project-governance.mdc`
+Relevant files: `docs/decisions/NEW-1_launch-pipeline-v3.md`, `docs/decisions/NEW-1_launch-pipeline-v2.md` (historical), `docs/METALORA_PROJECT_STATE.md`, `docs/decisions/NEW-2F_auth-expansion.md`, `docs/decisions/NEW-2F_c1-google-kakao.md`, `docs/decisions/NEW-2F_c2-naver.md`, `.cursor/rules/00-project-governance.mdc`

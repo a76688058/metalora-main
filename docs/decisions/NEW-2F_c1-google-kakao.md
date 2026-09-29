@@ -2,9 +2,9 @@
 
 Status: **OPEN**
 
-Date: 2026-09-28 (STAGE OPEN); status updated 2026-09-29 (functional checkpoint — USER FINAL visual DEFERRED)
+Date: 2026-09-28 (STAGE OPEN); status updated 2026-09-29 (functional checkpoint — USER FINAL visual DEFERRED; C2 OPEN sibling)
 
-Decision: USER approved the amended C1 contract. C1 is **OPEN**. Closure is **NOT** authorized. USER FINAL AUTH UX VISUAL APPROVAL is **DEFERRED**. Production OAuth remains OUT. Naver remains C2. Apple is OUT.
+Decision: USER approved the amended C1 contract. C1 is **OPEN**. Closure is **NOT** authorized. USER FINAL AUTH UX VISUAL APPROVAL is **DEFERRED** until unified polish after Naver. Production OAuth remains OUT. Naver is **C2 OPEN / IMPLEMENT NOW** (`docs/decisions/NEW-2F_c2-naver.md`). Apple is OUT.
 
 Parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. Expansion: `docs/decisions/NEW-2F_auth-expansion.md`.
 
@@ -29,7 +29,7 @@ Parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. Expansion: `docs/dec
 | R1 silent identity transfer | **REMOVED** |
 | R1-REAUTH / manual linking | **OUT OF C1** |
 | Production | **UNCHANGED** |
-| Next | USER FINAL AUTH UX VISUAL APPROVAL remains **DEFERRED**. Do **not** close C1. Do **not** start C2. |
+| Next | USER FINAL AUTH UX VISUAL APPROVAL remains **DEFERRED**. Do **not** close C1. C2 is **OPEN** — next implementation is **C2-0 A6**. |
 
 ---
 
@@ -221,9 +221,9 @@ Authorized historical order (slices C1-0 → C1-4 are complete for functional/se
 4. **C1-3 A6/A3** — payment-test matrix verification
 5. **C1-4 A5** — final READ ONLY QA
 
-No C2 / D / E. No production. No deploy.
+C2 is a sibling **OPEN** contract (`docs/decisions/NEW-2F_c2-naver.md`). D / E remain **NOT STARTED**. No production. No deploy.
 
-Naver button must **not** appear. Consumer connect/disconnect UI is OUT.
+C1 customer surfaces stay Google/Kakao. Naver customer UI is **C2-3 after C2-0 proof**. Consumer connect/disconnect UI is OUT.
 
 ---
 
@@ -235,8 +235,10 @@ Naver implementation; Apple; R1 identity transfer; R1-REAUTH / `linkIdentity` cu
 
 ## Do Not Do
 
-- Close C1 without USER FINAL AUTH UX VISUAL APPROVAL
-- Start C2 / D / E
+- Close C1
+- Treat C1 polish as final Auth UX approval
+- Start D / E from C1
+- Implement Naver inside C1 (Naver is C2)
 - Merge users in METALORA by email
 - Skip phone verification because emails match
 - Undo Hosted verified-email auto-link
@@ -249,9 +251,10 @@ Naver implementation; Apple; R1 identity transfer; R1-REAUTH / `linkIdentity` cu
 
 ## Resume
 
-1. USER FINAL AUTH UX VISUAL APPROVAL remains **DEFERRED** (dedicated polish if opened)
-2. Do **not** close C1. Do **not** start C2.
+1. USER FINAL AUTH UX VISUAL APPROVAL remains **DEFERRED** until unified polish after Naver functionality
+2. Do **not** close C1
+3. Next implementation is **C2-0 A6** (`docs/decisions/NEW-2F_c2-naver.md`)
 
 Ownership: A0 (this contract). A6 RED implementation from C1-0. A3 UX from C1-2. A5 READ ONLY QA.
 
-Relevant files: this note; `docs/decisions/NEW-2F_auth-expansion.md`; `docs/decisions/NEW-2F_account-profile-auth-ux.md`; `docs/METALORA_PROJECT_STATE.md`
+Relevant files: this note; `docs/decisions/NEW-2F_c2-naver.md`; `docs/decisions/NEW-2F_auth-expansion.md`; `docs/decisions/NEW-2F_account-profile-auth-ux.md`; `docs/METALORA_PROJECT_STATE.md`
