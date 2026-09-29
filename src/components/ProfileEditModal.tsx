@@ -202,6 +202,7 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                   </div>
                   
                   <div className="space-y-4">
+                    {profile?.password_login_enabled === true && (
                     <div className="space-y-2">
                       <label className={`text-[14px] font-bold ml-1 uppercase tracking-tighter ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>아이디</label>
                       <input
@@ -214,6 +215,7 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                         }`}
                       />
                     </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">

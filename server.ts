@@ -16,6 +16,7 @@ import {
 } from "./src/lib/paymentEnvGuard";
 import { registerOtpAuthRoutes } from "./src/lib/otpAuthHandlers";
 import { registerPasswordAuthRoutes } from "./src/lib/passwordAuthHandlers";
+import { registerSocialAuthRoutes } from "./src/lib/socialAuthHandlers";
 import { resolveSmsAdapter } from "./src/lib/smsAdapter";
 import { configureExpressTrustProxy, resolveTrustedIpMode } from "./src/lib/trustedClientIp";
 import { verifyPaymentMember } from "./src/lib/paymentMemberAuth";
@@ -2158,6 +2159,11 @@ ${staticUrls}${productUrls}
     smsAdapter: otpSms.ok ? otpSms.adapter : null,
   });
   registerPasswordAuthRoutes(app, {
+    supabaseAdmin,
+    supabasePublic,
+    getEnv: () => process.env,
+  });
+  registerSocialAuthRoutes(app, {
     supabaseAdmin,
     supabasePublic,
     getEnv: () => process.env,

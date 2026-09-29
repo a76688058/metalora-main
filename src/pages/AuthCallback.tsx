@@ -1,44 +1,89 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 import { Loader2 } from 'lucide-react';
-import { safeInternalPath } from '../lib/authIntegrity';
+import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import {
+  authCallbackHasOAuthError,
+  resolveAuthCallbackPath,
+} from '../lib/authIntegrity';
+import { supabase } from '../lib/supabase';
 
+/**
+ * PKCE: supabase-js detectSessionInUrl + flowType pkce owns the URL `code`
+ * exchange during client initialize. getSession() awaits that initialize.
+ * Do not duplicate the code exchange on this page.
+ */
 export default function AuthCallback() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const redirectUrl = safeInternalPath(searchParams.get('redirect'));
+  const { theme } = useTheme();
+  const { user, profile, isLoading, isProfileResolved } = useAuth();
+  const [pkceReady, setPkceReady] = useState(false);
+
+  const oauthError = authCallbackHasOAuthError(searchParams);
+  const redirectRaw = searchParams.get('redirect');
+  const isDark = theme === 'dark';
 
   useEffect(() => {
-    const handleAuthCallback = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        if (error.message?.includes('Lock was stolen') || String(error).includes('Lock was stolen')) {
-          console.warn('Auth callback: Lock was stolen by another request. Retrying in 1s...');
-          setTimeout(handleAuthCallback, 1000);
-          return;
-        }
-        console.error('Auth callback error:', error);
-        navigate('/login');
-        return;
-      }
+    let cancelled = false;
 
-      if (session?.user) {
-        navigate(redirectUrl);
-      } else {
-        navigate('/login');
+    const waitForPkceInitialize = async () => {
+      try {
+        await supabase.auth.getSession();
+      } catch {
+        // Settled routing handles missing session. Do not surface OAuth payloads.
       }
+      if (!cancelled) setPkceReady(true);
     };
 
-    handleAuthCallback();
-  }, [navigate, redirectUrl]);
+    void waitForPkceInitialize();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (oauthError) {
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    if (!pkceReady || isLoading) return;
+    if (user && !isProfileResolved) return;
+
+    const next = resolveAuthCallbackPath({
+      oauthError: false,
+      sessionUser: user,
+      profile,
+      redirectRaw,
+    });
+    navigate(next, { replace: true });
+  }, [
+    oauthError,
+    pkceReady,
+    isLoading,
+    isProfileResolved,
+    user,
+    profile,
+    redirectRaw,
+    navigate,
+  ]);
 
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white">
-      <Loader2 className="animate-spin text-indigo-500 mb-4" size={48} />
-      <h2 className="text-xl font-bold tracking-tight">인증 처리 중...</h2>
-      <p className="text-zinc-400 mt-2">잠시만 기다려주세요.</p>
+    <div
+      className={`min-h-screen flex flex-col items-center justify-center ${
+        isDark ? 'bg-[#07080a] text-zinc-100' : 'bg-[#ebe7ee] text-zinc-900'
+      }`}
+      aria-busy="true"
+      aria-live="polite"
+    >
+      <Loader2
+        className={`animate-spin mb-4 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}
+        size={28}
+        aria-hidden="true"
+      />
+      <p className={`text-sm ${isDark ? 'text-zinc-500' : 'text-zinc-600'}`}>인증 처리 중</p>
     </div>
   );
 }

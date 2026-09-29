@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Express, Request, Response } from "express";
-import { classifyAccount, type AccountClassification } from "./accountKind";
+import {
+  classifyAccount,
+  customerVisibleLinkedProviders,
+  type AccountClassification,
+  type CustomerVisibleSocialProvider,
+} from "./accountKind";
 import { isUsableMemberProfile, USABLE_MEMBER_PROFILE_COLUMNS } from "./authIntegrity";
 import { recordAuthSecurityEvent } from "./authSecurityEvents";
 import { hitAuthRateLimit } from "./authRateLimit";
@@ -144,15 +149,33 @@ async function readUsableMember(
   return { userId: data.user.id };
 }
 
+type RecoveryUserClassification = AccountClassification & {
+  linkedProviders: CustomerVisibleSocialProvider[];
+};
+
 async function classifyUser(
   admin: SupabaseClient,
   userId: string,
   userCustomId: string | null,
-): Promise<AccountClassification> {
+): Promise<RecoveryUserClassification> {
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("password_login_enabled, social_login_enabled")
+    .eq("id", userId)
+    .maybeSingle();
   const { data } = await admin.auth.admin.getUserById(userId);
   const email = data.user?.email ?? null;
-  const providers = (data.user?.identities ?? []).map((identity) => identity.provider ?? "");
-  return classifyAccount({ userCustomId, authEmail: email, providers });
+  const identityProviders = (data.user?.identities ?? []).map((identity) => identity.provider ?? "");
+  return {
+    ...classifyAccount({
+      userCustomId,
+      authEmail: email,
+      providers: identityProviders,
+      passwordLoginEnabled: profile?.password_login_enabled === true,
+      socialLoginEnabled: profile?.social_login_enabled === true,
+    }),
+    linkedProviders: customerVisibleLinkedProviders(identityProviders),
+  };
 }
 
 async function handleRecoveryResolve(req: Request, res: Response, deps: PasswordAuthDeps): Promise<void> {
@@ -197,10 +220,11 @@ async function handleRecoveryResolve(req: Request, res: Response, deps: Password
     .eq("ticket_hmac", proofHmac)
     .maybeSingle();
 
-  let classification: AccountClassification = {
+  let classification: RecoveryUserClassification = {
     kind: "none",
     passwordResetAllowed: false,
     recoverableUsername: null,
+    linkedProviders: [],
   };
   let userId: string | null = null;
 
@@ -266,6 +290,7 @@ async function handleRecoveryResolve(req: Request, res: Response, deps: Password
     account_kind: classification.kind,
     recoverable_username: classification.recoverableUsername,
     password_reset_allowed: classification.passwordResetAllowed,
+    linked_providers: userId ? classification.linkedProviders : [],
   });
 }
 

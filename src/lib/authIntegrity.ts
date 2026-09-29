@@ -6,7 +6,7 @@ export const AUTH_SYNC_CHANNEL = 'metalora-auth-sync';
 export const AUTH_PRESERVE_STORAGE_KEYS = ['theme', 'language', 'cookieConsent'] as const;
 
 const PROFILE_COLUMNS =
-  'id, user_custom_id, full_name, phone_number, verified_phone_fingerprint, phone_verified_at, zip_code, address, address_detail, total_spent, is_admin, agreed_to_terms_at, agreed_to_privacy_at, agreed_to_cookie_at, updated_at';
+  'id, user_custom_id, full_name, phone_number, verified_phone_fingerprint, phone_verified_at, password_login_enabled, social_login_enabled, zip_code, address, address_detail, total_spent, is_admin, agreed_to_terms_at, agreed_to_privacy_at, agreed_to_cookie_at, updated_at';
 
 /** Minimal columns for server usable-member checks. Does not include verified_phone_e164. */
 export const USABLE_MEMBER_PROFILE_COLUMNS =
@@ -143,6 +143,105 @@ export function isUsableMemberProfile(profile: {
     : '';
   if (!verifiedAt) return false;
   return true;
+}
+
+/** C1 social providers. Naver is hook-allowed but not a C1 onboarding identity. */
+export const C1_SOCIAL_PROVIDERS = ['google', 'kakao'] as const;
+
+function normalizeAuthProvider(raw: unknown): string {
+  return typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+}
+
+/**
+ * Trusted Auth identity metadata only. Not ml-prefix, not email domain,
+ * not a client-supplied provider query string.
+ */
+export function hasC1SocialIdentity(user: {
+  identities?: Array<{ provider?: string | null }> | null;
+  app_metadata?: { provider?: unknown; providers?: unknown } | null;
+} | null | undefined): boolean {
+  if (!user) return false;
+  const fromIdentities = (user.identities ?? [])
+    .map((identity) => normalizeAuthProvider(identity.provider))
+    .filter(Boolean);
+  if (fromIdentities.some((provider) =>
+    (C1_SOCIAL_PROVIDERS as readonly string[]).includes(provider)
+  )) {
+    return true;
+  }
+  const metaProvider = normalizeAuthProvider(user.app_metadata?.provider);
+  if ((C1_SOCIAL_PROVIDERS as readonly string[]).includes(metaProvider)) {
+    return true;
+  }
+  const metaProviders = user.app_metadata?.providers;
+  if (Array.isArray(metaProviders)) {
+    if (metaProviders.some((provider) => {
+      const value = normalizeAuthProvider(provider);
+      return (C1_SOCIAL_PROVIDERS as readonly string[]).includes(value);
+    })) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function isPendingC1SocialCustomer(
+  user: {
+    identities?: Array<{ provider?: string | null }> | null;
+    app_metadata?: { provider?: unknown; providers?: unknown } | null;
+  } | null | undefined,
+  profile: {
+    id?: string | null;
+    user_custom_id?: string | null;
+    verified_phone_fingerprint?: string | null;
+    phone_verified_at?: string | null;
+    phone_number?: string | null;
+  } | null,
+): boolean {
+  return hasC1SocialIdentity(user) && !isUsableMemberProfile(profile);
+}
+
+export function authCallbackHasOAuthError(search: {
+  get(name: string): string | null;
+}): boolean {
+  const error = search.get('error')?.trim() ?? '';
+  const errorCode = search.get('error_code')?.trim() ?? '';
+  const errorDescription = search.get('error_description')?.trim() ?? '';
+  return Boolean(error || errorCode || errorDescription);
+}
+
+export function authCallbackLoginPath(redirectRaw?: string | null): string {
+  const dest = safeInternalPath(redirectRaw);
+  if (dest === '/') return '/login';
+  return `/login?redirect=${encodeURIComponent(dest)}`;
+}
+
+/**
+ * Settled OAuth callback destination. Session is never signed out here.
+ * Pending social and other incomplete members both go to /login; A3 detects
+ * C1 social via Auth identities, not this path.
+ */
+export function resolveAuthCallbackPath(input: {
+  oauthError: boolean;
+  sessionUser: {
+    identities?: Array<{ provider?: string | null }> | null;
+    app_metadata?: { provider?: unknown; providers?: unknown } | null;
+  } | null;
+  profile: {
+    id?: string | null;
+    user_custom_id?: string | null;
+    verified_phone_fingerprint?: string | null;
+    phone_verified_at?: string | null;
+    phone_number?: string | null;
+    is_admin?: boolean;
+  } | null;
+  redirectRaw?: string | null;
+}): string {
+  if (input.oauthError || !input.sessionUser) return '/login';
+  if (isUsableMemberProfile(input.profile)) {
+    return safeInternalPath(input.redirectRaw);
+  }
+  return authCallbackLoginPath(input.redirectRaw);
 }
 
 export { PROFILE_COLUMNS };

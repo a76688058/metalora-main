@@ -1,6 +1,9 @@
-import { MEMBER_EMAIL_DOMAIN } from "./memberUsername";
+import { MEMBER_EMAIL_DOMAIN, isGeneratedSocialUsername } from "./memberUsername";
 
 export type AccountKind = "password" | "social" | "none";
+
+export const CUSTOMER_VISIBLE_SOCIAL_PROVIDERS = ["google", "kakao"] as const;
+export type CustomerVisibleSocialProvider = (typeof CUSTOMER_VISIBLE_SOCIAL_PROVIDERS)[number];
 
 export type AccountClassification = {
   kind: AccountKind;
@@ -9,9 +12,21 @@ export type AccountClassification = {
 };
 
 /**
+ * Customer-visible recovery providers from REAL `auth.identities` only.
+ * Allow-list google/kakao. Never infer from email or `ml` prefix.
+ */
+export function customerVisibleLinkedProviders(
+  providers: readonly string[] | null | undefined,
+): CustomerVisibleSocialProvider[] {
+  const seen = new Set(
+    (providers ?? []).map((value) => value.trim().toLowerCase()).filter(Boolean),
+  );
+  return CUSTOMER_VISIBLE_SOCIAL_PROVIDERS.filter((provider) => seen.has(provider));
+}
+
+/**
  * Legacy social-first username *shape*. Not a security authority.
- * Slice C must store an explicit login-capability field
- * (`profiles.password_login_enabled` or equivalent). Do not add that column in B1.
+ * Generated social-first usernames are exactly `ml` + 10 lowercase alphanumeric.
  */
 export const INTERNAL_SOCIAL_USERNAME_RE = /^ml[a-z0-9]{4,}$/;
 
@@ -24,24 +39,46 @@ function closed(kind: AccountKind): AccountClassification {
   return { kind, passwordResetAllowed: false, recoverableUsername: null };
 }
 
+function fromCapabilityFlags(
+  passwordLoginEnabled: boolean,
+  socialLoginEnabled: boolean,
+  userCustomId: string | null | undefined,
+): AccountClassification | null {
+  const username = userCustomId?.trim() ?? "";
+  if (passwordLoginEnabled) {
+    const hideGenerated = socialLoginEnabled && isGeneratedSocialUsername(username);
+    return {
+      kind: "password",
+      passwordResetAllowed: true,
+      recoverableUsername: hideGenerated || !username ? null : username,
+    };
+  }
+  if (socialLoginEnabled) {
+    return closed("social");
+  }
+  return null;
+}
+
 /**
- * B1 classifier — fail closed when password vs social-first cannot be proven.
- *
- * Proven password: Auth email `*@metalora.me` AND a stored username AND
- * (email identity present OR no oauth identities).
- * A later SNS link on a proven password account remains password-capable.
- *
- * Ambiguous (fail closed → kind none, no reset, no username):
- * metalora virtual email + oauth identities without an email identity.
- *
- * `ml…` prefix is never sole authority. A proven password account that chose
- * a username beginning with `ml` remains recoverable.
+ * Prefer explicit capability flags. Heuristic fallback is only for pre-C1 rows
+ * where both flags are absent/false. `ml…` prefix is never authority.
  */
 export function classifyAccount(input: {
   userCustomId: string | null | undefined;
-  authEmail: string | null | undefined;
+  authEmail?: string | null | undefined;
   providers?: string[] | null;
+  passwordLoginEnabled?: boolean | null;
+  socialLoginEnabled?: boolean | null;
 }): AccountClassification {
+  const fromFlags = fromCapabilityFlags(
+    input.passwordLoginEnabled === true,
+    input.socialLoginEnabled === true,
+    input.userCustomId,
+  );
+  if (input.passwordLoginEnabled === true || input.socialLoginEnabled === true) {
+    return fromFlags ?? closed("none");
+  }
+
   const username = input.userCustomId?.trim() ?? "";
   const usernameKey = username.toLowerCase();
   const email = input.authEmail?.trim().toLowerCase() ?? "";
@@ -72,8 +109,10 @@ export function classifyAccount(input: {
 
 export function classifyAccountKind(input: {
   userCustomId: string | null | undefined;
-  authEmail: string | null | undefined;
+  authEmail?: string | null | undefined;
   providers?: string[] | null;
+  passwordLoginEnabled?: boolean | null;
+  socialLoginEnabled?: boolean | null;
 }): AccountKind {
   return classifyAccount(input).kind;
 }

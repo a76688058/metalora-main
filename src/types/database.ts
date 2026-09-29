@@ -7,6 +7,8 @@ export interface Profile {
   verified_phone_e164?: string | null;
   verified_phone_fingerprint?: string | null;
   phone_verified_at?: string | null;
+  password_login_enabled?: boolean;
+  social_login_enabled?: boolean;
   zip_code: string | null;
   address: string | null;
   address_detail: string | null;

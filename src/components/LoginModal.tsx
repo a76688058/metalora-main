@@ -15,16 +15,27 @@ import {
   memberUsernameSignupError,
   normalizeMemberUsername,
 } from '../lib/memberUsername';
-import { isUsableMemberProfile, PROFILE_COLUMNS } from '../lib/authIntegrity';
+import { isPendingC1SocialCustomer, isUsableMemberProfile, PROFILE_COLUMNS } from '../lib/authIntegrity';
 import { memberPasswordError } from '../lib/passwordPolicy';
 import { normalizeKrMobilePhone } from '../lib/phoneNormalize';
 import PasswordVisibilityToggle from './auth/PasswordVisibilityToggle';
+import SocialContinueRow, { AuthNotice, SocialDivider } from './auth/SocialContinueRow';
 import {
+  PHONE_ALREADY_REGISTERED_COPY,
+  SOCIAL_OAUTH_FAIL,
+  oauthCallbackUrl,
+  readLinkedProviders,
+  startBrowserSocialOAuth,
+  type C1SocialProvider,
+} from './auth/socialOAuth';
+import {
+  isPhoneAlreadyRegistered,
   mapOtpSendError,
   mapOtpVerifyError,
   mapPasswordResetError,
   mapRecoveryResolveError,
   mapSignupCompleteError,
+  mapSocialCompleteError,
   postCustomerAuth,
   readProofToken,
   readRecoverySessionToken,
@@ -37,7 +48,7 @@ interface LoginModalProps {
   redirectUrl?: string;
 }
 
-type AuthView = 'login' | 'signup' | 'recovery' | 'reset';
+type AuthView = 'login' | 'signup' | 'recovery' | 'reset' | 'social';
 
 const EMPTY_AUTH_FORM = {
   username: '',
@@ -65,7 +76,7 @@ const CheckboxRow = ({
   onView?: () => void;
   theme?: string;
 }) => (
-  <div className="flex items-center gap-3 py-1">
+  <div className="flex items-center gap-2.5 py-0.5">
     <button
       type="button"
       role="checkbox"
@@ -105,11 +116,12 @@ function dialogLabel(view: AuthView): string {
   if (view === 'signup') return '회원가입';
   if (view === 'recovery') return '계정 찾기';
   if (view === 'reset') return '비밀번호 재설정';
+  if (view === 'social') return '계정 설정';
   return '로그인';
 }
 
 export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '/' }: LoginModalProps) {
-  const { user, profile, refreshSession, signOut } = useAuth();
+  const { user, profile, session, refreshSession, refreshProfile, signOut, isProfileResolved } = useAuth();
   const { showToast } = useToast();
   const { theme } = useTheme();
   const { registerLoginOverlay } = useShellOverlay();
@@ -148,12 +160,20 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [resendIn, setResendIn] = useState(0);
   const [signupProof, setSignupProof] = useState<string | null>(null);
+  const [identityLinkProof, setIdentityLinkProof] = useState<string | null>(null);
   const [recoveryProof, setRecoveryProof] = useState<string | null>(null);
   const [recoverySession, setRecoverySession] = useState<string | null>(null);
   const [recoverableUsername, setRecoverableUsername] = useState<string | null>(null);
+  const [linkedProviders, setLinkedProviders] = useState<C1SocialProvider[]>([]);
   const [passwordResetAllowed, setPasswordResetAllowed] = useState(false);
   const [recoveryResolved, setRecoveryResolved] = useState(false);
+  const [oauthStarting, setOauthStarting] = useState<C1SocialProvider | null>(null);
+  const [abandoningPending, setAbandoningPending] = useState(false);
+  const [phoneCollisionNotice, setPhoneCollisionNotice] = useState(false);
 
+  const pendingSocial = isProfileResolved && isPendingC1SocialCustomer(user, profile);
+  const sessionSettling = Boolean(user) && !isProfileResolved;
+  const surfaceView: AuthView = pendingSocial ? 'social' : view;
   const allChecked = agreements.terms && agreements.privacy && agreements.cookie;
   const isDark = theme === 'dark';
 
@@ -201,9 +221,11 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     setOtpVerifying(false);
     setResendIn(0);
     setSignupProof(null);
+    setIdentityLinkProof(null);
     setRecoveryProof(null);
     setRecoverySession(null);
     setRecoverableUsername(null);
+    setLinkedProviders([]);
     setPasswordResetAllowed(false);
     setRecoveryResolved(false);
     setResetPassword('');
@@ -214,6 +236,8 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     setShowResetPasswordConfirm(false);
     setUsernameAvailable(null);
     setUsernameChecking(false);
+    setOauthStarting(null);
+    setPhoneCollisionNotice(false);
     clearAlerts();
   };
 
@@ -265,7 +289,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
   };
 
   useEffect(() => {
-    if (user && profile && isOpen) {
+    if (user && isUsableMemberProfile(profile) && isOpen) {
       onClose();
     }
   }, [user, profile, isOpen, onClose]);
@@ -288,15 +312,15 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
       if (event.key !== 'Escape') return;
       event.preventDefault();
       if (policyModalState.isOpen) return;
-      if (view !== 'login') {
+      if (surfaceView !== 'login' && surfaceView !== 'social') {
         goBack();
         return;
       }
-      onClose();
+      void abandonOrClose();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, view, policyModalState.isOpen, onClose]);
+  }, [isOpen, surfaceView, policyModalState.isOpen, onClose, pendingSocial, abandoningPending]);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -388,12 +412,30 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     if (event.pointerType === 'touch') handlePointerMove(event);
   };
 
+  const abandonOrClose = async () => {
+    if (abandoningPending) return;
+    if (!pendingSocial) {
+      onClose();
+      return;
+    }
+    setAbandoningPending(true);
+    clearAlerts();
+    try {
+      await signOut({ redirect: false, toast: false });
+      resetAuthSurface();
+      onClose();
+    } catch {
+      setAbandoningPending(false);
+      setErrorMsg('요청을 처리할 수 없습니다.');
+    }
+  };
+
   const handleClose = (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
-    onClose();
+    void abandonOrClose();
   };
 
   const finishAuthenticated = async (userId: string) => {
@@ -415,7 +457,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLoading) return;
+    if (isLoading || oauthStarting || pendingSocial) return;
     const username = normalizeMemberUsername(formData.username);
     if (username.length < 4 || !formData.password) {
       setErrorMsg('아이디 또는 비밀번호를 확인해주세요.');
@@ -443,18 +485,28 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     }
   };
 
-  const sendOtp = async (purpose: 'signup' | 'recovery') => {
+  const sendOtp = async (purpose: 'signup' | 'recovery' | 'identity_link') => {
     const phone = formData.phone_number;
     if (!normalizeKrMobilePhone(phone).ok) {
       setErrorMsg('휴대폰 번호를 확인해주세요.');
       return;
     }
+    const accessToken = purpose === 'identity_link' ? session?.access_token : undefined;
+    if (purpose === 'identity_link' && !accessToken) {
+      setErrorMsg('인증이 필요합니다.');
+      return;
+    }
     setOtpSending(true);
     clearAlerts();
     setOtpVerified(false);
-    setSignupProof(null);
-    setRecoveryProof(null);
-    const result = await postCustomerAuth('/api/auth/otp/send', { purpose, phone });
+    if (purpose === 'signup') setSignupProof(null);
+    if (purpose === 'recovery') setRecoveryProof(null);
+    if (purpose === 'identity_link') setIdentityLinkProof(null);
+    const result = await postCustomerAuth(
+      '/api/auth/otp/send',
+      { purpose, phone },
+      accessToken ? { accessToken } : undefined,
+    );
     setOtpSending(false);
     if (result.status !== 200 || result.json.ok !== true) {
       setErrorMsg(mapOtpSendError(result.status));
@@ -465,18 +517,27 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     setResendIn(OTP_RESEND_SECONDS);
   };
 
-  const verifyOtp = async (purpose: 'signup' | 'recovery') => {
+  const verifyOtp = async (purpose: 'signup' | 'recovery' | 'identity_link') => {
     if (!/^\d{6}$/.test(otpCode.trim())) {
       setErrorMsg('인증번호를 확인해주세요.');
       return;
     }
+    const accessToken = purpose === 'identity_link' ? session?.access_token : undefined;
+    if (purpose === 'identity_link' && !accessToken) {
+      setErrorMsg('인증이 필요합니다.');
+      return;
+    }
     setOtpVerifying(true);
     clearAlerts();
-    const result = await postCustomerAuth('/api/auth/otp/verify', {
-      purpose,
-      phone: formData.phone_number,
-      code: otpCode.trim(),
-    });
+    const result = await postCustomerAuth(
+      '/api/auth/otp/verify',
+      {
+        purpose,
+        phone: formData.phone_number,
+        code: otpCode.trim(),
+      },
+      accessToken ? { accessToken } : undefined,
+    );
     setOtpVerifying(false);
     const token = readProofToken(result.json);
     if (result.status !== 200 || result.json.ok !== true || !token) {
@@ -488,15 +549,20 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
       setSignupProof(token);
       return;
     }
+    if (purpose === 'identity_link') {
+      setIdentityLinkProof(token);
+      return;
+    }
     setRecoveryProof(token);
     const resolved = await postCustomerAuth('/api/auth/recovery/resolve', { proof_token: token });
     if (resolved.status !== 200 || resolved.json.ok !== true) {
       setErrorMsg(mapRecoveryResolveError(resolved.status));
       return;
     }
-    const session = readRecoverySessionToken(resolved.json);
-    setRecoverySession(session);
+    const sessionToken = readRecoverySessionToken(resolved.json);
+    setRecoverySession(sessionToken);
     setRecoveryResolved(true);
+    setLinkedProviders(readLinkedProviders(resolved.json.linked_providers));
     const kind = resolved.json.account_kind;
     const allowed = resolved.json.password_reset_allowed === true;
     const username = typeof resolved.json.recoverable_username === 'string'
@@ -609,6 +675,86 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     goView('login');
   };
 
+  const handleSocialContinue = async (provider: C1SocialProvider) => {
+    if (oauthStarting || isLoading) return;
+    setOauthStarting(provider);
+    clearAlerts();
+    const redirectTo = oauthCallbackUrl(window.location.origin, redirectUrl);
+    const result = await startBrowserSocialOAuth(supabase, provider, redirectTo);
+    if (result.ok === false) {
+      setOauthStarting(null);
+      setErrorMsg(SOCIAL_OAUTH_FAIL);
+    }
+  };
+
+  const returnToLoginAfterCollision = async () => {
+    await signOut({ redirect: false, toast: false });
+    resetAuthSurface();
+    setPhoneCollisionNotice(true);
+  };
+
+  const handleSocialComplete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLoading || oauthStarting) return;
+    if (!identityLinkProof) {
+      setErrorMsg('휴대폰 인증을 완료해 주세요.');
+      return;
+    }
+    if (!allChecked) {
+      setErrorMsg('필수 약관에 동의해 주세요.');
+      return;
+    }
+    const accessToken = session?.access_token;
+    if (!accessToken) {
+      setErrorMsg('인증이 필요합니다.');
+      return;
+    }
+    setIsLoading(true);
+    clearAlerts();
+    const complete = await postCustomerAuth(
+      '/api/auth/social/complete',
+      {
+        proof_token: identityLinkProof,
+        consents: {
+          terms: agreements.terms,
+          privacy: agreements.privacy,
+          cookie: agreements.cookie,
+        },
+      },
+      { accessToken },
+    );
+    if (isPhoneAlreadyRegistered(complete.status, complete.json)) {
+      setIsLoading(false);
+      await returnToLoginAfterCollision();
+      return;
+    }
+    if (complete.status !== 200 || complete.json.ok !== true) {
+      setIsLoading(false);
+      setErrorMsg(mapSocialCompleteError(complete.status, complete.json));
+      return;
+    }
+    await refreshProfile();
+    const userId = user?.id;
+    if (!userId) {
+      setIsLoading(false);
+      setErrorMsg('요청을 처리할 수 없습니다.');
+      return;
+    }
+    const { data: profileRow, error: memberProfileError } = await supabase
+      .from('profiles')
+      .select(PROFILE_COLUMNS)
+      .eq('id', userId)
+      .maybeSingle();
+    setIsLoading(false);
+    if (memberProfileError || !isUsableMemberProfile(profileRow)) {
+      setErrorMsg('계정 정보를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
+    resetAuthSurface();
+    if (onSuccess) onSuccess();
+    else onClose();
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -617,6 +763,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
       setOtpSent(false);
       setOtpVerified(false);
       setSignupProof(null);
+      setIdentityLinkProof(null);
     }
   };
 
@@ -625,11 +772,15 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
   const signupReady = Boolean(signupProof) && allChecked && signupPasswordsMatch && formData.passwordConfirm.length >= 8;
   const resetPasswordsMatch = resetPassword === resetPasswordConfirm;
   const resetReady = Boolean(recoverySession) && resetPassword.length >= 8 && resetPasswordsMatch;
+  const socialReady = Boolean(identityLinkProof) && allChecked;
+  const socialBusy = Boolean(oauthStarting) || isLoading;
+  const dividerLine = isDark ? 'bg-white/6' : 'bg-black/8';
   const fieldClass = cn(
     'ml-auth-field w-full rounded-[14px] px-5 py-3.5 text-base tracking-tight focus:outline-none',
     isDark ? 'text-zinc-100 placeholder:text-zinc-500' : 'text-zinc-900 placeholder:text-zinc-400',
   );
-  const labelClass = `block text-[13px] font-medium mb-2 ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`;
+  const labelClass = `block text-[13px] font-medium mb-1.5 ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`;
+  const alertClass = 'ml-auth-alert';
   const ctaClass = (ready: boolean) =>
     cn(
       'ml-auth-cta w-full font-semibold py-4 rounded-[14px] flex items-center justify-center gap-2 text-base tracking-tight focus-ring',
@@ -637,6 +788,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     );
 
   const sideBtn = 'ml-auth-side focus-ring';
+  const sideBtnConfirm = 'ml-auth-side ml-auth-side--confirm focus-ring';
   const revealMotion = reduceMotion
     ? { duration: 0 }
     : {
@@ -644,7 +796,12 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
       opacity: { type: 'tween' as const, duration: 0.22, ease: [0.22, 1, 0.36, 1] },
     };
   const statusQuiet = isDark ? 'text-zinc-500' : 'text-zinc-400';
-  const statusError = isDark ? 'text-red-400' : 'text-red-500';
+  const viewMotion = {
+    initial: reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 },
+    animate: { opacity: 1, y: 0 },
+    exit: reduceMotion ? { opacity: 1 } : { opacity: 0, y: -8 },
+    transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] as const },
+  };
 
   return (
     <>
@@ -794,6 +951,10 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
           inset 0 1px 0 rgba(255,255,255,0.7),
           0 0 0 1px rgba(70, 60, 80, 0.16);
       }
+      .ml-auth-field:disabled {
+        opacity: 0.58;
+        cursor: not-allowed;
+      }
       .ml-auth-cta {
         position: relative;
         overflow: hidden;
@@ -855,6 +1016,105 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
         font-size: 0.75rem;
         line-height: 1.3;
       }
+      .ml-auth-social {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.7rem;
+        width: 100%;
+        height: 3.25rem;
+        border-radius: 14px;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        border: 1px solid rgba(255,255,255,0.06);
+        background: linear-gradient(180deg, #1f2026 0%, #23242b 100%);
+        color: rgba(244, 245, 247, 0.88);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+      }
+      .ml-auth-social:hover:not(:disabled),
+      .ml-auth-social:focus-visible {
+        background: linear-gradient(180deg, #26272e 0%, #2a2b33 100%);
+      }
+      .ml-auth-social:disabled { opacity: 0.55; cursor: not-allowed; }
+      .ml-auth-env--light .ml-auth-social {
+        border-color: rgba(40, 30, 50, 0.08);
+        background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(236, 232, 240, 0.94));
+        color: rgba(36, 32, 42, 0.88);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+      }
+      .ml-auth-env--light .ml-auth-social:hover:not(:disabled),
+      .ml-auth-env--light .ml-auth-social:focus-visible {
+        background: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(232, 226, 236, 0.98));
+      }
+      .ml-auth-social-mark {
+        width: 18px;
+        height: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .ml-auth-notice {
+        border-radius: 14px;
+        padding: 1rem 1.1rem;
+        border: 1px solid rgba(255,255,255,0.07);
+        background: linear-gradient(180deg, #1c1d23 0%, #202128 100%);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      }
+      .ml-auth-notice p {
+        margin: 0;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        letter-spacing: -0.02em;
+        color: rgba(232, 234, 238, 0.82);
+      }
+      .ml-auth-notice p + p {
+        margin-top: 0.35rem;
+        color: rgba(196, 200, 208, 0.62);
+        font-size: 0.8125rem;
+      }
+      .ml-auth-notice .ml-auth-notice-id {
+        margin-top: 0.4rem;
+        font-size: 1.0625rem;
+        font-weight: 500;
+        letter-spacing: -0.03em;
+        color: rgba(244, 245, 247, 0.94);
+      }
+      .ml-auth-env--light .ml-auth-notice {
+        border-color: rgba(40, 30, 50, 0.08);
+        background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(236, 232, 240, 0.94));
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+      }
+      .ml-auth-env--light .ml-auth-notice p { color: rgba(40, 32, 48, 0.82); }
+      .ml-auth-env--light .ml-auth-notice p + p { color: rgba(40, 32, 48, 0.52); }
+      .ml-auth-env--light .ml-auth-notice .ml-auth-notice-id { color: rgba(28, 22, 36, 0.92); }
+      .ml-auth-alert {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        line-height: 1.45;
+        color: #d7a3a8;
+      }
+      .ml-auth-env--light .ml-auth-alert { color: #9a4d56; }
+      .ml-auth-consent {
+        padding: 0.15rem 0 0.25rem;
+      }
+      .ml-auth-side--confirm {
+        background: linear-gradient(180deg, #3a3c45 0%, #27282f 100%);
+        color: #f4f5f7;
+      }
+      .ml-auth-side--confirm:disabled {
+        background: linear-gradient(180deg, #2c2d34 0%, #22232a 100%);
+        color: rgba(244, 245, 247, 0.42);
+      }
+      .ml-auth-env--light .ml-auth-side--confirm {
+        background: linear-gradient(180deg, #3a3344 0%, #2a2432 100%);
+        color: #f7f6f8;
+      }
+      .ml-auth-env--light .ml-auth-side--confirm:disabled {
+        background: linear-gradient(180deg, #ece8ef 0%, #ddd8e2 100%);
+        color: rgba(40, 32, 48, 0.38);
+      }
       @media (prefers-reduced-motion: reduce) {
         .ml-auth-panel { transform: none !important; transition: none !important; }
         .ml-auth-spec::before {
@@ -876,7 +1136,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
             exit={{ opacity: 0 }}
             role="dialog"
             aria-modal="true"
-            aria-label={dialogLabel(view)}
+            aria-label={phoneCollisionNotice && surfaceView === 'login' ? '이미 가입된 번호입니다' : dialogLabel(surfaceView)}
             className={cn(
               'fixed inset-0 flex items-center justify-center p-4 sm:p-8 overflow-y-auto',
               zClass('dialog'),
@@ -896,10 +1156,10 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
             >
               <div className="ml-auth-grain absolute inset-0 z-[1]" aria-hidden="true" />
               <div className="ml-auth-spec absolute inset-0 z-[2]" aria-hidden="true" />
-              <div className="relative z-[3] flex flex-col px-6 pt-7 pb-8 sm:px-10 sm:pt-8 sm:pb-10">
-                <div className="flex items-center justify-between gap-4 mb-11 sm:mb-12">
+              <div className="relative z-[3] flex flex-col px-6 pt-6 pb-7 sm:px-10 sm:pt-8 sm:pb-9">
+                <div className="flex items-center justify-between gap-4 mb-8 sm:mb-9">
                   <div className="flex items-center gap-2 min-w-0">
-                    {view !== 'login' && (
+                    {surfaceView !== 'login' && surfaceView !== 'social' && (
                       <button
                         type="button"
                         onClick={goBack}
@@ -924,8 +1184,10 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                   <button
                     type="button"
                     onClick={handleClose}
+                    disabled={abandoningPending}
+                    aria-busy={abandoningPending}
                     className={cn(
-                      'shrink-0 p-2 rounded-full focus-ring transition-colors',
+                      'shrink-0 p-2 rounded-full focus-ring transition-colors disabled:opacity-40 disabled:pointer-events-none',
                       isDark
                         ? 'text-zinc-400 hover:text-white hover:bg-white/5'
                         : 'text-zinc-500 hover:text-black hover:bg-black/5',
@@ -937,14 +1199,76 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                 </div>
 
                 <AnimatePresence mode="wait" initial={false}>
-                  {view === 'login' && (
-                    <motion.form
-                      key="login"
-                      onSubmit={handleLogin}
+                  {sessionSettling && (
+                    <motion.div
+                      key="auth-settle"
                       initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -8 }}
                       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                      className="flex flex-col items-center justify-center gap-3 py-10"
+                      aria-busy="true"
+                      aria-live="polite"
+                    >
+                      <Loader2 className={`animate-spin ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`} size={22} aria-hidden="true" />
+                      <p className={`text-sm ${isDark ? 'text-zinc-500' : 'text-zinc-600'}`}>확인 중</p>
+                    </motion.div>
+                  )}
+
+                  {!sessionSettling && surfaceView === 'login' && phoneCollisionNotice && (
+                    <motion.div
+                      key="login-collision"
+                      initial={viewMotion.initial}
+                      animate={viewMotion.animate}
+                      exit={viewMotion.exit}
+                      transition={viewMotion.transition}
+                      className="space-y-4"
+                    >
+                      <AuthNotice>
+                        {PHONE_ALREADY_REGISTERED_COPY.split('\n').map((line) => (
+                          <p key={line}>{line}</p>
+                        ))}
+                      </AuthNotice>
+                      <button
+                        type="button"
+                        onClick={() => { setPhoneCollisionNotice(false); clearAlerts(); }}
+                        className={ctaClass(true)}
+                      >
+                        아이디로 로그인
+                      </button>
+                      <SocialDivider quiet={dividerLine} />
+                      <SocialContinueRow
+                        busyProvider={oauthStarting}
+                        disabled={isLoading}
+                        onContinue={(provider) => { void handleSocialContinue(provider); }}
+                      />
+                      <div className="flex flex-col items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => goView('recovery')}
+                          className={`text-sm font-medium focus-ring rounded-md px-2 py-1 ${isDark ? 'text-zinc-400 hover:text-zinc-200' : 'text-zinc-500 hover:text-zinc-800'}`}
+                        >
+                          아이디/비밀번호를 모르겠어요
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => goView('signup')}
+                          className={`text-[13px] font-medium focus-ring rounded-md px-2 py-1 ${isDark ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-500 hover:text-zinc-800'}`}
+                        >
+                          계정이 없으신가요? 회원가입
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {!sessionSettling && surfaceView === 'login' && !phoneCollisionNotice && (
+                    <motion.form
+                      key="login"
+                      onSubmit={handleLogin}
+                      initial={viewMotion.initial}
+                      animate={viewMotion.animate}
+                      exit={viewMotion.exit}
+                      transition={viewMotion.transition}
                       className="space-y-4"
                     >
                       <div>
@@ -985,13 +1309,19 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                         </div>
                       </div>
                       {errorMsg && (
-                        <div role="alert" className="text-red-500 text-sm font-medium">{errorMsg}</div>
+                        <div role="alert" className={`${alertClass} whitespace-pre-line`}>{errorMsg}</div>
                       )}
-                      <button type="submit" disabled={isLoading || !isLoginValid} className={ctaClass(!isLoading && isLoginValid)}>
+                      <button type="submit" disabled={socialBusy || !isLoginValid} className={ctaClass(!socialBusy && isLoginValid)}>
                         {isLoading ? <Loader2 className="animate-spin" size={20} /> : null}
                         {isLoading ? '로그인 중...' : '로그인'}
                       </button>
-                      <div className="flex flex-col items-center gap-3 pt-2">
+                      <SocialDivider quiet={dividerLine} />
+                      <SocialContinueRow
+                        busyProvider={oauthStarting}
+                        disabled={isLoading}
+                        onContinue={(provider) => { void handleSocialContinue(provider); }}
+                      />
+                      <div className="flex flex-col items-center gap-2 pt-1">
                         <button
                           type="button"
                           onClick={() => goView('recovery')}
@@ -1010,7 +1340,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                     </motion.form>
                   )}
 
-                  {view === 'signup' && (
+                  {!sessionSettling && surfaceView === 'signup' && (
                     <motion.form
                       key="signup"
                       onSubmit={handleSignupComplete}
@@ -1018,7 +1348,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                       animate={{ opacity: 1, y: 0 }}
                       exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -8 }}
                       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                      className="space-y-3.5"
+                      className="space-y-3"
                     >
                       <div>
                         <label htmlFor="signup-full-name" className={labelClass}>이름</label>
@@ -1051,7 +1381,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                           aria-describedby={usernameChecking || usernameAvailable !== null ? 'signup-username-status' : undefined}
                         />
                         {(usernameChecking || usernameAvailable !== null) && (
-                          <p id="signup-username-status" className={cn('ml-auth-status', usernameAvailable === false ? statusError : statusQuiet)} role="status">
+                          <p id="signup-username-status" className={cn('ml-auth-status', usernameAvailable === false ? alertClass : statusQuiet)} role="status">
                             {usernameChecking ? '확인 중' : usernameAvailable === false ? '사용할 수 없는 아이디입니다.' : '사용 가능'}
                           </p>
                         )}
@@ -1103,7 +1433,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                           />
                         </div>
                         {formData.passwordConfirm.length > 0 && formData.password !== formData.passwordConfirm && (
-                          <p className={cn('ml-auth-status', statusError)} role="alert">비밀번호가 일치하지 않습니다.</p>
+                          <p className={cn('ml-auth-status', alertClass)} role="alert">비밀번호가 일치하지 않습니다.</p>
                         )}
                       </div>
                       <div>
@@ -1126,6 +1456,8 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                             type="button"
                             onClick={() => { void sendOtp('signup'); }}
                             disabled={otpSending || resendIn > 0 || otpVerified}
+                            aria-busy={otpSending}
+                            aria-label={otpVerified ? '전화번호 확인됨' : (otpSent ? '인증번호 재전송' : '인증번호 받기')}
                             className={sideBtn}
                           >
                             {otpSending ? <Loader2 className="animate-spin mx-auto" size={16} /> : (otpVerified ? '확인됨' : (otpSent && resendIn > 0 ? `${resendIn}s` : '인증'))}
@@ -1143,6 +1475,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                             className="overflow-hidden"
                           >
                             <label htmlFor="signup-otp" className={labelClass}>인증번호</label>
+                            <p id="signup-otp-hint" className={`ml-auth-status ${statusQuiet}`}>인증번호를 입력해 주세요.</p>
                             <div className="flex gap-2">
                               <input
                                 id="signup-otp"
@@ -1158,13 +1491,15 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                                     void verifyOtp('signup');
                                   }
                                 }}
+                                aria-describedby="signup-otp-hint"
                                 className={cn(fieldClass, 'min-w-0 tracking-[0.3em]')}
                               />
                               <button
                                 type="button"
                                 onClick={() => { void verifyOtp('signup'); }}
-                                disabled={otpVerifying || otpVerified}
-                                className={sideBtn}
+                                disabled={otpVerifying || otpVerified || otpCode.length !== 6}
+                                aria-busy={otpVerifying}
+                                className={sideBtnConfirm}
                               >
                                 {otpVerifying ? <Loader2 className="animate-spin mx-auto" size={16} /> : '확인'}
                               </button>
@@ -1183,22 +1518,24 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                             transition={revealMotion}
                             className="overflow-hidden pt-0.5"
                           >
+                            <div className="ml-auth-consent" role="group" aria-label="필수 동의">
                             <CheckboxRow label="이용약관 동의" required checked={agreements.terms} onChange={() => toggleAgreement('terms')} onView={() => setPolicyModalState({ isOpen: true, key: 'terms' })} theme={theme} />
                             <CheckboxRow label="개인정보처리방침 동의" required checked={agreements.privacy} onChange={() => toggleAgreement('privacy')} onView={() => setPolicyModalState({ isOpen: true, key: 'privacy' })} theme={theme} />
                             <CheckboxRow label="쿠키 정책 동의" required checked={agreements.cookie} onChange={() => toggleAgreement('cookie')} onView={() => setPolicyModalState({ isOpen: true, key: 'cookie' })} theme={theme} />
-                            <div className={`h-px my-2 ${isDark ? 'bg-white/5' : 'bg-black/5'}`} />
+                            <div className={`h-px my-1.5 ${isDark ? 'bg-white/8' : 'bg-black/8'}`} />
                             <CheckboxRow label="필수 항목 전체 동의" required checked={allChecked} onChange={handleSelectAll} theme={theme} />
+                            </div>
                           </motion.div>
                         )}
                       </AnimatePresence>
 
                       {errorMsg && (
-                        <div role="alert" className="text-red-400 text-sm font-medium">{errorMsg}</div>
+                        <div role="alert" className={alertClass}>{errorMsg}</div>
                       )}
                       <button
                         type="submit"
-                        disabled={isLoading || !signupReady}
-                        className={ctaClass(!isLoading && signupReady)}
+                        disabled={socialBusy || !signupReady}
+                        className={ctaClass(!socialBusy && signupReady)}
                       >
                         {isLoading ? <Loader2 className="animate-spin" size={20} /> : null}
                         {isLoading ? '가입 중...' : '가입하기'}
@@ -1212,10 +1549,16 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                           이미 계정이 있으신가요? 로그인
                         </button>
                       </div>
+                      <SocialDivider quiet={dividerLine} />
+                      <SocialContinueRow
+                        busyProvider={oauthStarting}
+                        disabled={isLoading}
+                        onContinue={(provider) => { void handleSocialContinue(provider); }}
+                      />
                     </motion.form>
                   )}
 
-                  {view === 'recovery' && (
+                  {!sessionSettling && surfaceView === 'recovery' && (
                     <motion.form
                       key="recovery"
                       onSubmit={(e) => { e.preventDefault(); void (otpSent ? verifyOtp('recovery') : sendOtp('recovery')); }}
@@ -1245,6 +1588,8 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                                 type="button"
                                 onClick={() => { void sendOtp('recovery'); }}
                                 disabled={otpSending || resendIn > 0}
+                                aria-busy={otpSending}
+                                aria-label={otpSent ? '인증번호 재전송' : '인증번호 받기'}
                                 className={sideBtn}
                               >
                                 {otpSending ? <Loader2 className="animate-spin mx-auto" size={16} /> : (otpSent && resendIn > 0 ? `${resendIn}s` : '인증')}
@@ -1262,6 +1607,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                                 className="overflow-hidden"
                               >
                                 <label htmlFor="recovery-otp" className={labelClass}>인증번호</label>
+                                <p id="recovery-otp-hint" className={`ml-auth-status ${statusQuiet}`}>인증번호를 입력해 주세요.</p>
                                 <div className="flex gap-2">
                                   <input
                                     id="recovery-otp"
@@ -1277,13 +1623,15 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                                         void verifyOtp('recovery');
                                       }
                                     }}
+                                    aria-describedby="recovery-otp-hint"
                                     className={cn(fieldClass, 'min-w-0 tracking-[0.3em]')}
                                   />
                                   <button
                                     type="button"
                                     onClick={() => { void verifyOtp('recovery'); }}
-                                    disabled={otpVerifying}
-                                    className={sideBtn}
+                                    disabled={otpVerifying || otpCode.length !== 6}
+                                    aria-busy={otpVerifying}
+                                    className={sideBtnConfirm}
                                   >
                                     {otpVerifying ? <Loader2 className="animate-spin mx-auto" size={16} /> : '확인'}
                                   </button>
@@ -1295,20 +1643,38 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                       )}
 
                       {recoveryResolved && passwordResetAllowed && recoverableUsername && (
-                        <div className="space-y-5">
-                          <div>
-                            <p className={labelClass}>아이디</p>
-                            <p className={`text-[17px] font-medium tracking-tight ${isDark ? 'text-zinc-100' : 'text-zinc-900'}`}>{recoverableUsername}</p>
-                          </div>
+                        <div className="space-y-4">
+                          <AuthNotice>
+                            <p>아이디</p>
+                            <p className="ml-auth-notice-id">{recoverableUsername}</p>
+                          </AuthNotice>
                           <button type="button" onClick={() => { setView('reset'); clearAlerts(); wakeSurface(); }} className={ctaClass(true)}>
                             비밀번호 재설정
                           </button>
                         </div>
                       )}
 
-                      {recoveryResolved && !passwordResetAllowed && (
-                        <div className="space-y-5">
-                          <p className={`text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>비밀번호로 찾을 수 없는 계정입니다.</p>
+                      {recoveryResolved && linkedProviders.length > 0 && (
+                        <div className="space-y-3">
+                          {!passwordResetAllowed && (
+                            <AuthNotice>
+                              <p>가입하신 방법으로 계속해 주세요.</p>
+                            </AuthNotice>
+                          )}
+                          <SocialContinueRow
+                            providers={linkedProviders}
+                            busyProvider={oauthStarting}
+                            disabled={isLoading}
+                            onContinue={(provider) => { void handleSocialContinue(provider); }}
+                          />
+                        </div>
+                      )}
+
+                      {recoveryResolved && !passwordResetAllowed && linkedProviders.length === 0 && (
+                        <div className="space-y-4">
+                          <AuthNotice>
+                            <p>비밀번호로 찾을 수 없는 계정입니다.</p>
+                          </AuthNotice>
                           <button type="button" onClick={() => goView('login')} className={ctaClass(true)}>
                             로그인
                           </button>
@@ -1316,12 +1682,12 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                       )}
 
                       {errorMsg && (
-                        <div role="alert" className="text-red-400 text-sm font-medium">{errorMsg}</div>
+                        <div role="alert" className={alertClass}>{errorMsg}</div>
                       )}
                     </motion.form>
                   )}
 
-                  {view === 'reset' && (
+                  {!sessionSettling && surfaceView === 'reset' && (
                     <motion.form
                       key="reset"
                       onSubmit={handlePasswordReset}
@@ -1374,11 +1740,11 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                           />
                         </div>
                         {resetPasswordConfirm.length > 0 && resetPassword !== resetPasswordConfirm && (
-                          <p className={cn('ml-auth-status', statusError)} role="alert">비밀번호가 일치하지 않습니다.</p>
+                          <p className={cn('ml-auth-status', alertClass)} role="alert">비밀번호가 일치하지 않습니다.</p>
                         )}
                       </div>
                       {errorMsg && (
-                        <div role="alert" className="text-red-400 text-sm font-medium">{errorMsg}</div>
+                        <div role="alert" className={alertClass}>{errorMsg}</div>
                       )}
                       <button
                         type="submit"
@@ -1387,6 +1753,122 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                       >
                         {isLoading ? <Loader2 className="animate-spin" size={20} /> : null}
                         {isLoading ? '변경 중...' : '비밀번호 변경'}
+                      </button>
+                    </motion.form>
+                  )}
+
+                  {!sessionSettling && surfaceView === 'social' && (
+                    <motion.form
+                      key="social"
+                      onSubmit={handleSocialComplete}
+                      initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -8 }}
+                      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                      className="space-y-4"
+                    >
+                      <p className={`text-[15px] font-medium tracking-tight ${isDark ? 'text-zinc-200' : 'text-zinc-800'}`}>휴대폰 인증으로 가입을 완료해 주세요.</p>
+                      <div>
+                        <label htmlFor="social-phone" className={labelClass}>전화번호</label>
+                        <div className="flex gap-2">
+                          <input
+                            id="social-phone"
+                            type="tel"
+                            name="phone_number"
+                            autoComplete="tel"
+                            required
+                            value={formData.phone_number}
+                            onChange={handleInputChange}
+                            onFocus={() => setFieldFocus(true)}
+                            onBlur={() => setFieldFocus(false)}
+                            disabled={otpVerified}
+                            className={cn(fieldClass, 'min-w-0')}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => { void sendOtp('identity_link'); }}
+                            disabled={otpSending || resendIn > 0 || otpVerified || isLoading}
+                            aria-busy={otpSending}
+                            aria-label={otpVerified ? '전화번호 확인됨' : (otpSent ? '인증번호 재전송' : '인증번호 받기')}
+                            className={sideBtn}
+                          >
+                            {otpSending ? <Loader2 className="animate-spin mx-auto" size={16} /> : (otpVerified ? '확인됨' : (otpSent && resendIn > 0 ? `${resendIn}s` : '인증'))}
+                          </button>
+                        </div>
+                      </div>
+                      <AnimatePresence initial={false}>
+                        {otpSent && !otpVerified && (
+                          <motion.div
+                            key="social-otp"
+                            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={reduceMotion ? { opacity: 1 } : { opacity: 0, height: 0 }}
+                            transition={revealMotion}
+                            className="overflow-hidden"
+                          >
+                            <label htmlFor="social-otp" className={labelClass}>인증번호</label>
+                            <p id="social-otp-hint" className={`ml-auth-status ${statusQuiet}`}>인증번호를 입력해 주세요.</p>
+                            <div className="flex gap-2">
+                              <input
+                                id="social-otp"
+                                type="text"
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                maxLength={6}
+                                value={otpCode}
+                                onChange={(e) => { setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6)); clearAlerts(); }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    void verifyOtp('identity_link');
+                                  }
+                                }}
+                                aria-describedby="social-otp-hint"
+                                className={cn(fieldClass, 'min-w-0 tracking-[0.3em]')}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => { void verifyOtp('identity_link'); }}
+                                disabled={otpVerifying || otpVerified || isLoading || otpCode.length !== 6}
+                                aria-busy={otpVerifying}
+                                className={sideBtnConfirm}
+                              >
+                                {otpVerifying ? <Loader2 className="animate-spin mx-auto" size={16} /> : '확인'}
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                      <AnimatePresence initial={false}>
+                        {otpVerified && (
+                          <motion.div
+                            key="social-consent"
+                            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={reduceMotion ? { opacity: 1 } : { opacity: 0, height: 0 }}
+                            transition={revealMotion}
+                            className="overflow-hidden pt-0.5"
+                          >
+                            <div className="ml-auth-consent" role="group" aria-label="필수 동의">
+                            <CheckboxRow label="이용약관 동의" required checked={agreements.terms} onChange={() => toggleAgreement('terms')} onView={() => setPolicyModalState({ isOpen: true, key: 'terms' })} theme={theme} />
+                            <CheckboxRow label="개인정보처리방침 동의" required checked={agreements.privacy} onChange={() => toggleAgreement('privacy')} onView={() => setPolicyModalState({ isOpen: true, key: 'privacy' })} theme={theme} />
+                            <CheckboxRow label="쿠키 정책 동의" required checked={agreements.cookie} onChange={() => toggleAgreement('cookie')} onView={() => setPolicyModalState({ isOpen: true, key: 'cookie' })} theme={theme} />
+                            <div className={`h-px my-1.5 ${isDark ? 'bg-white/8' : 'bg-black/8'}`} />
+                            <CheckboxRow label="필수 항목 전체 동의" required checked={allChecked} onChange={handleSelectAll} theme={theme} />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                      {errorMsg && (
+                        <div role="alert" className={`${alertClass} whitespace-pre-line`}>{errorMsg}</div>
+                      )}
+                      <button
+                        type="submit"
+                        disabled={isLoading || !socialReady || abandoningPending}
+                        className={ctaClass(!isLoading && socialReady && !abandoningPending)}
+                      >
+                        {isLoading ? <Loader2 className="animate-spin" size={20} /> : null}
+                        {isLoading ? '가입 중...' : '가입하기'}
                       </button>
                     </motion.form>
                   )}

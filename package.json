@@ -13,6 +13,8 @@
     "verify:2f-slice-b2": "tsx scripts/verify-2f-slice-b2.ts",
     "verify:2f-b2-payment-gate": "tsx scripts/verify-2f-b2-payment-gate.ts",
     "verify:2f-b2b-ingress": "tsx scripts/verify-2f-b2b-ingress.ts",
+    "verify:2f-c1-0a": "tsx scripts/verify-2f-c1-0a.ts",
+    "verify:2f-c1-3": "tsx scripts/verify-2f-c1-3-integrated.ts",
     "bootstrap:payment-test-schema": "tsx scripts/bootstrap-payment-test-schema.ts",
     "rebuild:payment-test-schema-from-csv": "tsx scripts/rebuild-payment-test-schema-from-csv.ts",
     "build": "npm run clean && vite build --outDir dist/client",

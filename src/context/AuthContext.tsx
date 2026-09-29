@@ -9,6 +9,7 @@ import {
   broadcastAuthLogout,
   clearPersistedAuthToken,
   isDefinitiveAuthRefreshFailure,
+  isPendingC1SocialCustomer,
   isTransientAuthTransportFailure,
 } from '../lib/authIntegrity';
 
@@ -530,6 +531,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (isLoading || !isProfileResolved) return;
+
     const becameAuthenticated = !hadSessionUserRef.current;
     hadSessionUserRef.current = true;
 
@@ -537,11 +540,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (isPendingC1SocialCustomer(user, profile)) {
+      customContinuationLock.current = true;
+      setPendingCustomAccess(false);
+      setWorkshopOrigin(null);
+      return;
+    }
+
     customContinuationLock.current = true;
     setPendingCustomAccess(false);
     setWorkshopOrigin('home');
     setIsWorkshopOpen(true);
-  }, [user, adminUser, pendingCustomAccess]);
+  }, [user, adminUser, profile, pendingCustomAccess, isLoading, isProfileResolved]);
 
   return (
     <AuthContext.Provider value={{

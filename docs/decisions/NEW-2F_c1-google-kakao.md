@@ -2,13 +2,11 @@
 
 Status: **OPEN**
 
-Date: 2026-09-28 (STAGE OPEN)
+Date: 2026-09-28 (STAGE OPEN); status updated 2026-09-29 (functional checkpoint — USER FINAL visual DEFERRED)
 
-Decision: USER approved the amended C1 contract. C1 is **OPEN**. Payment-test Google + Kakao customer social auth may proceed in locked slices **C1-0 → C1-4**. Naver remains C2. Apple is OUT. Production OAuth is OUT.
+Decision: USER approved the amended C1 contract. C1 is **OPEN**. Closure is **NOT** authorized. USER FINAL AUTH UX VISUAL APPROVAL is **DEFERRED**. Production OAuth remains OUT. Naver remains C2. Apple is OUT.
 
 Parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. Expansion: `docs/decisions/NEW-2F_auth-expansion.md`.
-
-This stage-open note does **not** implement C1-0, configure providers, mutate Supabase, or deploy. Next implementation ticket: **C1-0 A6**, after GPT review of this checkpoint.
 
 ---
 
@@ -17,13 +15,21 @@ This stage-open note does **not** implement C1-0, configure providers, mutate Su
 | Item | Value |
 |------|--------|
 | NEW 2F | **OPEN** — do **not** close |
-| C1 | **OPEN** |
+| C1 | **OPEN** — closure **NOT** authorized |
+| C1-0A | **PASS** |
+| C1-0B | **PASS** — payment-test Google/Kakao providers + live OAuth |
+| C1-1 | **PASS** |
+| C1-2 | **PASS** — functional implementation (USER FINAL visual DEFERRED) |
+| C1-3 | **PASS** — functional matrix |
+| C1-4 | **PASS** — A5 READ ONLY integrated QA (functional + security) |
+| USER FINAL AUTH UX VISUAL APPROVAL | **DEFERRED** |
+| FUNCTIONAL CHECKPOINT ELIGIBLE | **YES** |
 | B2 | **CHECKPOINTED / COMPLETE** at `3586ec732a7556226a23519553165cdafb8dd4b4` |
 | Contract | **LOCKED** — R2 + Hosted auto-link invariant |
 | R1 silent identity transfer | **REMOVED** |
 | R1-REAUTH / manual linking | **OUT OF C1** |
 | Production | **UNCHANGED** |
-| Next | **C1-0 A6** — HARD STOP FOR GPT REVIEW FIRST |
+| Next | USER FINAL AUTH UX VISUAL APPROVAL remains **DEFERRED**. Do **not** close C1. Do **not** start C2. |
 
 ---
 
@@ -207,7 +213,7 @@ Do **not** touch preserved dirty WIP:
 
 ## Implementation slices — LOCKED
 
-Authorized order. This stage-open ticket does **not** start C1-0.
+Authorized historical order (slices C1-0 → C1-4 are complete for functional/security QA). USER FINAL AUTH UX VISUAL APPROVAL remains **DEFERRED**. C1 stays **OPEN**.
 
 1. **C1-0 A6** — schema/capability + activation/R2 backend contract + payment-test provider config
 2. **C1-1 A0** — AuthCallback / AuthContext pending-vs-usable routing
@@ -229,24 +235,23 @@ Naver implementation; Apple; R1 identity transfer; R1-REAUTH / `linkIdentity` cu
 
 ## Do Not Do
 
-- Implement C1-0 from this stage-open docs write
-- Configure Google/Kakao, mutate Supabase, or deploy from this note
+- Close C1 without USER FINAL AUTH UX VISUAL APPROVAL
+- Start C2 / D / E
 - Merge users in METALORA by email
 - Skip phone verification because emails match
 - Undo Hosted verified-email auto-link
 - Expose `ml…` as customer identity
 - Co-write `AuthCallback.tsx`
-- Open C2 / D / E
 - Touch production OAuth
+- Commit / push / deploy from a hygiene ticket
 
 ---
 
 ## Resume
 
-1. GPT review of this STAGE OPEN checkpoint
-2. **C1-0 A6** — payment-test schema/capability + activation/R2 backend + provider config
-3. Then C1-1 → C1-4 on payment-test
+1. USER FINAL AUTH UX VISUAL APPROVAL remains **DEFERRED** (dedicated polish if opened)
+2. Do **not** close C1. Do **not** start C2.
 
-Ownership: A0 (this contract). A6 RED implementation from C1-0. A3 UX from C1-2.
+Ownership: A0 (this contract). A6 RED implementation from C1-0. A3 UX from C1-2. A5 READ ONLY QA.
 
 Relevant files: this note; `docs/decisions/NEW-2F_auth-expansion.md`; `docs/decisions/NEW-2F_account-profile-auth-ux.md`; `docs/METALORA_PROJECT_STATE.md`

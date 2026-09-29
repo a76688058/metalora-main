@@ -19,6 +19,13 @@ export function memberStoredUsername(username: string): string {
   return normalizeMemberUsername(username).toLowerCase();
 }
 
+/** Server-generated social-first username only: `ml` + 10 lowercase alphanumeric. */
+export const GENERATED_SOCIAL_USERNAME_RE = /^ml[a-z0-9]{10}$/;
+
+export function isGeneratedSocialUsername(username: string | null | undefined): boolean {
+  return GENERATED_SOCIAL_USERNAME_RE.test((username ?? "").trim().toLowerCase());
+}
+
 export function memberUsernameSignupError(username: string): string | null {
   const normalized = normalizeMemberUsername(username);
   if (normalized.length < MEMBER_USERNAME_MIN_LEN) {

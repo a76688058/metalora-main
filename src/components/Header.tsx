@@ -9,6 +9,7 @@ import { useShellOverlay } from '../context/ShellOverlayContext';
 import { IconButton } from './ui/IconButton';
 import { cn } from '../lib/cn';
 import { zClass } from '../constants/overlays';
+import { isUsableMemberProfile } from '../lib/authIntegrity';
 import AnnouncementBar from './AnnouncementBar';
 
 const LoginModal = lazy(() => import('./LoginModal'));
@@ -22,8 +23,6 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const {
-    user,
-    adminUser,
     profile,
     adminProfile,
     isProfileOpen,
@@ -33,6 +32,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     closeWorkshop,
     pendingCustomAccess,
     clearPendingCustomAccess,
+    isProfileResolved,
   } = useAuth();
   const { cartItems, isCartOpen, openCart, closeCart } = useCart();
   const { theme, toggleTheme } = useTheme();
@@ -48,9 +48,11 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const searchRef = useRef<HTMLDivElement>(null);
   const searchToggleRef = useRef<HTMLButtonElement>(null);
 
-  const currentUser = user || adminUser;
+  const isUsableCustomer = isProfileResolved && isUsableMemberProfile(profile);
+  const isAdminChrome = isProfileResolved && Boolean(profile?.is_admin || adminProfile?.is_admin);
+  const hasMemberChrome = isUsableCustomer || isAdminChrome;
   const isAdmin = profile?.is_admin || adminProfile?.is_admin;
-  const accountLabel = currentUser ? (isAdmin ? '관리자 대시보드' : '내 정보') : '로그인';
+  const accountLabel = hasMemberChrome ? (isAdmin ? '관리자 대시보드' : '내 정보') : '로그인';
 
   useEffect(() => {
     setLocalSearch(searchQuery);
@@ -159,15 +161,15 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   };
 
   useEffect(() => {
-    if (!pendingCustomAccess || currentUser || isLoginModalOpen) return;
+    if (!pendingCustomAccess || hasMemberChrome || isLoginModalOpen) return;
     setHasOpenedLoginModal(true);
     registerLoginOverlay('login', true);
     setIsLoginModalOpen(true);
-  }, [pendingCustomAccess, currentUser, isLoginModalOpen, registerLoginOverlay]);
+  }, [pendingCustomAccess, hasMemberChrome, isLoginModalOpen, registerLoginOverlay]);
 
   const handleAccount = () => {
     clearPendingCustomAccess();
-    if (currentUser) {
+    if (hasMemberChrome) {
       if (isProfileOpen) {
         closeProfile();
       } else {
@@ -272,7 +274,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
 
             {/* Right controls */}
             <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-2">
-              {currentUser ? (
+              {hasMemberChrome ? (
                 <IconButton
                   variant="ghost"
                   aria-label={accountLabel}
@@ -297,7 +299,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 aria-label="장바구니"
                 onClick={(e) => {
                   setIsSearchOpen(false);
-                  if (!currentUser) {
+                  if (!hasMemberChrome) {
                     e.preventDefault();
                     clearPendingCustomAccess();
                     if (isWorkshopOpen) closeWorkshop();
@@ -315,7 +317,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 className={cn('relative shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
               >
                 <Frame size={20} strokeWidth={1.5} />
-                {currentUser && cartItems.length > 0 && (
+                {hasMemberChrome && cartItems.length > 0 && (
                   <span
                     className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-text-primary text-[10px] font-semibold text-text-inverse"
                     aria-hidden

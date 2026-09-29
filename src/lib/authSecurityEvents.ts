@@ -6,7 +6,8 @@ export type AuthSecurityEventName =
   | "recovery_resolve"
   | "password_reset"
   | "password_change"
-  | "signup_complete";
+  | "signup_complete"
+  | "social_complete";
 
 type RecoveryResolveInput = {
   event: "recovery_resolve";
@@ -37,11 +38,19 @@ type SignupCompleteInput = {
   userId?: string | null;
 };
 
+type SocialCompleteInput = {
+  event: "social_complete";
+  outcome: string;
+  requestId: string;
+  userId?: string | null;
+};
+
 export type AuthSecurityEventInput =
   | RecoveryResolveInput
   | PasswordResetInput
   | PasswordChangeInput
-  | SignupCompleteInput;
+  | SignupCompleteInput
+  | SocialCompleteInput;
 
 const ACCOUNT_KINDS: ReadonlySet<string> = new Set(["password", "social", "none"]);
 
