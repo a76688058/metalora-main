@@ -1,13 +1,22 @@
 import { safeInternalPath } from '../../lib/authIntegrity';
 
-export const C1_SOCIAL_PROVIDERS = ['google', 'kakao'] as const;
+export const C1_SOCIAL_PROVIDERS = ['google', 'kakao', 'naver'] as const;
 export type C1SocialProvider = (typeof C1_SOCIAL_PROVIDERS)[number];
+
+/** Hosted identity string. Never customer-visible. */
+export const NAVER_OAUTH_PROVIDER = 'custom:naver' as const;
+export type SocialOAuthSdkProvider = 'google' | 'kakao' | typeof NAVER_OAUTH_PROVIDER;
 
 export const SOCIAL_OAUTH_FAIL = '지금은 소셜 로그인을 진행할 수 없습니다.';
 export const PHONE_ALREADY_REGISTERED_COPY = '이미 가입된 번호입니다.\n기존 로그인으로 이용해 주세요.';
 
 export function isC1SocialProvider(value: string): value is C1SocialProvider {
-  return value === 'google' || value === 'kakao';
+  return value === 'google' || value === 'kakao' || value === 'naver';
+}
+
+export function oauthSdkProvider(provider: C1SocialProvider): SocialOAuthSdkProvider {
+  if (provider === 'naver') return NAVER_OAUTH_PROVIDER;
+  return provider;
 }
 
 /** Same-origin callback only. Optional redirect uses A0 AuthCallback `?redirect=` + safeInternalPath. */
@@ -20,7 +29,8 @@ export function oauthCallbackUrl(origin: string, redirectUrl?: string | null): s
 }
 
 /**
- * Trusted recovery provider list only. Ignore email, ml prefix, account_kind inference.
+ * Trusted recovery provider list only. Customer tokens: google / kakao / naver.
+ * Ignore email, ml prefix, account_kind inference, bare Hosted strings, and custom:*.
  */
 export function readLinkedProviders(raw: unknown): C1SocialProvider[] {
   if (!Array.isArray(raw)) return [];
@@ -37,20 +47,33 @@ export function readLinkedProviders(raw: unknown): C1SocialProvider[] {
 export type SocialOAuthClient = {
   auth: {
     signInWithOAuth: (args: {
-      provider: C1SocialProvider;
+      provider: SocialOAuthSdkProvider;
       options: { redirectTo: string };
     }) => Promise<{ error: { message?: string } | null }>;
   };
 };
 
+type CompatibleOAuthClient = {
+  auth: {
+    signInWithOAuth: (args: {
+      provider: 'google' | 'kakao';
+      options: { redirectTo: string };
+    }) => Promise<{ error: { message?: string } | null }>;
+  };
+};
+
+function asSocialOAuthClient(client: CompatibleOAuthClient | SocialOAuthClient): SocialOAuthClient {
+  return client as SocialOAuthClient;
+}
+
 export async function startBrowserSocialOAuth(
-  client: SocialOAuthClient,
+  client: CompatibleOAuthClient | SocialOAuthClient,
   provider: C1SocialProvider,
   redirectTo: string,
 ): Promise<{ ok: true } | { ok: false }> {
   try {
-    const { error } = await client.auth.signInWithOAuth({
-      provider,
+    const { error } = await asSocialOAuthClient(client).auth.signInWithOAuth({
+      provider: oauthSdkProvider(provider),
       options: { redirectTo },
     });
     if (error) return { ok: false };

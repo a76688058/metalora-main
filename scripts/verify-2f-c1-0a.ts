@@ -360,8 +360,11 @@ async function main(): Promise<void> {
     paymentSrc.includes("isUsableMemberProfile") && !paymentSrc.includes("social_login_enabled"),
   );
   assert(
-    "hook still rejects email and allows google/kakao/naver",
+    "hook still rejects email and allows google/kakao/custom:naver",
     hookSrc.includes("provider = 'email'") &&
+      hookSrc.includes("provider = 'google'") &&
+      hookSrc.includes("provider = 'kakao'") &&
+      hookSrc.includes("provider = 'custom:naver'") &&
       hookSrc.includes("RETURN '{}'::jsonb") &&
       !hookSrc.toLowerCase().includes("disable_signup"),
   );

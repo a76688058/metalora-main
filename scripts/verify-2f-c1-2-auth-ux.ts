@@ -78,10 +78,12 @@ assert(
 );
 
 assert(
-  "E no Naver button",
-  !loginModal.toLowerCase().includes("naver")
-    && !socialRow.toLowerCase().includes("naver")
-    && !socialOAuth.toLowerCase().includes("naver"),
+  "E Google/Kakao/Naver continue labels are present",
+  socialRow.includes("Google로 계속")
+    && socialRow.includes("카카오로 계속")
+    && socialRow.includes("Naver로 계속")
+    && !socialRow.includes("custom:naver")
+    && !loginModal.includes("custom:naver"),
 );
 
 assert(
@@ -175,7 +177,8 @@ assert(
   loginModal.includes("readLinkedProviders(resolved.json.linked_providers)")
     && loginModal.includes("linkedProviders.length > 0")
     && socialOAuth.includes("readLinkedProviders")
-    && JSON.stringify(readLinkedProviders(["google", "naver", "email", "kakao"])) === JSON.stringify(["google", "kakao"])
+    && JSON.stringify(readLinkedProviders(["google", "naver", "email", "kakao"])) === JSON.stringify(["google", "naver", "kakao"])
+    && readLinkedProviders(["custom:naver", "custom:foo"]).length === 0
     && readLinkedProviders("google").length === 0
     && readLinkedProviders([{ provider: "google" }]).length === 0,
 );
@@ -225,7 +228,7 @@ let startedKakao = false;
 let usedRawAuthorize = false;
 const mockClient = {
   auth: {
-    signInWithOAuth: async (args: { provider: "google" | "kakao"; options: { redirectTo: string } }) => {
+    signInWithOAuth: async (args: { provider: "google" | "kakao" | "custom:naver"; options: { redirectTo: string } }) => {
       if (args.provider === "google") startedGoogle = true;
       if (args.provider === "kakao") startedKakao = true;
       if (args.options.redirectTo.includes("/auth/v1/authorize")) usedRawAuthorize = true;

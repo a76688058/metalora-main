@@ -372,7 +372,14 @@ async function main(): Promise<void> {
       !hookBody.includes("disable_signup") &&
       !hookBody.includes("external_email"),
   );
-  assert("hook allows non-email providers by falling through", hookSrc.includes("RETURN '{}'::jsonb"));
+  assert(
+    "hook allows only explicit trusted social providers",
+    hookSrc.includes("provider = 'google'") &&
+      hookSrc.includes("provider = 'kakao'") &&
+      hookSrc.includes("provider = 'custom:naver'") &&
+      !hookSrc.includes("LIKE 'custom:") &&
+      hookSrc.includes("RETURN '{}'::jsonb"),
+  );
 
   console.log("APPLY payment-test Before User Created function");
   dbQueryFile(dbUrl, HOOK_SQL);
@@ -399,11 +406,31 @@ async function main(): Promise<void> {
     dbUrl,
     `SELECT public.hook_before_user_created('{"user":{"is_anonymous":false,"app_metadata":{"provider":"naver"}}}'::jsonb);`,
   );
+  const customNaverHook = dbQuerySql(
+    dbUrl,
+    `SELECT public.hook_before_user_created('{"user":{"is_anonymous":false,"app_metadata":{"provider":"custom:naver"}}}'::jsonb);`,
+  );
+  const customAnythingHook = dbQuerySql(
+    dbUrl,
+    `SELECT public.hook_before_user_created('{"user":{"is_anonymous":false,"app_metadata":{"provider":"custom:anything"}}}'::jsonb);`,
+  );
+  const unknownHook = dbQuerySql(
+    dbUrl,
+    `SELECT public.hook_before_user_created('{"user":{"is_anonymous":false,"app_metadata":{"provider":"unknown-provider"}}}'::jsonb);`,
+  );
+  const emptyHook = dbQuerySql(
+    dbUrl,
+    `SELECT public.hook_before_user_created('{"user":{"is_anonymous":false,"app_metadata":{"provider":""}}}'::jsonb);`,
+  );
   assert("D hook payload rejects provider=email", hookRejects(emailHook));
   assert("D hook payload rejects anonymous", hookRejects(anonHook));
+  assert("D hook payload rejects empty provider", hookRejects(emptyHook));
   assert("D hook payload allows google", hookAllows(googleHook));
   assert("D hook payload allows kakao", hookAllows(kakaoHook));
-  assert("D hook payload allows naver", hookAllows(naverHook));
+  assert("D hook payload allows custom:naver", hookAllows(customNaverHook));
+  assert("D hook payload rejects bare naver", hookRejects(naverHook));
+  assert("D hook payload rejects custom:anything", hookRejects(customAnythingHook));
+  assert("D hook payload rejects unknown-provider", hookRejects(unknownHook));
   const authAdminExec = dbQuerySql(
     dbUrl,
     `SELECT has_function_privilege('supabase_auth_admin', 'public.hook_before_user_created(jsonb)', 'EXECUTE');`,

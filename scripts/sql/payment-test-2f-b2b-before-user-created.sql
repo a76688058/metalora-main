@@ -52,14 +52,24 @@ BEGIN
     );
   END IF;
 
-  RETURN '{}'::jsonb;
+  -- Explicit C2 trusted social set only. No custom:* wildcard. No bare naver.
+  IF provider = 'google' OR provider = 'kakao' OR provider = 'custom:naver' THEN
+    RETURN '{}'::jsonb;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'error', jsonb_build_object(
+      'http_code', 403,
+      'message', 'Public password signup is not allowed.'
+    )
+  );
 END;
 $$;
 
 ALTER FUNCTION public.hook_before_user_created(jsonb) OWNER TO postgres;
 
 COMMENT ON FUNCTION public.hook_before_user_created(jsonb) IS
-  'B2b payment-test Before User Created. Rejects public email/anonymous creation with http_code 403. Allows OAuth providers. Not a production migration.';
+  'C2-1 payment-test Before User Created. Rejects public email/anonymous/unknown creation with http_code 403. Allows only google, kakao, custom:naver. Not a production migration.';
 
 GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
 

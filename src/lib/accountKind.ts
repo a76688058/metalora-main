@@ -1,9 +1,13 @@
 import { MEMBER_EMAIL_DOMAIN, isGeneratedSocialUsername } from "./memberUsername";
+import {
+  CUSTOMER_VISIBLE_SOCIAL_PROVIDERS,
+  type CustomerVisibleSocialProvider,
+  customerVisibleSocialProvider,
+} from "./trustedSocialProviders";
 
 export type AccountKind = "password" | "social" | "none";
 
-export const CUSTOMER_VISIBLE_SOCIAL_PROVIDERS = ["google", "kakao"] as const;
-export type CustomerVisibleSocialProvider = (typeof CUSTOMER_VISIBLE_SOCIAL_PROVIDERS)[number];
+export { CUSTOMER_VISIBLE_SOCIAL_PROVIDERS, type CustomerVisibleSocialProvider };
 
 export type AccountClassification = {
   kind: AccountKind;
@@ -13,14 +17,17 @@ export type AccountClassification = {
 
 /**
  * Customer-visible recovery providers from REAL `auth.identities` only.
- * Allow-list google/kakao. Never infer from email or `ml` prefix.
+ * Maps `custom:naver` → `naver`. Never infers from email, `ml` prefix,
+ * bare `naver`, or `custom:*` wildcards.
  */
 export function customerVisibleLinkedProviders(
   providers: readonly string[] | null | undefined,
 ): CustomerVisibleSocialProvider[] {
-  const seen = new Set(
-    (providers ?? []).map((value) => value.trim().toLowerCase()).filter(Boolean),
-  );
+  const seen = new Set<CustomerVisibleSocialProvider>();
+  for (const raw of providers ?? []) {
+    const mapped = customerVisibleSocialProvider(raw);
+    if (mapped) seen.add(mapped);
+  }
   return CUSTOMER_VISIBLE_SOCIAL_PROVIDERS.filter((provider) => seen.has(provider));
 }
 

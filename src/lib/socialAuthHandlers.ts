@@ -6,6 +6,7 @@ import { recordAuthSecurityEvent } from "./authSecurityEvents";
 import { hitAuthRateLimit } from "./authRateLimit";
 import { generateInternalSocialUsername } from "./internalSocialUsername";
 import { OTP_RATE_WINDOW_SECONDS, otpTicketHmac } from "./otpCrypto";
+import { isTrustedSocialIdentityProvider, normalizeSocialProvider } from "./trustedSocialProviders";
 import { resolveTrustedIpMode, trustedClientIp } from "./trustedClientIp";
 
 const GENERIC_BAD = "요청을 처리할 수 없습니다.";
@@ -14,7 +15,6 @@ const GENERIC_RETRY = "잠시 후 다시 시도해 주세요.";
 const GENERIC_CONFIG = "서버 구성 오류가 발생했습니다.";
 const PHONE_ALREADY_REGISTERED = "phone_already_registered";
 
-const C1_SOCIAL_PROVIDERS = new Set(["google", "kakao"]);
 const SOCIAL_COMPLETE_IP_CAP = 20;
 const USERNAME_RETRY_CAP = 8;
 
@@ -47,21 +47,25 @@ function signupConsentsAccepted(raw: unknown): boolean {
 
 function identityProviders(user: User): string[] {
   const fromIdentities = (user.identities ?? [])
-    .map((identity) => (identity.provider ?? "").trim().toLowerCase())
+    .map((identity) => normalizeSocialProvider(identity.provider))
     .filter(Boolean);
   const meta = user.app_metadata ?? {};
   const fromMeta = Array.isArray(meta.providers)
     ? meta.providers
         .filter((value): value is string => typeof value === "string")
-        .map((value) => value.trim().toLowerCase())
+        .map((value) => normalizeSocialProvider(value))
     : [];
-  const single =
-    typeof meta.provider === "string" ? [meta.provider.trim().toLowerCase()] : [];
-  return [...new Set([...fromIdentities, ...fromMeta, ...single])];
+  const single = normalizeSocialProvider(meta.provider);
+  return [...new Set([...fromIdentities, ...fromMeta, ...(single ? [single] : [])])];
 }
 
+export function isTrustedSocialIdentityUser(user: User): boolean {
+  return identityProviders(user).some((provider) => isTrustedSocialIdentityProvider(provider));
+}
+
+/** C1 name retained: trusted set is now google / kakao / custom:naver. */
 export function isC1SocialIdentityUser(user: User): boolean {
-  return identityProviders(user).some((provider) => C1_SOCIAL_PROVIDERS.has(provider));
+  return isTrustedSocialIdentityUser(user);
 }
 
 async function handleSocialComplete(req: Request, res: Response, deps: SocialAuthDeps): Promise<void> {

@@ -1,5 +1,10 @@
 /** Auth/session integrity helpers. No secrets. */
 
+import {
+  isTrustedSocialIdentityProvider,
+  normalizeSocialProvider,
+} from './trustedSocialProviders';
+
 export const AUTH_STORAGE_KEY = 'metalora-auth-token';
 export const AUTH_SYNC_CHANNEL = 'metalora-auth-sync';
 
@@ -145,16 +150,11 @@ export function isUsableMemberProfile(profile: {
   return true;
 }
 
-/** C1 social providers. Naver is hook-allowed but not a C1 onboarding identity. */
-export const C1_SOCIAL_PROVIDERS = ['google', 'kakao'] as const;
-
-function normalizeAuthProvider(raw: unknown): string {
-  return typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-}
+export const C1_SOCIAL_PROVIDERS = ['google', 'kakao', 'custom:naver'] as const;
 
 /**
  * Trusted Auth identity metadata only. Not ml-prefix, not email domain,
- * not a client-supplied provider query string.
+ * not a client-supplied provider query string. Exact set only — not custom:*.
  */
 export function hasC1SocialIdentity(user: {
   identities?: Array<{ provider?: string | null }> | null;
@@ -162,23 +162,20 @@ export function hasC1SocialIdentity(user: {
 } | null | undefined): boolean {
   if (!user) return false;
   const fromIdentities = (user.identities ?? [])
-    .map((identity) => normalizeAuthProvider(identity.provider))
+    .map((identity) => normalizeSocialProvider(identity.provider))
     .filter(Boolean);
-  if (fromIdentities.some((provider) =>
-    (C1_SOCIAL_PROVIDERS as readonly string[]).includes(provider)
-  )) {
+  if (fromIdentities.some((provider) => isTrustedSocialIdentityProvider(provider))) {
     return true;
   }
-  const metaProvider = normalizeAuthProvider(user.app_metadata?.provider);
-  if ((C1_SOCIAL_PROVIDERS as readonly string[]).includes(metaProvider)) {
+  const metaProvider = normalizeSocialProvider(user.app_metadata?.provider);
+  if (isTrustedSocialIdentityProvider(metaProvider)) {
     return true;
   }
   const metaProviders = user.app_metadata?.providers;
   if (Array.isArray(metaProviders)) {
-    if (metaProviders.some((provider) => {
-      const value = normalizeAuthProvider(provider);
-      return (C1_SOCIAL_PROVIDERS as readonly string[]).includes(value);
-    })) {
+    if (metaProviders.some((provider) =>
+      isTrustedSocialIdentityProvider(normalizeSocialProvider(provider))
+    )) {
       return true;
     }
   }
@@ -219,7 +216,7 @@ export function authCallbackLoginPath(redirectRaw?: string | null): string {
 /**
  * Settled OAuth callback destination. Session is never signed out here.
  * Pending social and other incomplete members both go to /login; A3 detects
- * C1 social via Auth identities, not this path.
+ * pending social via Auth identities, not this path.
  */
 export function resolveAuthCallbackPath(input: {
   oauthError: boolean;

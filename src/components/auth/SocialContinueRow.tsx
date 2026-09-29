@@ -1,7 +1,7 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '../../lib/cn';
-import type { C1SocialProvider } from './socialOAuth';
+import { C1_SOCIAL_PROVIDERS, type C1SocialProvider } from './socialOAuth';
 
 function GoogleMark() {
   return (
@@ -26,10 +26,19 @@ function KakaoMark() {
   );
 }
 
+function NaverMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+      <rect width="18" height="18" rx="5" fill="#03C75A" />
+      <path fill="#fff" d="M7.12 4.7h2.02l1.86 2.72V4.7H13.6v8.6h-2.02L9.72 10.58V13.3H7.12V4.7Z" />
+    </svg>
+  );
+}
+
 export default function SocialContinueRow({
   busyProvider,
   disabled,
-  providers = ['google', 'kakao'],
+  providers = [...C1_SOCIAL_PROVIDERS],
   onContinue,
 }: {
   busyProvider: C1SocialProvider | null;
@@ -39,10 +48,12 @@ export default function SocialContinueRow({
 }) {
   const googleBusy = busyProvider === 'google';
   const kakaoBusy = busyProvider === 'kakao';
+  const naverBusy = busyProvider === 'naver';
   const locked = Boolean(disabled || busyProvider);
   const showGoogle = providers.includes('google');
   const showKakao = providers.includes('kakao');
-  if (!showGoogle && !showKakao) return null;
+  const showNaver = providers.includes('naver');
+  if (!showGoogle && !showKakao && !showNaver) return null;
 
   return (
     <div className="flex flex-col gap-2">
@@ -74,6 +85,21 @@ export default function SocialContinueRow({
             {kakaoBusy ? <Loader2 className="animate-spin" size={16} /> : <KakaoMark />}
           </span>
           <span>카카오로 계속</span>
+        </button>
+      )}
+      {showNaver && (
+        <button
+          type="button"
+          onClick={() => onContinue('naver')}
+          disabled={locked}
+          aria-label="Naver로 계속"
+          aria-busy={naverBusy}
+          className="ml-auth-social focus-ring"
+        >
+          <span className="ml-auth-social-mark" aria-hidden="true">
+            {naverBusy ? <Loader2 className="animate-spin" size={16} /> : <NaverMark />}
+          </span>
+          <span>Naver로 계속</span>
         </button>
       )}
     </div>
