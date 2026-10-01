@@ -83,6 +83,7 @@ const authEntries = [
   "src/lib/passwordAuthHandlers.ts",
   "src/lib/socialAuthHandlers.ts",
   "src/lib/smsAdapter.ts",
+  "src/lib/solapiSmsAdapter.ts",
   "src/lib/paymentMemberAuth.ts",
   "src/lib/trustedClientIp.ts",
   "src/lib/supabaseHosts.ts",

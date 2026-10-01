@@ -364,6 +364,12 @@ See also `supabase/README.md`.
 - `PORT`
 - `VITE_SUPABASE_URL` (default `npm run dev` still has a production URL fallback; **payment-test does not** — `npm run dev:payment-test` fail-closes if `.env.payment-test.local` is missing or still points at production)
 
+**NEW2 production OTP (not bound on Cloud Run yet — names only):**
+
+- Secret Manager: `SOLAPI_API_KEY`, `SOLAPI_API_SECRET`, `PHONE_IDENTITY_KEY`, `OTP_PEPPER`
+- Non-secret env: `SMS_ADAPTER=solapi`, `SMS_SENDER_NUMBER` (approved sender digits). Sender may be stored as a secret later if operators prefer; it is not a credential.
+- Do **not** set `SMS_ADAPTER=dev-capture` on production. DevCapture remains payment-test / non-production-host / loopback only.
+
 Isolated payment-test: copy `.env.payment-test.example` → `.env.payment-test.local` (gitignored). Required names: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `TOSS_SECRET_KEY`. Toss TEST + production host is refused on `/api/payment/prepare` and `/api/payment/confirm`. Bootstrap and verify steps: `supabase/README.md`. #18 isolated TEST environment is CLOSED; do not use production hosts or live Toss keys in payment-test.
 
 Never document secret **values**.

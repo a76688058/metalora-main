@@ -1,8 +1,13 @@
+import { PAYMENT_TEST_ENV_NAME } from "./paymentEnvGuard";
+import {
+  readSolapiConfig,
+  SolapiSmsAdapter,
+  SOLAPI_ADAPTER_NAME,
+} from "./solapiSmsAdapter";
 import {
   isProductionSupabaseHost,
   supabaseHostFromUrl,
 } from "./supabaseHosts";
-import { PAYMENT_TEST_ENV_NAME } from "./paymentEnvGuard";
 
 export type SmsSendInput = {
   e164: string;
@@ -69,36 +74,43 @@ export function isPaymentTestDevCaptureEnv(
 }
 
 export type SmsAdapterResolve =
-  | { ok: true; adapter: SmsAdapter; kind: "dev-capture" }
+  | { ok: true; adapter: SmsAdapter; kind: "dev-capture" | "solapi" }
   | { ok: false; reason: "fail_closed" };
 
+function failClosed(): SmsAdapterResolve {
+  return { ok: false, reason: "fail_closed" };
+}
+
 /**
- * DevCapture is allowed only for payment-test + SMS_ADAPTER=dev-capture.
- * Production host, production env, or missing real adapter: fail closed.
- * No silent fallback.
+ * Explicit adapter selection only. Credentials present does not imply solapi.
+ * DevCapture: payment-test + SMS_ADAPTER=dev-capture + non-production host.
+ * SOLAPI: SMS_ADAPTER=solapi + complete config. Production host allowed.
  */
 export function resolveSmsAdapter(
   env: Record<string, string | undefined>,
 ): SmsAdapterResolve {
-  const host = supabaseHostFromUrl((env.VITE_SUPABASE_URL ?? "").trim());
-  if (isProductionSupabaseHost(host)) {
-    return { ok: false, reason: "fail_closed" };
-  }
-
-  const metaloraEnv = (env.METALORA_ENV ?? "").trim();
   const adapterName = (env.SMS_ADAPTER ?? "").trim();
+  const host = supabaseHostFromUrl((env.VITE_SUPABASE_URL ?? "").trim());
+  const metaloraEnv = (env.METALORA_ENV ?? "").trim();
   const nodeEnv = (env.NODE_ENV ?? "").trim();
 
-  if (nodeEnv === "production" && metaloraEnv !== PAYMENT_TEST_ENV_NAME) {
-    return { ok: false, reason: "fail_closed" };
-  }
-  if (metaloraEnv === "production") {
-    return { ok: false, reason: "fail_closed" };
+  if (adapterName === "dev-capture") {
+    if (isProductionSupabaseHost(host)) return failClosed();
+    if (nodeEnv === "production" && metaloraEnv !== PAYMENT_TEST_ENV_NAME) {
+      return failClosed();
+    }
+    if (metaloraEnv === "production") return failClosed();
+    if (metaloraEnv === PAYMENT_TEST_ENV_NAME) {
+      return { ok: true, adapter: new DevCaptureSmsAdapter(), kind: "dev-capture" };
+    }
+    return failClosed();
   }
 
-  if (metaloraEnv === PAYMENT_TEST_ENV_NAME && adapterName === "dev-capture") {
-    return { ok: true, adapter: new DevCaptureSmsAdapter(), kind: "dev-capture" };
+  if (adapterName === SOLAPI_ADAPTER_NAME) {
+    const config = readSolapiConfig(env);
+    if (!config) return failClosed();
+    return { ok: true, adapter: new SolapiSmsAdapter(config), kind: "solapi" };
   }
 
-  return { ok: false, reason: "fail_closed" };
+  return failClosed();
 }
