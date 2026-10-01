@@ -1,20 +1,20 @@
 # METALORA project state
 
-Persistent checkpoint for session handoff. Last updated after **NEW 2F C2 OPEN** (docs/governance only; C2 OPEN; Naver IMPLEMENT NOW; C1 remains OPEN with USER FINAL visual DEFERRED; no Naver implementation from this checkpoint; no production; no deploy).
+Persistent checkpoint for session handoff. Last updated after **NEW 2 FINAL CLOSURE** (2026-10-01). NEW 2 customer UX family **CLOSED / ALL PASS**. C1 **CLOSED**. C2 **CLOSED**. NEW 3 / NEW 4 **NOT OPENED**. No production mutation. No deploy.
 
-This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master pipeline: `docs/decisions/NEW-1_launch-pipeline-v3.md`. Historical v2 lock: `docs/decisions/NEW-1_launch-pipeline-v2.md`. NEW 2A contract: `docs/decisions/NEW-2A_menu-ia-consistency.md`. NEW 2B contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`. NEW 2C contract: `docs/decisions/NEW-2C_global-shell-component-consistency.md`. NEW 2D contract: `docs/decisions/NEW-2D_catalog-general-storefront.md`. NEW 2E contract: `docs/decisions/NEW-2E_cart-checkout-ux.md`. NEW 2F parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. NEW 2F auth expansion: `docs/decisions/NEW-2F_auth-expansion.md`. NEW 2F B2b hook: `docs/decisions/NEW-2F_b2b-hook-contract.md`. NEW 2F C1: `docs/decisions/NEW-2F_c1-google-kakao.md`. NEW 2F C2: `docs/decisions/NEW-2F_c2-naver.md`.
+This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master pipeline: `docs/decisions/NEW-1_launch-pipeline-v3.md`. Historical v2 lock: `docs/decisions/NEW-1_launch-pipeline-v2.md`. NEW 2A contract: `docs/decisions/NEW-2A_menu-ia-consistency.md`. NEW 2B contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`. NEW 2C contract: `docs/decisions/NEW-2C_global-shell-component-consistency.md`. NEW 2D contract: `docs/decisions/NEW-2D_catalog-general-storefront.md`. NEW 2E contract: `docs/decisions/NEW-2E_cart-checkout-ux.md`. NEW 2F parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. NEW 2F auth expansion: `docs/decisions/NEW-2F_auth-expansion.md`. NEW 2F B2b hook: `docs/decisions/NEW-2F_b2b-hook-contract.md`. NEW 2F C1: `docs/decisions/NEW-2F_c1-google-kakao.md`. NEW 2F C2: `docs/decisions/NEW-2F_c2-naver.md`. NEW 2F H1: `docs/decisions/NEW-2F_h1h-home-header-hero-boundary.md`. NEW 2F M2C-0: `docs/decisions/NEW-2F_m2c-0-username-create.md`.
 
 **Current operating mode: `MASTER PIPELINE v3 ACTIVE`.**
 **NEW 1 — ROADMAP / SCOPE LOCK: CLOSED.**
-**NEW 2: IN PROGRESS.**
+**NEW 2: CLOSED / ALL PASS.**
 **NEW 2A: CLOSED.** Implementation, user visual approval, A5 targeted QA, and A5 short-delta QA **PASS**. Orphan `CustomerNavSheet` removed.
 **NEW 2B: CLOSED.** Two-step Custom M source/UX complete. Payment-test validated. Production Custom DB/Storage/server **not** rolled out.
 **NEW 2C: CLOSED.** CookieBanner first-visit and settings inner shells consume `.container-shell`. User visual approval **PASS**. A5 targeted QA **PASS**. Footer out of scope. No deploy.
 **NEW 2D: CLOSED.** Verification-first. Existing Home-as-catalog accepted. Application source **NONE**. User visual approval **PASS**. A5 targeted QA **PASS**. No deploy.
 **NEW 2E: CLOSED.** Cart → Checkout → TEST payment-start → success/fail UX. User visual approval **PASS**. A5 targeted QA **PASS**. A5 final delta QA **PASS**. Actual Toss TEST success path **VERIFIED**. Live Toss **NOT ACTIVATED**. No deploy.
-**NEW 2F: OPEN.** Account / Profile / Auth customer UX/UI. Do **not** close. **B1 COMPLETE. B2 CHECKPOINTED / COMPLETE** (`3586ec732a7556226a23519553165cdafb8dd4b4`). **C1 OPEN** — functional checkpoint COMPLETE; USER FINAL visual **DEFERRED** — `docs/decisions/NEW-2F_c1-google-kakao.md`. **C2 OPEN** — Naver **IMPLEMENT NOW** — `docs/decisions/NEW-2F_c2-naver.md`. D / E **NOT STARTED**. Hosted Before User Created is **LIVE** on payment-test only. Production unchanged.
+**NEW 2F: CLOSED.** Account / Profile / Auth customer UX/UI. **B1 COMPLETE. B2 CHECKPOINTED / COMPLETE.** **C1 CLOSED.** **C2 CLOSED.** Unified Auth UX complete. A5 integrated NEW2 QA **ALL PASS**. Slice D/E leftover Profile/security work **DEFERRED OUT OF NEW 2**. Hosted Before User Created is **LIVE** on payment-test only. Production unchanged.
 
-NEXT: **C2-0 A6** — payment-test Naver Hosted/custom OAuth proof. HARD STOP FOR GPT REVIEW FIRST. Do **not** implement C2-0 from this file. Do **not** configure Naver. Do **not** close C1 or NEW 2F. Do **not** open NEW 3. Do **not** activate live Toss. Do **not** deploy. Do **not** revert preserved dirty A3 Profile/Inquiry/Orders WIP.
+NEXT: **GPT REVIEW** of NEW 2 closure. Do **not** open NEW 3 or NEW 4 from this file. Do **not** activate live Toss. Do **not** deploy. Do **not** revert preserved dirty A3 Profile/Inquiry/Orders WIP.
 
 ---
 
@@ -23,14 +23,14 @@ NEXT: **C2-0 A6** — payment-test Naver Hosted/custom OAuth proof. HARD STOP FO
 | Item | Value |
 |------|--------|
 | Operating mode | **MASTER PIPELINE v3 ACTIVE** |
-| Current stage | **NEW 2F OPEN** — B1 COMPLETE; B2 CHECKPOINTED / COMPLETE; C1 OPEN (visual DEFERRED); C2 OPEN |
-| NEW 2 | family; **2A CLOSED**; **2B CLOSED**; **2C CLOSED**; **2D CLOSED**; **2E CLOSED**; **2F OPEN** |
+| Current stage | **NEW 2 CLOSED** — 2A–2F CLOSED; NEW 3/4 NOT OPENED; NEW 5 BLOCKED BY NEW 3 + NEW 4 |
+| NEW 2 | family; **CLOSED / ALL PASS**; **2A CLOSED**; **2B CLOSED**; **2C CLOSED**; **2D CLOSED**; **2E CLOSED**; **2F CLOSED** |
 | NEW 2A | **CLOSED** — `docs/decisions/NEW-2A_menu-ia-consistency.md` |
 | NEW 2B | **CLOSED** — `docs/decisions/NEW-2B_custom-creation-ux-ui.md` |
 | NEW 2C | **CLOSED** — `docs/decisions/NEW-2C_global-shell-component-consistency.md` |
 | NEW 2D | **CLOSED** — `docs/decisions/NEW-2D_catalog-general-storefront.md` |
 | NEW 2E | **CLOSED** — `docs/decisions/NEW-2E_cart-checkout-ux.md` |
-| NEW 2F | **OPEN** — B1 COMPLETE; B2 CHECKPOINTED / COMPLETE; C1 OPEN visual DEFERRED (`docs/decisions/NEW-2F_c1-google-kakao.md`); C2 OPEN (`docs/decisions/NEW-2F_c2-naver.md`). Parent `docs/decisions/NEW-2F_account-profile-auth-ux.md`; expansion `docs/decisions/NEW-2F_auth-expansion.md`; B2b `docs/decisions/NEW-2F_b2b-hook-contract.md` |
+| NEW 2F | **CLOSED** — C1 CLOSED; C2 CLOSED; A5 ALL PASS. Parent `docs/decisions/NEW-2F_account-profile-auth-ux.md`; expansion `docs/decisions/NEW-2F_auth-expansion.md`; B2b `docs/decisions/NEW-2F_b2b-hook-contract.md` |
 | Historical `#16`–`#23` | **CLOSED** |
 | Prior PRE-LAUNCH HOLD | **SUPERSEDED AS CURRENT MODE** (preserved historically) |
 | BASELINE DEVELOPMENT COMPLETE | **YES** (through `#23`) |
@@ -50,7 +50,7 @@ NEXT: **C2-0 A6** — payment-test Naver Hosted/custom OAuth proof. HARD STOP FO
 | Production image digest | `sha256:d45a463cc1ec05957c4064b4b2b2bc697161462c8823459115fe8607fea619c9` |
 | Stable rollback | `metalora-direct-00087-voy` |
 | Repository baseline observed at #23 closure write | `3722d66d648d0c15fdcb9433bf87871543ba19f7` |
-| Expected worktree | clean |
+| Expected worktree | dirty preserved A3 Profile/Inquiry/Orders WIP may remain; NEW 2 closure files clean after checkpoint |
 
 Cloud Run service: `metalora-direct` (`metalora-auth`, `us-west1`).
 
@@ -171,19 +171,21 @@ Durable record: `docs/decisions/20F-0_account-side-backup-confirmation.md` (unch
 | Historical `#20F` | MIGRATED → **NEW 6** (not started) |
 | Historical `#24` | NOT OPENED; remaining work → NEW 4 / 7 / 8 / 9 |
 | **NEW 1** | **CLOSED** — roadmap / scope lock |
-| **NEW 2** | family; **IN PROGRESS**; **2A CLOSED**; **2B CLOSED**; **2C CLOSED**; **2D CLOSED**; **2E CLOSED**; **2F OPEN** |
+| **NEW 2** | family; **CLOSED / ALL PASS**; **2A CLOSED**; **2B CLOSED**; **2C CLOSED**; **2D CLOSED**; **2E CLOSED**; **2F CLOSED** |
 | **NEW 2A** | **CLOSED** — customer nav / IA; visual approval + A5 PASS |
 | **NEW 2B** | **CLOSED** — two-step Custom M source/UX; payment-test PASS; production rollout **not** complete |
 | **NEW 2C** | **CLOSED** — CookieBanner `.container-shell`; Footer out of scope; no deploy |
 | **NEW 2D** | **CLOSED** — verification-first; Home-as-catalog; source **NONE**; visual + A5 PASS |
 | **NEW 2E** | **CLOSED** — Cart / Checkout / TEST payment UX; visual + A5 PASS; live Toss not activated |
-| **NEW 2F** | **OPEN** — B1 COMPLETE; B2 CHECKPOINTED / COMPLETE; C1 OPEN visual DEFERRED; C2 OPEN; D–E NOT STARTED; payment-test hook LIVE; production unchanged |
-| NEW 3–5 | not opened |
+| **NEW 2F** | **CLOSED** — B1 COMPLETE; B2 CHECKPOINTED / COMPLETE; C1 CLOSED; C2 CLOSED; D–E DEFERRED OUT OF NEW 2; payment-test hook LIVE; production unchanged |
+| NEW 3 | **NOT OPENED** — full Admin UX/UI renewal (do **not** downgrade) |
+| NEW 4 | **NOT OPENED** |
+| NEW 5 | **BLOCKED BY NEW 3 + NEW 4** |
 | NEW 6 | not started (hard gate before NEW 7) |
 | NEW 7–9 | not opened |
 | LIVE | **NO** |
 
-Upcoming main path: **C2-0 A6** (after GPT review of C2 OPEN) → C2-1 A6 → C2-2 A0 if required → C2-3 A3 → C2-4 matrix → C2-5 unified Auth UX polish → USER visual approval → C2-6 A5 → D account security/withdrawal/consent → E leftover Profile UX. Slice 0b remains required before production unique-phone. NEW 3 ∥ NEW 4 after their own PRE-STAGE REPORTS → NEW 5 → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE. Do **not** open NEW 3 from this file. Do **not** implement C2-0 from this file.
+Upcoming main path: **GPT REVIEW** of NEW 2 closure → NEW 3 ∥ NEW 4 after their own PRE-STAGE REPORTS → NEW 5 (blocked until NEW 3 + NEW 4) → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE. Slice 0b remains required before production unique-phone. Do **not** open NEW 3 from this file.
 
 **NEW 2A** = **CLOSED.** Final Header: Search / Theme / Logo / Account / Cart on desktop and mobile; no persistent Custom text; no mobile `메뉴` / hamburger / CustomerNavSheet. Primary Custom discovery: Home `커스텀 제작 →` via `requestCustomAccess()`. Cart commerce term = `장바구니`. Global search → `/?q=`. Do not reopen 2A.
 
@@ -197,19 +199,21 @@ Durable 2B checkpoints: `b37c1f7` (open) → `0a65c24` (two-step UX) → `2e06be
 
 **NEW 2E** = **CLOSED.** Cart → Checkout → TEST payment-start → success/fail UX. Contract: `docs/decisions/NEW-2E_cart-checkout-ux.md`. Implementation checkpoint: `5ed01ae2b39d93b586e3e3c8846969ba48598e84`. Closure commit: `6b7e1dbb50c0ae339f0f0c1ef07faad748b31973` (`fix(cart): close NEW 2E payment success UX`), including PaymentSuccess order-number wrap. Custom thumbs are orientation-aware `object-contain` on `custom_image`; size blank/`A4` → M; display prefers `price_snapshot`. Checkout remains Cart overlay step 2. Mixed-cart Custom restriction copy is Custom-only. PaymentSuccess unsupported claims removed; actual Toss TEST post-confirm path **VERIFIED**. PaymentFail TEST cancellation/recovery verified; source unchanged. Payment-test Toss client/secret pairing was a local config incident (`INVALID_API_KEY`), corrected in gitignored `.env.payment-test.local` — no source/backend fix, no secrets in git. Payment-test artifacts **MAY REMAIN**. Production 2B-5A/2B-5C rollout **NOT PERFORMED**. Live Toss **NOT ACTIVATED**. No production payment. No deploy. Do **not** reopen 2E. Do not claim launch readiness. NEW 6 still blocks NEW 7.
 
-**NEW 2F** = **OPEN.** Account / Profile / Auth customer UX/UI. Do **not** close. Parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. Auth expansion: `docs/decisions/NEW-2F_auth-expansion.md`. B2b hook: `docs/decisions/NEW-2F_b2b-hook-contract.md`. C1: `docs/decisions/NEW-2F_c1-google-kakao.md`. C2: `docs/decisions/NEW-2F_c2-naver.md`. Original OPTIONAL AUTH EXPANSION exclusions are **SUPERSEDED** — those items are **LAUNCH-REQUIRED**.
+**NEW 2F** = **CLOSED.** Account / Profile / Auth customer UX/UI. Parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. Auth expansion: `docs/decisions/NEW-2F_auth-expansion.md`. B2b hook: `docs/decisions/NEW-2F_b2b-hook-contract.md`. C1: `docs/decisions/NEW-2F_c1-google-kakao.md`. C2: `docs/decisions/NEW-2F_c2-naver.md`. Original OPTIONAL AUTH EXPANSION exclusions are **SUPERSEDED** — those items were **LAUNCH-REQUIRED** and customer Auth is now **CLOSED** with NEW 2.
 
-Live slice state: **B1 COMPLETE**; **B2 CHECKPOINTED / COMPLETE** (`3586ec732a7556226a23519553165cdafb8dd4b4`); **C1 OPEN** (functional COMPLETE; USER FINAL visual **DEFERRED**); **C2 OPEN** (Naver IMPLEMENT NOW); **D NOT STARTED**; **E NOT STARTED**. B2a Customer Auth UX is **USER APPROVED / A5 PASS / CHECKPOINTED**. Official Signup no longer uses browser `supabase.auth.signUp`.
+Live slice state: **B1 COMPLETE**; **B2 CHECKPOINTED / COMPLETE** (`3586ec732a7556226a23519553165cdafb8dd4b4`); **C1 CLOSED**; **C2 CLOSED**; **D DEFERRED OUT OF NEW 2**; **E DEFERRED OUT OF NEW 2**. B2a Customer Auth UX is **USER APPROVED / A5 PASS / CHECKPOINTED**. Official Signup no longer uses browser `supabase.auth.signUp`. Unified Auth UX (C2-5) **COMPLETE**. A5 integrated NEW2 QA **ALL PASS**.
 
-C1 remains **OPEN**. Do **not** close C1. Unified Auth UX polish for Google + Kakao + Naver is **C2-5** after Naver functionality. C2 contract: `docs/decisions/NEW-2F_c2-naver.md`. Implementation order: C2-0 A6 → C2-1 A6 → C2-2 A0 if required → C2-3 A3 → C2-4 → C2-5 → USER visual → C2-6 A5. After C2-0 proves the exact Naver provider string, trusted social creation must be an explicit allow-list (`google`, `kakao`, proven Naver identifier) — not `custom:*`.
+C1/C2 functional/security **PASS**. USER visual **APPROVED** for inspected core states. **VISUAL DEFERRED — NON-BLOCKING:** first-time Social Pending final live screens; Recovery post-proof live screens; R2 Collision live screens; live 390px device screenshot pass; live Hero tunnel numeric scrollY/height pass during A5. Functional/security contracts are proven; those states were not recreated using unnecessary live account mutation solely for screenshots.
+
+Trusted social creation allow-list: `google`, `kakao`, `custom:naver`. No `custom:*` wildcard. No bare `naver`.
 
 Usable customer membership requires nonblank `user_custom_id` + `verified_phone_fingerprint` + `phone_verified_at`. `profiles.phone_number` is contact/shipping only, **not** authority. METALORA must never merge by email or skip phone verification because emails match. Payment prepare/confirm use the verified-phone requirement.
 
-Hosted Before User Created is **ENABLED and LIVE** on payment-test `bvihpoorwriejybixmoc`: public email `signUp` → 403 `Public password signup is not allowed.` Production `qifloweuwyhvukabgnoa` **UNCHANGED**. Hook allow-list for google/kakao/naver is **not** SNS completion.
+Hosted Before User Created is **ENABLED and LIVE** on payment-test `bvihpoorwriejybixmoc`: public email `signUp` → 403 `Public password signup is not allowed.` Production `qifloweuwyhvukabgnoa` **UNCHANGED**.
 
-Expected residuals: direct GoTrue `signInWithPassword` outside app-local login throttles; Naver customer flow not implemented (C2 OPEN; next C2-0); historical incomplete/raw accounts not repaired; production rollout not happened; production unique verified-phone index awaits Slice 0b; password reset does not guarantee immediate invalidation of already-issued access JWTs; production unchanged.
+Expected residuals: direct GoTrue `signInWithPassword` outside app-local login throttles; historical incomplete/raw accounts not repaired; production rollout not happened; production unique verified-phone index awaits Slice 0b; password reset does not guarantee immediate invalidation of already-issued access JWTs; production unchanged.
 
-Canonical customer: `profiles.id` = `auth.users.id`. OTP is custom trusted server/RPC, not GoTrue phone-login. Next: **C2-0 A6** after GPT review of C2 OPEN. Do **not** implement C2-0 or open NEW 3 from this file. Do **not** close C1.
+Canonical customer: `profiles.id` = `auth.users.id`. OTP is custom trusted server/RPC, not GoTrue phone-login. Next: **GPT REVIEW**. Do **not** open NEW 3 from this file.
 
 Frozen complete (do not redesign): Home/Hero, PDP Desktop, PDP Mobile Story, Product Truth, Mount/Included, OWC, Product Information, PDP Footer — except the closed NEW 2A Header chrome, Home.tsx headline/CTA stack, copy-only PDP rail cart-term strings listed in the 2A note, and **NEW 2B-4 shared PDP preview reuse** (not a PDP visual redesign).
 

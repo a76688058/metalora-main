@@ -17,6 +17,8 @@
     "verify:2f-c1-3": "tsx scripts/verify-2f-c1-3-integrated.ts",
     "verify:2f-c2-1": "tsx scripts/verify-2f-c2-1-naver-trusted.ts",
     "verify:2f-c2-3": "tsx scripts/verify-2f-c2-3-auth-ui.ts",
+    "verify:2f-c2-5": "tsx scripts/verify-2f-c2-5-auth-ux.ts",
+    "verify:2f-m2c-0": "tsx scripts/verify-2f-m2c-0-username-create.ts",
     "bootstrap:payment-test-schema": "tsx scripts/bootstrap-payment-test-schema.ts",
     "rebuild:payment-test-schema-from-csv": "tsx scripts/rebuild-payment-test-schema-from-csv.ts",
     "build": "npm run clean && vite build --outDir dist/client",

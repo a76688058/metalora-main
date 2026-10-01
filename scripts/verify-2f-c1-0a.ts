@@ -42,6 +42,7 @@ import {
 const PAYMENT_TEST_REF = "bvihpoorwriejybixmoc";
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MIGRATION = path.join(root, "supabase/migrations/20260928160000_2f_c1_0a_login_capability.sql");
+const M2C0_MIGRATION = path.join(root, "supabase/migrations/20260930193000_2f_m2c0_password_username_alnum.sql");
 const HOOK_SQL = path.join(root, "scripts/sql/payment-test-2f-b2b-before-user-created.sql");
 
 type TestResult = { name: string; pass: boolean };
@@ -396,6 +397,8 @@ async function main(): Promise<void> {
 
   console.log("APPLY payment-test C1-0A capability migration");
   dbQueryFile(dbUrl, MIGRATION);
+  console.log("APPLY payment-test M2C-0 additive username charset migration");
+  dbQueryFile(dbUrl, M2C0_MIGRATION);
 
   const afterEnabled = parseCount(
     dbQuerySql(dbUrl, `SELECT count(*)::int AS n FROM public.profiles WHERE password_login_enabled = true`),

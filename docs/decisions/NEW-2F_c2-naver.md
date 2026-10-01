@@ -1,14 +1,14 @@
 # NEW 2F C2 — Naver social auth
 
-Status: **OPEN**
+Status: **CLOSED** (with NEW 2F)
 
-Date: 2026-09-29 (STAGE OPEN)
+Date: 2026-09-29 (STAGE OPEN); closed 2026-10-01 with NEW 2
 
-Decision: USER approved **C2 OPEN**. Naver social login/signup is **IMPLEMENT NOW** on payment-test. It is **not** deferred to a future Auth UX redesign. C1 remains **OPEN**. C1 USER FINAL AUTH UX VISUAL APPROVAL remains **DEFERRED** until one unified polish covering Google + Kakao + Naver.
+Decision: C2 Naver is **CLOSED** with the NEW 2 customer UX family. Functional/security contracts **PASS**. Unified Auth UX (C2-5) is **COMPLETE**. A5 integrated NEW2 QA **ALL PASS**. USER visually approved inspected core Auth/Header states. Certain live Social Pending / Recovery / R2 terminal screens remain **VISUAL DEFERRED — NON-BLOCKING**.
 
 Parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. Expansion: `docs/decisions/NEW-2F_auth-expansion.md`. C1: `docs/decisions/NEW-2F_c1-google-kakao.md`.
 
-This note records C2 contracts. Production is not mutated. C2-0 through C2-4 functional implementation is **CHECKPOINTED**. C2 remains **OPEN** because C2-5 unified Auth UX polish, USER visual approval, and A5 QA are not done. USER has explicitly approved proceeding with unified Auth UX now. C1 visual approval remains **DEFERRED** into that unified pass. Do **not** close C2 or C1.
+Historical evidence below (C2-0–C2-4 matrix, C2-5 milestones) is preserved. Prior “C2 OPEN / waiting visual / do not start A5” headlines are **SUPERSEDED**.
 
 ---
 
@@ -16,22 +16,24 @@ This note records C2 contracts. Production is not mutated. C2-0 through C2-4 fun
 
 | Item | Value |
 |------|--------|
-| NEW 2F | **OPEN** — do **not** close |
-| C1 | **OPEN** — functional/security checkpoint COMPLETE; USER FINAL visual **DEFERRED** into C2-5 unified Auth UX |
-| C2 | **OPEN** — **FUNCTIONAL COMPLETE**; not closed |
+| NEW 2 / NEW 2F | **CLOSED** |
+| C1 | **CLOSED** — functional/security PASS; unified visual of inspected core states APPROVED |
+| C2 | **CLOSED** — functional/security PASS; C2-5 COMPLETE; A5 ALL PASS |
 | C2-0 | **PROOF PASS** — native OIDC `custom:naver`; userinfo proxy **NOT REQUIRED** |
 | C2-1 | **IMPLEMENTED** — trusted backend |
 | C2-2 | **IMPLEMENTED** — shared pending-social routing includes `custom:naver` |
 | C2-3 | **IMPLEMENTED** — customer Naver entry/recovery UI |
 | C2-4 | **FUNCTIONALLY COMPLETE** — matrix below |
-| C2-5 | **OPEN / NEXT** — UNIFIED AUTH UX POLISH (do **not** implement from this checkpoint) |
-| C2-6 | **NOT STARTED** — A5 READ ONLY after C2-5 visual approval |
-| Naver | **FUNCTIONAL IMPLEMENTATION COMPLETE** — C2 still OPEN |
+| C2-5 | **COMPLETE** — unified Auth UX polish; USER visual of inspected core states; A5 215/215 |
+| H1 | **COMPLETE** — Home Header hero/content contract; Light primary `#0a0a0a` |
+| S1 | **COMPLETE** — AccountDrawer owns scroll lock |
+| C2-6 | **COMPLETE** — A5 READ ONLY integrated NEW2 QA ALL PASS |
+| Naver | **COMPLETE** (payment-test) |
 | Apple | **OUT** |
 | Production | **UNCHANGED** |
-| Next | **C2-5 A3** unified Auth UX polish after GPT REVIEW of this checkpoint |
+| Next | **GPT REVIEW** of NEW 2 closure. Do **not** open NEW 3/4 from this note. |
 
-C1 durable HEAD at functional checkpoint: `7b874e3771a42c5b07352ac0e5de312a06e92f6a`.
+C1 durable HEAD at functional checkpoint: `7b874e3771a42c5b07352ac0e5de312a06e92f6a`. C2 functional checkpoint: `6fbc6e8a5ac12e42b61a8a339c362380fe41bd71`.
 
 ---
 
@@ -194,8 +196,8 @@ Preserve dirty WIP (do not revert/stage/edit unless re-owned):
 
 ## Do Not Do
 
-- Close C2 or C1
-- Implement C2-5 in the functional checkpoint (record only)
+- Reopen C1/C2 or NEW 2F implementation from this note
+- Claim live visual proof for deferred Social Pending / Recovery / R2 terminal screens
 - Delete the second pending `custom:naver` Auth user
 - Delete, merge, or move the activated Naver identity
 - Claim Matrix F
@@ -260,40 +262,69 @@ Prior REAL R2 vs first Naver member’s phone remains recorded. Latest REAL Matr
 
 ---
 
-## C2-5 — UNIFIED AUTH UX POLISH — OPEN / NEXT (A3)
+## C2-5 — UNIFIED AUTH UX POLISH (A3)
 
-Status: **OPEN**. Recorded only. **Do not implement in the functional checkpoint.**
+Status: **COMPLETE** (NEW 2 closure). A5 C2-5 **215/215 PASS**. USER approved inspected core states listed in the parent 2F note. Do **not** claim live visual proof for deferred Social Pending / Recovery / R2 terminal screens.
 
-USER has explicitly approved proceeding with unified Auth UX now. C1 USER FINAL visual approval remains **DEFERRED** into this same pass. C2 stays **OPEN** until this polish, USER visual approval, and C2-6 A5 QA.
+- One Auth surface language: graphite/frost panel, equal Google/Kakao/Naver continue row, shared notices
+- Generic `social_complete` HTTP 400 now maps to `가입을 완료하지 못했습니다. 다시 시도해 주세요.` unless `code` is `proof_expired` / `otp_expired`
+- Verified OTP (`확인됨`) clears/hides stale expiry copy so it cannot sit beside a completed phone proof
+- Overlay uses `min-h-full` inner centering so long signup/recovery can scroll without a nested body/panel trap
+- 409 collision UI unchanged
+- **UX Milestone 1 (in progress, uncommitted):** logged-out Account Drawer + Custom teaser + center Login modal layering on `/login`. Header/A1 and ProfileOverlay not wired. Waiting USER visual review. Do **not** start Milestone 2 or A5.
+- **M1 microfix:** do not latch `authOpen` from pending-social. Anonymous `/login` starts drawer-open / modal-closed. Modal opens from CTA or confirmed pending-social only.
 
-### Surfaces
+- **UX Milestone 1F (uncommitted):** Auth Choice composition only — taller scene (~432×448 desktop), title `시작해볼까요?`, supporting line, desktop side-by-side Login/Signup. **SUPERSEDED by M1I.** Choice view removed.
 
-Password login; password signup; Google; Kakao; Naver; social provider row; pending social onboarding; phone OTP send / input / verify; consent states; R2 collision; password recovery; social recovery; loading; error; disabled; focus; light; dark; desktop; mobile/responsive; reduced-motion.
+- **UX Milestone 1G (uncommitted):** Default Login form continues the M1F scene shell. Quiet rectangular fields, cream/dark Login CTA. **Directionally approved.** Title `로그인` removed in M1H.
 
-### Known UX fix
+- **UX Milestone 1H (uncommitted):** Minimal Login — centered wordmark, no Login heading, ID+password together, icon-only Google/Kakao/Naver with full aria-labels. Existing SVG marks optically slotted, not redrawn.
 
-Generic `social_complete` HTTP 400 must **not** automatically render `인증이 만료되었습니다. 다시 시도해 주세요.` (`mapSocialCompleteError` in `customerAuthRequests.ts`). Need safer customer-facing mapping. A stale payment-test server previously made this look like `not_social`; mapping remains wrong for genuine 400s.
+- **UX Milestone 1I (uncommitted):** Auth Choice removed. Drawer CTA opens default Login directly. Signup is a secondary outline CTA under Login. No back-to-choice. X returns to Drawer. Footer recovery only. Kakao/Naver marks optically enlarged in the existing 52px slot. **Login composition visually approved** except M1J typography.
 
-### Brand / visual contract
+- **UX Milestone 1J (uncommitted):** Login labels `아이디` / `비밀번호` 12→14px; compact `또는` 11→13px. Login-only. No light-mode token fix. **Login visual APPROVED.**
 
-Toss-like text minimalism **and** METALORA premium material language.
+- **UX Milestone 2A (uncommitted):** Progressive Disclosure password Signup. **USER APPROVED** the concept; M2B hardens it.
 
-Visual character: graphite; aluminum; frost; restrained magenta → violet → cyan material wake; subtle directional/specular response; refined depth; calm idle; interaction wakes the material.
+- **UX Milestone 2B (uncommitted):** Progressive Signup hardening + compression. Backdrop/ESC do not dismiss Login/Signup (X only). Name/ID/password progress automatically (Enter is a shortcut; Hangul IME respected). Password + confirmation reveal as one stage. Completed identity/password/phone compress to summaries with `수정`. Social alternatives only on initial Name. Login/Signup success uses inline CTA loading; standalone `확인 중` settle overlay is gated off Login/Signup (still used for recovery/social profile-settle). No backend change.
 
-Avoid: generic SaaS; excessive glassmorphism; noisy gradients; neon/cyberpunk; huge decorative animation; excessive explanatory copy; provider-brand colors dominating the entire modal.
+- **UX Milestone 2C-1 (uncommitted):** `수정` blanks the edited stage (identity / password / phone) instead of reopening valid values. Signup create username UI matches `^[A-Za-z0-9]{4,32}$`; helpers `영문/숫자 4자 이상` / `영문과 숫자만 입력해 주세요.` / `32자 이하로 입력해 주세요.` Login lookup not tightened. Stale username-check responses ignored via seq guard. No backend change. **USER VISUAL APPROVED.**
 
-Naver / Google / Kakao must remain recognizable.
+- **UX Milestone 2D (uncommitted):** First-time social pending onboarding uses the same progressive language as Password Signup: phone only → OTP after send → compressed verified phone + `수정` → agreements + `가입하기`. Inline `전송 중...` / `확인 중...` / `가입 중...`. Standalone `확인 중` settle overlay gated off pending-social. Backdrop does not dismiss. ESC and X still abandon/sign out the pending session. No username/password/ml UI. R2 collision unchanged. No backend change.
+
+- **UX Milestone 2E (uncommitted):** Unified Recovery. Login `아이디/비밀번호를 모르겠어요` → phone → OTP purpose `recovery` → `/api/auth/recovery/resolve` classification. No ID-vs-password choice. Password-capable: customer ID + optional inline `비밀번호 재설정` pair. Social-only: no `ml` username, no reset, trusted `linked_providers` only. Mixed keeps password reset. Phone `수정` invalidates proof/session/result. Backdrop/ESC no dismiss; X closes. ESC on pending-social still sign-out. No backend change. Client uses `password_reset_allowed` / `recoverable_username` / `linked_providers` from resolve (capability flags are server-side).
+
+- **UX Milestone 2F (uncommitted):** R2 collision customer UX only. After `phone_already_registered` + signOut cleanup: compact collision panel `이미 가입된 휴대폰 번호입니다.` / `새 계정으로 연결하지 않았습니다. 기존 계정으로 로그인해 주세요.` Primary `로그인` (clean M1J, empty ID/password). Secondary `아이디/비밀번호 찾기` (clean M2E Recovery). No social row, no merge, no account leak. Backdrop/ESC no dismiss. Pending-social ESC cancel unchanged. 409 mapper copy unchanged. No backend change.
+
+- **H1-D (uncommitted):** Auth Light primary text token alignment only. Login/Signup/Social Pending/Recovery field labels, Collision headline, agreement names, and recovered ID label/value use shared `text-text-primary` / `var(--color-text-primary)`. Helpers, `또는`, placeholders, and supporting copy stay muted. No layout/size/behavior change.
+
+- **S1 (uncommitted):** AccountDrawer no longer sets `document.documentElement.style.overflow`. Open lock is body `overflow: hidden` (original overflow/paddingRight restored), plus non-passive `wheel`/`touchmove` preventDefault so Home sticky Hero is not unpinned. Header html-overflow compensation left in place for A1 removal. No Drawer visual change. No LoginModal/Header/Hero edits.
+
+Verification: `npm run verify:2f-c2-5`
+
+---
+
+## M2C-0 — NEW password username charset (A6)
+
+Status: **COMPLETE**. A3 UI alignment **COMPLETE**. See `docs/decisions/NEW-2F_m2c-0-username-create.md`.
+
+NEW creation: `^[A-Za-z0-9]{4,32}$`. Login lookup **not** tightened. Social `ml`+10 unchanged. Production not mutated. Historical C1-0a migration unchanged; additive `20260930193000_2f_m2c0_password_username_alnum.sql` holds the create-rule change.
+
+Customer helpers:
+
+- `영문/숫자 4자 이상`
+- `영문과 숫자만 입력해 주세요.`
+- `확인 중...` / `사용 가능` / `이미 사용 중인 아이디입니다.`
 
 ---
 
 ## Resume
 
-1. **GPT REVIEW** of this functional checkpoint
-2. **C2-5 A3** unified Auth UX polish (OPEN / NEXT)
-3. C1 remains OPEN visual-deferred until that unified pass
-4. Do **not** delete the pending `custom:naver` Auth user
-5. Do **not** close C2 until C2-5 visual approval + C2-6 A5 QA
+1. **GPT REVIEW** of NEW 2 closure
+2. Do **not** open NEW 3 / NEW 4 from this note
+3. Do **not** delete remaining pending `custom:naver` Auth user if still present
+4. Slice D / E leftover Profile/security work remains **DEFERRED OUT OF NEW 2**
 
-Ownership: A0 (this functional checkpoint). A3 owns C2-5. A5 owns C2-6. A6 owns C2-0/C2-1/C2-4 evidence.
+Ownership: A0 (this closure overlay). Historical slices A6/A3/A1/A5 as recorded above.
 
-Relevant files: this note; `src/components/auth/socialOAuth.ts`; `src/components/auth/SocialContinueRow.tsx`; `src/components/LoginModal.tsx`; `scripts/verify-2f-c2-3-auth-ui.ts`; `src/lib/authIntegrity.ts`; `scripts/verify-2f-c2-2-pending-routing.ts`; `src/lib/trustedSocialProviders.ts`; `src/lib/accountKind.ts`; `src/lib/socialAuthHandlers.ts`; `scripts/sql/payment-test-2f-b2b-before-user-created.sql`; `scripts/verify-2f-c2-1-naver-trusted.ts`; `docs/decisions/NEW-2F_c1-google-kakao.md`; `docs/decisions/NEW-2F_auth-expansion.md`; `docs/decisions/NEW-2F_account-profile-auth-ux.md`; `docs/METALORA_PROJECT_STATE.md`
+Relevant files: this note; `src/components/LoginModal.tsx`; `src/components/auth/customerAuthRequests.ts`; `src/components/auth/SocialContinueRow.tsx`; `scripts/verify-2f-c2-5-auth-ux.ts`; `docs/decisions/NEW-2F_c1-google-kakao.md`; `docs/decisions/NEW-2F_auth-expansion.md`

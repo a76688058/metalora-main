@@ -1,14 +1,14 @@
 # NEW 2F — Auth Expansion (sub-contract)
 
-Status: **OPEN** (sub-workstream of NEW 2F)
+Status: **CLOSED** for NEW 2 customer Auth (B–C2). Slice D/E **DEFERRED OUT OF NEW 2**.
 
-Date: 2026-09-28 (C1 STAGE OPEN); status updated 2026-09-29 (C2 OPEN)
+Date: 2026-09-28 (C1 STAGE OPEN); C2 OPEN 2026-09-29; closed 2026-10-01 with NEW 2
 
-Decision: Recovery, verified phone OTP, Google/Kakao/Naver, identity reconciliation, withdrawal, marketing consent, and membership consent history are **LAUNCH-REQUIRED**. They are **not** optional auth expansion.
+Decision: Recovery, verified phone OTP, Google/Kakao/Naver, and identity reconciliation customer Auth are **COMPLETE** on payment-test and **CLOSED** with NEW 2. Withdrawal, marketing consent ledger, and leftover Profile chrome remain **DEFERRED OUT OF NEW 2**. They are **not** NEW 2 blockers.
 
-Parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. This is **not** a new master launch stage. NEW 2F remains **OPEN**. NEW 3 is **NOT OPENED**.
+Parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. This is **not** a new master launch stage. NEW 2F is **CLOSED**. NEW 3 is **NOT OPENED**.
 
-This note is governance. B2 is **CHECKPOINTED / COMPLETE**. C1 is **OPEN**: `docs/decisions/NEW-2F_c1-google-kakao.md`. C2 is **OPEN**: `docs/decisions/NEW-2F_c2-naver.md`. This note does **not** implement C2-0 or authorize production OAuth / deploy. NEW 3 is **NOT OPENED**.
+Prior “NEW 2F OPEN / C1 OPEN / C2 OPEN” headlines in this sub-contract are **SUPERSEDED**. Historical B2 live-state evidence below is preserved.
 
 ---
 
@@ -16,19 +16,19 @@ This note is governance. B2 is **CHECKPOINTED / COMPLETE**. C1 is **OPEN**: `doc
 
 | Item | Value |
 |------|--------|
-| NEW 2F | **OPEN** — do **not** close |
-| Auth expansion | **OPEN** — launch-required |
+| NEW 2F | **CLOSED** |
+| Auth expansion customer Auth (B–C2) | **CLOSED** |
 | B1 | **COMPLETE** |
 | B2 | **CHECKPOINTED / COMPLETE** |
 | B2a Customer Auth UX | **COMPLETE / USER APPROVED / A5 PASS** |
-| C1 Google / Kakao | **OPEN** — functional checkpoint COMPLETE; USER FINAL visual **DEFERRED** — `docs/decisions/NEW-2F_c1-google-kakao.md` |
-| C2 Naver | **OPEN** — IMPLEMENT NOW — `docs/decisions/NEW-2F_c2-naver.md` |
-| D Account security / withdrawal / consent | **NOT STARTED** |
-| E Final Auth / Profile UX integration | **NOT STARTED** |
-| Slice 0b production inventory | **NOT DONE** — not a B2 blocker |
+| C1 Google / Kakao | **CLOSED** — `docs/decisions/NEW-2F_c1-google-kakao.md` |
+| C2 Naver | **CLOSED** — `docs/decisions/NEW-2F_c2-naver.md` |
+| D Account security / withdrawal / consent | **DEFERRED OUT OF NEW 2** |
+| E Final Auth / Profile UX integration | **DEFERRED OUT OF NEW 2** |
+| Slice 0b production inventory | **NOT DONE** — not a NEW 2 blocker |
 | Production providers / unique verified-phone | **GATED** |
 | Production | **UNCHANGED** |
-| Next action | **C2-0 A6** — payment-test Naver Hosted/custom OAuth proof. HARD STOP FOR GPT REVIEW FIRST |
+| Next action | **GPT REVIEW** of NEW 2 closure. Do **not** open NEW 3/4 from this note. |
 
 Evidence: A0 PRE-AUDIT COMPLETE. A6 AUTH ARCHITECTURE AUDIT COMPLETE. A6 ARCHITECTURE CLARIFICATION COMPLETE. B2 implementation + A5 integrated QA **PASS**. Blocker / HIGH / MEDIUM: **NONE**.
 
@@ -73,7 +73,7 @@ Observed live behavior: public `provider=email` `signUp` → **403** `Public pas
 
 Do **not** document current state as “hook is not invoked”, “hook still needs to be enabled”, or “public signup currently fails only through `handle_new_user` / P0001”. Those are **historical** findings only. Detail: `docs/decisions/NEW-2F_b2b-hook-contract.md`.
 
-Provider policy in the hook: email / empty / anonymous → reject; other provider strings currently allowed. C1 Google/Kakao customer flows are functionally implemented on payment-test. Naver customer flow is **C2 OPEN** and not yet implemented. After C2-0 proves the exact Naver provider string, trusted social creation must be an explicit allow-list (`google`, `kakao`, proven Naver identifier) — not `custom:*` and not “anything non-email.” Global signup was **not** disabled. Email/password remains usable for trusted Admin `createUser` and existing password login.
+Provider policy in the hook (current): explicit allow-list `google`, `kakao`, `custom:naver`. Reject email / empty / anonymous / bare `naver` / other `custom:*` / unknown. Global signup was **not** disabled. Email/password remains usable for trusted Admin `createUser` and existing password login. Historical “other provider strings currently allowed / Naver not yet implemented” is **SUPERSEDED**.
 
 ### Username enumeration — CLOSED for B2
 
@@ -100,8 +100,7 @@ Dev/test observability only. It does **not** return OTP from the normal send end
 ### Expected residuals — not B2 blockers
 
 - direct GoTrue `signInWithPassword` remains outside app-local login throttles
-- Google/Kakao customer SNS flow is C1 functional (USER FINAL visual DEFERRED)
-- Naver customer SNS flow not implemented yet (C2 OPEN; next C2-0)
+- Google/Kakao/Naver customer SNS flows are C1/C2 **CLOSED** (live Social Pending / Recovery / R2 terminal visual DEFERRED NON-BLOCKING)
 - historical incomplete/raw accounts are not repaired
 - production rollout has not happened
 - production verified-phone unique index still awaits Slice 0b
@@ -482,11 +481,11 @@ Do **not** blend uncommitted A3 visual files into Auth backend slices. Do not co
 
 ## Slices
 
-Live progress (do **not** close NEW 2F): **0b NOT DONE**; **A COMPLETE**; **B1 COMPLETE**; **B2 CHECKPOINTED / COMPLETE**; **C1 OPEN** (visual DEFERRED); **C2 OPEN**; **D NOT STARTED**; **E NOT STARTED**.
+Live progress: **0b NOT DONE**; **A COMPLETE**; **B1 COMPLETE**; **B2 CHECKPOINTED / COMPLETE**; **C1 CLOSED**; **C2 CLOSED**; **D DEFERRED OUT OF NEW 2**; **E DEFERRED OUT OF NEW 2**. NEW 2F customer Auth is **CLOSED**.
 
 ### SLICE 0b — PRODUCTION READ-ONLY INVENTORY
 
-A6. READ ONLY. Required before production unique verified-phone enforcement. **NOT DONE.** Not a B2 blocker.
+A6. READ ONLY. Required before production unique verified-phone enforcement. **NOT DONE.** Not a NEW 2 blocker.
 
 ### SLICE A — VERIFIED PHONE / OTP FOUNDATION
 
@@ -498,25 +497,21 @@ A6 + A3. Split as **B1 COMPLETE** and **B2 CHECKPOINTED / COMPLETE**. Unified ID
 
 ### SLICE C1 — GOOGLE + KAKAO
 
-**OPEN.** Contract: `docs/decisions/NEW-2F_c1-google-kakao.md`. Payment-test first.
+**CLOSED.** Contract: `docs/decisions/NEW-2F_c1-google-kakao.md`. Payment-test first.
 
 C1 uses Hosted verified-email auto-link as an Auth invariant and **R2** for app phone collisions. No R1 identity transfer. No customer `linkIdentity` / connect UI. Social Signup consents = terms + privacy + cookie. `AuthCallback.tsx` is **A0-only**.
 
-C1 functional/security checkpoint is COMPLETE. USER FINAL visual remains **DEFERRED**. Do **not** close C1.
-
 ### SLICE C2 — NAVER
 
-**OPEN.** Contract: `docs/decisions/NEW-2F_c2-naver.md`. Payment-test first. Naver is **IMPLEMENT NOW**, not deferred to Auth UX redesign.
-
-C2-0 A6 must prove the actual `auth.identities[].provider` (candidate `custom:naver` is untrusted until proof), PKCE callback, and userinfo/email behavior. Do **not** build the customer Naver button before that proof. After proof, trusted social creation must be an explicit allow-list. Unified Auth UX polish (Google + Kakao + Naver) is **C2-5**, after functionality/matrix. Hook allow-list for naver is **not** C2 completion.
+**CLOSED.** Contract: `docs/decisions/NEW-2F_c2-naver.md`. Provider identity `custom:naver`. Trusted social creation is an explicit allow-list. Unified Auth UX polish (Google + Kakao + Naver) is **C2-5 COMPLETE**.
 
 ### SLICE D — ACCOUNT SECURITY / WITHDRAWAL / CONSENT
 
-**NOT STARTED.** A6 + A3. `계정 및 보안`; withdrawal; `account_status` gates; consent ledger; marketing history/toggle; `user_agreements` hardening. Checkpoint/report required.
+**DEFERRED OUT OF NEW 2.** A6 + A3. `계정 및 보안`; withdrawal; `account_status` gates; consent ledger; marketing history/toggle; `user_agreements` hardening. Not a NEW 2 blocker.
 
 ### SLICE E — FINAL AUTH / PROFILE UX INTEGRATION
 
-**NOT STARTED.** A3 primary. Final Profile/account integration; remaining chrome; USER visual approval of leftover 2F surfaces. Then A5 targeted QA → A0 closure. B2a Login/Signup/Recovery is already USER-approved.
+**DEFERRED OUT OF NEW 2.** A3 primary. Final Profile/account integration; remaining chrome. B2a Login/Signup/Recovery is USER-approved. Not a NEW 2 blocker.
 
 ---
 
@@ -552,24 +547,22 @@ NEW 2F must not invent legal conclusions.
 
 ## Auth-expansion Definition of Done
 
-NEW 2F cannot close until:
+NEW 2 customer Auth (B–C2) is **CLOSED**. Historical DoD items that still belong later (withdrawal capability, marketing consent capability, membership consent history, leftover Profile/`계정 및 보안`) are **DEFERRED OUT OF NEW 2** and do **not** keep NEW 2F open.
 
-- original visual/account UX is USER-approved
-- verified phone foundation passes
-- ID recovery passes
-- password recovery/reset passes
-- password change/set passes
-- Google, Kakao, and Naver pass
-- duplicate-account prevention passes
-- pending-social lifecycle passes
-- withdrawal capability passes
-- marketing consent capability passes
-- membership consent history passes
-- Auth/session/`account_status` gates pass
-- no accidental account enumeration
+Closed on NEW 2:
+
+- original customer Auth UX USER-approved for inspected core states
+- verified phone foundation
+- ID recovery
+- password recovery/reset
+- Google, Kakao, and Naver
+- duplicate-account prevention (R2 fail-closed)
+- pending-social lifecycle (functional)
+- anti-enumeration
 - no unsafe phone/shipping conflation
-- USER visual approval **PASS**
-- A5 targeted QA **PASS**
+- A5 targeted integrated NEW2 QA **ALL PASS**
+
+Still deferred: withdrawal; marketing consent ledger; membership consent history; leftover Profile chrome; Slice 0b production inventory; production providers.
 
 Production rollout remains separately gated by launch pipeline stages (NEW 6/7 etc.).
 
@@ -577,9 +570,8 @@ Production rollout remains separately gated by launch pipeline stages (NEW 6/7 e
 
 ## Do Not Do
 
-- Implement C2-0 / D / E from this docs ticket
+- Reopen C1 / C2 / NEW 2F customer Auth from this note
 - Mutate DB / enable production providers / edit env / deploy from this note
-- Close NEW 2F or C1
 - Open NEW 3
 - Revert preserved dirty A3 Profile/Inquiry/Orders WIP
 - Auto-promote `profiles.phone_number` to verified
@@ -601,8 +593,8 @@ A0 owns this sub-contract and parent status. A6 owns RED slices. A3 owns custome
 
 - `docs/decisions/NEW-2F_auth-expansion.md` (this sub-contract)
 - `docs/decisions/NEW-2F_account-profile-auth-ux.md` (parent)
-- `docs/decisions/NEW-2F_c1-google-kakao.md` (C1 OPEN)
-- `docs/decisions/NEW-2F_c2-naver.md` (C2 OPEN)
+- `docs/decisions/NEW-2F_c1-google-kakao.md` (C1 CLOSED)
+- `docs/decisions/NEW-2F_c2-naver.md` (C2 CLOSED)
 - `docs/decisions/NEW-2F_b2b-hook-contract.md` (payment-test hosted hook — LIVE)
 - `docs/METALORA_PROJECT_STATE.md`
 - `docs/decisions/NEW-1_launch-pipeline-v3.md`

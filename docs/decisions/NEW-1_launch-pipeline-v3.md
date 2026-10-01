@@ -4,9 +4,9 @@ Status: **ACTIVE** (current operating-mode SoT)
 
 Date: 2026-09-28 (live-status overlay; original v3 body preserved)
 
-Decision: Current operating mode is **MASTER PIPELINE v3 ACTIVE**. This note is the successor to `docs/decisions/NEW-1_launch-pipeline-v2.md`. Historical `#16`–`#23` and NEW 1 remain closed. NEW 2A–2E remain closed. NEW 2F is **OPEN**. Live 2F slice state lives in `docs/METALORA_PROJECT_STATE.md` and `docs/decisions/NEW-2F_auth-expansion.md`.
+Decision: Current operating mode is **MASTER PIPELINE v3 ACTIVE**. This note is the successor to `docs/decisions/NEW-1_launch-pipeline-v2.md`. Historical `#16`–`#23` and NEW 1 remain closed. NEW 2A–2F are **CLOSED**. NEW 3 and NEW 4 are **NOT OPENED**. Live handoff lives in `docs/METALORA_PROJECT_STATE.md`.
 
-This note does **not** close NEW 2F. It does **not** authorize SNS implementation, deploy, production DB mutation, or live Toss.
+This note does **not** open NEW 3/4. It does **not** authorize deploy, production DB mutation, or live Toss.
 
 ---
 
@@ -37,23 +37,23 @@ Live handoff: `docs/METALORA_PROJECT_STATE.md`. NEW 2F auth expansion: `docs/dec
 | Stage | Status |
 |------|--------|
 | NEW 1 | **CLOSED** |
-| NEW 2 | **IN PROGRESS** |
+| NEW 2 | **CLOSED** / ALL PASS |
 | NEW 2A | **CLOSED** |
 | NEW 2B | **CLOSED** |
 | NEW 2C | **CLOSED** |
 | NEW 2D | **CLOSED** |
 | NEW 2E | **CLOSED** |
-| NEW 2F | **OPEN** — B1 COMPLETE; B2 CHECKPOINTED / COMPLETE; C1 OPEN |
+| NEW 2F | **CLOSED** |
 | NEW 3 | **NOT OPENED** |
 | NEW 4 | **NOT OPENED** |
-| NEW 5 | **NOT OPENED** |
+| NEW 5 | **BLOCKED BY NEW 3 + NEW 4** |
 | NEW 6 | **NOT OPENED** |
 | NEW 7 | **NOT OPENED** |
 | NEW 8 | **NOT OPENED** |
 | NEW 9 | **NOT OPENED** |
 | LIVE | **NO** |
 
-Next 2F action: **C2-0 A6** after GPT review of C2 OPEN. Do **not** close NEW 2F or C1. Do **not** implement C2-0 from this note.
+Next: **GPT REVIEW** of NEW 2 closure. Do **not** open NEW 3 or NEW 4 from this note.
 
 ---
 
@@ -81,7 +81,7 @@ Do **not** reopen `#16`–`#23`.
 
 ### NEW 2 — Customer experience / UX/UI family
 
-**IN PROGRESS.** Not one giant ticket. Each 2A–2F requires its own PRE-STAGE REPORT.
+**CLOSED.** Customer experience / UX/UI family. Each 2A–2F had its own PRE-STAGE REPORT.
 
 | Substage | Title | Status |
 |----------|--------|--------|
@@ -90,7 +90,7 @@ Do **not** reopen `#16`–`#23`.
 | NEW 2C | Global Shell / Component Consistency | **CLOSED** |
 | NEW 2D | Catalog / Storefront | **CLOSED** |
 | NEW 2E | Cart / Checkout / Payment UX/UI | **CLOSED** |
-| NEW 2F | Account / Profile / Auth UX/UI | **OPEN** — B1 COMPLETE; B2 CHECKPOINTED / COMPLETE; C1 OPEN |
+| NEW 2F | Account / Profile / Auth UX/UI | **CLOSED** |
 
 ### NEW 3 — Admin / operations full UX/UI renewal
 
@@ -102,7 +102,7 @@ Do **not** reopen `#16`–`#23`.
 
 ### NEW 5 — Final non-live visual / interaction QA
 
-**NOT OPENED.** Inherits v1 `#25F`.
+**BLOCKED BY NEW 3 + NEW 4.** Inherits v1 `#25F`. Do **not** mark NEW 5 ready to execute until NEW 3 and NEW 4 satisfy their dependency.
 
 ### NEW 6 — Backup / restore hard gate
 
@@ -122,9 +122,9 @@ Do **not** reopen `#16`–`#23`.
 
 ---
 
-## NEW 2F — Account / Profile / Auth UX/UI (OPEN)
+## NEW 2F — Account / Profile / Auth UX/UI (CLOSED)
 
-v1 `#25E` migrated here. **LIVE STATUS: OPEN.** Do **not** close from this note. B1 **COMPLETE**. B2 **CHECKPOINTED / COMPLETE**. C1 **OPEN** visual **DEFERRED** (`docs/decisions/NEW-2F_c1-google-kakao.md`). C2 **OPEN** IMPLEMENT NOW (`docs/decisions/NEW-2F_c2-naver.md`). D / E **NOT STARTED**. Detail: `docs/decisions/NEW-2F_account-profile-auth-ux.md`, `docs/decisions/NEW-2F_auth-expansion.md`.
+v1 `#25E` migrated here. **LIVE STATUS: CLOSED.** Detail: `docs/decisions/NEW-2F_account-profile-auth-ux.md`, `docs/decisions/NEW-2F_auth-expansion.md`. C1 **CLOSED**. C2 **CLOSED**. A5 integrated NEW2 QA **ALL PASS**. Slice D/E leftover Profile/security work is **DEFERRED OUT OF NEW 2**.
 
 The original v3 listing below is preserved as migrated `#25E` scope. Auth expansion (recovery, verified phone, Google/Kakao/Naver, linking) is **LAUNCH-REQUIRED** under NEW 2F and is **not** optional. That supersedes the historical “OUT OF NEW 2F / OPTIONAL AUTH EXPANSION” paragraph at the end of this section.
 
@@ -225,9 +225,9 @@ Visible customer-facing copy changes require **USER visual approval**. Do **not*
 
 ---
 
-## NEW 5 — Final non-live visual / interaction QA (NOT OPENED)
+## NEW 5 — Final non-live visual / interaction QA (BLOCKED BY NEW 3 + NEW 4)
 
-v1 `#25F` **SITE-WIDE VISUAL / INTERACTION QA** migrated here. A5 **READ ONLY**.
+v1 `#25F` **SITE-WIDE VISUAL / INTERACTION QA** migrated here. A5 **READ ONLY**. Not opened. Do **not** execute until NEW 3 and NEW 4 satisfy their dependency.
 
 Include: typography; spacing; forms; buttons; dialog / sheet / modal hierarchy; responsive; accessibility; keyboard / focus; motion; reduced motion; light / dark parity; Auth regression; Cart / Checkout regression; Admin regression.
 
@@ -285,7 +285,7 @@ These requirements were **migrated, not deleted**.
 |----|--------|-----|
 | `#25C` | Cart / Checkout / Payment UX/UI Renewal | **NEW 2E** (CLOSED) |
 | `#25D` | Admin Page Full UX/UI Renewal | **NEW 3** (NOT OPENED) |
-| `#25E` | Existing Account / Profile UI Polish | **NEW 2F** (OPEN; C1 OPEN) |
+| `#25E` | Existing Account / Profile UI Polish | **NEW 2F** (CLOSED) |
 | `#25F` | Site-wide Visual / Interaction QA | **NEW 5** (NOT OPENED) |
 | `#20F` | Backup / restore | **NEW 6** |
 | `#24` composite (live Toss, settlement, cancel/refund, legal launch, fulfillment) | PARTIALLY MIGRATED | NEW 4 + NEW 7 + NEW 8 + NEW 9. Do **not** invent `#24A–J` history. |
@@ -315,7 +315,7 @@ The original v3 listing treated the following as separate from launch-critical v
 - phone verification
 - account linking
 
-That classification is **SUPERSEDED**. They are **LAUNCH-REQUIRED** under NEW 2F. Current contract: `docs/decisions/NEW-2F_auth-expansion.md`. Google/Kakao = C1 **OPEN** (visual DEFERRED). Naver = C2 **OPEN**. Do **not** treat this historical heading as an active exclusion.
+That classification is **SUPERSEDED**. They are **LAUNCH-REQUIRED** under NEW 2F and are now **CLOSED** with NEW 2 customer Auth. Current contract: `docs/decisions/NEW-2F_auth-expansion.md`. Google/Kakao = C1 **CLOSED**. Naver = C2 **CLOSED**. Do **not** treat this historical heading as an active exclusion.
 
 ---
 
@@ -356,7 +356,7 @@ LIVE
 
 Operational default: **sequential** unless explicitly authorized otherwise.
 
-Current next 2F action: **C2-0 A6** after GPT review of C2 OPEN. NEW 2F remains **OPEN**. C1 remains **OPEN** (visual DEFERRED). C2 is **OPEN**. Do not implement C2-0 from this note.
+Current next action: **GPT REVIEW** of NEW 2 closure. NEW 2 is **CLOSED**. NEW 3 and NEW 4 remain **NOT OPENED**. NEW 5 is **BLOCKED BY NEW 3 + NEW 4**. Do not open NEW 3/4 from this note.
 
 ---
 
@@ -408,17 +408,16 @@ This note does **not** imply launch readiness.
 
 ## Next stage rule
 
-1. Live 2F status is in `docs/METALORA_PROJECT_STATE.md` and `docs/decisions/NEW-2F_auth-expansion.md`. This v3 note remains the pipeline-definition SoT.
-2. Next: **C2-0 A6** after GPT review of C2 OPEN. Do **not** close NEW 2F or C1. Do **not** implement C2-0 here.
-3. Do **not** open NEW 3–9 from this note.
-4. Do **not** activate live Toss. Do **not** deploy. Do **not** mutate production DB.
+1. Live status is in `docs/METALORA_PROJECT_STATE.md`. This v3 note remains the pipeline-definition SoT.
+2. Next: **GPT REVIEW** of NEW 2 closure. Do **not** open NEW 3/4 here.
+3. Do **not** activate live Toss. Do **not** deploy. Do **not** mutate production DB.
 
 ---
 
 ## Do not do
 
-- Close NEW 2F from this note
-- Implement C2-0 / start Naver source from this note
+- Reopen NEW 2F implementation from this note
+- Open NEW 3/4 from this note
 - Rewrite v2 historical body to current statuses
 - Downgrade NEW 3 `#25D` or NEW 5 `#25F`
 - Treat historical OPTIONAL AUTH EXPANSION as the current exclusion
@@ -433,9 +432,8 @@ This note does **not** imply launch readiness.
 ## Resume procedure
 
 1. This note + `docs/METALORA_PROJECT_STATE.md` = pipeline definition + live handoff
-2. Next: **C2-0 A6** after GPT review of `docs/decisions/NEW-2F_c2-naver.md`
-3. Then C2-1 → C2-6 on payment-test. Do not start C2-0 here
-4. Do not close NEW 2F or C1. Do not open NEW 3–9 from this note
+2. Next: **GPT REVIEW** of NEW 2 closure
+3. Do **not** open NEW 3–9 from this note
 
 Ownership: A0
 

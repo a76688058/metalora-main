@@ -9,8 +9,9 @@ import { useShellOverlay } from '../context/ShellOverlayContext';
 import { IconButton } from './ui/IconButton';
 import { cn } from '../lib/cn';
 import { zClass } from '../constants/overlays';
-import { isUsableMemberProfile } from '../lib/authIntegrity';
+import { isPendingC1SocialCustomer, isUsableMemberProfile } from '../lib/authIntegrity';
 import AnnouncementBar from './AnnouncementBar';
+import AccountDrawer from './auth/AccountDrawer';
 
 const LoginModal = lazy(() => import('./LoginModal'));
 
@@ -20,9 +21,11 @@ const SEARCH_PANEL_ID = 'header-search-panel';
 export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [hasOpenedLoginModal, setHasOpenedLoginModal] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
+  const [isHomeOverContent, setIsHomeOverContent] = useState(false);
   const {
+    user,
     profile,
     adminProfile,
     isProfileOpen,
@@ -51,21 +54,13 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const isUsableCustomer = isProfileResolved && isUsableMemberProfile(profile);
   const isAdminChrome = isProfileResolved && Boolean(profile?.is_admin || adminProfile?.is_admin);
   const hasMemberChrome = isUsableCustomer || isAdminChrome;
+  const pendingSocialCustomer = isProfileResolved && isPendingC1SocialCustomer(user, profile);
   const isAdmin = profile?.is_admin || adminProfile?.is_admin;
   const accountLabel = hasMemberChrome ? (isAdmin ? '관리자 대시보드' : '내 정보') : '로그인';
 
   useEffect(() => {
     setLocalSearch(searchQuery);
   }, [searchQuery]);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
-    handleScroll();
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -100,7 +95,67 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
 
   useEffect(() => {
     setIsSearchOpen(false);
+    setIsAccountDrawerOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (hasMemberChrome) setIsAccountDrawerOpen(false);
+  }, [hasMemberChrome]);
+
+  useEffect(() => {
+    if (!isHome) {
+      setIsHomeOverContent(false);
+      return;
+    }
+
+    let cancelled = false;
+    let io: IntersectionObserver | null = null;
+    let frame = 0;
+    let retry = 0;
+    let update: (() => void) | null = null;
+
+    const bind = () => {
+      if (cancelled) return;
+      const headerEl = searchRef.current;
+      const contentEl = document.getElementById('marquee-section');
+      if (!headerEl || !contentEl) {
+        retry = requestAnimationFrame(bind);
+        return;
+      }
+
+      update = () => {
+        const headerBottom = headerEl.getBoundingClientRect().bottom;
+        const contentTop = contentEl.getBoundingClientRect().top;
+        setIsHomeOverContent(contentTop <= headerBottom);
+      };
+
+      io = new IntersectionObserver(
+        () => {
+          if (!update) return;
+          cancelAnimationFrame(frame);
+          frame = requestAnimationFrame(update);
+        },
+        { root: null, threshold: [0, 0.01, 0.1, 0.25, 0.5, 1] },
+      );
+      io.observe(contentEl);
+      update();
+      window.addEventListener('scroll', update, { passive: true });
+      window.addEventListener('resize', update, { passive: true });
+    };
+
+    bind();
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(retry);
+      cancelAnimationFrame(frame);
+      io?.disconnect();
+      if (update) {
+        window.removeEventListener('scroll', update);
+        window.removeEventListener('resize', update);
+      }
+    };
+  }, [isHome, location.pathname]);
 
   const updateHomeSearch = (value: string) => {
     if (value) {
@@ -142,7 +197,6 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     }
   };
 
-  const isHeroTop = isHome && !isScrolled && !isSearchOpen;
   const isDark = theme === 'dark';
 
   const openLoginModal = () => {
@@ -158,6 +212,10 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const dismissLoginModal = () => {
     setIsLoginModalOpen(false);
     if (pendingCustomAccess) clearPendingCustomAccess();
+  };
+
+  const closeAccountDrawer = () => {
+    setIsAccountDrawerOpen(false);
   };
 
   useEffect(() => {
@@ -176,37 +234,52 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
         if (isCartOpen) closeCart();
         if (isWorkshopOpen) closeWorkshop();
         setIsSearchOpen(false);
+        setIsAccountDrawerOpen(false);
         openProfile();
       }
       return;
     }
     if (isWorkshopOpen) closeWorkshop();
     setIsSearchOpen(false);
-    openLoginModal();
+    if (isCartOpen) closeCart();
+    if (pendingSocialCustomer) {
+      openLoginModal();
+      return;
+    }
+    setIsAccountDrawerOpen(true);
   };
 
-  const iconTone = isHeroTop
+  const iconTone = isHome
     ? isDark
       ? 'text-text-inverse/80 hover:text-text-inverse'
       : 'text-text-primary/80 hover:text-text-primary'
     : 'text-text-secondary hover:text-text-primary';
+  const homeControlClass = isHome
+    ? cn('header-home-control', 'hover:bg-black/5 dark:hover:bg-white/10')
+    : undefined;
 
   return (
     <>
       <header
         ref={searchRef}
         className={cn(
-          'fixed top-0 left-0 isolate w-full max-w-[100vw] border-b motion-safe-transition transform-gpu',
+          'fixed top-0 left-0 isolate w-full max-w-[100vw] border-b',
           zClass('header'),
-          isHeroTop
+          isHome
             ? 'border-transparent bg-transparent'
-            : 'surface-glass border-border-subtle shadow-raised',
+            : 'surface-glass border-border-subtle shadow-raised motion-safe-transition transform-gpu',
         )}
-        style={{ transitionDuration: 'var(--duration-normal)' }}
+        style={isHome ? undefined : { transitionDuration: 'var(--duration-normal)' }}
       >
         <motion.div className="flex w-full flex-col">
           <AnnouncementBar />
 
+          <div
+            className={cn(
+              isHome && 'header-home-quiet',
+              isHome && isHomeOverContent && 'header-home-over-content',
+            )}
+          >
           <div
             className="relative flex items-center justify-between container-shell"
             style={{ height: 'var(--shell-nav-height)' }}
@@ -222,11 +295,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 onClick={() => {
                   setIsSearchOpen((open) => !open);
                 }}
-                className={cn(
-                  'shrink-0',
-                  iconTone,
-                  isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10',
-                )}
+                className={cn('shrink-0', iconTone, homeControlClass)}
               >
                 <Search size={20} strokeWidth={1.5} />
               </IconButton>
@@ -235,7 +304,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 variant="ghost"
                 aria-label={isDark ? '라이트 모드로 전환' : '다크 모드로 전환'}
                 onClick={toggleTheme}
-                className={cn('shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
+                className={cn('shrink-0', iconTone, homeControlClass)}
               >
                 {isDark ? <Sun size={20} strokeWidth={1.5} /> : <Moon size={20} strokeWidth={1.5} />}
               </IconButton>
@@ -250,6 +319,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                   if (isCartOpen) closeCart();
                   if (isProfileOpen) closeProfile();
                   if (isWorkshopOpen) closeWorkshop();
+                  setIsAccountDrawerOpen(false);
 
                   if (location.pathname === '/') {
                     e.preventDefault();
@@ -279,7 +349,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                   variant="ghost"
                   aria-label={accountLabel}
                   onClick={handleAccount}
-                  className={cn('shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
+                  className={cn('shrink-0', iconTone, homeControlClass)}
                 >
                   <User size={20} strokeWidth={1.5} />
                 </IconButton>
@@ -288,7 +358,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                   variant="ghost"
                   aria-label="로그인"
                   onClick={handleAccount}
-                  className={cn('shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
+                  className={cn('shrink-0', iconTone, homeControlClass)}
                 >
                   <User size={20} strokeWidth={1.5} />
                 </IconButton>
@@ -314,7 +384,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                     openCart();
                   }
                 }}
-                className={cn('relative shrink-0', iconTone, isHeroTop && 'hover:bg-black/5 dark:hover:bg-white/10')}
+                className={cn('relative shrink-0', iconTone, homeControlClass)}
               >
                 <Frame size={20} strokeWidth={1.5} />
                 {hasMemberChrome && cartItems.length > 0 && (
@@ -362,15 +432,27 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
               </motion.div>
             )}
           </AnimatePresence>
+          </div>
         </motion.div>
       </header>
+
+      <AccountDrawer
+        isOpen={isAccountDrawerOpen}
+        inert={isLoginModalOpen}
+        onClose={closeAccountDrawer}
+        onRequestAuth={openLoginModal}
+      />
 
       {hasOpenedLoginModal && (
         <Suspense fallback={null}>
           <LoginModal
             isOpen={isLoginModalOpen}
+            layered={isAccountDrawerOpen}
             onClose={dismissLoginModal}
-            onSuccess={closeLoginModal}
+            onSuccess={() => {
+              closeLoginModal();
+              closeAccountDrawer();
+            }}
           />
         </Suspense>
       )}

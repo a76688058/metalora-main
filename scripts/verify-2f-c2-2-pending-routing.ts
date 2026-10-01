@@ -289,10 +289,28 @@ assert(
 
 assert(
   "J Header member chrome is isUsableMemberProfile, not session",
-  headerSrc.includes("isUsableMemberProfile(profile)")
-    && headerSrc.includes("hasMemberChrome")
-    && !headerSrc.includes("isPendingC1SocialCustomer")
-    && !headerSrc.includes("custom:naver"),
+  (() => {
+    const chromeLine = headerSrc.match(/const hasMemberChrome = ([^;]+);/)?.[1] ?? "";
+    const accountFn = headerSrc.slice(
+      headerSrc.indexOf("const handleAccount"),
+      headerSrc.indexOf("const iconTone"),
+    );
+    return (
+      headerSrc.includes("const isUsableCustomer = isProfileResolved && isUsableMemberProfile(profile)")
+      && chromeLine.includes("isUsableCustomer")
+      && !chromeLine.includes("user")
+      && !chromeLine.includes("pendingSocial")
+      && headerSrc.includes("isPendingC1SocialCustomer(user, profile)")
+      && accountFn.includes("if (hasMemberChrome)")
+      && accountFn.includes("openProfile()")
+      && accountFn.includes("if (pendingSocialCustomer)")
+      && accountFn.includes("openLoginModal()")
+      && accountFn.includes("setIsAccountDrawerOpen(true)")
+      && accountFn.indexOf("if (hasMemberChrome)") < accountFn.indexOf("if (pendingSocialCustomer)")
+      && accountFn.indexOf("if (pendingSocialCustomer)") < accountFn.indexOf("setIsAccountDrawerOpen(true)")
+      && !headerSrc.includes("custom:naver")
+    );
+  })(),
 );
 
 assert(

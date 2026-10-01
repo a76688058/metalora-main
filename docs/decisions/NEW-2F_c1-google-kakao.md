@@ -1,12 +1,14 @@
 # NEW 2F C1 — Google + Kakao social auth
 
-Status: **OPEN**
+Status: **CLOSED** (with NEW 2F)
 
-Date: 2026-09-28 (STAGE OPEN); status updated 2026-09-29 (functional checkpoint — USER FINAL visual DEFERRED; C2 OPEN sibling)
+Date: 2026-09-28 (STAGE OPEN); functional checkpoint 2026-09-29; closed 2026-10-01 with NEW 2
 
-Decision: USER approved the amended C1 contract. C1 is **OPEN**. Closure is **NOT** authorized. USER FINAL AUTH UX VISUAL APPROVAL is **DEFERRED** until unified polish after Naver. Production OAuth remains OUT. Naver is **C2 OPEN / IMPLEMENT NOW** (`docs/decisions/NEW-2F_c2-naver.md`). Apple is OUT.
+Decision: C1 Google/Kakao is **CLOSED** with the NEW 2 customer UX family. Functional/security checkpoint **PASS**. Unified Auth UX visual of inspected core states **APPROVED**. Live Social Pending / Recovery / R2 terminal screens remain **VISUAL DEFERRED — NON-BLOCKING** (same as C2). Production OAuth remains OUT. Apple is OUT.
 
-Parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. Expansion: `docs/decisions/NEW-2F_auth-expansion.md`.
+Parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. Expansion: `docs/decisions/NEW-2F_auth-expansion.md`. C2: `docs/decisions/NEW-2F_c2-naver.md`.
+
+Prior “C1 OPEN / visual DEFERRED / do not close” headlines are **SUPERSEDED**. Historical slice evidence below is preserved.
 
 ---
 
@@ -14,22 +16,23 @@ Parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. Expansion: `docs/dec
 
 | Item | Value |
 |------|--------|
-| NEW 2F | **OPEN** — do **not** close |
-| C1 | **OPEN** — closure **NOT** authorized |
+| NEW 2F | **CLOSED** |
+| C1 | **CLOSED** — functional/security PASS; unified visual of inspected core states APPROVED |
 | C1-0A | **PASS** |
 | C1-0B | **PASS** — payment-test Google/Kakao providers + live OAuth |
 | C1-1 | **PASS** |
-| C1-2 | **PASS** — functional implementation (USER FINAL visual DEFERRED) |
+| C1-2 | **PASS** — unified Auth UX included in C2-5; A5 33/33 |
 | C1-3 | **PASS** — functional matrix |
 | C1-4 | **PASS** — A5 READ ONLY integrated QA (functional + security) |
-| USER FINAL AUTH UX VISUAL APPROVAL | **DEFERRED** |
-| FUNCTIONAL CHECKPOINT ELIGIBLE | **YES** |
+| USER visual (inspected core states) | **APPROVED** |
+| Live Social/Recovery/R2 terminal visual | **DEFERRED NON-BLOCKING** |
+| FUNCTIONAL CHECKPOINT ELIGIBLE | **YES** (checkpoint `7b874e3771a42c5b07352ac0e5de312a06e92f6a`) |
 | B2 | **CHECKPOINTED / COMPLETE** at `3586ec732a7556226a23519553165cdafb8dd4b4` |
 | Contract | **LOCKED** — R2 + Hosted auto-link invariant |
 | R1 silent identity transfer | **REMOVED** |
 | R1-REAUTH / manual linking | **OUT OF C1** |
 | Production | **UNCHANGED** |
-| Next | USER FINAL AUTH UX VISUAL APPROVAL remains **DEFERRED**. Do **not** close C1. C2 is **OPEN** — next implementation is **C2-0 A6**. |
+| Next | **GPT REVIEW** of NEW 2 closure. Do **not** reopen C1. |
 
 ---
 
@@ -213,17 +216,15 @@ Do **not** touch preserved dirty WIP:
 
 ## Implementation slices — LOCKED
 
-Authorized historical order (slices C1-0 → C1-4 are complete for functional/security QA). USER FINAL AUTH UX VISUAL APPROVAL remains **DEFERRED**. C1 stays **OPEN**.
+Authorized historical order (slices C1-0 → C1-4 complete). Unified visual of inspected core states completed in C2-5. C1 is **CLOSED** with NEW 2.
 
 1. **C1-0 A6** — schema/capability + activation/R2 backend contract + payment-test provider config
 2. **C1-1 A0** — AuthCallback / AuthContext pending-vs-usable routing
-3. **C1-2 A3** — Google/Kakao UI + social onboarding + recovery provider-return UX → **USER VISUAL APPROVAL**
+3. **C1-2 A3** — Google/Kakao UI + social onboarding + recovery provider-return UX
 4. **C1-3 A6/A3** — payment-test matrix verification
 5. **C1-4 A5** — final READ ONLY QA
 
-C2 is a sibling **OPEN** contract (`docs/decisions/NEW-2F_c2-naver.md`). D / E remain **NOT STARTED**. No production. No deploy.
-
-C1 customer surfaces stay Google/Kakao. Naver customer UI is **C2-3 after C2-0 proof**. Consumer connect/disconnect UI is OUT.
+C2 sibling is **CLOSED** (`docs/decisions/NEW-2F_c2-naver.md`). Slice D / E remain **DEFERRED OUT OF NEW 2**. No production. No deploy.
 
 ---
 
@@ -235,10 +236,7 @@ Naver implementation; Apple; R1 identity transfer; R1-REAUTH / `linkIdentity` cu
 
 ## Do Not Do
 
-- Close C1
-- Treat C1 polish as final Auth UX approval
-- Start D / E from C1
-- Implement Naver inside C1 (Naver is C2)
+- Reopen C1 implementation from this note
 - Merge users in METALORA by email
 - Skip phone verification because emails match
 - Undo Hosted verified-email auto-link
@@ -251,9 +249,9 @@ Naver implementation; Apple; R1 identity transfer; R1-REAUTH / `linkIdentity` cu
 
 ## Resume
 
-1. USER FINAL AUTH UX VISUAL APPROVAL remains **DEFERRED** until unified polish after Naver functionality
-2. Do **not** close C1
-3. Next implementation is **C2-0 A6** (`docs/decisions/NEW-2F_c2-naver.md`)
+1. **GPT REVIEW** of NEW 2 closure
+2. Do **not** reopen C1
+3. Slice D / E remain deferred out of NEW 2
 
 Ownership: A0 (this contract). A6 RED implementation from C1-0. A3 UX from C1-2. A5 READ ONLY QA.
 

@@ -74,6 +74,14 @@
   font-weight: var(--text-hero--font-weight);
 }
 
+.type-display,
+.type-hero,
+.type-page-title,
+.type-section-title,
+.type-product-title {
+  color: var(--color-text-primary);
+}
+
 .type-page-title {
   font-size: var(--text-page-title);
   line-height: var(--text-page-title--line-height);
@@ -172,6 +180,57 @@
   background: rgb(from var(--color-surface) r g b / 0.72);
   backdrop-filter: blur(12px);
   border: 1px solid var(--color-border-subtle);
+}
+
+/* Home Header: Hero zone idle transparent; opaque theme surface on hover only
+   (fine pointer). Content zone (past Hero) stays fully opaque for readability.
+   Dark Home surface is true black, not slate/navy graphite.
+   Announcement strip is a sibling — do not attach this class to it. */
+.header-home-quiet {
+  background-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  transition-property: background-color, color;
+  transition-duration: 220ms;
+  transition-timing-function: var(--ease-exit);
+}
+
+.header-home-quiet.header-home-over-content {
+  background-color: var(--color-surface);
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-enter);
+}
+
+.header-home-quiet.header-home-over-content .header-home-control {
+  color: var(--color-text-primary);
+}
+
+.dark .header-home-quiet.header-home-over-content {
+  background-color: #000000;
+}
+
+.dark .header-home-quiet.header-home-over-content .header-home-control {
+  color: #ffffff;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .header-home-quiet:hover {
+    background-color: var(--color-surface);
+    transition-duration: var(--duration-fast);
+    transition-timing-function: var(--ease-enter);
+  }
+
+  .header-home-quiet:hover .header-home-control {
+    color: var(--color-text-primary);
+  }
+
+  .dark .header-home-quiet:hover {
+    background-color: #000000;
+  }
+
+  .dark .header-home-quiet:hover .header-home-control {
+    color: #ffffff;
+  }
 }
 
 /* ── Motion easing tokens (documented for Framer / CSS) ── */

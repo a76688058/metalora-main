@@ -23,7 +23,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       {label ? (
         <label
           htmlFor={inputId}
-          className={cn('type-label text-text-secondary', hideLabel && 'sr-only')}
+          className={cn('type-label text-text-primary', hideLabel && 'sr-only')}
         >
           {label}
           {required ? <span className="text-error ml-0.5" aria-hidden>*</span> : null}
