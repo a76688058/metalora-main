@@ -103,10 +103,24 @@ assert(
   ),
 );
 assert(
-  "EXECUTE revoked from PUBLIC/anon/authenticated",
-  /REVOKE ALL ON FUNCTION public\.hook_before_user_created\(jsonb\) FROM PUBLIC/.test(sql) &&
-    /REVOKE ALL ON FUNCTION public\.hook_before_user_created\(jsonb\) FROM anon/.test(sql) &&
-    /REVOKE ALL ON FUNCTION public\.hook_before_user_created\(jsonb\) FROM authenticated/.test(sql),
+  "EXECUTE revoked from PUBLIC on public.hook_before_user_created(jsonb)",
+  /REVOKE ALL ON FUNCTION public\.hook_before_user_created\(jsonb\) FROM PUBLIC/.test(sql),
+);
+assert(
+  "EXECUTE revoked from anon on public.hook_before_user_created(jsonb)",
+  /REVOKE ALL ON FUNCTION public\.hook_before_user_created\(jsonb\) FROM anon/.test(sql),
+);
+assert(
+  "EXECUTE revoked from authenticated on public.hook_before_user_created(jsonb)",
+  /REVOKE ALL ON FUNCTION public\.hook_before_user_created\(jsonb\) FROM authenticated/.test(sql),
+);
+assert(
+  "EXECUTE revoked from service_role on public.hook_before_user_created(jsonb)",
+  /REVOKE ALL ON FUNCTION public\.hook_before_user_created\(jsonb\) FROM service_role/.test(sql),
+);
+assert(
+  "no GRANT EXECUTE to service_role on public.hook_before_user_created(jsonb)",
+  !/GRANT EXECUTE ON FUNCTION public\.hook_before_user_created\(jsonb\) TO service_role/.test(sql),
 );
 assert(
   "schema USAGE granted to supabase_auth_admin",
@@ -127,8 +141,10 @@ assert("no verified-phone writes", !/verified_phone_e164|verified_phone_fingerpr
 assert("no social username generation", !/\bml[a-z0-9]{10}\b/.test(body) && !/user_custom_id/.test(body));
 assert("no merge/link/transfer logic", !/merge|identity transfer|phone_already_registered/i.test(body));
 assert(
-  "comments forbid db push / mark not applied",
-  /supabase db push remains FORBIDDEN/.test(sql) && /Status: NOT APPLIED/.test(sql),
+  "comments forbid db push and record live ACL not yet applied",
+  /supabase db push remains FORBIDDEN/.test(sql) &&
+    /NOT YET APPLIED/.test(sql) &&
+    /Hosted Auth mapping is NOT done/.test(sql),
 );
 assert(
   "future mapping URI documented",

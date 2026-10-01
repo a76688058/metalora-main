@@ -1,9 +1,12 @@
--- NEW 2 P0.9A — Production Before User Created hook SOURCE
--- Target ref (future apply only): qifloweuwyhvukabgnoa
--- Status: NOT APPLIED. NOT mapped in Hosted Auth.
+-- NEW 2 P0.9A / P0.9B-R1 — Production Before User Created hook SOURCE
+-- Target ref: qifloweuwyhvukabgnoa
+-- Function body was applied in P0.9B. Hosted Auth mapping is NOT done.
+-- P0.9B-R1: source ACL now explicitly revokes service_role. That live REVOKE is
+-- NOT YET APPLIED. Do not mark P0.9B certified.
 -- Intentionally NOT in supabase/migrations/.
--- Production has NO supabase_migrations ledger. supabase db push remains FORBIDDEN.
--- Apply later only via the controlled production SQL procedure, then map Hosted Auth.
+-- supabase db push remains FORBIDDEN regardless of schema_migrations presence.
+-- Re-apply later only via the controlled production SQL procedure (statement-split
+-- db query), then map Hosted Auth after live ACL reverify.
 --
 -- Postgres Auth Hook contract (Before User Created):
 --   allow  → {}
@@ -85,13 +88,16 @@ $$;
 ALTER FUNCTION public.hook_before_user_created(jsonb) OWNER TO postgres;
 
 COMMENT ON FUNCTION public.hook_before_user_created(jsonb) IS
-  'P0.9A production Before User Created SOURCE. Rejects public email/anonymous/unknown creation with http_code 403. Allows only google, kakao, custom:naver. Authorize/reject only — no username, phone, or merge. NOT applied/mapped until a later controlled ticket.';
+  'P0.9B-R1 production Before User Created SOURCE. Rejects public email/anonymous/unknown creation with http_code 403. Allows only google, kakao, custom:naver. Authorize/reject only — no username, phone, or merge. EXECUTE: supabase_auth_admin only; PUBLIC/anon/authenticated/service_role revoked. Hosted mapping not done.';
 
 GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
 
+-- CREATE FUNCTION default privileges on this project grant EXECUTE to
+-- service_role. Revoke it here. Do not ALTER DEFAULT PRIVILEGES.
 REVOKE ALL ON FUNCTION public.hook_before_user_created(jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.hook_before_user_created(jsonb) FROM anon;
 REVOKE ALL ON FUNCTION public.hook_before_user_created(jsonb) FROM authenticated;
+REVOKE ALL ON FUNCTION public.hook_before_user_created(jsonb) FROM service_role;
 
 GRANT EXECUTE ON FUNCTION public.hook_before_user_created(jsonb) TO supabase_auth_admin;
 

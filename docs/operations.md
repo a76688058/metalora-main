@@ -343,6 +343,7 @@ Database backups do **not** automatically imply that Storage object files have a
 - Do not reconstruct a fresh production DB by blindly running historical bootstrap files.
 - Migration headers must reflect live applied state.
 - Shared Supabase means migration changes affect **production and candidate** Cloud Run revisions that use that database.
+- Production CLI ledger `supabase_migrations.schema_migrations` is **PRESENT** but **incomplete** (1 historical version `20260826110000`). `supabase db push` remains **FORBIDDEN**.
 
 See also `supabase/README.md`.
 
@@ -370,13 +371,23 @@ See also `supabase/README.md`.
 - Non-secret env: `SMS_ADAPTER=solapi`, `SMS_SENDER_NUMBER` (approved sender digits). Sender may be stored as a secret later if operators prefer; it is not a credential.
 - Do **not** set `SMS_ADAPTER=dev-capture` on production. DevCapture remains payment-test / non-production-host / loopback only.
 
-**NEW2 production Before User Created (source only — not applied, not mapped):**
+**NEW2 production Before User Created (function installed; Hosted mapping blocked):**
 
 - Artifact: `scripts/sql/production-2f-before-user-created.sql` (not a `supabase/migrations/` file).
 - Function: `public.hook_before_user_created(jsonb)`. Future Hosted URI: `pg-functions://postgres/public/hook_before_user_created`.
+- P0.9B installed the function on production. A5 **blocked certification**: live ACL included explicit `service_role=X/postgres` from CREATE FUNCTION default privileges. Source now `REVOKE ALL ... FROM service_role`. **Live ACL remediation is NOT YET APPLIED.** Do not mark P0.9B certified.
+- Intended callable set: owner `postgres`; EXECUTE `supabase_auth_admin` only. PUBLIC / anon / authenticated / `service_role` must not have EXECUTE.
 - Allow-list: `google`, `kakao`, `custom:naver`. Public email / anonymous / unknown / bare `naver` / other `custom:*` / Apple reject with 403.
 - Password members continue via service-role Admin `createUser` on `POST /api/auth/signup/complete`, not public GoTrue `signUp`.
-- `supabase db push` remains **FORBIDDEN**. Do not apply or map until a dedicated production Auth ticket.
+- Hosted mapping remains blocked until live ACL is narrowed and reverified.
+- `supabase db push` remains **FORBIDDEN**.
+
+**CLI migration ledger (read-only fact, 2026-10-01):**
+
+- `supabase_migrations.schema_migrations` is **PRESENT** (not absent).
+- Row count: **1**. Version: `20260826110000` only. Columns: `version`, `statements`, `name`.
+- This ledger is **incomplete** vs local `supabase/migrations/`. Do **not** `db push` (it would replay unrelated files, including Custom 2B). Do **not** insert history rows to “catch up”.
+- P0.8 reported ABSENT from a filtered/partial inspect (`202609*` versions and an incomplete table list). Current classified `LIVE_DB_URL` inspect supersedes that.
 
 Isolated payment-test: copy `.env.payment-test.example` → `.env.payment-test.local` (gitignored). Required names: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `TOSS_SECRET_KEY`. Toss TEST + production host is refused on `/api/payment/prepare` and `/api/payment/confirm`. Bootstrap and verify steps: `supabase/README.md`. #18 isolated TEST environment is CLOSED; do not use production hosts or live Toss keys in payment-test.
 
