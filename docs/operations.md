@@ -30,6 +30,22 @@ Scripts (authoritative automation):
 
 Do not hardcode a permanent “current revision” name here; always read Cloud Run traffic.
 
+Image contract: the runner executes `tsx server.ts` and must copy **all** top-level `src/lib/*.ts` files. NEW2 `server.ts` imports OTP, password, and social handlers plus their transitive `src/lib` modules. Do **not** revert to copying only `supabaseHosts.ts` and `paymentEnvGuard.ts`. Client `customComposition/` is not required in the runner. `.dockerignore` keeps `.env` / `.env.*` out of the build context. Production `deploy-candidate.ps1` still requires a clean worktree.
+
+P0.5 verified **source packaging + host tsx boot / `/api/health` 200**. Actual Docker image build and container boot are **NOT VERIFIED**. **IMAGE BUILD VERIFICATION DEFERRED TO P1 CLOUD BUILD.** Do not write “Docker build PASS” for P0.5.
+
+NEW2 P1 candidate hard gate — **before any traffic promotion**:
+
+1. Cloud Build succeeds
+2. new candidate revision created at **0%** traffic
+3. candidate boots
+4. candidate `/api/health` = 200
+5. no `MODULE_NOT_FOUND` / `ERR_MODULE_NOT_FOUND`
+6. smoke passes on candidate URL
+7. only then may traffic promotion be considered
+
+Failure at any step: **NO PROMOTION**.
+
 ---
 
 ## B. Deploy procedure

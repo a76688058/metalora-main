@@ -19,6 +19,7 @@
     "verify:2f-c2-3": "tsx scripts/verify-2f-c2-3-auth-ui.ts",
     "verify:2f-c2-5": "tsx scripts/verify-2f-c2-5-auth-ux.ts",
     "verify:2f-m2c-0": "tsx scripts/verify-2f-m2c-0-username-create.ts",
+    "verify:new2-docker-runner": "tsx scripts/verify-new2-docker-runner.ts",
     "bootstrap:payment-test-schema": "tsx scripts/bootstrap-payment-test-schema.ts",
     "rebuild:payment-test-schema-from-csv": "tsx scripts/rebuild-payment-test-schema-from-csv.ts",
     "build": "npm run clean && vite build --outDir dist/client",
