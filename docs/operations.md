@@ -370,6 +370,14 @@ See also `supabase/README.md`.
 - Non-secret env: `SMS_ADAPTER=solapi`, `SMS_SENDER_NUMBER` (approved sender digits). Sender may be stored as a secret later if operators prefer; it is not a credential.
 - Do **not** set `SMS_ADAPTER=dev-capture` on production. DevCapture remains payment-test / non-production-host / loopback only.
 
+**NEW2 production Before User Created (source only — not applied, not mapped):**
+
+- Artifact: `scripts/sql/production-2f-before-user-created.sql` (not a `supabase/migrations/` file).
+- Function: `public.hook_before_user_created(jsonb)`. Future Hosted URI: `pg-functions://postgres/public/hook_before_user_created`.
+- Allow-list: `google`, `kakao`, `custom:naver`. Public email / anonymous / unknown / bare `naver` / other `custom:*` / Apple reject with 403.
+- Password members continue via service-role Admin `createUser` on `POST /api/auth/signup/complete`, not public GoTrue `signUp`.
+- `supabase db push` remains **FORBIDDEN**. Do not apply or map until a dedicated production Auth ticket.
+
 Isolated payment-test: copy `.env.payment-test.example` → `.env.payment-test.local` (gitignored). Required names: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `TOSS_SECRET_KEY`. Toss TEST + production host is refused on `/api/payment/prepare` and `/api/payment/confirm`. Bootstrap and verify steps: `supabase/README.md`. #18 isolated TEST environment is CLOSED; do not use production hosts or live Toss keys in payment-test.
 
 Never document secret **values**.
