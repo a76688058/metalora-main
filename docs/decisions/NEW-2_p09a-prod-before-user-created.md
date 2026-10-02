@@ -1,6 +1,6 @@
 # NEW 2 P0.9A — Production Before User Created hook source
 
-Status: **DONE** (source checkpoint). Function later installed in P0.9B; **P0.9B is not certified** (A5 blocked on `service_role` EXECUTE). P0.9B-R1 remediates source ACL only.
+Status: **DONE** (source checkpoint). **CURRENT LIVE STATE SUPERSEDED** by `docs/decisions/NEW-2_production-release.md` (function mapped; ACL `supabase_auth_admin` EXECUTE only; `service_role` EXECUTE **NO**). Historical body below is the P0.9A/P0.9B-R1 source trail only.
 
 Date: 2026-10-01
 

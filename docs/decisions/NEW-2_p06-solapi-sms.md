@@ -1,6 +1,6 @@
 # NEW 2 P0.6 — SOLAPI production SMS adapter
 
-Status: **DONE** (source checkpoint; production unchanged; no real SMS)
+Status: **DONE** (source checkpoint). **CURRENT LIVE STATE SUPERSEDED** by `docs/decisions/NEW-2_production-release.md` (SOLAPI runtime / real SMS / OTP **CERTIFIED**). Historical body below is the P0.6 source checkpoint only (real SMS was deferred then).
 
 Date: 2026-10-01
 

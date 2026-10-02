@@ -2,11 +2,11 @@
 
 Status: **ACTIVE** (current operating-mode SoT)
 
-Date: 2026-09-28 (live-status overlay; original v3 body preserved)
+Date: 2026-10-03 (live-status overlay; original v3 body preserved)
 
-Decision: Current operating mode is **MASTER PIPELINE v3 ACTIVE**. This note is the successor to `docs/decisions/NEW-1_launch-pipeline-v2.md`. Historical `#16`–`#23` and NEW 1 remain closed. NEW 2A–2F are **CLOSED**. NEW 3 and NEW 4 are **NOT OPENED**. Live handoff lives in `docs/METALORA_PROJECT_STATE.md`.
+Decision: Current operating mode is **MASTER PIPELINE v3 ACTIVE**. This note is the successor to `docs/decisions/NEW-1_launch-pipeline-v2.md`. Historical `#16`–`#23` and NEW 1 remain closed. NEW 2A–2F are **CLOSED**. NEW 2 production release is **CLOSED** (`docs/decisions/NEW-2_production-release.md`). NEW 3 and NEW 4 are **NOT OPENED**. Live handoff lives in `docs/METALORA_PROJECT_STATE.md`.
 
-This note does **not** open NEW 3/4. It does **not** authorize deploy, production DB mutation, or live Toss.
+This note does **not** open NEW 3/4. It does **not** authorize live Toss or further production mutation.
 
 ---
 
@@ -37,7 +37,7 @@ Live handoff: `docs/METALORA_PROJECT_STATE.md`. NEW 2F auth expansion: `docs/dec
 | Stage | Status |
 |------|--------|
 | NEW 1 | **CLOSED** |
-| NEW 2 | **CLOSED** / ALL PASS |
+| NEW 2 | **CLOSED** — customer UX/source **CLOSED**; production release **CLOSED** |
 | NEW 2A | **CLOSED** |
 | NEW 2B | **CLOSED** |
 | NEW 2C | **CLOSED** |
@@ -51,9 +51,9 @@ Live handoff: `docs/METALORA_PROJECT_STATE.md`. NEW 2F auth expansion: `docs/dec
 | NEW 7 | **NOT OPENED** |
 | NEW 8 | **NOT OPENED** |
 | NEW 9 | **NOT OPENED** |
-| LIVE | **NO** |
+| LIVE | **NOT REACHED** |
 
-Next: **GPT REVIEW** of NEW 2 closure. Do **not** open NEW 3 or NEW 4 from this note.
+Next: **GPT REVIEW — NEW3/NEW4 opening decision**. Do **not** open NEW 3 or NEW 4 from this note.
 
 ---
 
@@ -81,7 +81,7 @@ Do **not** reopen `#16`–`#23`.
 
 ### NEW 2 — Customer experience / UX/UI family
 
-**CLOSED.** Customer experience / UX/UI family. Each 2A–2F had its own PRE-STAGE REPORT.
+**CLOSED** (customer UX/source **and** production release). Each 2A–2F had its own PRE-STAGE REPORT. Production-release evidence: `docs/decisions/NEW-2_production-release.md`.
 
 | Substage | Title | Status |
 |----------|--------|--------|
@@ -356,7 +356,7 @@ LIVE
 
 Operational default: **sequential** unless explicitly authorized otherwise.
 
-Current next action: **GPT REVIEW** of NEW 2 closure. NEW 2 is **CLOSED**. NEW 3 and NEW 4 remain **NOT OPENED**. NEW 5 is **BLOCKED BY NEW 3 + NEW 4**. Do not open NEW 3/4 from this note.
+Current next action: **GPT REVIEW — NEW3/NEW4 opening decision**. NEW 2 is **CLOSED** (including production release). NEW 3 and NEW 4 remain **NOT OPENED**. NEW 5 is **BLOCKED BY NEW 3 + NEW 4**. Do not open NEW 3/4 from this note.
 
 ---
 
@@ -398,8 +398,8 @@ A3 owns payment **UX**. A6 owns payment **authority**.
 | Production 2B rollout (2B-5A RPC, 2B-5C Storage, related runtime) | **NOT PERFORMED** |
 | NEW 2E payment-test artifacts | **MAY REMAIN** |
 | Live Toss | **NOT ACTIVATED** |
-| Production payment | **NONE** |
-| Deploy | **NONE** |
+| Production payment | **NOT ACTIVATED** |
+| NEW 2 production deploy | **CERTIFIED** — `metalora-direct-00093-car` @ 100%; rollback `metalora-direct-00090-kig`; SHA `d38e41ad1173ad542a5b68eaccc7e96cb0b1367c` |
 | LIVE-COMMERCE READY | **NO** — NEW 6 must PASS before NEW 7 |
 
 This note does **not** imply launch readiness.
@@ -409,8 +409,8 @@ This note does **not** imply launch readiness.
 ## Next stage rule
 
 1. Live status is in `docs/METALORA_PROJECT_STATE.md`. This v3 note remains the pipeline-definition SoT.
-2. Next: **GPT REVIEW** of NEW 2 closure. Do **not** open NEW 3/4 here.
-3. Do **not** activate live Toss. Do **not** deploy. Do **not** mutate production DB.
+2. Next: **GPT REVIEW — NEW3/NEW4 opening decision**. Do **not** open NEW 3/4 here.
+3. Do **not** activate live Toss. Do **not** mutate production DB from this note.
 
 ---
 
@@ -423,7 +423,7 @@ This note does **not** imply launch readiness.
 - Treat historical OPTIONAL AUTH EXPANSION as the current exclusion
 - Promote `#27`–`#30` into launch-critical path automatically
 - Redesign frozen Home/PDP
-- Claim production 2B rollout, live Toss, production payment, or deploy
+- Claim production 2B rollout, live Toss, production payment, or LIVE
 - Enable real payments before NEW 6 PASS
 - Duplicate this tree into agent Rules
 
@@ -432,9 +432,9 @@ This note does **not** imply launch readiness.
 ## Resume procedure
 
 1. This note + `docs/METALORA_PROJECT_STATE.md` = pipeline definition + live handoff
-2. Next: **GPT REVIEW** of NEW 2 closure
+2. Next: **GPT REVIEW — NEW3/NEW4 opening decision**
 3. Do **not** open NEW 3–9 from this note
 
 Ownership: A0
 
-Relevant files: `docs/decisions/NEW-1_launch-pipeline-v3.md`, `docs/decisions/NEW-1_launch-pipeline-v2.md` (historical), `docs/METALORA_PROJECT_STATE.md`, `docs/decisions/NEW-2F_auth-expansion.md`, `docs/decisions/NEW-2F_c1-google-kakao.md`, `docs/decisions/NEW-2F_c2-naver.md`, `.cursor/rules/00-project-governance.mdc`
+Relevant files: `docs/decisions/NEW-1_launch-pipeline-v3.md`, `docs/decisions/NEW-1_launch-pipeline-v2.md` (historical), `docs/METALORA_PROJECT_STATE.md`, `docs/decisions/NEW-2_production-release.md`, `docs/decisions/NEW-2F_auth-expansion.md`, `docs/decisions/NEW-2F_c1-google-kakao.md`, `docs/decisions/NEW-2F_c2-naver.md`, `.cursor/rules/00-project-governance.mdc`

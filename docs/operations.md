@@ -32,7 +32,7 @@ Do not hardcode a permanent “current revision” name here; always read Cloud 
 
 Image contract: the runner executes `tsx server.ts` and must copy **all** top-level `src/lib/*.ts` files. NEW2 `server.ts` imports OTP, password, and social handlers plus their transitive `src/lib` modules. Do **not** revert to copying only `supabaseHosts.ts` and `paymentEnvGuard.ts`. Client `customComposition/` is not required in the runner. `.dockerignore` keeps `.env` / `.env.*` out of the build context. Production `deploy-candidate.ps1` still requires a clean worktree.
 
-P0.5 verified **source packaging + host tsx boot / `/api/health` 200**. Actual Docker image build and container boot are **NOT VERIFIED**. **IMAGE BUILD VERIFICATION DEFERRED TO P1 CLOUD BUILD.** Do not write “Docker build PASS” for P0.5.
+P0.5 verified **source packaging + host tsx boot / `/api/health` 200**. At that ticket, actual Docker image build/container boot were **NOT VERIFIED** and were deferred to P1 Cloud Build. **P1 is now CERTIFIED** by NEW2 production revision `metalora-direct-00093-car` (see `docs/decisions/NEW-2_production-release.md`). Do not write “Docker build PASS” for P0.5 itself.
 
 NEW2 P1 candidate hard gate — **before any traffic promotion**:
 
@@ -365,21 +365,23 @@ See also `supabase/README.md`.
 - `PORT`
 - `VITE_SUPABASE_URL` (default `npm run dev` still has a production URL fallback; **payment-test does not** — `npm run dev:payment-test` fail-closes if `.env.payment-test.local` is missing or still points at production)
 
-**NEW2 production OTP (not bound on Cloud Run yet — names only):**
+**NEW2 production OTP (bound; runtime CERTIFIED):**
 
-- Secret Manager: `SOLAPI_API_KEY`, `SOLAPI_API_SECRET`, `PHONE_IDENTITY_KEY`, `OTP_PEPPER`
+- Secret Manager names: `SOLAPI_API_KEY`, `SOLAPI_API_SECRET`, `PHONE_IDENTITY_KEY`, `OTP_PEPPER`
 - Non-secret env: `SMS_ADAPTER=solapi`, `SMS_SENDER_NUMBER` (approved sender digits). Sender may be stored as a secret later if operators prefer; it is not a credential.
 - Do **not** set `SMS_ADAPTER=dev-capture` on production. DevCapture remains payment-test / non-production-host / loopback only.
+- SOLAPI runtime, API acceptance, real SMS delivery, OTP verification, and one-time OTP semantics are **CERTIFIED**. Production full social phone activation (`/api/auth/social/complete` → usable-member) is **NOT TESTED** and is **not** a NEW2 blocker.
 
-**NEW2 production Before User Created (function installed; Hosted mapping blocked):**
+**NEW2 production Before User Created (installed, mapped, ACL narrowed):**
 
 - Artifact: `scripts/sql/production-2f-before-user-created.sql` (not a `supabase/migrations/` file).
-- Function: `public.hook_before_user_created(jsonb)`. Future Hosted URI: `pg-functions://postgres/public/hook_before_user_created`.
-- P0.9B installed the function on production. A5 **blocked certification**: live ACL included explicit `service_role=X/postgres` from CREATE FUNCTION default privileges. Source now `REVOKE ALL ... FROM service_role`. **Live ACL remediation is NOT YET APPLIED.** Do not mark P0.9B certified.
-- Intended callable set: owner `postgres`; EXECUTE `supabase_auth_admin` only. PUBLIC / anon / authenticated / `service_role` must not have EXECUTE.
+- Function: `public.hook_before_user_created(jsonb)`. Hosted URI: `pg-functions://postgres/public/hook_before_user_created` (**enabled: true**; hook secrets **UNSET**).
+- SECURITY INVOKER; `search_path = public, pg_catalog`; owner `postgres`.
+- Current `proacl`: `{postgres=X/postgres,supabase_auth_admin=X/postgres}`. EXECUTE: `supabase_auth_admin` **YES**. `service_role` / PUBLIC / `anon` / `authenticated` **NO**.
 - Allow-list: `google`, `kakao`, `custom:naver`. Public email / anonymous / unknown / bare `naver` / other `custom:*` / Apple reject with 403.
 - Password members continue via service-role Admin `createUser` on `POST /api/auth/signup/complete`, not public GoTrue `signUp`.
-- Hosted mapping remains blocked until live ACL is narrowed and reverified.
+- Production providers: Google **ENABLED**; Kakao **ENABLED**; `custom:naver` **ENABLED** (`oidc`, `email_optional=true`). Site URL `https://metalora.art`. Redirect allow-list: `https://metalora.art/auth/callback`, `https://metalora.art/auth/callback*`.
+- Initial Kakao full-login proof hit operator config (redirect URI, consent-scope, REST API Key / Client Secret mismatch). User corrected them. Final Kakao OAuth **CERTIFIED**. Do not store secret values.
 - `supabase db push` remains **FORBIDDEN**.
 
 **CLI migration ledger (read-only fact, 2026-10-01):**

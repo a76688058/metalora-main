@@ -1,6 +1,6 @@
 # NEW 2 P0.5 — Production Docker runner boot
 
-Status: **DONE** (source packaging checkpoint; production unchanged)
+Status: **DONE** (source packaging checkpoint). **CURRENT LIVE STATE SUPERSEDED** by `docs/decisions/NEW-2_production-release.md` (P1 Cloud Build / `metalora-direct-00093-car` **CERTIFIED**). Historical body below is the P0.5 source checkpoint only.
 
 Date: 2026-10-01
 

@@ -1,6 +1,6 @@
 # NEW 2 P0.9B-R1 — Before User Created service_role ACL source remediation
 
-Status: **DONE** (source checkpoint; production ACL **not** mutated)
+Status: **DONE** (source checkpoint). **CURRENT LIVE STATE SUPERSEDED** by `docs/decisions/NEW-2_production-release.md`. Live ACL is now `{postgres=X/postgres,supabase_auth_admin=X/postgres}`. Hosted mapping is **ENABLED**. Historical body below recorded the then-defective ACL and unmapped hook.
 
 Date: 2026-10-01
 

@@ -1,20 +1,20 @@
 # METALORA project state
 
-Persistent checkpoint for session handoff. Last updated after **NEW 2 FINAL CLOSURE** (2026-10-01). NEW 2 customer UX family **CLOSED / ALL PASS**. C1 **CLOSED**. C2 **CLOSED**. NEW 3 / NEW 4 **NOT OPENED**. No production mutation. No deploy.
+Persistent checkpoint for session handoff. Last updated after **NEW 2 PRODUCTION RELEASE CLOSURE** (2026-10-03). NEW 2 customer UX family **CLOSED**. NEW 2 production release **CLOSED**. C1 **CLOSED**. C2 **CLOSED**. NEW 3 / NEW 4 **NOT OPENED**. Production payment **NOT ACTIVATED**. LIVE **NOT REACHED**.
 
-This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master pipeline: `docs/decisions/NEW-1_launch-pipeline-v3.md`. Historical v2 lock: `docs/decisions/NEW-1_launch-pipeline-v2.md`. NEW 2A contract: `docs/decisions/NEW-2A_menu-ia-consistency.md`. NEW 2B contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`. NEW 2C contract: `docs/decisions/NEW-2C_global-shell-component-consistency.md`. NEW 2D contract: `docs/decisions/NEW-2D_catalog-general-storefront.md`. NEW 2E contract: `docs/decisions/NEW-2E_cart-checkout-ux.md`. NEW 2F parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. NEW 2F auth expansion: `docs/decisions/NEW-2F_auth-expansion.md`. NEW 2F B2b hook: `docs/decisions/NEW-2F_b2b-hook-contract.md`. NEW 2F C1: `docs/decisions/NEW-2F_c1-google-kakao.md`. NEW 2F C2: `docs/decisions/NEW-2F_c2-naver.md`. NEW 2F H1: `docs/decisions/NEW-2F_h1h-home-header-hero-boundary.md`. NEW 2F M2C-0: `docs/decisions/NEW-2F_m2c-0-username-create.md`.
+This is the authoritative current-state file. Do **not** create additional overlapping status/handoff documents. `docs/operations.md` remains the runbook; do not duplicate it here. Master pipeline: `docs/decisions/NEW-1_launch-pipeline-v3.md`. Historical v2 lock: `docs/decisions/NEW-1_launch-pipeline-v2.md`. NEW 2 production release: `docs/decisions/NEW-2_production-release.md`. NEW 2A contract: `docs/decisions/NEW-2A_menu-ia-consistency.md`. NEW 2B contract: `docs/decisions/NEW-2B_custom-creation-ux-ui.md`. NEW 2C contract: `docs/decisions/NEW-2C_global-shell-component-consistency.md`. NEW 2D contract: `docs/decisions/NEW-2D_catalog-general-storefront.md`. NEW 2E contract: `docs/decisions/NEW-2E_cart-checkout-ux.md`. NEW 2F parent: `docs/decisions/NEW-2F_account-profile-auth-ux.md`. NEW 2F auth expansion: `docs/decisions/NEW-2F_auth-expansion.md`. NEW 2F B2b hook: `docs/decisions/NEW-2F_b2b-hook-contract.md`. NEW 2F C1: `docs/decisions/NEW-2F_c1-google-kakao.md`. NEW 2F C2: `docs/decisions/NEW-2F_c2-naver.md`. NEW 2F H1: `docs/decisions/NEW-2F_h1h-home-header-hero-boundary.md`. NEW 2F M2C-0: `docs/decisions/NEW-2F_m2c-0-username-create.md`.
 
 **Current operating mode: `MASTER PIPELINE v3 ACTIVE`.**
 **NEW 1 — ROADMAP / SCOPE LOCK: CLOSED.**
-**NEW 2: CLOSED / ALL PASS.**
+**NEW 2: CLOSED — customer UX/source CLOSED; production release CLOSED.**
 **NEW 2A: CLOSED.** Implementation, user visual approval, A5 targeted QA, and A5 short-delta QA **PASS**. Orphan `CustomerNavSheet` removed.
 **NEW 2B: CLOSED.** Two-step Custom M source/UX complete. Payment-test validated. Production Custom DB/Storage/server **not** rolled out.
 **NEW 2C: CLOSED.** CookieBanner first-visit and settings inner shells consume `.container-shell`. User visual approval **PASS**. A5 targeted QA **PASS**. Footer out of scope. No deploy.
 **NEW 2D: CLOSED.** Verification-first. Existing Home-as-catalog accepted. Application source **NONE**. User visual approval **PASS**. A5 targeted QA **PASS**. No deploy.
 **NEW 2E: CLOSED.** Cart → Checkout → TEST payment-start → success/fail UX. User visual approval **PASS**. A5 targeted QA **PASS**. A5 final delta QA **PASS**. Actual Toss TEST success path **VERIFIED**. Live Toss **NOT ACTIVATED**. No deploy.
-**NEW 2F: CLOSED.** Account / Profile / Auth customer UX/UI. **B1 COMPLETE. B2 CHECKPOINTED / COMPLETE.** **C1 CLOSED.** **C2 CLOSED.** Unified Auth UX complete. A5 integrated NEW2 QA **ALL PASS**. Slice D/E leftover Profile/security work **DEFERRED OUT OF NEW 2**. Hosted Before User Created is **LIVE** on payment-test only. Production unchanged.
+**NEW 2F: CLOSED.** Account / Profile / Auth customer UX/UI. **B1 COMPLETE. B2 CHECKPOINTED / COMPLETE.** **C1 CLOSED.** **C2 CLOSED.** Unified Auth UX complete. A5 integrated NEW2 QA **ALL PASS**. Slice D/E leftover Profile/security work **DEFERRED OUT OF NEW 2**. Production Hosted Before User Created is **ENABLED** — see `docs/decisions/NEW-2_production-release.md`.
 
-NEXT: **GPT REVIEW** of NEW 2 closure. Do **not** open NEW 3 or NEW 4 from this file. Do **not** activate live Toss. Do **not** deploy. Do **not** revert preserved dirty A3 Profile/Inquiry/Orders WIP.
+NEXT: **GPT REVIEW — NEW3/NEW4 opening decision**. Do **not** open NEW 3 or NEW 4 from this file. Do **not** activate live Toss. Do **not** revert preserved dirty A3 Profile/Inquiry/Orders WIP.
 
 ---
 
@@ -23,20 +23,20 @@ NEXT: **GPT REVIEW** of NEW 2 closure. Do **not** open NEW 3 or NEW 4 from this 
 | Item | Value |
 |------|--------|
 | Operating mode | **MASTER PIPELINE v3 ACTIVE** |
-| Current stage | **NEW 2 CLOSED** — 2A–2F CLOSED; NEW 3/4 NOT OPENED; NEW 5 BLOCKED BY NEW 3 + NEW 4 |
-| NEW 2 | family; **CLOSED / ALL PASS**; **2A CLOSED**; **2B CLOSED**; **2C CLOSED**; **2D CLOSED**; **2E CLOSED**; **2F CLOSED** |
+| Current stage | **NEW 2 CLOSED** (including production release) — 2A–2F CLOSED; NEW 3/4 NOT OPENED; NEW 5 BLOCKED BY NEW 3 + NEW 4 |
+| NEW 2 | **CLOSED** — customer UX/source **CLOSED**; production release **CLOSED** (`docs/decisions/NEW-2_production-release.md`) |
 | NEW 2A | **CLOSED** — `docs/decisions/NEW-2A_menu-ia-consistency.md` |
 | NEW 2B | **CLOSED** — `docs/decisions/NEW-2B_custom-creation-ux-ui.md` |
 | NEW 2C | **CLOSED** — `docs/decisions/NEW-2C_global-shell-component-consistency.md` |
 | NEW 2D | **CLOSED** — `docs/decisions/NEW-2D_catalog-general-storefront.md` |
 | NEW 2E | **CLOSED** — `docs/decisions/NEW-2E_cart-checkout-ux.md` |
-| NEW 2F | **CLOSED** — C1 CLOSED; C2 CLOSED; A5 ALL PASS. Parent `docs/decisions/NEW-2F_account-profile-auth-ux.md`; expansion `docs/decisions/NEW-2F_auth-expansion.md`; B2b `docs/decisions/NEW-2F_b2b-hook-contract.md` |
+| NEW 2F | **CLOSED** — C1 CLOSED; C2 CLOSED; A5 ALL PASS. Production release **CLOSED**. Parent `docs/decisions/NEW-2F_account-profile-auth-ux.md`; expansion `docs/decisions/NEW-2F_auth-expansion.md`; B2b `docs/decisions/NEW-2F_b2b-hook-contract.md`; production `docs/decisions/NEW-2_production-release.md` |
 | Historical `#16`–`#23` | **CLOSED** |
 | Prior PRE-LAUNCH HOLD | **SUPERSEDED AS CURRENT MODE** (preserved historically) |
 | BASELINE DEVELOPMENT COMPLETE | **YES** (through `#23`) |
 | MASTER ROADMAP DEVELOPMENT COMPLETE | **NO** |
 | LIVE-COMMERCE READY | **NO** — NEW 6 must PASS before NEW 7 |
-| LIVE | **NO** |
+| LIVE | **NOT REACHED** |
 | #20 | **CLOSED WITH DEFERRED RESTORE OBLIGATION** (execution ID: **NEW 6**) |
 | #21 | **CLOSED** |
 | #22 | **CLOSED** |
@@ -44,17 +44,21 @@ NEXT: **GPT REVIEW** of NEW 2 closure. Do **not** open NEW 3 or NEW 4 from this 
 | #23 A5 execution | **DONE** |
 | #23 | **CLOSED** |
 | Historical `#24` | **NOT OPENED** — remaining work mapped to NEW 4 / 7 / 8 / 9 |
-| Production revision | `metalora-direct-00090-kig` |
+| Production revision | `metalora-direct-00093-car` |
 | Production traffic | **100%** |
-| Production source SHA | `0bb40e988a019716e748d12874693c247bfc410f` |
-| Production image digest | `sha256:d45a463cc1ec05957c4064b4b2b2bc697161462c8823459115fe8607fea619c9` |
-| Stable rollback | `metalora-direct-00087-voy` |
+| Production `DEPLOY_SHA` | `d38e41ad1173ad542a5b68eaccc7e96cb0b1367c` |
+| Stable rollback | `metalora-direct-00090-kig` |
+| Production Supabase | `qifloweuwyhvukabgnoa` |
+| `METALORA_ENV` | **UNSET** |
+| Production payment | **NOT ACTIVATED** |
 | Repository baseline observed at #23 closure write | `3722d66d648d0c15fdcb9433bf87871543ba19f7` |
-| Expected worktree | dirty preserved A3 Profile/Inquiry/Orders WIP may remain; NEW 2 closure files clean after checkpoint |
+| Expected worktree | dirty preserved A3 Profile/Inquiry/Orders WIP may remain; NEW 2 production-release docs clean after closure |
 
 Cloud Run service: `metalora-direct` (`metalora-auth`, `us-west1`).
 
-`main` HEAD is **ahead of production source**. That drift is intentional. NEW 2E closed at `6b7e1dbb50c0ae339f0f0c1ef07faad748b31973` (implementation checkpoint `5ed01ae`). Production Custom 2B-5A DB, 2B-5C Storage, and new `server.ts` remain **unapplied / undeployed**. Do **not** deploy or retag solely to align HEAD with `00090-kig`.
+`main` `HEAD` / `origin/main` / production `DEPLOY_SHA` align at `d38e41ad1173ad542a5b68eaccc7e96cb0b1367c` for the certified NEW2 production revision. Production Custom 2B-5A DB, 2B-5C Storage remain **unapplied**. Do **not** treat NEW2 production-release close as LIVE or as production payment activation.
+
+NEW2 production Auth provider parity **CERTIFIED** (Google full OAuth; Kakao provider full OAuth via verified-email auto-link; Naver full OAuth including first-time new-user and email-optional). Kakao standalone first-time new-user creation **NOT TESTED** and **NOT REQUIRED FOR NEW2 CLOSURE**. SOLAPI/SMS/OTP runtime **CERTIFIED**. Production full social phone activation **NOT TESTED** — **NOT A NEW2 PRODUCTION-RELEASE BLOCKER** — **PRE-LIVE E2E FOLLOW-UP — OWNER STAGE TO BE RESOLVED BEFORE LIVE**. Do not write PASS/CERTIFIED for that path. Auth aggregate 21/21/22; verified-phone profile columns all 0. Test-user cleanup **NOT REQUIRED / NOT AUTHORIZED**.
 
 Workspace: `C:\Users\admin\Desktop\metalora-main-clean-19f3`  
 Branch: `main`
@@ -171,21 +175,21 @@ Durable record: `docs/decisions/20F-0_account-side-backup-confirmation.md` (unch
 | Historical `#20F` | MIGRATED → **NEW 6** (not started) |
 | Historical `#24` | NOT OPENED; remaining work → NEW 4 / 7 / 8 / 9 |
 | **NEW 1** | **CLOSED** — roadmap / scope lock |
-| **NEW 2** | family; **CLOSED / ALL PASS**; **2A CLOSED**; **2B CLOSED**; **2C CLOSED**; **2D CLOSED**; **2E CLOSED**; **2F CLOSED** |
+| **NEW 2** | **CLOSED** — customer UX/source **CLOSED**; production release **CLOSED** |
 | **NEW 2A** | **CLOSED** — customer nav / IA; visual approval + A5 PASS |
 | **NEW 2B** | **CLOSED** — two-step Custom M source/UX; payment-test PASS; production rollout **not** complete |
 | **NEW 2C** | **CLOSED** — CookieBanner `.container-shell`; Footer out of scope; no deploy |
 | **NEW 2D** | **CLOSED** — verification-first; Home-as-catalog; source **NONE**; visual + A5 PASS |
 | **NEW 2E** | **CLOSED** — Cart / Checkout / TEST payment UX; visual + A5 PASS; live Toss not activated |
-| **NEW 2F** | **CLOSED** — B1 COMPLETE; B2 CHECKPOINTED / COMPLETE; C1 CLOSED; C2 CLOSED; D–E DEFERRED OUT OF NEW 2; payment-test hook LIVE; production unchanged |
+| **NEW 2F** | **CLOSED** — B1 COMPLETE; B2 CHECKPOINTED / COMPLETE; C1 CLOSED; C2 CLOSED; D–E DEFERRED OUT OF NEW 2; production Hosted hook **ENABLED** (`docs/decisions/NEW-2_production-release.md`) |
 | NEW 3 | **NOT OPENED** — full Admin UX/UI renewal (do **not** downgrade) |
 | NEW 4 | **NOT OPENED** |
 | NEW 5 | **BLOCKED BY NEW 3 + NEW 4** |
 | NEW 6 | not started (hard gate before NEW 7) |
 | NEW 7–9 | not opened |
-| LIVE | **NO** |
+| LIVE | **NOT REACHED** |
 
-Upcoming main path: **GPT REVIEW** of NEW 2 closure → NEW 3 ∥ NEW 4 after their own PRE-STAGE REPORTS → NEW 5 (blocked until NEW 3 + NEW 4) → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE. Slice 0b remains required before production unique-phone. Do **not** open NEW 3 from this file.
+Upcoming main path: **GPT REVIEW — NEW3/NEW4 opening decision** → NEW 3 ∥ NEW 4 after their own PRE-STAGE REPORTS → NEW 5 (blocked until NEW 3 + NEW 4) → NEW 6 → NEW 7 → NEW 8 → NEW 9 → LIVE. Slice 0b remains required before production unique-phone. Production full social phone activation remains **NOT TESTED** and is **PRE-LIVE E2E FOLLOW-UP — OWNER STAGE TO BE RESOLVED BEFORE LIVE** (not a NEW2 blocker). Do **not** open NEW 3 from this file.
 
 **NEW 2A** = **CLOSED.** Final Header: Search / Theme / Logo / Account / Cart on desktop and mobile; no persistent Custom text; no mobile `메뉴` / hamburger / CustomerNavSheet. Primary Custom discovery: Home `커스텀 제작 →` via `requestCustomAccess()`. Cart commerce term = `장바구니`. Global search → `/?q=`. Do not reopen 2A.
 
@@ -209,11 +213,11 @@ Trusted social creation allow-list: `google`, `kakao`, `custom:naver`. No `custo
 
 Usable customer membership requires nonblank `user_custom_id` + `verified_phone_fingerprint` + `phone_verified_at`. `profiles.phone_number` is contact/shipping only, **not** authority. METALORA must never merge by email or skip phone verification because emails match. Payment prepare/confirm use the verified-phone requirement.
 
-Hosted Before User Created is **ENABLED and LIVE** on payment-test `bvihpoorwriejybixmoc`: public email `signUp` → 403 `Public password signup is not allowed.` Production `qifloweuwyhvukabgnoa` **UNCHANGED**.
+Hosted Before User Created is **ENABLED and LIVE** on payment-test `bvihpoorwriejybixmoc` and on production `qifloweuwyhvukabgnoa` (`pg-functions://postgres/public/hook_before_user_created`; ACL `supabase_auth_admin` EXECUTE only). Detail: `docs/decisions/NEW-2_production-release.md`.
 
-Expected residuals: direct GoTrue `signInWithPassword` outside app-local login throttles; historical incomplete/raw accounts not repaired; production rollout not happened; production unique verified-phone index awaits Slice 0b; password reset does not guarantee immediate invalidation of already-issued access JWTs; production unchanged.
+Expected residuals: direct GoTrue `signInWithPassword` outside app-local login throttles; historical incomplete/raw accounts not repaired; production unique verified-phone index awaits Slice 0b; password reset does not guarantee immediate invalidation of already-issued access JWTs; production full social phone activation **NOT TESTED** (not a NEW2 blocker; **PRE-LIVE E2E FOLLOW-UP — OWNER STAGE TO BE RESOLVED BEFORE LIVE**).
 
-Canonical customer: `profiles.id` = `auth.users.id`. OTP is custom trusted server/RPC, not GoTrue phone-login. Next: **GPT REVIEW**. Do **not** open NEW 3 from this file.
+Canonical customer: `profiles.id` = `auth.users.id`. OTP is custom trusted server/RPC, not GoTrue phone-login. Next: **GPT REVIEW — NEW3/NEW4 opening decision**. Do **not** open NEW 3 from this file.
 
 Frozen complete (do not redesign): Home/Hero, PDP Desktop, PDP Mobile Story, Product Truth, Mount/Included, OWC, Product Information, PDP Footer — except the closed NEW 2A Header chrome, Home.tsx headline/CTA stack, copy-only PDP rail cart-term strings listed in the 2A note, and **NEW 2B-4 shared PDP preview reuse** (not a PDP visual redesign).
 
@@ -276,4 +280,4 @@ implementation → user visual approval if visible UI changes → A5 independent
 
 Never skip explicit user approval before promotion.
 
-Scripts: `scripts/deploy-candidate.ps1`, `scripts/promote-candidate.ps1`, `scripts/rollback-production.ps1`. Do not retag `stable` unless an authorized ticket says so. Current stable rollback remains `metalora-direct-00087-voy`.
+Scripts: `scripts/deploy-candidate.ps1`, `scripts/promote-candidate.ps1`, `scripts/rollback-production.ps1`. Do not retag `stable` unless an authorized ticket says so. Current `stable` rollback is `metalora-direct-00090-kig`. Production traffic is `metalora-direct-00093-car` @ 100%.
