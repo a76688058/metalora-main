@@ -265,6 +265,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
         className={cn(
           'fixed top-0 left-0 isolate w-full max-w-[100vw] border-b',
           zClass('header'),
+          isHome && 'header-home-edge',
           isHome
             ? 'border-transparent bg-transparent'
             : 'surface-glass border-border-subtle shadow-raised motion-safe-transition transform-gpu',
