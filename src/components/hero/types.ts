@@ -6,12 +6,18 @@ import type { HeroProductSelection } from './useHeroProduct';
 
 /** Continuous scroll-driven spatial narrative progress */
 export interface HeroSpatialProgress {
-  /** Raw normalized scroll through full Hero tunnel (0–1) */
+  /** Sprung tunnel progress (0–1). Visual / WebGL path. Not the Home layout channel. */
   sectionProgress: number;
-  /** ROOM → DESIRE story driver (0–1, clamped after story section end) */
+  /** ROOM → DESIRE story driver (0–1, clamped after story section end). Sprung visual path. */
   heroStoryProgress: number;
-  /** Collection curtain rise over fixed final pose (0–1) */
+  /** Sprung collection curtain rise (0–1). Visual path / `--hero-curtain-rise`. */
   collectionCoverProgress: number;
+  /**
+   * Unsprung raw-scroll-derived collection layout cover (0–1).
+   * Home document-height channel / `--hero-collection-layout-rise`.
+   * Not sprung. Not `--hero-curtain-rise`.
+   */
+  collectionLayoutProgress: number;
   /** @deprecated use heroStoryProgress */
   spatialProgress: number;
 }

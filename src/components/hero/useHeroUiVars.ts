@@ -9,6 +9,7 @@ import type { HeroSpatialProgressRef } from './types';
 /** Public Home ↔ Hero layout CSS channels. A4 publishes → A2/Home consumes. */
 export const HERO_LAYOUT_VARS = Object.freeze({
   curtainRise: '--hero-curtain-rise',
+  collectionLayoutRise: '--hero-collection-layout-rise',
   marqueeEnter: '--hero-marquee-enter',
   artworksEnter: '--hero-artworks-enter',
   artworksSubtitleEnter: '--hero-artworks-subtitle-enter',
@@ -31,7 +32,8 @@ export function useHeroUiVars(
     const tick = () => {
       const el = viewportRef.current;
       if (el) {
-        const { heroStoryProgress, collectionCoverProgress } = spatialProgressRef.current;
+        const { heroStoryProgress, collectionCoverProgress, collectionLayoutProgress } =
+          spatialProgressRef.current;
         const ui = evaluateHeroUiChannels(heroStoryProgress, collectionCoverProgress);
         const integration = evaluateHeroIntegration(heroStoryProgress);
 
@@ -55,6 +57,10 @@ export function useHeroUiVars(
         );
         const rootStyle = document.documentElement.style;
         rootStyle.setProperty(HERO_LAYOUT_VARS.curtainRise, String(ui.curtainRise));
+        rootStyle.setProperty(
+          HERO_LAYOUT_VARS.collectionLayoutRise,
+          String(collectionLayoutProgress),
+        );
         rootStyle.setProperty(HERO_LAYOUT_VARS.marqueeEnter, String(ui.marqueeEnter));
         rootStyle.setProperty(HERO_LAYOUT_VARS.artworksEnter, String(ui.artworksEnter));
         rootStyle.setProperty(
@@ -87,6 +93,7 @@ export function useHeroUiVars(
       cancelAnimationFrame(rafRef.current);
       const rootStyle = document.documentElement.style;
       rootStyle.removeProperty(HERO_LAYOUT_VARS.curtainRise);
+      rootStyle.removeProperty(HERO_LAYOUT_VARS.collectionLayoutRise);
       rootStyle.removeProperty(HERO_LAYOUT_VARS.marqueeEnter);
       rootStyle.removeProperty(HERO_LAYOUT_VARS.artworksEnter);
       rootStyle.removeProperty(HERO_LAYOUT_VARS.artworksSubtitleEnter);

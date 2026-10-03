@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useScroll, useSpring, type MotionValue } from 'framer-motion';
-import { writeHeroScrollProgress } from './heroScrollMapping';
+import { mapSectionToCollectionCover, writeHeroScrollProgress } from './heroScrollMapping';
 import type { HeroSpatialProgressRef } from './types';
 
 /** Scroll tunnel height — extra viewport scroll while sticky hero is pinned */
@@ -19,13 +19,15 @@ function createProgressState() {
     sectionProgress: 0,
     heroStoryProgress: 0,
     collectionCoverProgress: 0,
+    collectionLayoutProgress: 0,
     spatialProgress: 0,
   };
 }
 
 /**
- * Native vertical scroll → sectionProgress (0–1 through full tunnel).
- * Mapped to heroStoryProgress (ROOM→DESIRE) and collectionCoverProgress (curtain).
+ * Native vertical scroll → sprung visual progress + unsprung Home layout cover.
+ * Visual: scrollYProgress → spring → heroStory / collectionCoverProgress.
+ * Layout: scrollYProgress → mapSectionToCollectionCover (no spring).
  */
 export function useHeroScrollProgress({
   scrollSectionRef,
@@ -64,6 +66,16 @@ export function useHeroScrollProgress({
     const unsubscribe = smoothProgress.on('change', apply);
     return unsubscribe;
   }, [devStoryOverride, devCoverOverride, smoothProgress]);
+
+  useEffect(() => {
+    const applyLayout = (rawSection: number) => {
+      spatialProgressRef.current.collectionLayoutProgress = mapSectionToCollectionCover(rawSection);
+    };
+
+    applyLayout(scrollYProgress.get());
+    const unsubscribe = scrollYProgress.on('change', applyLayout);
+    return unsubscribe;
+  }, [scrollYProgress]);
 
   return { spatialProgressRef, scrollProgress: smoothProgress };
 }

@@ -17,6 +17,12 @@ let hasMountedHomeInThisDocument = false;
 const ARTWORK_IMAGE_SIZES =
   '(max-width: 639px) calc((100vw - 3rem) / 2), (max-width: 767px) calc((100vw - 4rem) / 2), (max-width: 1023px) calc((100vw - 6rem) / 3), calc((min(100vw, 80rem) - 7.5rem) / 4)';
 
+const COLLECTION_LAYOUT_RISE_VAR = '--hero-collection-layout-rise';
+const COLLECTION_LAYOUT_MARGIN =
+  `calc((1 - var(${COLLECTION_LAYOUT_RISE_VAR}, 1)) * 72vh - 2px)`;
+const COLLECTION_LAYOUT_TRANSFORM =
+  `translate3d(0, calc((1 - var(${COLLECTION_LAYOUT_RISE_VAR}, 1)) * 72vh), 0)`;
+
 export default function Home() {
   const { products, isLoading, isError, fetchProducts } = useProducts();
   const { theme } = useTheme();
@@ -168,8 +174,8 @@ export default function Home() {
         className="relative z-[5] overflow-x-clip bg-canvas text-text-primary"
         style={{
           marginTop: '-8vh',
-          marginBottom: 'calc((1 - var(--hero-curtain-rise, 1)) * 72vh - 2px)',
-          transform: 'translate3d(0, calc((1 - var(--hero-curtain-rise, 1)) * 72vh), 0)',
+          marginBottom: COLLECTION_LAYOUT_MARGIN,
+          transform: COLLECTION_LAYOUT_TRANSFORM,
           willChange: 'transform',
         }}
       >
