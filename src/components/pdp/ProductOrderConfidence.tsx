@@ -11,7 +11,6 @@ import { FACTUAL_SHELL, FactualIndex } from './factualVisuals';
  * Confirmed general-catalog commerce facts only (Rule 03).
  * Do not import Custom / Workshop policy. Do not claim free shipping.
  */
-const HEADING = '주문 안내';
 
 function LeadNumber({
   kicker,
@@ -89,14 +88,10 @@ export function ProductOrderConfidence() {
     >
       <EditorialReveal show={show}>
         <div className={cn(FACTUAL_SHELL, 'py-24 sm:py-28 min-[1100px]:py-32')}>
-          <h2
-            id="pdp-order-confidence-heading"
-            className="type-label tracking-[0.28em] text-text-tertiary dark:text-[#8c877e]"
-          >
-            {HEADING}
+          <h2 id="pdp-order-confidence-heading" className="sr-only">
+            주문 안내
           </h2>
-
-          <ol className="mt-12 m-0 grid list-none grid-cols-1 p-0 md:mt-16 md:grid-cols-2">
+          <ol className="m-0 grid list-none grid-cols-1 p-0 md:grid-cols-2">
             <ConfidenceCell
               index="01"
               label="제작"

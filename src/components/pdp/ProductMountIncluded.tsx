@@ -16,7 +16,6 @@ import {
  * Included quantities: artwork ×1, PPF ×1, protective sticker ×1, magnets ×2.
  * Do not add wall-damage, mark-free, strength, or install-time claims.
  */
-const MOUNT_HEADING = '설치';
 const MOUNT_PRIMARY = '못 없이 설치하는 마그네틱 마운트.';
 const MOUNT_SUPPORT =
   '보호 스티커와 자석 2개로 벽면에 부착합니다.';
@@ -45,11 +44,10 @@ function MountBlock({ imageSrc }: { imageSrc: string | null }) {
           <div className="min-w-0 max-w-[32rem]">
             <h2
               id="pdp-mount-heading"
-              className="type-label tracking-[0.28em] text-text-tertiary"
+              className="type-section-title text-pretty"
             >
-              {MOUNT_HEADING}
+              {MOUNT_PRIMARY}
             </h2>
-            <p className="mt-5 type-section-title text-pretty">{MOUNT_PRIMARY}</p>
             <p className="mt-4 type-body text-pretty text-text-secondary">
               {MOUNT_SUPPORT}
             </p>
