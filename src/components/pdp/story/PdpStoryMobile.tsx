@@ -397,7 +397,7 @@ export function PdpStoryMobile({ frontTextureUrl, orientation }: PdpStoryMobileP
             <h2
               id="pdp-story-magnetic-heading"
               data-ms="mag-h"
-              className="break-keep text-text-primary"
+              className="break-keep text-balance text-text-primary"
               style={{
                 opacity: 0,
                 fontSize: 'clamp(1.875rem, 1.05rem + 3.8vw, 2.375rem)',

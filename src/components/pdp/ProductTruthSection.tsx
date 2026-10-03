@@ -103,7 +103,7 @@ function TruthHeader() {
         >
           {HEADING}
         </h2>
-        <p className="mt-5 type-section-title text-pretty">{LEAD}</p>
+        <p className="mt-5 type-section-title text-pretty break-keep">{LEAD}</p>
       </EditorialReveal>
     </header>
   );
