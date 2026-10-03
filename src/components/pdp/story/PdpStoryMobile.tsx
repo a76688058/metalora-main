@@ -18,7 +18,6 @@ import {
   STORY_WALL_SURFACE_COLOR,
   SURFACE_HEADLINE,
 } from './constants';
-import { MAGNETIC_CALLOUT_LINE_SPAN } from './magneticLabels';
 import { getMobileStorySectionTravelVh, MOBILE_MAG_LAYER_ANCHOR, MOBILE_PERSPECTIVE_PX } from './mobileChoreography';
 import { useMobileStoryScroll } from './useMobileStoryScroll';
 
@@ -291,9 +290,6 @@ export function PdpStoryMobile({ frontTextureUrl, orientation }: PdpStoryMobileP
                   strokeWidth={1.35}
                   vectorEffect="non-scaling-stroke"
                   strokeLinecap="butt"
-                  strokeDasharray={MAGNETIC_CALLOUT_LINE_SPAN}
-                  strokeDashoffset={MAGNETIC_CALLOUT_LINE_SPAN}
-                  opacity={0}
                 />
               ))}
             </svg>

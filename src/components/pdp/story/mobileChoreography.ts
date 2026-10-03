@@ -17,7 +17,6 @@ import {
 } from './constants';
 import {
   layoutCompactInfographicCallouts,
-  MAGNETIC_CALLOUT_LINE_SPAN,
   type MagneticCalloutChannels,
   type MagneticCalloutLayout,
 } from './magneticLabels';
@@ -918,7 +917,6 @@ export function applyMobileStory(els: MobileStoryEls, visual: MobileStoryVisual)
       const path = els.lines[callout.id];
       path.setAttribute('d', callout.path);
       path.style.opacity = line.toFixed(4);
-      path.style.strokeDashoffset = ((1 - line) * MAGNETIC_CALLOUT_LINE_SPAN).toFixed(4);
       const dot = els.dots[callout.id];
       dot.style.opacity = line.toFixed(4);
       dot.style.left = `${callout.ax.toFixed(2)}%`;
