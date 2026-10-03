@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
+import { ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import * as THREE from 'three';
 
@@ -36,6 +37,16 @@ import type { HeroCommerceBounds } from './types';
 
 /** PHASE 4B: frameloop="always" is temporary until visual QA passes (PHASE 4B-PERF). */
 const HERO_FRAMELOOP: 'always' = 'always';
+
+const HERO_SCROLL_CUE_NUDGE_CSS = `
+@keyframes metalora-hero-scroll-cue-nudge {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, 7px, 0); }
+}
+.metalora-hero-scroll-cue-nudge {
+  animation: metalora-hero-scroll-cue-nudge 1.8s ease-in-out infinite;
+}
+`;
 
 const DEV_SCRUB_POINTS = [
   { label: '0', at: KEYFRAME_ROOM },
@@ -345,15 +356,20 @@ export default function HeroSpatial() {
           ) : null}
 
           {!reducedMotion ? (
-            <p
-              className={`absolute bottom-8 left-1/2 -translate-x-1/2 text-center text-[9px] font-medium tracking-[0.5em] uppercase ${
-                isDark ? 'text-white/30' : 'text-black/28'
-              }`}
+            <div
+              className="pointer-events-none absolute bottom-8 left-1/2 -translate-x-1/2"
               style={{ opacity: 'var(--hero-scroll-cue-opacity, 1)' }}
               aria-hidden
             >
-              아래로 스크롤 ↓
-            </p>
+              <style>{HERO_SCROLL_CUE_NUDGE_CSS}</style>
+              <ChevronDown
+                size={22}
+                strokeWidth={1.75}
+                className={`metalora-hero-scroll-cue-nudge block ${
+                  isDark ? 'text-white/55' : 'text-black/55'
+                }`}
+              />
+            </div>
           ) : (
             <button
               type="button"
