@@ -18,10 +18,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
-    // We'll apply the class to the document element
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add(theme);
+
+    const canvas = theme === 'dark' ? '#121212' : '#ffffff';
+    const themeColor = document.querySelector('meta[name="theme-color"]');
+    if (themeColor) themeColor.setAttribute('content', canvas);
+
+    root.style.colorScheme = theme;
   }, [theme]);
 
   const toggleTheme = useCallback(() => {

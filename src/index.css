@@ -11,8 +11,12 @@ body {
   transition: background-color var(--duration-normal) ease, color var(--duration-normal) ease;
 }
 
+html,
 body {
   background-color: var(--color-canvas);
+}
+
+body {
   color: var(--color-text-primary);
 }
 
