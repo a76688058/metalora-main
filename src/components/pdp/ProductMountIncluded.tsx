@@ -8,7 +8,6 @@ import { cn } from '../../lib/cn';
 import {
   FACTUAL_SHELL,
   IncludedSilhouette,
-  MountSchematicVisual,
 } from './factualVisuals';
 
 /**
@@ -34,25 +33,22 @@ const PACKAGING_LINES = [
   '외부 박스에는 METALORA 로고 마킹이 적용됩니다.',
 ] as const;
 
-function MountBlock({ imageSrc }: { imageSrc: string | null }) {
+function MountBlock() {
   const [ref, show] = useEditorialInView<HTMLDivElement>();
 
   return (
     <div ref={ref} data-pdp-mount="">
       <EditorialReveal show={show}>
-        <div className="grid min-w-0 items-start gap-12 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-20">
-          <div className="min-w-0 max-w-[32rem]">
-            <h2
-              id="pdp-mount-heading"
-              className="type-section-title text-pretty"
-            >
-              {MOUNT_PRIMARY}
-            </h2>
-            <p className="mt-4 type-body text-pretty text-text-secondary">
-              {MOUNT_SUPPORT}
-            </p>
-          </div>
-          <MountSchematicVisual imageSrc={imageSrc} />
+        <div className="min-w-0 max-w-[32rem]">
+          <h2
+            id="pdp-mount-heading"
+            className="type-section-title text-pretty"
+          >
+            {MOUNT_PRIMARY}
+          </h2>
+          <p className="mt-4 type-body text-pretty text-text-secondary">
+            {MOUNT_SUPPORT}
+          </p>
         </div>
       </EditorialReveal>
     </div>
@@ -118,7 +114,7 @@ export function ProductMountIncluded({ imageSrc = null }: { imageSrc?: string | 
       className="bg-canvas text-text-primary"
     >
       <div className={cn(FACTUAL_SHELL, 'pb-24 pt-8 sm:pb-28 sm:pt-12 min-[1100px]:pb-36 min-[1100px]:pt-16')}>
-        <MountBlock imageSrc={imageSrc} />
+        <MountBlock />
         <IncludedBlock imageSrc={imageSrc} />
       </div>
     </section>

@@ -45,7 +45,6 @@ const COPY = {
   made: {
     index: '04',
     value: 'METALORA가 진행합니다.',
-    detail: '이미지 준비, 출력, 이미지 전사, 뒷면 작업, 자석 조립, 검수, 포장.',
   },
 } as const;
 
@@ -56,7 +55,7 @@ function FactCopy({
   numeric = false,
 }: {
   value: string;
-  detail: string;
+  detail?: string;
   note?: string;
   numeric?: boolean;
 }) {
@@ -71,7 +70,9 @@ function FactCopy({
       >
         {value}
       </p>
-      <p className="mt-3 type-body-lg text-pretty">{detail}</p>
+      {detail ? (
+        <p className="mt-3 type-body-lg text-pretty">{detail}</p>
+      ) : null}
       {note ? (
         <p className="mt-4 type-supporting text-pretty text-text-secondary">{note}</p>
       ) : null}
@@ -125,7 +126,7 @@ function TruthModule({
           >
             <FactCopy
               value={copy.value}
-              detail={copy.detail}
+              detail={'detail' in copy ? copy.detail : undefined}
               note={'note' in copy ? copy.note : undefined}
               numeric={copy.index === '01'}
             />
@@ -158,7 +159,6 @@ function MadeByModule() {
       <EditorialReveal show={show}>
         <FactCopy
           value={copy.value}
-          detail={copy.detail}
         />
         <ProcessRailVisual className="mt-10 max-w-full lg:mt-14" />
       </EditorialReveal>
