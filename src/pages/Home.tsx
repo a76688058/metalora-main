@@ -20,8 +20,9 @@ const ARTWORK_IMAGE_SIZES =
 const COLLECTION_LAYOUT_RISE_VAR = '--hero-collection-layout-rise';
 const COLLECTION_LAYOUT_MARGIN =
   `calc((1 - var(${COLLECTION_LAYOUT_RISE_VAR}, 1)) * 72vh - 2px)`;
-const COLLECTION_LAYOUT_TRANSFORM =
-  `translate3d(0, calc((1 - var(${COLLECTION_LAYOUT_RISE_VAR}, 1)) * 72vh), 0)`;
+const COLLECTION_VISUAL_RISE_VAR = '--hero-curtain-rise';
+const COLLECTION_VISUAL_TRANSFORM =
+  `translate3d(0, calc((1 - var(${COLLECTION_VISUAL_RISE_VAR}, 1)) * 72vh), 0)`;
 
 export default function Home() {
   const { products, isLoading, isError, fetchProducts } = useProducts();
@@ -171,11 +172,16 @@ export default function Home() {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.5 }}
-        className="relative z-[5] overflow-x-clip bg-canvas text-text-primary"
+        className="relative z-[5]"
         style={{
           marginTop: '-8vh',
           marginBottom: COLLECTION_LAYOUT_MARGIN,
-          transform: COLLECTION_LAYOUT_TRANSFORM,
+        }}
+      >
+      <div
+        className="overflow-x-clip bg-canvas text-text-primary"
+        style={{
+          transform: COLLECTION_VISUAL_TRANSFORM,
           willChange: 'transform',
         }}
       >
@@ -302,6 +308,7 @@ export default function Home() {
             </AnimatePresence>
           )}
         </div>
+      </div>
       </div>
     </motion.div>
     </div>
