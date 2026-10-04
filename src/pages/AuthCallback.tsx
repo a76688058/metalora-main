@@ -4,16 +4,27 @@ import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import {
+  AUTH_CALLBACK_PATH,
   authCallbackHasOAuthError,
+  clearPasswordRecoveryEvent,
   isPasswordRecoveryAuthCallback,
+  latchPasswordRecoveryFromLocation,
   markPasswordRecoveryEvent,
   passwordRecoveryEventWasSeen,
   resolveAuthCallbackPath,
 } from '../lib/authIntegrity';
 import { supabase } from '../lib/supabase';
 
+latchPasswordRecoveryFromLocation();
+
 supabase.auth.onAuthStateChange((event) => {
-  if (event === 'PASSWORD_RECOVERY') markPasswordRecoveryEvent();
+  if (
+    event === 'PASSWORD_RECOVERY'
+    && typeof window !== 'undefined'
+    && window.location.pathname === AUTH_CALLBACK_PATH
+  ) {
+    markPasswordRecoveryEvent();
+  }
 });
 
 /**
@@ -38,12 +49,17 @@ export default function AuthCallback() {
   const oauthError = authCallbackHasOAuthError(searchParams);
   const redirectRaw = searchParams.get('redirect');
   const isDark = theme === 'dark';
+  const callbackHash = typeof window !== 'undefined' ? window.location.hash : '';
+  latchPasswordRecoveryFromLocation({
+    search: searchParams,
+    hash: callbackHash,
+  });
   const passwordRecovery =
     recoveryTypeAtMount.current
     || recoveryEvent
     || isPasswordRecoveryAuthCallback({
       search: searchParams,
-      hash: typeof window !== 'undefined' ? window.location.hash : '',
+      hash: callbackHash,
     });
 
   useEffect(() => {
@@ -79,8 +95,13 @@ export default function AuthCallback() {
   }, []);
 
   useEffect(() => {
+    const leave = (next: string) => {
+      clearPasswordRecoveryEvent();
+      navigate(next, { replace: true });
+    };
+
     if (oauthError) {
-      navigate('/login', { replace: true });
+      leave('/login');
       return;
     }
 
@@ -93,7 +114,7 @@ export default function AuthCallback() {
         profile,
         redirectRaw,
       });
-      navigate(next, { replace: true });
+      leave(next);
       return;
     }
     if (user && !isProfileResolved) return;
@@ -104,7 +125,7 @@ export default function AuthCallback() {
       profile,
       redirectRaw,
     });
-    navigate(next, { replace: true });
+    leave(next);
   }, [
     oauthError,
     passwordRecovery,

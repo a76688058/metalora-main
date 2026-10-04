@@ -214,11 +214,12 @@ export function authCallbackLoginPath(redirectRaw?: string | null): string {
 }
 
 export const RESET_PASSWORD_PATH = '/reset-password';
+export const AUTH_CALLBACK_PATH = '/auth/callback';
 
 const GOTRUE_PASSWORD_RECOVERY_TYPE = 'recovery';
 const SUPABASE_PASSWORD_RECOVERY_EVENT = 'PASSWORD_RECOVERY';
 
-/** In-memory only. Latches PASSWORD_RECOVERY before AuthCallback mounts. */
+/** In-memory only. Latches PASSWORD_RECOVERY / explicit type=recovery. */
 let passwordRecoveryEventSeen = false;
 
 export function markPasswordRecoveryEvent(): void {
@@ -241,22 +242,88 @@ export function isSupabasePasswordRecoveryEvent(event: string | null | undefined
   return (event ?? '').trim().toUpperCase() === SUPABASE_PASSWORD_RECOVERY_EVENT;
 }
 
+type SearchReader = { get(name: string): string | null };
+
+function asSearchReader(
+  search?: SearchReader | string | null,
+): SearchReader | undefined {
+  if (!search) return undefined;
+  if (typeof search === 'string') {
+    const raw = search.startsWith('?') ? search.slice(1) : search;
+    return new URLSearchParams(raw);
+  }
+  return search;
+}
+
+function currentWindowLocation(): { pathname: string; search: string; hash: string } {
+  if (typeof window === 'undefined') {
+    return { pathname: '', search: '', hash: '' };
+  }
+  return {
+    pathname: window.location.pathname,
+    search: window.location.search,
+    hash: window.location.hash,
+  };
+}
+
 /**
  * Read GoTrue `type` from query or hash. Tokens in the fragment are ignored.
  */
 export function readGoTrueCallbackType(input: {
-  search?: { get(name: string): string | null };
+  search?: SearchReader | string | null;
   hash?: string | null;
 }): string {
-  const fromSearch = input.search?.get('type')?.trim().toLowerCase() ?? '';
+  const reader = asSearchReader(input.search);
+  const fromSearch = reader?.get('type')?.trim().toLowerCase() ?? '';
   if (fromSearch) return fromSearch;
   const hash = (input.hash ?? '').replace(/^#/, '');
   if (!hash) return '';
   return (new URLSearchParams(hash).get('type') ?? '').trim().toLowerCase();
 }
 
+/** Explicit GoTrue `type=recovery` only. Does not use the in-memory latch. */
+export function hasExplicitGoTrueRecoveryType(input?: {
+  search?: SearchReader | string | null;
+  hash?: string | null;
+}): boolean {
+  const loc = currentWindowLocation();
+  return isGoTruePasswordRecoveryType(readGoTrueCallbackType({
+    search: input?.search ?? loc.search,
+    hash: input?.hash ?? loc.hash,
+  }));
+}
+
+/**
+ * Latch recovery when the current URL explicitly contains `type=recovery`.
+ * Does not treat a bare `/auth/callback` OAuth redirect as recovery.
+ */
+export function latchPasswordRecoveryFromLocation(input?: {
+  search?: SearchReader | string | null;
+  hash?: string | null;
+}): boolean {
+  const pathname = currentWindowLocation().pathname;
+  if (pathname === AUTH_CALLBACK_PATH && hasExplicitGoTrueRecoveryType(input)) {
+    markPasswordRecoveryEvent();
+    return true;
+  }
+  return pathname === AUTH_CALLBACK_PATH && passwordRecoveryEventWasSeen();
+}
+
+/**
+ * Genuine email-recovery window. The latch is only meaningful on /auth/callback.
+ * `/auth/callback` alone is not recovery. Latch alone on other routes is not recovery.
+ */
+export function isGenuinePasswordRecoveryFlow(): boolean {
+  const { pathname, search, hash } = currentWindowLocation();
+  if (pathname === RESET_PASSWORD_PATH) return true;
+  if (pathname === AUTH_CALLBACK_PATH) {
+    return hasExplicitGoTrueRecoveryType({ search, hash }) || passwordRecoveryEventWasSeen();
+  }
+  return false;
+}
+
 export function isPasswordRecoveryAuthCallback(input: {
-  search?: { get(name: string): string | null };
+  search?: SearchReader | string | null;
   hash?: string | null;
   authEvent?: string | null;
 }): boolean {
