@@ -29,17 +29,17 @@ const COPY = {
   aluminum: {
     index: '01',
     value: `M · ${PANEL_M.widthMm} × ${PANEL_M.heightMm} mm`,
-    detail: `${PANEL_M.thicknessMm} mm 알루미늄 패널`,
+    detail: `${PANEL_M.thicknessMm} mm 금속 패널`,
     note: '현재 M 사이즈 완제품 크기입니다.',
   },
   sublimation: {
     index: '02',
     value: '이미지 전사',
-    detail: '알루미늄에 이미지를 전사해 디테일을 표현합니다.',
+    detail: '금속 패널에 이미지를 전사해 디테일을 표현합니다.',
   },
   image: {
     index: '03',
-    value: '작품의 색감과 디테일을 알루미늄 위에 표현합니다.',
+    value: '작품의 색감과 디테일을 금속 위에 표현합니다.',
     detail: '출력에 사용하는 최종 이미지입니다.',
   },
   made: {

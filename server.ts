@@ -470,7 +470,7 @@ const FUNCTIONAL_NOINDEX_TITLES: Record<string, string> = {
 };
 
 const HOME_SEO_DESCRIPTION =
-  "못 없이 설치하는 마그네틱 메탈 액자. 알루미늄에 이미지를 승화전사한 인테리어 메탈 아트로 공간에 포인트를 더해보세요.";
+  "못 없이 설치하는 마그네틱 메탈 액자. 금속 패널에 이미지를 승화전사한 인테리어 메탈 아트로 공간에 포인트를 더해보세요.";
 
 /** Final-segment static extensions only — do not treat punctuation in route text as an asset. */
 const ASSET_LIKE_EXT_RE =
@@ -603,7 +603,7 @@ function homeSeoPayload(): SeoPayload {
     </section>
     <section>
       <h2>못 없이 설치하는 마그네틱 메탈 액자</h2>
-      <p>알루미늄에 이미지를 승화전사한 인테리어 메탈 아트입니다. 마그네틱 마운트로 못 없이 간편하게 설치해 공간에 포인트를 더해보세요.</p>
+      <p>금속 패널에 이미지를 승화전사한 인테리어 메탈 아트입니다. 마그네틱 마운트로 못 없이 간편하게 설치해 공간에 포인트를 더해보세요.</p>
     </section>
   </div>
 </main>`,

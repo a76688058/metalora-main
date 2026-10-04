@@ -209,7 +209,7 @@ export const policies = {
               ■ 제작 및 검수
             </h4>
             <p className="text-[15px] text-zinc-700 dark:text-zinc-300 leading-relaxed font-normal">
-              결제 완료 후 프리미엄 알루미늄 패널 제작 및 정밀 검수에 <span className="font-semibold text-zinc-950 dark:text-white">3~5 영업일</span>이 소요됩니다.
+              결제 완료 후 프리미엄 금속 패널 제작 및 정밀 검수에 <span className="font-semibold text-zinc-950 dark:text-white">3~5 영업일</span>이 소요됩니다.
             </p>
           </div>
 

@@ -148,10 +148,10 @@ export const SURFACE_COPY_IN_END = 0.72;
 export const SURFACE_COPY_OUT_START = 0.8;
 export const SURFACE_COPY_OUT_END = 0.97;
 
-export const SURFACE_HEADLINE = '종이가 아니라, 알루미늄.';
+export const SURFACE_HEADLINE = '종이가 아니라, 금속.';
 
 export const EDGE_MEASURE_PRIMARY = '1.15 mm';
-export const EDGE_MEASURE_SECONDARY = '알루미늄 패널';
+export const EDGE_MEASURE_SECONDARY = '금속 패널';
 export const EDGE_DISCLOSURE = '확대된 가장자리 표현입니다.\n실제 패널 두께는 1.15mm입니다.';
 
 export const EDGE_WINDOWS = {
@@ -263,7 +263,7 @@ export const MAGNETIC_LABEL_STAGGER = MAGNETIC_CALLOUT.stagger;
  * on and states only what the composition shows.
  */
 export const STATIC_STACK_AXIS_NOTE = '위에서 아래로, 벽에서 액자까지의 순서입니다.';
-export const STATIC_REVERSE_NOTE = '액자는 뒷면(알루미늄)이 보이는 방향입니다.';
+export const STATIC_REVERSE_NOTE = '액자는 뒷면(금속)이 보이는 방향입니다.';
 export const MOUNTED_HEADLINE = '설치를 마친 모습.';
 export const MOUNTED_BODY = '벽 · 보호 스티커 · 벽면 자석 · 액자 자석 · 액자가 하나로 맞물린 상태입니다.';
 export const MOUNTED_DISCLOSURE = '벽면은 구조 설명을 위한 표현입니다.';

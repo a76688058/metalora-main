@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 
 const FALLBACK_MESSAGES = [
   '새로운 컬렉션을 만나보세요',
-  '포스터가 아닌 알루미늄 작품',
+  '포스터가 아닌 금속 작품',
   '못 없이 설치하는 마그네틱 마운트.',
 ];
 

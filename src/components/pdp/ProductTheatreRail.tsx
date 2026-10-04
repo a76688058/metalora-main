@@ -304,7 +304,7 @@ export function ProductTheatreRail({
               </span>
             </summary>
             <div className="space-y-2 pb-3 type-metadata text-text-secondary">
-              <p>1.15 mm 알루미늄 패널에 이미지를 전사합니다.</p>
+              <p>1.15 mm 금속 패널에 이미지를 전사합니다.</p>
               <p>이미지의 색감과 디테일을 표현합니다.</p>
               <p>못 없이 설치하는 마그네틱 마운트.</p>
             </div>

@@ -12,7 +12,7 @@ const JSON_LD_MARKER = 'metalora-document-head';
 
 const HOME_TITLE = '메탈로라 | 프리미엄 커스텀 메탈 액자';
 const HOME_DESCRIPTION =
-  '못 없이 설치하는 마그네틱 메탈 액자. 알루미늄에 이미지를 승화전사한 인테리어 메탈 아트로 공간에 포인트를 더해보세요.';
+  '못 없이 설치하는 마그네틱 메탈 액자. 금속 패널에 이미지를 승화전사한 인테리어 메탈 아트로 공간에 포인트를 더해보세요.';
 
 const POLICY_TITLES: Record<string, string> = {
   terms: '이용약관 | 메탈로라',
