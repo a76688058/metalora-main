@@ -316,7 +316,7 @@ export default function HeroSpatial() {
               }}
             >
               <p
-                className={`text-[13px] font-semibold tracking-wide md:text-sm ${
+                className={`text-[16px] font-semibold tracking-wide md:text-[17px] ${
                   isDark ? 'text-white/95' : 'text-black/90'
                 }`}
                 style={{
@@ -328,7 +328,7 @@ export default function HeroSpatial() {
                 {heroProduct.product.title}
               </p>
               <p
-                className={`mt-1 text-[11px] font-medium tracking-wider ${
+                className={`mt-1 text-[14px] font-medium tracking-wider ${
                   isDark ? 'text-white/72' : 'text-black/65'
                 }`}
                 style={{
@@ -341,7 +341,7 @@ export default function HeroSpatial() {
               </p>
               <Link
                 to={heroProduct.pdpPath}
-                className={`mt-3 inline-flex min-h-11 min-w-[148px] items-center justify-center border px-5 text-[10px] font-bold tracking-[0.32em] uppercase transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                className={`mt-3 inline-flex min-h-11 min-w-[148px] items-center justify-center border px-5 text-[13px] font-bold tracking-[0.32em] uppercase transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                   isDark
                     ? 'border-white/18 bg-[#1a1c20]/78 text-white/95 backdrop-blur-sm hover:bg-[#23262c]/88 focus-visible:outline-white'
                     : 'border-black/22 bg-[#2a2a2e]/82 text-white/95 backdrop-blur-sm hover:bg-[#35353a]/90 focus-visible:outline-black'
