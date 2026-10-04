@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { ChevronDown } from 'lucide-react';
+import { ChevronsDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import * as THREE from 'three';
 
@@ -357,13 +357,18 @@ export default function HeroSpatial() {
 
           {!reducedMotion ? (
             <div
-              className="pointer-events-none absolute bottom-8 left-1/2 -translate-x-1/2"
-              style={{ opacity: 'var(--hero-scroll-cue-opacity, 1)' }}
+              className="pointer-events-none absolute"
+              style={{
+                left: 'var(--hero-commerce-left, 50%)',
+                top: 'calc(var(--hero-anchor-y, 39%) + 8% + 2.75rem)',
+                transform: 'translateX(-50%)',
+                opacity: 'var(--hero-scroll-cue-opacity, 1)',
+              }}
               aria-hidden
             >
               <style>{HERO_SCROLL_CUE_NUDGE_CSS}</style>
-              <ChevronDown
-                size={22}
+              <ChevronsDown
+                size={26}
                 strokeWidth={1.75}
                 className={`metalora-hero-scroll-cue-nudge block ${
                   isDark ? 'text-white/55' : 'text-black/55'
