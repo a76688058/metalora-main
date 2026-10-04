@@ -7,10 +7,12 @@ import {
   AUTH_SYNC_CHANNEL,
   PROFILE_COLUMNS,
   broadcastAuthLogout,
+  clearPasswordRecoveryEvent,
   clearPersistedAuthToken,
   isDefinitiveAuthRefreshFailure,
   isPendingC1SocialCustomer,
   isTransientAuthTransportFailure,
+  markPasswordRecoveryEvent,
 } from '../lib/authIntegrity';
 
 interface SignOutOptions {
@@ -289,9 +291,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (event === 'SIGNED_OUT') {
+          clearPasswordRecoveryEvent();
           clearReactAuthState();
           setIsLoading(false);
           window.dispatchEvent(new CustomEvent('refresh-products'));
+          return;
+        }
+
+        if (event === 'PASSWORD_RECOVERY') {
+          markPasswordRecoveryEvent();
+          if (sess) {
+            applyVerifiedSession(sess);
+            setIsProfileResolved(false);
+            const userId = sess.user.id;
+            setTimeout(() => {
+              if (!mounted) return;
+              void fetchProfile(userId).finally(() => {
+                if (mounted) setIsLoading(false);
+              });
+            }, 0);
+          } else {
+            setIsLoading(false);
+          }
           return;
         }
 
@@ -412,6 +433,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await supabase.auth.signOut().catch(() => {});
       clearPersistedAuthToken();
+      clearPasswordRecoveryEvent();
       try {
         sessionStorage.clear();
       } catch {
