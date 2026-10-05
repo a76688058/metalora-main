@@ -59,10 +59,17 @@ Shell header `z-20`. Mobile nav `z-50`. Logout confirm `z-[90]`. Page-owned dial
 ## Deferred
 
 - `/admin/settings` does not exist; not linked.
-- Storefront Header “관리자 대시보드” opening the profile overlay is deferred to the Header owner after this shell is stable.
+
+## NEW3-5B — Storefront admin header action
+
+Status: **READY FOR NEW3-5B QA**
+
+Date: 2026-10-05
+
+Decision: The storefront Header control whose accessible label is `관리자 대시보드` navigates to `/admin`. It no longer opens ProfileOverlay. The same Header User control still opens ProfileOverlay when labeled `내 정보` for non-admin members. Anonymous users still open AccountDrawer. Visibility remains the existing Header admin flag (`profile?.is_admin || adminProfile?.is_admin`). No auth or admin-policy change. Desktop and mobile share this one Header action.
 
 ## Do Not Do
 
-- Do not edit preserved WIP or storefront Header in this ticket.
+- Do not edit preserved WIP.
 - Do not change individual admin page business logic.
 - Do not commit / deploy / mutate production.

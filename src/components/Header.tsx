@@ -228,6 +228,15 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const handleAccount = () => {
     clearPendingCustomAccess();
     if (hasMemberChrome) {
+      if (isAdmin) {
+        if (isProfileOpen) closeProfile();
+        if (isCartOpen) closeCart();
+        if (isWorkshopOpen) closeWorkshop();
+        setIsSearchOpen(false);
+        setIsAccountDrawerOpen(false);
+        navigate('/admin');
+        return;
+      }
       if (isProfileOpen) {
         closeProfile();
       } else {
