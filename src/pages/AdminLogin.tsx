@@ -66,7 +66,7 @@ export default function AdminLogin() {
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 w-full max-w-md shadow-2xl">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-zinc-800 mb-4">
-            <Lock className="text-white" size={24} />
+            <Lock className="text-white" size={24} aria-hidden="true" />
           </div>
           <h1 className="text-2xl font-bold text-white">관리자 로그인</h1>
           <p className="text-zinc-400 mt-2 text-sm">METALORA 관리자 패널에 접속하세요.</p>
@@ -74,31 +74,44 @@ export default function AdminLogin() {
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-2">이메일</label>
+            <label htmlFor="admin-login-email" className="block text-sm font-medium text-zinc-400 mb-2">이메일</label>
             <input
+              id="admin-login-email"
               type="email"
+              autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors"
               placeholder="admin@metalora.com"
               required
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'admin-login-error' : undefined}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-2">비밀번호</label>
+            <label htmlFor="admin-login-password" className="block text-sm font-medium text-zinc-400 mb-2">비밀번호</label>
             <input
+              id="admin-login-password"
               type="password"
+              autoComplete="current-password"
+              spellCheck={false}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-black border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors"
               placeholder="••••••"
               required
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'admin-login-error' : undefined}
             />
           </div>
 
           {error && (
-            <div className="text-red-500 text-sm text-center bg-red-500/10 py-2 rounded-lg border border-red-500/20">
+            <div
+              id="admin-login-error"
+              role="alert"
+              className="text-red-500 text-sm text-center bg-red-500/10 py-2 rounded-lg border border-red-500/20"
+            >
               {error}
             </div>
           )}
@@ -106,11 +119,12 @@ export default function AdminLogin() {
           <button
             type="submit"
             disabled={isLoading}
+            aria-busy={isLoading}
             className="w-full bg-white text-black font-bold py-3.5 rounded-lg hover:bg-zinc-200 transition-colors active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {isLoading ? (
               <>
-                <Loader2 size={18} className="animate-spin" />
+                <Loader2 size={18} className="animate-spin" aria-hidden="true" />
                 로그인 중...
               </>
             ) : (
