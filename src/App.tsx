@@ -6,7 +6,6 @@ import Footer from './components/Footer';
 import Home from './pages/Home';
 import ProfileComplete from './pages/ProfileComplete';
 import AuthCallback from './pages/AuthCallback';
-import ResetPassword from './pages/ResetPassword';
 import MemberEnrollExisting from './pages/MemberEnrollExisting';
 import PolicyPage from './pages/PolicyPage';
 import LoadingScreen from './components/LoadingScreen';
@@ -26,7 +25,7 @@ import { cn } from './lib/cn';
 import CookieBanner from './components/CookieBanner';
 import DocumentHead from './components/DocumentHead';
 import AnalyticsRouteTracker from './components/AnalyticsRouteTracker';
-import { isUsableMemberProfile, RESET_PASSWORD_PATH, safeInternalPath } from './lib/authIntegrity';
+import { isUsableMemberProfile, safeInternalPath } from './lib/authIntegrity';
 
 const ProductDetail = lazy(() => import('./components/ProductDetail'));
 const Login = lazy(() => import('./pages/Login'));
@@ -148,7 +147,6 @@ function AnimatedRoutes() {
         <Route path="/product/:id" element={<LazyRoute><ProductDetail /></LazyRoute>} />
         <Route path="/login" element={<LazyRoute><Login /></LazyRoute>} />
         <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path={RESET_PASSWORD_PATH} element={<ResetPassword />} />
         <Route path="/member-enroll" element={<MemberEnrollExisting />} />
         <Route path="/policy/:type" element={<PolicyPage />} />
 
@@ -186,7 +184,6 @@ function Layout() {
     location.pathname === '/login'
     || location.pathname === '/profile/complete'
     || location.pathname === '/auth/callback'
-    || location.pathname === RESET_PASSWORD_PATH
     || location.pathname === '/member-enroll';
   const isHome = location.pathname === '/';
   const showCustomerShell = !isAdminPage && !isAuthPage;

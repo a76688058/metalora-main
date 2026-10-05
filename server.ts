@@ -439,7 +439,6 @@ const POLICY_TYPES = new Set(
 const FUNCTIONAL_NOINDEX_PATHS = [
   "/login",
   "/auth/callback",
-  "/reset-password",
   "/member-enroll",
   "/profile/complete",
   "/payment/success",
@@ -458,7 +457,6 @@ const FUNCTIONAL_NOINDEX_SET = new Set<string>(FUNCTIONAL_NOINDEX_PATHS);
 const FUNCTIONAL_NOINDEX_TITLES: Record<string, string> = {
   "/login": "로그인 | 메탈로라",
   "/auth/callback": "인증 | 메탈로라",
-  "/reset-password": "비밀번호 | 메탈로라",
   "/member-enroll": "회원 전환 | 메탈로라",
   "/profile/complete": "프로필 | 메탈로라",
   "/payment/success": "결제 완료 | 메탈로라",

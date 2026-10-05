@@ -213,129 +213,8 @@ export function authCallbackLoginPath(redirectRaw?: string | null): string {
   return `/login?redirect=${encodeURIComponent(dest)}`;
 }
 
-export const RESET_PASSWORD_PATH = '/reset-password';
-export const AUTH_CALLBACK_PATH = '/auth/callback';
-
-const GOTRUE_PASSWORD_RECOVERY_TYPE = 'recovery';
-const SUPABASE_PASSWORD_RECOVERY_EVENT = 'PASSWORD_RECOVERY';
-
-/** In-memory only. Latches PASSWORD_RECOVERY / explicit type=recovery. */
-let passwordRecoveryEventSeen = false;
-
-export function markPasswordRecoveryEvent(): void {
-  passwordRecoveryEventSeen = true;
-}
-
-export function clearPasswordRecoveryEvent(): void {
-  passwordRecoveryEventSeen = false;
-}
-
-export function passwordRecoveryEventWasSeen(): boolean {
-  return passwordRecoveryEventSeen;
-}
-
-export function isGoTruePasswordRecoveryType(value: string | null | undefined): boolean {
-  return (value ?? '').trim().toLowerCase() === GOTRUE_PASSWORD_RECOVERY_TYPE;
-}
-
-export function isSupabasePasswordRecoveryEvent(event: string | null | undefined): boolean {
-  return (event ?? '').trim().toUpperCase() === SUPABASE_PASSWORD_RECOVERY_EVENT;
-}
-
-type SearchReader = { get(name: string): string | null };
-
-function asSearchReader(
-  search?: SearchReader | string | null,
-): SearchReader | undefined {
-  if (!search) return undefined;
-  if (typeof search === 'string') {
-    const raw = search.startsWith('?') ? search.slice(1) : search;
-    return new URLSearchParams(raw);
-  }
-  return search;
-}
-
-function currentWindowLocation(): { pathname: string; search: string; hash: string } {
-  if (typeof window === 'undefined') {
-    return { pathname: '', search: '', hash: '' };
-  }
-  return {
-    pathname: window.location.pathname,
-    search: window.location.search,
-    hash: window.location.hash,
-  };
-}
-
 /**
- * Read GoTrue `type` from query or hash. Tokens in the fragment are ignored.
- */
-export function readGoTrueCallbackType(input: {
-  search?: SearchReader | string | null;
-  hash?: string | null;
-}): string {
-  const reader = asSearchReader(input.search);
-  const fromSearch = reader?.get('type')?.trim().toLowerCase() ?? '';
-  if (fromSearch) return fromSearch;
-  const hash = (input.hash ?? '').replace(/^#/, '');
-  if (!hash) return '';
-  return (new URLSearchParams(hash).get('type') ?? '').trim().toLowerCase();
-}
-
-/** Explicit GoTrue `type=recovery` only. Does not use the in-memory latch. */
-export function hasExplicitGoTrueRecoveryType(input?: {
-  search?: SearchReader | string | null;
-  hash?: string | null;
-}): boolean {
-  const loc = currentWindowLocation();
-  return isGoTruePasswordRecoveryType(readGoTrueCallbackType({
-    search: input?.search ?? loc.search,
-    hash: input?.hash ?? loc.hash,
-  }));
-}
-
-/**
- * Latch recovery when the current URL explicitly contains `type=recovery`.
- * Does not treat a bare `/auth/callback` OAuth redirect as recovery.
- */
-export function latchPasswordRecoveryFromLocation(input?: {
-  search?: SearchReader | string | null;
-  hash?: string | null;
-}): boolean {
-  const pathname = currentWindowLocation().pathname;
-  if (pathname === AUTH_CALLBACK_PATH && hasExplicitGoTrueRecoveryType(input)) {
-    markPasswordRecoveryEvent();
-    return true;
-  }
-  return pathname === AUTH_CALLBACK_PATH && passwordRecoveryEventWasSeen();
-}
-
-/**
- * Genuine email-recovery window. The latch is only meaningful on /auth/callback.
- * `/auth/callback` alone is not recovery. Latch alone on other routes is not recovery.
- */
-export function isGenuinePasswordRecoveryFlow(): boolean {
-  const { pathname, search, hash } = currentWindowLocation();
-  if (pathname === RESET_PASSWORD_PATH) return true;
-  if (pathname === AUTH_CALLBACK_PATH) {
-    return hasExplicitGoTrueRecoveryType({ search, hash }) || passwordRecoveryEventWasSeen();
-  }
-  return false;
-}
-
-export function isPasswordRecoveryAuthCallback(input: {
-  search?: SearchReader | string | null;
-  hash?: string | null;
-  authEvent?: string | null;
-}): boolean {
-  if (isSupabasePasswordRecoveryEvent(input.authEvent) || passwordRecoveryEventWasSeen()) {
-    return true;
-  }
-  return isGoTruePasswordRecoveryType(readGoTrueCallbackType(input));
-}
-
-/**
- * Settled OAuth/recovery callback destination. Session is never signed out here.
- * Password recovery skips usable-member gating and goes to /reset-password.
+ * Settled OAuth callback destination. Session is never signed out here.
  * Pending social and other incomplete members both go to /login; A3 detects
  * pending social via Auth identities, not this path.
  */
@@ -354,13 +233,8 @@ export function resolveAuthCallbackPath(input: {
     is_admin?: boolean;
   } | null;
   redirectRaw?: string | null;
-  passwordRecovery?: boolean;
 }): string {
-  if (input.oauthError) return '/login';
-  if (input.passwordRecovery) {
-    return input.sessionUser ? RESET_PASSWORD_PATH : '/login';
-  }
-  if (!input.sessionUser) return '/login';
+  if (input.oauthError || !input.sessionUser) return '/login';
   if (isUsableMemberProfile(input.profile)) {
     return safeInternalPath(input.redirectRaw);
   }

@@ -1,31 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import {
-  AUTH_CALLBACK_PATH,
   authCallbackHasOAuthError,
-  clearPasswordRecoveryEvent,
-  isPasswordRecoveryAuthCallback,
-  latchPasswordRecoveryFromLocation,
-  markPasswordRecoveryEvent,
-  passwordRecoveryEventWasSeen,
   resolveAuthCallbackPath,
 } from '../lib/authIntegrity';
 import { supabase } from '../lib/supabase';
-
-latchPasswordRecoveryFromLocation();
-
-supabase.auth.onAuthStateChange((event) => {
-  if (
-    event === 'PASSWORD_RECOVERY'
-    && typeof window !== 'undefined'
-    && window.location.pathname === AUTH_CALLBACK_PATH
-  ) {
-    markPasswordRecoveryEvent();
-  }
-});
 
 /**
  * PKCE: supabase-js detectSessionInUrl + flowType pkce owns the URL `code`
@@ -38,29 +20,10 @@ export default function AuthCallback() {
   const { theme } = useTheme();
   const { user, profile, isLoading, isProfileResolved } = useAuth();
   const [pkceReady, setPkceReady] = useState(false);
-  const [recoveryEvent, setRecoveryEvent] = useState(() => passwordRecoveryEventWasSeen());
-  const recoveryTypeAtMount = useRef(
-    isPasswordRecoveryAuthCallback({
-      search: searchParams,
-      hash: typeof window !== 'undefined' ? window.location.hash : '',
-    }),
-  );
 
   const oauthError = authCallbackHasOAuthError(searchParams);
   const redirectRaw = searchParams.get('redirect');
   const isDark = theme === 'dark';
-  const callbackHash = typeof window !== 'undefined' ? window.location.hash : '';
-  latchPasswordRecoveryFromLocation({
-    search: searchParams,
-    hash: callbackHash,
-  });
-  const passwordRecovery =
-    recoveryTypeAtMount.current
-    || recoveryEvent
-    || isPasswordRecoveryAuthCallback({
-      search: searchParams,
-      hash: callbackHash,
-    });
 
   useEffect(() => {
     let cancelled = false;
@@ -81,42 +44,12 @@ export default function AuthCallback() {
   }, []);
 
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        markPasswordRecoveryEvent();
-        setRecoveryEvent(true);
-      }
-    });
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    const leave = (next: string) => {
-      clearPasswordRecoveryEvent();
-      navigate(next, { replace: true });
-    };
-
     if (oauthError) {
-      leave('/login');
+      navigate('/login', { replace: true });
       return;
     }
 
     if (!pkceReady || isLoading) return;
-    if (passwordRecovery) {
-      const next = resolveAuthCallbackPath({
-        oauthError: false,
-        passwordRecovery: true,
-        sessionUser: user,
-        profile,
-        redirectRaw,
-      });
-      leave(next);
-      return;
-    }
     if (user && !isProfileResolved) return;
 
     const next = resolveAuthCallbackPath({
@@ -125,10 +58,9 @@ export default function AuthCallback() {
       profile,
       redirectRaw,
     });
-    leave(next);
+    navigate(next, { replace: true });
   }, [
     oauthError,
-    passwordRecovery,
     pkceReady,
     isLoading,
     isProfileResolved,

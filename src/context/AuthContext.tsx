@@ -6,16 +6,11 @@ import type { Profile } from '../types/database';
 import {
   AUTH_SYNC_CHANNEL,
   PROFILE_COLUMNS,
-  AUTH_CALLBACK_PATH,
   broadcastAuthLogout,
-  clearPasswordRecoveryEvent,
   clearPersistedAuthToken,
   isDefinitiveAuthRefreshFailure,
-  isGenuinePasswordRecoveryFlow,
   isPendingC1SocialCustomer,
   isTransientAuthTransportFailure,
-  latchPasswordRecoveryFromLocation,
-  markPasswordRecoveryEvent,
 } from '../lib/authIntegrity';
 
 interface SignOutOptions {
@@ -161,11 +156,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     userId: string,
     options: { force?: boolean } = {},
   ): Promise<void> => {
-    if (isGenuinePasswordRecoveryFlow()) {
-      setIsProfileResolved(true);
-      return;
-    }
-
     const force = options.force === true;
 
     if (!force && loadedProfileUserIdRef.current === userId) {
@@ -224,10 +214,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (sawMissingRow && !droppingOrphanRef.current && !signingOutRef.current) {
-          if (isGenuinePasswordRecoveryFlow()) {
-            console.warn('Profile row missing during password recovery; keeping recovery session.', lastError);
-            return;
-          }
           droppingOrphanRef.current = true;
           console.warn('Profile row missing after retries; dropping session.', lastError);
           setProfile(null);
@@ -261,7 +247,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let mounted = true;
 
     const initializeSessions = async () => {
-      latchPasswordRecoveryFromLocation();
       try {
         const { data: { session: sess }, error: sessErr } = await supabase.auth.getSession();
 
@@ -273,18 +258,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (sess) {
           applyVerifiedSession(sess);
-          if (isGenuinePasswordRecoveryFlow()) {
-            setIsProfileResolved(true);
-          } else {
-            await fetchProfile(sess.user.id);
-          }
-        } else if (!isGenuinePasswordRecoveryFlow()) {
+          await fetchProfile(sess.user.id);
+        } else {
           clearReactAuthState();
           clearPersistedAuthToken();
         }
       } catch (error: any) {
         console.warn('Session validation failed, clearing unverified auth state:', error.message || error);
-        if (mounted && !isGenuinePasswordRecoveryFlow()) {
+        if (mounted) {
           clearReactAuthState();
           clearPersistedAuthToken();
         }
@@ -300,7 +281,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       try {
         if (event === 'INITIAL_SESSION') {
-          if (!sess && !isGenuinePasswordRecoveryFlow()) {
+          if (!sess) {
             clearReactAuthState();
             setIsLoading(false);
           }
@@ -308,38 +289,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (event === 'SIGNED_OUT') {
-          clearPasswordRecoveryEvent();
           clearReactAuthState();
           setIsLoading(false);
           window.dispatchEvent(new CustomEvent('refresh-products'));
           return;
         }
 
-        if (event === 'PASSWORD_RECOVERY') {
-          if (typeof window === 'undefined' || window.location.pathname === AUTH_CALLBACK_PATH) {
-            markPasswordRecoveryEvent();
-          }
-          if (sess) {
-            applyVerifiedSession(sess);
-            setIsProfileResolved(true);
-            setIsLoading(false);
-          } else {
-            setIsLoading(false);
-          }
-          return;
-        }
-
         if (event === 'TOKEN_REFRESHED') {
           if (sess) {
             applyVerifiedSession(sess);
-            if (!isGenuinePasswordRecoveryFlow()) {
-              const userId = sess.user.id;
-              setTimeout(() => {
-                if (!mounted) return;
-                void fetchProfile(userId, { force: true });
-              }, 0);
-            }
-          } else if (!signingOutRef.current && !isGenuinePasswordRecoveryFlow()) {
+            const userId = sess.user.id;
+            setTimeout(() => {
+              if (!mounted) return;
+              void fetchProfile(userId, { force: true });
+            }, 0);
+          } else if (!signingOutRef.current) {
             // Refresh produced no session. Access JWT may still be valid until expiry.
             clearReactAuthState();
             clearPersistedAuthToken();
@@ -351,11 +315,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
           if (sess) {
             applyVerifiedSession(sess);
-            if (isGenuinePasswordRecoveryFlow()) {
-              setIsProfileResolved(true);
-              setIsLoading(false);
-              return;
-            }
             setIsProfileResolved(false);
             const userId = sess.user.id;
             const force = event === 'USER_UPDATED';
@@ -388,12 +347,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!mounted) return;
           if (sess) {
             applyVerifiedSession(sess);
-            if (!isGenuinePasswordRecoveryFlow()) {
-              void fetchProfile(sess.user.id);
-            } else {
-              setIsProfileResolved(true);
-            }
-          } else if (!isGenuinePasswordRecoveryFlow()) {
+            void fetchProfile(sess.user.id);
+          } else {
             clearReactAuthState();
           }
         });
@@ -408,7 +363,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.warn('Silent session read skipped (transient):', error);
             return;
           }
-          if (isDefinitiveAuthRefreshFailure(error) && !signingOutRef.current && !isGenuinePasswordRecoveryFlow()) {
+          if (isDefinitiveAuthRefreshFailure(error) && !signingOutRef.current) {
             clearReactAuthState();
             clearPersistedAuthToken();
             setIsLoading(false);
@@ -419,7 +374,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         if (sess) {
           applyVerifiedSession(sess);
-        } else if (!signingOutRef.current && !isGenuinePasswordRecoveryFlow()) {
+        } else if (!signingOutRef.current) {
           clearReactAuthState();
         }
       }).catch((e) => {
@@ -427,7 +382,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.warn('Silent session read skipped (transient):', e);
           return;
         }
-        if (isDefinitiveAuthRefreshFailure(e) && !signingOutRef.current && !isGenuinePasswordRecoveryFlow()) {
+        if (isDefinitiveAuthRefreshFailure(e) && !signingOutRef.current) {
           clearReactAuthState();
           clearPersistedAuthToken();
           setIsLoading(false);
@@ -457,7 +412,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await supabase.auth.signOut().catch(() => {});
       clearPersistedAuthToken();
-      clearPasswordRecoveryEvent();
       try {
         sessionStorage.clear();
       } catch {
@@ -529,10 +483,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         if (isDefinitiveAuthRefreshFailure(error)) {
-          if (isGenuinePasswordRecoveryFlow()) {
-            console.warn('refreshSession: recovery session kept despite refresh failure.', error);
-            return;
-          }
           console.warn('refreshSession: refresh capability unusable; clearing local auth.', error);
           clearReactAuthState();
           clearPersistedAuthToken();
@@ -546,12 +496,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const sess = data.session;
       if (sess) {
         applyVerifiedSession(sess);
-        if (isGenuinePasswordRecoveryFlow()) {
-          setIsProfileResolved(true);
-        } else {
-          await fetchProfile(sess.user.id, { force: true });
-        }
-      } else if (!isGenuinePasswordRecoveryFlow()) {
+        await fetchProfile(sess.user.id, { force: true });
+      } else {
         clearReactAuthState();
         clearPersistedAuthToken();
         setIsLoading(false);
@@ -562,10 +508,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       if (isDefinitiveAuthRefreshFailure(err)) {
-        if (isGenuinePasswordRecoveryFlow()) {
-          console.warn('refreshSession: recovery session kept despite refresh failure.', err);
-          return;
-        }
         console.warn('refreshSession: refresh capability unusable; clearing local auth.', err);
         clearReactAuthState();
         clearPersistedAuthToken();
