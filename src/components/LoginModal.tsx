@@ -649,7 +649,8 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     e.preventDefault();
     if (isLoading || oauthStarting || pendingSocial) return;
     const username = normalizeMemberUsername(formData.username);
-    if (username.length < 4 || !formData.password) {
+    const loginUsesEmail = username.includes('@');
+    if ((!loginUsesEmail && username.length < 4) || !formData.password) {
       setErrorMsg('아이디 또는 비밀번호를 확인해주세요.');
       return;
     }
@@ -658,7 +659,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     clearAlerts();
     try {
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: memberAuthEmail(username),
+        email: loginUsesEmail ? username : memberAuthEmail(username),
         password: formData.password,
       });
 

@@ -39,6 +39,8 @@ const SIGNUP_USERNAME_CHECK_IP_CAP = 30;
 export const SIGNUP_COMPLETE_IP_CAP = 20;
 const SIGNUP_COMPLETE_TICKET_CAP = 8;
 const SIGNUP_COMPLETE_FINGERPRINT_CAP = 8;
+const MEMBER_ENROLL_IP_CAP = 20;
+const MEMBER_ENROLL_TICKET_CAP = 8;
 const SIGNUP_FULL_NAME_MAX_LEN = 100;
 const SIGNUP_USERNAME_UNAVAILABLE = "사용할 수 없는 아이디입니다.";
 const SIGNUP_PHONE_UNAVAILABLE = "이미 가입된 휴대폰 번호입니다.";
@@ -50,6 +52,11 @@ type SignupCompleteBody = {
   username: string;
   password: string;
   fullName: string;
+};
+
+type MemberEnrollExistingBody = {
+  proofToken: string;
+  username: string;
 };
 
 export type PasswordAuthDeps = {
@@ -118,6 +125,26 @@ function parseSignupCompleteBody(raw: unknown): SignupCompleteBody | { error: st
   };
 }
 
+function parseMemberEnrollExistingBody(raw: unknown): MemberEnrollExistingBody | { error: string } {
+  if (!raw || typeof raw !== "object") return { error: GENERIC_BAD };
+  const body = raw as {
+    proof_token?: unknown;
+    username?: unknown;
+    consents?: unknown;
+  };
+  if (typeof body.proof_token !== "string" || !/^[0-9a-f]{64}$/.test(body.proof_token)) {
+    return { error: GENERIC_BAD };
+  }
+  if (typeof body.username !== "string" || memberUsernameSignupError(body.username)) {
+    return { error: GENERIC_BAD };
+  }
+  if (!signupConsentsAccepted(body.consents)) return { error: GENERIC_BAD };
+  return {
+    proofToken: body.proof_token,
+    username: memberStoredUsername(body.username),
+  };
+}
+
 function isAuthUsernameConflict(error: { code?: string; message?: string } | null | undefined): boolean {
   const code = (error?.code ?? "").toLowerCase();
   if (code === "email_exists" || code === "user_already_exists") return true;
@@ -134,18 +161,27 @@ async function readUsableMember(
   deps: PasswordAuthDeps,
   authHeader: string | undefined,
 ): Promise<{ userId: string } | null> {
-  if (!deps.supabaseAdmin || !deps.supabasePublic) return null;
+  const user = await readExistingBearerUser(deps, authHeader);
+  if (!user || !deps.supabaseAdmin) return null;
+  const { data: profile, error: profileError } = await deps.supabaseAdmin
+    .from("profiles")
+    .select(USABLE_MEMBER_PROFILE_COLUMNS)
+    .eq("id", user.userId)
+    .maybeSingle();
+  if (profileError || !isUsableMemberProfile(profile)) return null;
+  return { userId: user.userId };
+}
+
+async function readExistingBearerUser(
+  deps: PasswordAuthDeps,
+  authHeader: string | undefined,
+): Promise<{ userId: string } | null> {
+  if (!deps.supabasePublic) return null;
   if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
   const accessToken = authHeader.slice(7).trim();
   if (!accessToken) return null;
   const { data, error } = await deps.supabasePublic.auth.getUser(accessToken);
   if (error || !data.user?.id) return null;
-  const { data: profile, error: profileError } = await deps.supabaseAdmin
-    .from("profiles")
-    .select(USABLE_MEMBER_PROFILE_COLUMNS)
-    .eq("id", data.user.id)
-    .maybeSingle();
-  if (profileError || !isUsableMemberProfile(profile)) return null;
   return { userId: data.user.id };
 }
 
@@ -816,6 +852,243 @@ async function handleSignupUsernameCheck(req: Request, res: Response, deps: Pass
   res.status(200).json({ ok: true, available: data !== true });
 }
 
+async function handleMemberEnrollExisting(req: Request, res: Response, deps: PasswordAuthDeps): Promise<void> {
+  const requestId = randomUUID();
+  const admin = deps.supabaseAdmin;
+  const secrets = readSecrets(deps.getEnv());
+  if (!admin || !secrets) {
+    logAuth("member_enroll_existing", { request_id: requestId, outcome: "config" });
+    res.status(500).json({ ok: false, error: GENERIC_CONFIG });
+    return;
+  }
+
+  const ip = requestIp(req, deps);
+  const ipLimit = await hitAuthRateLimit(
+    admin,
+    secrets.otpPepper,
+    "member_enroll_existing_ip",
+    ip,
+    MEMBER_ENROLL_IP_CAP,
+    OTP_RATE_WINDOW_SECONDS,
+  );
+  if (ipLimit === "error") {
+    res.status(500).json({ ok: false, error: GENERIC_CONFIG });
+    return;
+  }
+  if (ipLimit === "throttled") {
+    logAuth("member_enroll_existing", { request_id: requestId, outcome: "throttled" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "member_enroll_existing",
+      outcome: "throttled",
+      requestId,
+    });
+    res.status(429).json({ ok: false, error: GENERIC_RETRY });
+    return;
+  }
+
+  const caller = await readExistingBearerUser(deps, req.headers.authorization);
+  if (!caller) {
+    res.status(401).json({ ok: false, error: GENERIC_AUTH });
+    return;
+  }
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select(USABLE_MEMBER_PROFILE_COLUMNS)
+    .eq("id", caller.userId)
+    .maybeSingle();
+
+  if (isUsableMemberProfile(profile)) {
+    logAuth("member_enroll_existing", { request_id: requestId, outcome: "already_complete" });
+    res.status(200).json({ ok: true, already_complete: true });
+    return;
+  }
+
+  const parsed = parseMemberEnrollExistingBody(req.body);
+  if ("error" in parsed) {
+    logAuth("member_enroll_existing", { request_id: requestId, outcome: "rejected" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "member_enroll_existing",
+      outcome: "rejected",
+      requestId,
+      userId: caller.userId,
+    });
+    res.status(400).json({ ok: false, error: parsed.error });
+    return;
+  }
+
+  const ticketLimit = await hitAuthRateLimit(
+    admin,
+    secrets.otpPepper,
+    "member_enroll_existing_ticket",
+    parsed.proofToken,
+    MEMBER_ENROLL_TICKET_CAP,
+    OTP_RATE_WINDOW_SECONDS,
+  );
+  if (ticketLimit === "error") {
+    res.status(500).json({ ok: false, error: GENERIC_CONFIG });
+    return;
+  }
+  if (ticketLimit === "throttled") {
+    logAuth("member_enroll_existing", { request_id: requestId, outcome: "throttled" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "member_enroll_existing",
+      outcome: "throttled",
+      requestId,
+      userId: caller.userId,
+    });
+    res.status(429).json({ ok: false, error: GENERIC_RETRY });
+    return;
+  }
+
+  const proofHmac = otpTicketHmac(secrets.otpPepper, parsed.proofToken);
+  const { data: proofRow } = await admin
+    .from("phone_verification_tickets")
+    .select("purpose, status, expires_at, user_id, phone_fingerprint")
+    .eq("ticket_hmac", proofHmac)
+    .maybeSingle();
+
+  if (
+    proofRow &&
+    proofRow.purpose === "identity_link" &&
+    (proofRow.status === "claimed" || proofRow.status === "consumed" || proofRow.status === "failed")
+  ) {
+    logAuth("member_enroll_existing", { request_id: requestId, outcome: "replay" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "member_enroll_existing",
+      outcome: "replay",
+      requestId,
+      userId: caller.userId,
+    });
+    res.status(400).json({ ok: false, error: GENERIC_BAD });
+    return;
+  }
+
+  const proofIssued =
+    proofRow &&
+    proofRow.purpose === "identity_link" &&
+    proofRow.status === "issued" &&
+    proofRow.user_id === caller.userId &&
+    typeof proofRow.expires_at === "string" &&
+    new Date(proofRow.expires_at).getTime() > Date.now() &&
+    typeof proofRow.phone_fingerprint === "string";
+
+  if (!proofIssued) {
+    logAuth("member_enroll_existing", { request_id: requestId, outcome: "rejected" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "member_enroll_existing",
+      outcome: "rejected",
+      requestId,
+      userId: caller.userId,
+    });
+    res.status(400).json({ ok: false, error: GENERIC_BAD });
+    return;
+  }
+
+  const { data: usernameTaken, error: usernameError } = await admin.rpc("profiles_username_exists", {
+    username: parsed.username,
+  });
+  if (usernameError) {
+    logAuth("member_enroll_existing", { request_id: requestId, outcome: "rejected" });
+    res.status(500).json({ ok: false, error: GENERIC_CONFIG });
+    return;
+  }
+  const ownUsername = (profile?.user_custom_id ?? "").trim().toLowerCase();
+  if (usernameTaken === true && ownUsername !== parsed.username) {
+    logAuth("member_enroll_existing", { request_id: requestId, outcome: "username_conflict" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "member_enroll_existing",
+      outcome: "username_conflict",
+      requestId,
+      userId: caller.userId,
+    });
+    res.status(409).json({ ok: false, error: SIGNUP_USERNAME_UNAVAILABLE, conflict: "username" });
+    return;
+  }
+
+  const { data: phoneOwner } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("verified_phone_fingerprint", proofRow.phone_fingerprint)
+    .maybeSingle();
+  if (phoneOwner?.id && phoneOwner.id !== caller.userId) {
+    logAuth("member_enroll_existing", { request_id: requestId, outcome: "phone_conflict" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "member_enroll_existing",
+      outcome: "phone_conflict",
+      requestId,
+      userId: caller.userId,
+    });
+    res.status(409).json({ ok: false, error: SIGNUP_PHONE_UNAVAILABLE, conflict: "phone" });
+    return;
+  }
+
+  const { data, error } = await admin.rpc("member_enroll_existing", {
+    p_user_id: caller.userId,
+    p_ticket_hmac: proofHmac,
+    p_username: parsed.username,
+    p_consented: true,
+  });
+  const rpc = (data ?? {}) as JsonRpc;
+  if (error) {
+    logAuth("member_enroll_existing", { request_id: requestId, outcome: "rpc_error" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "member_enroll_existing",
+      outcome: "rpc_error",
+      requestId,
+      userId: caller.userId,
+    });
+    res.status(500).json({ ok: false, error: GENERIC_CONFIG });
+    return;
+  }
+  if (rpc.ok === true) {
+    const already = rpc.already_complete === true;
+    logAuth("member_enroll_existing", {
+      request_id: requestId,
+      outcome: already ? "already_complete" : "accepted",
+    });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "member_enroll_existing",
+      outcome: already ? "already_complete" : "accepted",
+      requestId,
+      userId: caller.userId,
+    });
+    res.status(200).json({ ok: true, already_complete: already });
+    return;
+  }
+  if (rpc.reason === "username_collision" || rpc.reason === "username_mismatch") {
+    logAuth("member_enroll_existing", { request_id: requestId, outcome: "username_conflict" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "member_enroll_existing",
+      outcome: "username_conflict",
+      requestId,
+      userId: caller.userId,
+    });
+    res.status(409).json({ ok: false, error: SIGNUP_USERNAME_UNAVAILABLE, conflict: "username" });
+    return;
+  }
+  if (rpc.reason === "phone_already_registered") {
+    logAuth("member_enroll_existing", { request_id: requestId, outcome: "phone_conflict" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "member_enroll_existing",
+      outcome: "phone_conflict",
+      requestId,
+      userId: caller.userId,
+    });
+    res.status(409).json({ ok: false, error: SIGNUP_PHONE_UNAVAILABLE, conflict: "phone" });
+    return;
+  }
+  const used = rpc.reason === "used";
+  logAuth("member_enroll_existing", { request_id: requestId, outcome: used ? "replay" : "rejected" });
+  await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+    event: "member_enroll_existing",
+    outcome: used ? "replay" : "rejected",
+    requestId,
+    userId: caller.userId,
+  });
+  res.status(400).json({ ok: false, error: GENERIC_BAD });
+}
+
 export function registerPasswordAuthRoutes(app: Express, deps: PasswordAuthDeps): void {
   app.post("/api/auth/recovery/resolve", (req, res) => {
     void handleRecoveryResolve(req, res, deps);
@@ -831,5 +1104,8 @@ export function registerPasswordAuthRoutes(app: Express, deps: PasswordAuthDeps)
   });
   app.post("/api/auth/signup/complete", (req, res) => {
     void handleSignupComplete(req, res, deps);
+  });
+  app.post("/api/auth/member-enroll-existing", (req, res) => {
+    void handleMemberEnrollExisting(req, res, deps);
   });
 }

@@ -21,20 +21,11 @@ export default function Login() {
 
   useEffect(() => {
     if (!authReady || !user || !isUsableMemberProfile(profile)) return;
-    if (profile.is_admin) {
-      navigate('/admin', { replace: true });
-    } else {
-      navigate(redirectUrl, { replace: true });
-    }
+    navigate(redirectUrl, { replace: true });
   }, [user, profile, authReady, navigate, redirectUrl]);
 
   const handleSuccess = () => {
-    if (!profile) return;
-    if (profile.is_admin) {
-      navigate('/admin', { replace: true });
-    } else {
-      navigate(redirectUrl, { replace: true });
-    }
+    navigate(redirectUrl, { replace: true });
   };
 
   return (

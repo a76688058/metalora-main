@@ -7,7 +7,8 @@ export type AuthSecurityEventName =
   | "password_reset"
   | "password_change"
   | "signup_complete"
-  | "social_complete";
+  | "social_complete"
+  | "member_enroll_existing";
 
 type RecoveryResolveInput = {
   event: "recovery_resolve";
@@ -45,12 +46,20 @@ type SocialCompleteInput = {
   userId?: string | null;
 };
 
+type MemberEnrollExistingInput = {
+  event: "member_enroll_existing";
+  outcome: string;
+  requestId: string;
+  userId?: string | null;
+};
+
 export type AuthSecurityEventInput =
   | RecoveryResolveInput
   | PasswordResetInput
   | PasswordChangeInput
   | SignupCompleteInput
-  | SocialCompleteInput;
+  | SocialCompleteInput
+  | MemberEnrollExistingInput;
 
 const ACCOUNT_KINDS: ReadonlySet<string> = new Set(["password", "social", "none"]);
 
