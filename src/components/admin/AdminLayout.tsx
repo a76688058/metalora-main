@@ -1,162 +1,297 @@
-import React, { useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, LogOut, Menu, X, Users, MessageSquare, Globe, Flame } from 'lucide-react';
+import { Globe, LogOut, Menu, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '../../lib/cn';
+import {
+  ADMIN_NAV_ITEMS,
+  ADMIN_SIDEBAR_WIDTH_CLASS,
+  adminNavTitle,
+  isAdminNavActive,
+} from './adminNav';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
 }
 
+function BrandMark() {
+  return (
+    <p className="text-xl font-black tracking-tighter">
+      METALORA <span className="text-purple-500">ADMIN</span>
+    </p>
+  );
+}
+
+function NavLinks({
+  pathname,
+  onNavigate,
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  return (
+    <nav aria-label="관리자 메뉴">
+      <ul className="space-y-1">
+        {ADMIN_NAV_ITEMS.map((item) => {
+          const active = isAdminNavActive(pathname, item.path);
+          const Icon = item.icon;
+          return (
+            <li key={item.path}>
+              <Link
+                to={item.path}
+                aria-current={active ? 'page' : undefined}
+                onClick={onNavigate}
+                className={cn(
+                  'focus-ring flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm',
+                  active
+                    ? 'bg-white font-bold text-black'
+                    : 'text-zinc-400 hover:bg-zinc-900 hover:text-white',
+                )}
+              >
+                <Icon size={18} aria-hidden="true" />
+                <span>{item.label}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
 export default function AdminLayout({ children }: AdminLayoutProps) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isNavOpen, setIsNavOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const location = useLocation();
   const { signOut } = useAuth();
+  const menuTitleId = useId();
+  const logoutTitleId = useId();
+  const logoutDescId = useId();
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const logoutRef = useRef<HTMLDivElement>(null);
+
+  const pageTitle = adminNavTitle(location.pathname);
+
+  const closeNav = () => {
+    setIsNavOpen(false);
+    menuTriggerRef.current?.focus();
+  };
 
   const handleLogout = async () => {
     setShowLogoutModal(false);
     await signOut();
   };
 
-  const menuItems = [
-    { name: '대시보드', path: '/admin', icon: LayoutDashboard },
-    { name: '회원 관리', path: '/admin/users', icon: Users },
-    { name: '상품 관리', path: '/admin/products', icon: Package },
-    { name: '인기 판매 제품', path: '/admin/best-sellers', icon: Flame },
-    { name: '배너 관리', path: '/admin/banners', icon: Globe },
-    { name: '주문 관리', path: '/admin/orders', icon: ShoppingCart },
-    { name: 'CS 관리', path: '/admin/cs', icon: MessageSquare },
-  ];
+  useEffect(() => {
+    setIsNavOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isNavOpen && !showLogoutModal) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [isNavOpen, showLogoutModal]);
+
+  useEffect(() => {
+    if (!isNavOpen && !showLogoutModal) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      if (showLogoutModal) {
+        setShowLogoutModal(false);
+        return;
+      }
+      closeNav();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isNavOpen, showLogoutModal]);
+
+  useEffect(() => {
+    if (!isNavOpen) return;
+    const root = drawerRef.current;
+    const first = root?.querySelector<HTMLElement>('a, button');
+    first?.focus();
+  }, [isNavOpen]);
+
+  useEffect(() => {
+    if (!showLogoutModal) return;
+    logoutRef.current?.querySelector<HTMLElement>('button')?.focus();
+  }, [showLogoutModal]);
+
+  const trapFocus = (event: React.KeyboardEvent, root: HTMLElement | null) => {
+    if (event.key !== 'Tab' || !root) return;
+    const focusable = Array.from(
+      root.querySelectorAll<HTMLElement>('a[href], button:not([disabled])'),
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-[#000000] text-white font-sans flex selection:bg-purple-500/30 selection:text-purple-200">
-      {/* Logout Confirmation Modal */}
-      <AnimatePresence>
-        {showLogoutModal && (
-          <div className="fixed inset-0 w-screen h-screen h-[100dvh] z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#0A0A0A] border border-white/10 rounded-[32px] p-8 w-full max-w-sm shadow-[0_0_50px_rgba(0,0,0,1)]"
-            >
-              <h3 className="text-2xl font-bold text-white mb-4 tracking-tight">로그아웃</h3>
-              <p className="text-zinc-500 text-sm mb-8 font-medium">로그아웃하시겠습니까?</p>
-              
-              <div className="space-y-4">
-                <button
-                  onClick={handleLogout}
-                  className="w-full py-4 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl transition-all font-bold border border-white/5"
-                >
-                  로그아웃
-                </button>
-                <button
-                  onClick={() => setShowLogoutModal(false)}
-                  className="w-full py-4 text-zinc-600 hover:text-white transition-colors text-sm font-bold"
-                >
-                  취소
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* 모바일 메뉴 토글 버튼 */}
-      <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-3 bg-zinc-900/80 backdrop-blur-md rounded-xl border border-white/10 shadow-xl"
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-      >
-        {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
-
-      {/* 사이드바 */}
+    <div className="flex min-h-dvh overflow-x-hidden bg-black text-white">
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-72 bg-[#050505] border-r border-white/5 transform transition-transform duration-500 ease-[0.16, 1, 0.3, 1] lg:translate-x-0 lg:static lg:inset-0 ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={cn('hidden h-dvh shrink-0 flex-col border-r border-white/5 bg-[#050505] lg:flex', ADMIN_SIDEBAR_WIDTH_CLASS)}
+        inert={showLogoutModal || undefined}
       >
-        <div className="flex flex-col h-full">
-          <div className="h-24 flex items-center px-8">
-            <h1 className="text-2xl font-black tracking-tighter bg-gradient-to-r from-white to-zinc-500 bg-clip-text text-transparent">
-              METALORA <span className="text-purple-500">ADMIN</span>
-            </h1>
-          </div>
-
-          <nav className="flex-1 px-4 py-6 space-y-1.5">
-            {menuItems.map((item) => {
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-4 px-6 py-4 rounded-2xl transition-all duration-300 group ${
-                    isActive
-                      ? 'bg-white text-black font-bold shadow-[0_10px_20px_rgba(255,255,255,0.1)]'
-                      : 'text-zinc-500 hover:bg-zinc-900/50 hover:text-white'
-                  }`}
-                  onClick={() => setIsSidebarOpen(false)}
-                >
-                  <item.icon size={22} className={isActive ? 'text-black' : 'group-hover:text-purple-500 transition-colors'} />
-                  <span className="text-base tracking-tight">{item.name}</span>
-                </Link>
-              );
-            })}
-          </nav>
-
-          <div className="p-6">
-            <button
-              onClick={() => setShowLogoutModal(true)}
-              className="flex items-center gap-4 w-full px-6 py-4 text-zinc-600 hover:text-red-400 hover:bg-red-500/5 rounded-2xl transition-all duration-300 border border-transparent hover:border-red-500/10"
-            >
-              <LogOut size={20} />
-              <span className="font-bold text-sm tracking-tight">로그아웃</span>
-            </button>
-          </div>
+        <div className="flex h-16 shrink-0 items-center px-5">
+          <BrandMark />
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+          <NavLinks pathname={location.pathname} />
+        </div>
+        <div className="shrink-0 p-3">
+          <button
+            type="button"
+            onClick={() => setShowLogoutModal(true)}
+            className="focus-ring flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm text-zinc-400 hover:bg-red-500/5 hover:text-red-400"
+          >
+            <LogOut size={18} aria-hidden="true" />
+            로그아웃
+          </button>
         </div>
       </aside>
 
-      {/* 메인 콘텐츠 영역 */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden bg-[#000000]">
-        {/* Sticky Header */}
-        <header className="sticky top-0 z-30 bg-black/60 backdrop-blur-xl border-b border-white/5 px-8 py-6 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-            <h2 className="text-lg font-bold text-white tracking-tight">
-              {menuItems.find(item => item.path === location.pathname)?.name || '관리자'}
-            </h2>
-          </div>
-          <div className="flex items-center gap-4 ml-auto">
-            <Link 
-              to="/" 
-              className="px-6 py-2.5 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white rounded-full text-xs font-bold transition-all border border-white/5 flex items-center gap-2"
-            >
-              <span>스토어 바로가기</span>
-              <Globe size={14} />
-            </Link>
-          </div>
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col overflow-hidden" inert={isNavOpen || showLogoutModal || undefined}>
+        <header className="sticky top-0 z-20 flex shrink-0 items-center gap-3 border-b border-white/5 bg-black/80 px-4 py-3 backdrop-blur-xl lg:px-8 lg:py-5">
+          <button
+            ref={menuTriggerRef}
+            type="button"
+            className="focus-ring inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-zinc-900 text-white lg:hidden"
+            aria-expanded={isNavOpen}
+            aria-controls="admin-mobile-nav"
+            aria-haspopup="dialog"
+            onClick={() => setIsNavOpen(true)}
+          >
+            <Menu size={20} aria-hidden="true" />
+            <span className="sr-only">관리자 메뉴 열기</span>
+          </button>
+          <h1 className="min-w-0 truncate text-base font-bold lg:text-lg">{pageTitle}</h1>
+          <Link
+            to="/"
+            className="focus-ring ml-auto inline-flex min-h-11 items-center gap-2 rounded-full border border-white/10 px-3 text-xs font-medium text-zinc-400 hover:text-white"
+          >
+            <Globe size={14} aria-hidden="true" />
+            스토어 바로가기
+          </Link>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 lg:p-10 custom-scrollbar">
-          <div className="max-w-7xl mx-auto">
+        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 lg:p-8">
+          <div className="mx-auto w-full max-w-7xl min-w-0">
             {children}
           </div>
         </main>
       </div>
 
-      {/* 모바일 오버레이 */}
-      <AnimatePresence>
-        {isSidebarOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 w-screen h-screen h-[100dvh] bg-black/80 backdrop-blur-sm z-30 lg:hidden"
-            onClick={() => setIsSidebarOpen(false)}
+      {isNavOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/80"
+            aria-label="관리자 메뉴 닫기"
+            onClick={closeNav}
           />
-        )}
-      </AnimatePresence>
+          <div
+            ref={drawerRef}
+            id="admin-mobile-nav"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={menuTitleId}
+            onKeyDown={(event) => trapFocus(event, drawerRef.current)}
+            className="relative flex h-full w-72 max-w-[min(18rem,100vw)] flex-col bg-[#050505] border-r border-white/5"
+          >
+            <div className="flex h-16 shrink-0 items-center justify-between gap-2 px-4">
+              <p id={menuTitleId} className="text-sm font-bold">관리자 메뉴</p>
+              <button
+                type="button"
+                onClick={closeNav}
+                aria-label="닫기"
+                className="focus-ring inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-white/5 text-zinc-300"
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+              <BrandMark />
+              <div className="mt-4">
+                <NavLinks pathname={location.pathname} onNavigate={closeNav} />
+              </div>
+            </div>
+            <div className="shrink-0 space-y-1 border-t border-white/5 p-3">
+              <Link
+                to="/"
+                onClick={closeNav}
+                className="focus-ring flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm text-zinc-400 hover:text-white"
+              >
+                <Globe size={18} aria-hidden="true" />
+                스토어 바로가기
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsNavOpen(false);
+                  setShowLogoutModal(true);
+                }}
+                className="focus-ring flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm text-zinc-400 hover:bg-red-500/5 hover:text-red-400"
+              >
+                <LogOut size={18} aria-hidden="true" />
+                로그아웃
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 p-4">
+          <button
+            type="button"
+            className="absolute inset-0"
+            aria-label="로그아웃 취소"
+            onClick={() => setShowLogoutModal(false)}
+          />
+          <div
+            ref={logoutRef}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={logoutTitleId}
+            aria-describedby={logoutDescId}
+            onKeyDown={(event) => trapFocus(event, logoutRef.current)}
+            className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-[#0A0A0A] p-6"
+          >
+            <h2 id={logoutTitleId} className="text-xl font-bold text-white">로그아웃</h2>
+            <p id={logoutDescId} className="mt-2 text-sm text-zinc-500">로그아웃하시겠습니까?</p>
+            <div className="mt-6 space-y-2">
+              <button
+                type="button"
+                onClick={() => { void handleLogout(); }}
+                className="focus-ring min-h-11 w-full rounded-xl bg-zinc-900 font-medium text-white hover:bg-zinc-800"
+              >
+                로그아웃
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLogoutModal(false)}
+                className="focus-ring min-h-11 w-full rounded-xl text-sm font-medium text-zinc-500 hover:text-white"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
