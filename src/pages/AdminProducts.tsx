@@ -1,17 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ChevronDown, ChevronUp, Edit, Eye, EyeOff, GripVertical, Loader2, Package, Plus, Save, Search, Trash2 } from 'lucide-react';
+import { Reorder } from 'framer-motion';
 import AdminLayout from '../components/admin/AdminLayout';
 import AdminProductForm from '../components/admin/AdminProductForm';
-import { useProducts } from '../context/ProductContext';
-import { Product } from '../data/products';
-import { Plus, Edit, Eye, EyeOff, Search, Filter, Package, AlertTriangle, TrendingUp, GripVertical, Save, Loader2 } from 'lucide-react';
+import {
+  catalogListPrice,
+  fetchAdminCatalog,
+  type AdminCatalogProduct,
+} from '../components/admin/adminCatalog';
 import { useToast } from '../context/ToastContext';
-import { Reorder } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { getFullImageUrl } from '../lib/utils';
-
-import LoadingScreen from '../components/LoadingScreen';
+import { cn } from '../lib/cn';
 
 const CUSTOM_M_PRICE_KEY = 'custom_m_price';
+
+type VisibilityFilter = 'all' | 'visible' | 'hidden';
 
 function parsePositiveKrwInteger(raw: string): number | null {
   const trimmed = raw.trim();
@@ -77,7 +81,6 @@ function CustomMPriceControl() {
 
   const handleSave = async () => {
     if (loadState === 'error' || loadState === 'loading') return;
-
     const parsed = parsePositiveKrwInteger(draft);
     if (parsed === null) {
       setFieldError('1원 이상의 정수 원화만 입력할 수 있습니다.');
@@ -86,14 +89,9 @@ function CustomMPriceControl() {
 
     setIsSaving(true);
     setFieldError(null);
-
     const { error } = await supabase
       .from('site_settings')
-      .upsert(
-        { key: CUSTOM_M_PRICE_KEY, value: String(parsed) },
-        { onConflict: 'key' },
-      );
-
+      .upsert({ key: CUSTOM_M_PRICE_KEY, value: String(parsed) }, { onConflict: 'key' });
     setIsSaving(false);
 
     if (error) {
@@ -113,7 +111,6 @@ function CustomMPriceControl() {
   const isReadError = loadState === 'error';
   const canEdit = loadState === 'ready' || loadState === 'setup';
   const canSave = canEdit && !isSaving && parsedDraft !== null && parsedDraft !== savedPrice;
-
   const supportingCopy =
     loadState === 'loading'
       ? '불러오는 중'
@@ -130,10 +127,9 @@ function CustomMPriceControl() {
           <h3 className="text-sm font-bold text-white tracking-tight">커스텀 · M 판매가</h3>
           <p className="mt-0.5 text-xs text-zinc-500">{supportingCopy}</p>
         </div>
-
         {loadState === 'loading' ? (
           <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <Loader2 size={14} className="animate-spin" />
+            <Loader2 size={14} className="animate-spin" aria-hidden="true" />
             불러오는 중...
           </div>
         ) : (
@@ -148,8 +144,8 @@ function CustomMPriceControl() {
               disabled={isSaving || !canEdit}
               aria-invalid={Boolean(fieldError || isReadError)}
               aria-describedby="custom-m-price-status"
-              onChange={(e) => {
-                setDraft(e.target.value);
+              onChange={(event) => {
+                setDraft(event.target.value);
                 setFieldError(null);
               }}
               className="w-28 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-zinc-600 disabled:opacity-50"
@@ -158,11 +154,11 @@ function CustomMPriceControl() {
             <span className="text-sm text-zinc-500 shrink-0">원</span>
             <button
               type="button"
-              onClick={() => void handleSave()}
+              onClick={() => { void handleSave(); }}
               disabled={!canSave}
               className="flex items-center justify-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-2 rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
             >
-              {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              {isSaving ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Save size={14} aria-hidden="true" />}
               {isSaving ? '저장 중...' : '저장'}
             </button>
           </div>
@@ -172,155 +168,281 @@ function CustomMPriceControl() {
         {isReadError && loadError && (
           <div className="mt-1.5 flex items-center gap-3">
             <p className="text-xs text-red-400">{loadError}</p>
-            <button
-              type="button"
-              onClick={() => void loadPrice()}
-              className="text-xs font-medium text-zinc-400 hover:text-white transition-colors"
-            >
+            <button type="button" onClick={() => { void loadPrice(); }} className="text-xs font-medium text-zinc-400 hover:text-white transition-colors">
               다시 불러오기
             </button>
           </div>
         )}
-        {fieldError && (
-          <p className="mt-1.5 text-xs text-red-400">{fieldError}</p>
-        )}
+        {fieldError && <p className="mt-1.5 text-xs text-red-400">{fieldError}</p>}
       </div>
     </section>
   );
 }
 
+function thumbUrl(product: AdminCatalogProduct): string | null {
+  return getFullImageUrl(product.front_image || product.image);
+}
+
 export default function AdminProducts() {
-  const { products, addProduct, updateProduct, deleteProduct, fetchProducts, isLoading } = useProducts();
   const { showToast } = useToast();
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [catalog, setCatalog] = useState<AdminCatalogProduct[]>([]);
+  const [savedOrderIds, setSavedOrderIds] = useState<string[]>([]);
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [orderedProducts, setOrderedProducts] = useState<Product[]>([]);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>('all');
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<AdminCatalogProduct | null>(null);
+  const [productToDelete, setProductToDelete] = useState<AdminCatalogProduct | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
 
-  // Ensure JWT admin list fetch (incl. hidden) when entering admin products.
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+  const loadCatalog = useCallback(async () => {
+    setLoadState('loading');
+    const { data, error } = await fetchAdminCatalog();
+    if (error) {
+      setCatalog([]);
+      setSavedOrderIds([]);
+      setLoadState('error');
+      return;
+    }
+    setCatalog(data);
+    setSavedOrderIds(data.map((product) => product.id));
+    setLoadState('ready');
+  }, []);
 
   useEffect(() => {
-    setOrderedProducts(products);
-  }, [products]);
+    void loadCatalog();
+  }, [loadCatalog]);
 
-  // Debounce search term
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 300);
-    return () => clearTimeout(timer);
+    const timer = window.setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
+    return () => window.clearTimeout(timer);
   }, [searchTerm]);
 
-  const handleAddClick = () => {
-    setEditingProduct(null);
-    setIsFormOpen(true);
-  };
+  useEffect(() => {
+    if (!productToDelete) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isDeleting) setProductToDelete(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [productToDelete, isDeleting]);
 
-  const handleEditClick = (product: Product) => {
-    setEditingProduct(product);
-    setIsFormOpen(true);
-  };
+  const canReorder = debouncedSearch.length === 0 && visibilityFilter === 'all';
+  const orderDirty = catalog.some((product, index) => product.id !== savedOrderIds[index]);
 
-  const handleVisibilityToggle = async (e: React.MouseEvent, product: Product) => {
-    e.stopPropagation();
-    
-    // 1. 현재 상태 저장 (롤백용)
-    const previousProducts = [...orderedProducts];
-    const isVisible = product.is_visible !== false; // 기본값 true
-    const newVisibility = !isVisible;
+  const visibleRows = useMemo(() => {
+    const query = debouncedSearch.toLowerCase();
+    return catalog.filter((product) => {
+      if (visibilityFilter === 'visible' && product.is_visible === false) return false;
+      if (visibilityFilter === 'hidden' && product.is_visible !== false) return false;
+      if (!query) return true;
+      const title = (product.title || '').toLowerCase();
+      const subtitle = (product.subtitle || product.artist || '').toLowerCase();
+      const id = (product.id || '').toLowerCase();
+      return title.includes(query) || subtitle.includes(query) || id.includes(query);
+    });
+  }, [catalog, debouncedSearch, visibilityFilter]);
 
-    // 2. Optimistic Update: UI 즉시 반영
-    setOrderedProducts(prev => 
-      prev.map(p => p.id === product.id ? { ...p, is_visible: newVisibility } : p)
-    );
-
-    try {
-      // 3. Supabase 직접 호출 (컬럼명 매칭: is_visible)
-      // DB 컬럼명과 UI 상태 모두 'is_visible'을 사용함
-      const { error } = await supabase
-        .from('products')
-        .update({ is_visible: newVisibility })
-        .eq('id', product.id);
-
-      if (error) throw error;
-
-      showToast(newVisibility ? "상품이 노출되었습니다." : "상품이 숨겨졌습니다.", 'success');
-    } catch (error: any) {
-      setOrderedProducts(previousProducts);
-      showToast('잠시 후 다시 시도해주세요.', 'error');
-    }
+  const notifyStorefront = () => {
+    window.dispatchEvent(new CustomEvent('refresh-products'));
   };
 
   const handleSave = async () => {
-    await fetchProducts();
+    await loadCatalog();
+    notifyStorefront();
     setIsFormOpen(false);
     setEditingProduct(null);
   };
 
-  const handleSaveOrder = async () => {
-    setIsSavingOrder(true);
-    try {
-      const results = await Promise.all(
-        orderedProducts.map((product, index) =>
-          supabase
-            .from('products')
-            .update({ display_order: index })
-            .eq('id', product.id)
-        )
-      );
-
-      const error = results.find((result) => result.error)?.error;
-      if (error) throw error;
-
-      showToast('상품 순서가 저장되었습니다.', 'success');
-      await fetchProducts();
-    } catch (error) {
+  const handleVisibilityToggle = async (product: AdminCatalogProduct) => {
+    const previous = catalog;
+    const nextVisible = product.is_visible === false;
+    setCatalog((current) =>
+      current.map((item) => (item.id === product.id ? { ...item, is_visible: nextVisible } : item)),
+    );
+    const { error } = await supabase
+      .from('products')
+      .update({ is_visible: nextVisible })
+      .eq('id', product.id);
+    if (error) {
+      setCatalog(previous);
       showToast('잠시 후 다시 시도해주세요.', 'error');
-    } finally {
-      setIsSavingOrder(false);
+      return;
     }
+    showToast(nextVisible ? '상품이 노출되었습니다.' : '상품이 숨겨졌습니다.', 'success');
+    notifyStorefront();
   };
 
-  const filteredProducts = orderedProducts.filter((p) => {
-    const searchLower = debouncedSearchTerm.toLowerCase();
-    const titleMatch = (p.title || '').toLowerCase().includes(searchLower);
-    const subtitleMatch = (p.subtitle || '').toLowerCase().includes(searchLower);
-    return titleMatch || subtitleMatch;
-  });
+  const moveProduct = (id: string, direction: -1 | 1) => {
+    if (!canReorder || isSavingOrder) return;
+    setCatalog((current) => {
+      const index = current.findIndex((item) => item.id === id);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+      const next = [...current];
+      const [item] = next.splice(index, 1);
+      next.splice(nextIndex, 0, item);
+      return next;
+    });
+  };
 
-  if (isLoading && products.length === 0) {
-    return <LoadingScreen />;
-  }
+  const handleSaveOrder = async () => {
+    if (!canReorder || !orderDirty) return;
+    setIsSavingOrder(true);
+    const updates = catalog.map((product, index) => ({
+      id: product.id,
+      display_order: index,
+    }));
+    const results = await Promise.all(
+      updates.map((item) =>
+        supabase.from('products').update({ display_order: item.display_order }).eq('id', item.id),
+      ),
+    );
+    const failed = results.find((result) => result.error);
+    setIsSavingOrder(false);
+    if (failed?.error) {
+      showToast('잠시 후 다시 시도해주세요.', 'error');
+      return;
+    }
+    setCatalog((current) => current.map((product, index) => ({ ...product, display_order: index })));
+    setSavedOrderIds(catalog.map((product) => product.id));
+    showToast('상품 순서가 저장되었습니다.', 'success');
+    notifyStorefront();
+  };
+
+  const handleDelete = async () => {
+    if (!productToDelete || isDeleting) return;
+    setIsDeleting(true);
+    const { data, error } = await supabase.from('products').delete().eq('id', productToDelete.id).select('id');
+    setIsDeleting(false);
+    if (error || !data || data.length === 0) {
+      showToast('상품 삭제에 실패했습니다.', 'error');
+      return;
+    }
+    showToast('상품이 삭제되었습니다.', 'success');
+    setProductToDelete(null);
+    await loadCatalog();
+    notifyStorefront();
+  };
+
+  const actionButtons = (product: AdminCatalogProduct, index: number) => {
+    const visible = product.is_visible !== false;
+    return (
+      <div className="flex items-center gap-2">
+        {canReorder && (
+          <>
+            <button
+              type="button"
+              onClick={() => moveProduct(product.id, -1)}
+              disabled={index === 0 || isSavingOrder}
+              aria-label={`${product.title} 위로`}
+              className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg bg-white/5 text-zinc-300 hover:text-white disabled:opacity-40"
+            >
+              <ChevronUp size={16} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => moveProduct(product.id, 1)}
+              disabled={index === catalog.length - 1 || isSavingOrder}
+              aria-label={`${product.title} 아래로`}
+              className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg bg-white/5 text-zinc-300 hover:text-white disabled:opacity-40"
+            >
+              <ChevronDown size={16} aria-hidden="true" />
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={() => { void handleVisibilityToggle(product); }}
+          aria-label={visible ? `${product.title} 숨기기` : `${product.title} 노출하기`}
+          className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg bg-white/5 text-zinc-300 hover:text-white"
+        >
+          {visible ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setEditingProduct(product);
+            setIsFormOpen(true);
+          }}
+          aria-label={`${product.title} 수정`}
+          className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg bg-white/5 text-zinc-300 hover:text-white"
+        >
+          <Edit size={16} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setProductToDelete(product)}
+          aria-label={`${product.title} 삭제`}
+          className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg bg-white/5 text-zinc-300 hover:text-red-400"
+        >
+          <Trash2 size={16} aria-hidden="true" />
+        </button>
+      </div>
+    );
+  };
+
+  const rowBody = (product: AdminCatalogProduct) => {
+    const src = thumbUrl(product);
+    const visible = product.is_visible !== false;
+    return (
+      <>
+        <div className="w-16 h-16 rounded-lg overflow-hidden bg-zinc-800 border border-white/5 shrink-0">
+          {src ? (
+            <img src={src} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-zinc-600">
+              <Package size={20} aria-hidden="true" />
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-white truncate">{product.title || '제목 없음'}</p>
+          <p className="text-sm text-zinc-400">₩{catalogListPrice(product).toLocaleString('ko-KR')}</p>
+        </div>
+        <span className={cn(
+          'shrink-0 text-xs px-2 py-1 rounded-md border',
+          visible ? 'text-zinc-200 border-white/10' : 'text-zinc-500 border-white/5',
+        )}>
+          {visible ? '노출' : '숨김'}
+        </span>
+      </>
+    );
+  };
 
   return (
     <AdminLayout>
-      <div className="space-y-8">
-        {/* 헤더 및 액션 버튼 */}
+      <div className="space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-white">
             상품 관리
-            <span className="text-sm font-normal text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-full">{products.length}</span>
+            {loadState === 'ready' && (
+              <span className="ml-2 text-sm font-normal text-zinc-500">{catalog.length}</span>
+            )}
           </h2>
           <div className="flex items-center gap-3">
+            {canReorder && (
+              <button
+                type="button"
+                onClick={() => { void handleSaveOrder(); }}
+                disabled={isSavingOrder || !orderDirty}
+                className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50 min-h-11"
+              >
+                {isSavingOrder ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <Save size={18} aria-hidden="true" />}
+                {isSavingOrder ? '저장 중...' : '순서 저장'}
+              </button>
+            )}
             <button
-              onClick={handleSaveOrder}
-              disabled={isSavingOrder}
-              className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors font-medium shadow-sm active:scale-95 duration-150 disabled:opacity-50"
+              type="button"
+              onClick={() => {
+                setEditingProduct(null);
+                setIsFormOpen(true);
+              }}
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium min-h-11"
             >
-              <Save size={18} />
-              {isSavingOrder ? '저장 중...' : '순서 저장'}
-            </button>
-            <button
-              onClick={handleAddClick}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors font-medium shadow-lg shadow-indigo-500/20 active:scale-95 duration-150"
-            >
-              <Plus size={18} />
+              <Plus size={18} aria-hidden="true" />
               신규 상품 등록
             </button>
           </div>
@@ -328,181 +450,201 @@ export default function AdminProducts() {
 
         <CustomMPriceControl />
 
-        {/* 검색 및 필터 */}
-        <div className="flex items-center gap-4 bg-zinc-900 p-4 rounded-xl border border-zinc-800 shadow-sm">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+        <div className="flex flex-col gap-3 bg-zinc-900 p-4 rounded-xl border border-zinc-800">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} aria-hidden="true" />
+            <label htmlFor="admin-product-search" className="sr-only">상품 검색</label>
             <input
-              type="text"
-              placeholder="상품명, 작가명 검색..."
+              id="admin-product-search"
+              type="search"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-zinc-600"
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="상품명, 식별 텍스트 검색"
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 placeholder:text-zinc-600"
             />
           </div>
-          <button className="p-2.5 text-zinc-400 hover:text-white bg-zinc-800 rounded-lg border border-zinc-700 hover:bg-zinc-700 transition-colors">
-            <Filter size={18} />
-          </button>
-        </div>
-
-        {/* 상품 리스트 (Card List) */}
-        <div className="max-w-full">
-          {filteredProducts.length > 0 ? (
-            <Reorder.Group 
-              axis="y" 
-              values={orderedProducts} 
-              onReorder={setOrderedProducts} 
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4"
-            >
-              {filteredProducts.map((product) => {
-                const minPrice = product.options && product.options.length > 0 
-                  ? Math.min(...product.options.map(opt => opt.price))
-                  : 0;
-
-                return (
-                  <Reorder.Item 
-                    key={product.id} 
-                    value={product} 
-                    className={`bg-[#1C1C1E] rounded-2xl border border-white/5 p-4 hover:border-white/10 transition-all duration-300 group relative ${product.is_visible === false ? 'opacity-50 grayscale' : ''}`}
-                  >
-                    <div className="flex gap-4">
-                      {/* 좌측: 썸네일 */}
-                      <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-zinc-800 border border-white/5 shrink-0">
-                        {getFullImageUrl(product.front_image || product.image) ? (
-                          <img 
-                            src={getFullImageUrl(product.front_image || product.image) || undefined} 
-                            alt={product.title} 
-                            className="w-full h-full object-cover" 
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-zinc-700">
-                            <Package size={24} />
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
-                        
-                        {/* 드래그 핸들 (오버레이) */}
-                        <div className="absolute top-1 left-1 p-1 bg-black/40 rounded-md text-white/40 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity">
-                          <GripVertical size={14} />
-                        </div>
-                      </div>
-
-                      {/* 중앙: 정보 */}
-                      <div className="flex-1 min-w-0 flex flex-col justify-center">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <h3 className="font-bold text-white text-base truncate tracking-tight">
-                            {product.title}
-                          </h3>
-                        </div>
-                        <div className="text-sm text-zinc-400 flex items-center gap-2 font-medium">
-                          <span>₩{minPrice.toLocaleString()}</span>
-                        </div>
-                        <div className="text-[10px] text-zinc-600 mt-1 truncate">
-                          {product.subtitle || product.artist}
-                        </div>
-                      </div>
-
-                      {/* 우측 상단: 배지 */}
-                      <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5">
-                        <div className="flex gap-1">
-                          {product.limited && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 uppercase tracking-wider">
-                              LTD
-                            </span>
-                          )}
-                          {product.is_visible === false && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-zinc-800 text-zinc-400 border border-white/5 uppercase tracking-wider">
-                              숨김
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 우측 하단: 액션 */}
-                      <div className="absolute bottom-4 right-4 flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={(e) => handleVisibilityToggle(e, product)}
-                          className={`p-2 rounded-lg transition-all duration-300 active:scale-90 ${
-                            product.is_visible !== false 
-                              ? 'text-zinc-500 hover:text-purple-400 bg-white/5' 
-                              : 'text-purple-400 bg-purple-500/10 border border-purple-500/20'
-                          }`}
-                          title={product.is_visible !== false ? "노출 중" : "숨김 상태"}
-                        >
-                          {product.is_visible !== false ? <Eye size={16} /> : <EyeOff size={16} />}
-                        </button>
-                        <button
-                          onClick={() => handleEditClick(product)}
-                          className="p-2 text-zinc-500 hover:text-white bg-white/5 hover:bg-indigo-600 rounded-lg transition-all active:scale-90"
-                          title="수정"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setProductToDelete(product);
-                          }}
-                          className="p-2 text-zinc-500 hover:text-white bg-white/5 hover:bg-red-600 rounded-lg transition-all active:scale-90"
-                          title="삭제"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                        </button>
-                      </div>
-                    </div>
-                  </Reorder.Item>
-                );
-              })}
-            </Reorder.Group>
-          ) : (
-            <div className="py-20 text-center text-zinc-600 bg-[#1C1C1E] rounded-2xl border border-dashed border-white/5">
-              <Search size={40} className="mx-auto mb-4 opacity-20" />
-              <p className="font-medium">해당 상품명 또는 작가명을 찾을 수 없습니다</p>
-            </div>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="노출 상태 필터">
+            {([
+              ['all', '전체'],
+              ['visible', '노출'],
+              ['hidden', '숨김'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setVisibilityFilter(value)}
+                aria-pressed={visibilityFilter === value}
+                className={cn(
+                  'min-h-11 px-3 rounded-lg text-sm font-medium border',
+                  visibilityFilter === value
+                    ? 'bg-white text-black border-white'
+                    : 'bg-zinc-800 text-zinc-300 border-zinc-700',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {loadState === 'ready' && !canReorder && (
+            <p className="text-xs text-zinc-500">
+              {orderDirty
+                ? '저장하지 않은 순서가 있습니다. 검색과 필터를 해제하면 저장할 수 있습니다.'
+                : '검색 또는 필터가 켜져 있으면 순서를 바꿀 수 없습니다.'}
+            </p>
           )}
         </div>
+
+        {loadState === 'loading' && (
+          <div className="py-16 flex flex-col items-center gap-3 text-zinc-500" aria-busy="true">
+            <Loader2 className="animate-spin" size={22} aria-hidden="true" />
+            <p className="text-sm">상품 목록을 불러오는 중</p>
+          </div>
+        )}
+
+        {loadState === 'error' && (
+          <div className="py-16 text-center bg-zinc-900 rounded-xl border border-zinc-800">
+            <p className="text-white font-medium">상품 목록을 불러오지 못했습니다.</p>
+            <button
+              type="button"
+              onClick={() => { void loadCatalog(); }}
+              className="mt-4 min-h-11 px-4 rounded-lg bg-zinc-800 text-white"
+            >
+              다시 시도
+            </button>
+          </div>
+        )}
+
+        {loadState === 'ready' && catalog.length === 0 && (
+          <div className="py-16 text-center bg-zinc-900 rounded-xl border border-dashed border-white/10">
+            <p className="text-white font-medium">등록된 상품이 없습니다.</p>
+          </div>
+        )}
+
+        {loadState === 'ready' && catalog.length > 0 && visibleRows.length === 0 && (
+          <div className="py-16 text-center bg-zinc-900 rounded-xl border border-dashed border-white/10">
+            <p className="text-white font-medium">
+              {debouncedSearch ? '검색 결과가 없습니다.' : '조건에 맞는 상품이 없습니다.'}
+            </p>
+          </div>
+        )}
+
+        {loadState === 'ready' && visibleRows.length > 0 && canReorder && (
+          <Reorder.Group axis="y" values={catalog} onReorder={(next) => { if (!isSavingOrder) setCatalog(next); }} className="space-y-3">
+            {catalog.map((product, index) => (
+              <Reorder.Item
+                key={product.id}
+                value={product}
+                className="bg-zinc-900 border border-zinc-800 rounded-xl p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-zinc-500 cursor-grab active:cursor-grabbing shrink-0" aria-hidden="true">
+                    <GripVertical size={18} />
+                  </span>
+                  <span className="w-8 text-xs text-zinc-500 tabular-nums shrink-0">{index}</span>
+                  <div className="hidden md:flex items-center gap-4 min-w-0 flex-1">
+                    {rowBody(product)}
+                    {actionButtons(product, index)}
+                  </div>
+                  <div className="md:hidden flex flex-col gap-3 min-w-0 flex-1">
+                    <div className="flex items-center gap-3 min-w-0">{rowBody(product)}</div>
+                    {actionButtons(product, index)}
+                  </div>
+                </div>
+              </Reorder.Item>
+            ))}
+          </Reorder.Group>
+        )}
+
+        {loadState === 'ready' && visibleRows.length > 0 && !canReorder && (
+          <>
+            <div className="hidden md:block overflow-x-auto rounded-xl border border-zinc-800">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-zinc-900 text-zinc-400">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">상품</th>
+                    <th className="px-4 py-3 font-medium">가격</th>
+                    <th className="px-4 py-3 font-medium">상태</th>
+                    <th className="px-4 py-3 font-medium">순서</th>
+                    <th className="px-4 py-3 font-medium">작업</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRows.map((product, index) => {
+                    const src = thumbUrl(product);
+                    return (
+                      <tr key={product.id} className="border-t border-zinc-800 bg-zinc-950">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-12 h-12 rounded-md overflow-hidden bg-zinc-800 shrink-0">
+                              {src ? <img src={src} alt="" className="w-full h-full object-cover" /> : <Package size={16} className="m-auto text-zinc-600" aria-hidden="true" />}
+                            </div>
+                            <span className="text-white font-medium truncate">{product.title || '제목 없음'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-300">₩{catalogListPrice(product).toLocaleString('ko-KR')}</td>
+                        <td className="px-4 py-3 text-zinc-300">{product.is_visible === false ? '숨김' : '노출'}</td>
+                        <td className="px-4 py-3 text-zinc-500 tabular-nums">{product.display_order}</td>
+                        <td className="px-4 py-3">{actionButtons(product, index)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="md:hidden space-y-3">
+              {visibleRows.map((product, index) => (
+                <article key={product.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center gap-3">{rowBody(product)}</div>
+                  <p className="text-xs text-zinc-500">순서 {product.display_order}</p>
+                  {actionButtons(product, index)}
+                </article>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* 상품 등록/수정 폼 모달 */}
       {isFormOpen && (
         <AdminProductForm
           product={editingProduct}
           onSave={handleSave}
-          onClose={() => setIsFormOpen(false)}
+          onClose={() => {
+            setIsFormOpen(false);
+            setEditingProduct(null);
+          }}
         />
       )}
 
-      {/* 상품 삭제 확인 모달 */}
       {productToDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#1C1C1E] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-            <h3 className="text-xl font-bold text-white mb-2">상품 삭제</h3>
-            <p className="text-zinc-400 mb-6 text-sm leading-relaxed">
-              정말 <span className="text-white font-medium">'{productToDelete.title}'</span> 상품을 삭제하시겠습니까?<br/>
-              이 작업은 되돌릴 수 없습니다.
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="admin-product-delete-title"
+            aria-describedby="admin-product-delete-desc"
+            className="bg-[#1C1C1E] border border-white/10 rounded-2xl p-6 max-w-sm w-full"
+          >
+            <h3 id="admin-product-delete-title" className="text-xl font-bold text-white mb-2">상품 삭제</h3>
+            <p id="admin-product-delete-desc" className="text-zinc-400 mb-6 text-sm leading-relaxed">
+              정말 <span className="text-white font-medium">'{productToDelete.title}'</span> 상품을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
             </p>
             <div className="flex gap-3 justify-end">
               <button
+                type="button"
+                autoFocus
                 onClick={() => setProductToDelete(null)}
-                className="px-4 py-2 rounded-lg font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+                disabled={isDeleting}
+                className="min-h-11 px-4 rounded-lg font-medium text-zinc-400 hover:text-white"
               >
                 취소
               </button>
               <button
-                onClick={async () => {
-                  try {
-                    await deleteProduct(productToDelete.id);
-                    showToast('상품이 성공적으로 삭제되었습니다.', 'success');
-                  } catch (error: any) {
-                    showToast(error.message || '상품 삭제에 실패했습니다.', 'error');
-                  } finally {
-                    setProductToDelete(null);
-                  }
-                }}
-                className="px-4 py-2 rounded-lg font-medium bg-red-600 hover:bg-red-700 text-white transition-colors shadow-lg shadow-red-600/20"
+                type="button"
+                onClick={() => { void handleDelete(); }}
+                disabled={isDeleting}
+                className="min-h-11 px-4 rounded-lg font-medium bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
               >
-                삭제
+                {isDeleting ? '삭제 중...' : '삭제'}
               </button>
             </div>
           </div>
