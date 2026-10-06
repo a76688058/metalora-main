@@ -303,8 +303,9 @@ export default function Cart() {
       items: [
         ...(hasWorkshopItems
           ? [
-              '커스텀 제작 상품은 <strong class="text-fuchsia-500">1:1 주문 제작</strong>으로, 제작이 시작된 이후에는 단순 변심에 의한 취소 및 환불이 불가함을 확인하였습니다.',
-              '커스텀 제작 상품은 결제 완료 후 <strong class="text-fuchsia-500">제작 시작 전(결제완료)</strong> 단계에서만 취소가 가능함에 동의합니다.',
+              'WORKSHOP은 <strong class="text-fuchsia-500">이미지 검수 및 제작 승인 전</strong>까지 주문을 취소할 수 있습니다.',
+              '제작 승인 이후에는 사전 안내 및 동의한 범위에서 <strong class="text-fuchsia-500">단순변심에 의한 청약철회가 제한될 수 있습니다</strong>.',
+              '제품의 <strong class="text-fuchsia-500">불량·파손·오배송</strong>에 대한 교환·환불 권리는 제한되지 않습니다.',
             ]
           : []),
         '상품의 <strong class="text-fuchsia-500">명백한 하자 또는 오배송</strong>의 경우 수령 후 7일 이내에 교환/반품 신청이 가능합니다.',
@@ -1374,7 +1375,7 @@ export default function Cart() {
                         </span>
                         {hasWorkshopItems && (
                           <span className={`block text-xs mt-1 ${theme === 'dark' ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                            커스텀 제작 상품에 해당하는 주문 제작 제한이 포함됩니다.
+                            WORKSHOP 개별 제작 상품의 취소 및 청약철회 기준이 포함됩니다.
                           </span>
                         )}
                       </span>
