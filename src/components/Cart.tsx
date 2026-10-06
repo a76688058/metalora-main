@@ -22,6 +22,7 @@ import {
   sanitizeTossFailureCode,
 } from '../lib/paymentFailureAnalytics';
 import { isUsableMemberProfile } from '../lib/authIntegrity';
+import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../lib/publicPaymentFreeze';
 
 interface CartProps {
   isOpen: boolean;
@@ -414,6 +415,7 @@ export default function Cart() {
   };
 
   const handlePayment = async () => {
+    if (PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7) return;
     if (!requireCheckoutAuth()) return;
     const currentUser = user || adminUser;
     if (!currentUser) return;
@@ -1129,32 +1131,38 @@ export default function Cart() {
 
                 <section className="space-y-6">
                   <h3 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>결제 수단</h3>
-                  <div className={`relative rounded-2xl p-6 border-2 shadow-[0_0_15px_rgba(217,70,239,0.15)] transition-all cursor-pointer group overflow-hidden ${
-                    theme === 'dark' ? 'bg-[#1C1C1E] border-fuchsia-500/50' : 'bg-zinc-50 border-fuchsia-500/30'
-                  }`}>
-                    {/* Subtle gradient background for active state */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 pointer-events-none" />
-                    
-                    <div className="relative z-10 flex justify-between items-start">
-                      <div className="flex flex-col">
-                        <p className={`font-extrabold text-xl tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>간편 결제</p>
-                        <p className={`text-sm font-medium mt-1 ${theme === 'dark' ? 'text-white/60' : 'text-black/60'}`}>신용/체크카드 및 간편 결제 지원</p>
-                      </div>
-                      <CheckCircle2 className="text-fuchsia-500 drop-shadow-[0_0_8px_rgba(217,70,239,0.5)]" size={24} />
+                  {PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 ? (
+                    <div className={`relative rounded-2xl p-6 border ${
+                      theme === 'dark' ? 'bg-[#1C1C1E] border-white/10' : 'bg-zinc-50 border-black/10'
+                    }`}>
+                      <p className={`font-extrabold text-xl tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>결제 준비 중</p>
+                      <p className={`text-sm font-medium mt-2 ${theme === 'dark' ? 'text-white/60' : 'text-black/60'}`}>현재 결제 기능을 준비하고 있습니다.</p>
                     </div>
-
-                    <div className="relative z-10 flex items-center gap-3 mt-6">
-                      <div className="w-11 h-11 bg-[#3182F6] rounded-full flex items-center justify-center text-white font-bold text-[12px] italic border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
-                        toss
+                  ) : (
+                    <div className={`relative rounded-2xl p-6 border-2 shadow-[0_0_15px_rgba(217,70,239,0.15)] transition-all cursor-pointer group overflow-hidden ${
+                      theme === 'dark' ? 'bg-[#1C1C1E] border-fuchsia-500/50' : 'bg-zinc-50 border-fuchsia-500/30'
+                    }`}>
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 pointer-events-none" />
+                      <div className="relative z-10 flex justify-between items-start">
+                        <div className="flex flex-col">
+                          <p className={`font-extrabold text-xl tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>간편 결제</p>
+                          <p className={`text-sm font-medium mt-1 ${theme === 'dark' ? 'text-white/60' : 'text-black/60'}`}>신용/체크카드 및 간편 결제 지원</p>
+                        </div>
+                        <CheckCircle2 className="text-fuchsia-500 drop-shadow-[0_0_8px_rgba(217,70,239,0.5)]" size={24} />
                       </div>
-                      <div className="w-11 h-11 bg-[#FEE500] rounded-full flex items-center justify-center text-[#191919] font-bold text-[12px] border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
-                        pay
-                      </div>
-                      <div className="w-11 h-11 bg-[#03C75A] rounded-full flex items-center justify-center text-white font-bold text-[12px] border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
-                        N
+                      <div className="relative z-10 flex items-center gap-3 mt-6">
+                        <div className="w-11 h-11 bg-[#3182F6] rounded-full flex items-center justify-center text-white font-bold text-[12px] italic border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+                          toss
+                        </div>
+                        <div className="w-11 h-11 bg-[#FEE500] rounded-full flex items-center justify-center text-[#191919] font-bold text-[12px] border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+                          pay
+                        </div>
+                        <div className="w-11 h-11 bg-[#03C75A] rounded-full flex items-center justify-center text-white font-bold text-[12px] border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+                          N
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </section>
               </motion.div>
             )}
@@ -1167,10 +1175,17 @@ export default function Cart() {
             <span className="text-zinc-400 font-medium">총 결제 금액</span>
             <span className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{displayPrice.toLocaleString()}</span>
           </div>
+
+          {step === 2 && PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 && (
+            <p className={`text-sm font-medium mb-3 px-2 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
+              현재 결제 기능을 준비하고 있습니다.
+            </p>
+          )}
           
           <div className="flex gap-3">
             {step === 2 && (
               <button 
+                type="button"
                 onClick={handlePrevStep}
                 className={`w-1/3 h-14 font-semibold rounded-2xl transition-all ${
                   theme === 'dark' ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-zinc-100 text-black hover:bg-zinc-200'
@@ -1180,18 +1195,26 @@ export default function Cart() {
               </button>
             )}
             <button 
-              onClick={step === 1 ? handleNextStep : () => setIsBottomSheetOpen(true)}
-              disabled={selectedItems.length === 0 || isProcessing}
+              type="button"
+              onClick={step === 1 ? handleNextStep : () => {
+                if (PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7) return;
+                setIsBottomSheetOpen(true);
+              }}
+              disabled={selectedItems.length === 0 || isProcessing || (step === 2 && PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7)}
               className={`flex-1 h-14 text-white font-bold text-lg rounded-2xl flex items-center justify-center gap-2 transition-all ${
-                selectedItems.length === 0 || isProcessing
+                selectedItems.length === 0 || isProcessing || (step === 2 && PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7)
                   ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                   : 'btn-cyberpunk'
               }`}
             >
               {isProcessing ? (
                 <Loader2 className="animate-spin" size={24} />
+              ) : step === 1 ? (
+                selectedIds.size === 0 ? '상품을 선택해주세요' : '주문하기'
+              ) : PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 ? (
+                '결제 준비 중'
               ) : (
-                step === 1 ? (selectedIds.size === 0 ? '상품을 선택해주세요' : '주문하기') : '결제하기'
+                '결제하기'
               )}
             </button>
           </div>
@@ -1271,7 +1294,7 @@ export default function Cart() {
 
       {/* Toss-style Consent Bottom Sheet */}
       <AnimatePresence>
-        {isBottomSheetOpen && (
+      {isBottomSheetOpen && !PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
@@ -1393,8 +1416,9 @@ export default function Cart() {
                 </div>
                 
                 <button
+                  type="button"
                   onClick={handlePayment}
-                  disabled={!isAllConsented || isProcessing}
+                  disabled={PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 || !isAllConsented || isProcessing}
                   className={`w-full h-16 text-white font-bold text-lg rounded-2xl flex items-center justify-center gap-2 transition-all ${
                     !isAllConsented || isProcessing
                       ? (theme === 'dark' ? 'bg-zinc-800 text-zinc-500' : 'bg-zinc-200 text-zinc-400') + ' cursor-not-allowed'
