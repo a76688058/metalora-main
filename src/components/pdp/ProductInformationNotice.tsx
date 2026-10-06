@@ -8,7 +8,7 @@ import { FACTUAL_SHELL } from './factualVisuals';
 
 /**
  * Catalog product-information notice (기타 재화).
- * Origin / importer remain development-hold until NEW4-8 / A6 review.
+ * Origin remains development-hold until NEW4-8.
  * `심의 예정` is not a legal conclusion and is not equivalent to `해당없음`.
  */
 export const NOTICE_REVIEW_PENDING = '심의 예정';
@@ -18,6 +18,7 @@ const CATEGORY_VALUE = '기타 재화';
 const MODEL_NAME = 'METALORA M';
 const MANUFACTURER = '메탈로라(METALORA)';
 const CERTIFICATION_VALUE = '해당 없음';
+const IMPORTER_VALUE = '해당 없음';
 const AS_OWNER = '메탈로라';
 const AS_PHONE_DISPLAY = '010-5595-0541';
 const AS_PHONE_TEL = '01055950541';
@@ -62,11 +63,10 @@ export function ProductInformationNotice({ productTitle }: { productTitle: strin
     {
       key: 'maker-importer',
       label: '제조자 / 수입자',
-      hold: 'importer',
       value: (
         <NoticeValue>
           <p>제조자: {MANUFACTURER}</p>
-          <p className="mt-1">수입자: {NOTICE_REVIEW_PENDING}</p>
+          <p className="mt-1">수입자: {IMPORTER_VALUE}</p>
         </NoticeValue>
       ),
     },

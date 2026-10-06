@@ -1,14 +1,26 @@
 # NEW4-2 — Business / Footer / Product Notice
 
-Status: **READY FOR A6 LEGAL/FACT REVIEW**
+Status: **READY TO CLOSE**
 
 Date: 2026-10-06
 
 Decision: Public Footer identity and non-origin product-notice fields follow NEW4-0 locked facts. Combined statutory **제조국 또는 원산지** is unchanged (`심의 예정`) and remains **LEGAL HOLD** until NEW4-8.
 
+## Final matrix
+
+| Field | Value | Status |
+|---|---|---|
+| manufacturer | 메탈로라(METALORA) | **FINAL FACT** |
+| importer | 해당 없음 | **FINAL FACT** |
+| certification | 해당 없음 | **FINAL** |
+| country/origin | 심의 예정 | **NEW4-8 LEGAL HOLD** |
+| A/S telephone | 010-5595-0541 | **OPEN** launch item |
+
+Importer is `해당 없음` because the finished decorated art panel is not imported as a finished product. Component import is not a finished-product importer.
+
 Completed:
 - Footer: 개인사업자 identity labels; registered address; live CS email `a84411448@gmail.com`; telephone left `010-5595-0541` (**OPEN**).
-- Product notice: manufacturer `메탈로라(METALORA)`; certification `해당 없음`; importer still `심의 예정` for A6; origin unchanged.
+- Product notice: manufacturer `메탈로라(METALORA)`; certification `해당 없음`; importer `해당 없음`; origin unchanged.
 
 Do Not Do: publish `cs@metalora.art`; expose residential workshop in Footer; finalize origin; rewrite privacy/cookie (`policies.tsx` is NEW4-4); activate payment.
 
