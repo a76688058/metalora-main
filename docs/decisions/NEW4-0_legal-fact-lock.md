@@ -149,7 +149,9 @@ Do **not** automatically claim:
 - Made in Korea
 - 원산지 대한민국
 
-Do **not** silently convert the owner decision into a final country-of-origin ruling. Current live notice still shows `심의 예정` for this field. Publishing `제조국 대한민국` into that combined notice field is **IMPLEMENTATION REQUIRED** after NEW4-8 legal verification.
+Do **not** silently convert the owner decision into a final country-of-origin ruling. Current live notice still shows `심의 예정` for this field.
+
+NEW4-2 may clean non-origin product-notice fields. It **must not** finalize or publish the combined statutory **제조국 또는 원산지** field, and must **not** publish `원산지 대한민국`, `대한민국산`, `한국산`, or `Made in Korea`. That final gate is **LEGAL HOLD** until **NEW4-8**.
 
 ---
 
@@ -435,12 +437,15 @@ Approved direction:
 
 When withdrawal is processed:
 
-- delete / anonymize unnecessary account / profile / auth data
-- preserve legally required order / payment / contract records separately
+- account / profile / auth data: delete or anonymize, except where lawful retention is required
+- order / payment / contract records: retain separately for the statutory retention period
+- Workshop images: follow the separate short purge lifecycle
 - Workshop storage must not survive merely because Auth data was removed
 - statutory retained records must remain independently valid
 
-Do not let the privacy policy promise an immediate working withdrawal capability before this exists.
+This policy split is **OWNER LOCKED**. Do not reopen it.
+
+Backend behavior and final public copy are **IMPLEMENTATION REQUIRED**. Do not let the privacy policy promise an immediate working withdrawal capability before NEW4-7 exists.
 
 ---
 
@@ -504,7 +509,7 @@ These are **implementation blockers** for later NEW4 tickets. This note does not
 - couriers described as processors though no transmission
 - consent versions missing
 - unsupported messenger / Q&A copy
-- order retention vs account deletion not defined
+- account deletion / order-retention **public copy and backend** are **IMPLEMENTATION REQUIRED** (policy architecture already OWNER LOCKED in §15; do not reopen the owner decision)
 
 ---
 
@@ -525,23 +530,23 @@ These are **implementation blockers** for later NEW4 tickets. This note does not
 
 ## 20. Implementation tickets
 
-Ordered small tickets. NEW4-0C payment freeze is already **CLOSED** and is not reopened here.
+Ticket **names are unchanged**. Execution **order** below is the A5-approved sequence. NEW4-0C payment freeze is already **CLOSED** and is not reopened here.
 
 Counsel delay must not silently skip a launch blocker; it also must not block unrelated NEW 2/3 closed work.
 
-| ID | Title | Scope | Owner |
-|---|---|---|---|
-| **NEW4-1** | Policy Architecture | Split catalog vs Workshop policy. Remove whole-site custom assumption. | A2 / A6 |
-| **NEW4-2** | Business / Footer / Product Notice | Individual-business identity, registered address, certification field, manufacturer, country-field legal review. | A1 / A6 |
-| **NEW4-3** | Shipping / Returns / CS Copy | Dispatch periods, free-shipping presentation, return workflow, CS channels/hours. | A2 / A6 |
-| **NEW4-4** | Privacy Policy / Processor Disclosure | Actual data inventory, overseas processing, processor truth. | A6 |
-| **NEW4-5** | Consent Ledger | Versioned server evidence for membership + Workshop + future checkout. | A3 / A6 |
-| **NEW4-6** | Workshop Retention Automation | `completed_at`, `image_purged_at`, 3-day scheduled purge, abandoned uploads. | A6 |
-| **NEW4-7** | Account Withdrawal Backend | Admin-assisted deletion/anonymization; statutory-order retention separation. | A3 / A6 |
-| **NEW4-8** | Product Notice / Origin Final Gate | Manufacturing-country / origin legal verification; final customer-facing notice. | A6 |
-| **NEW4-9** | Integrated Legal / Trust QA | A5 strict read-only. Production candidate later only after the full NEW4 bundle. | A5 (READ ONLY) |
+| Order | ID | Title | Scope | Owner |
+|---|---|---|---|---|
+| 1 | **NEW4-1** | Policy Architecture | Split catalog vs Workshop policy. Remove whole-site custom assumption. | A2 / A6 |
+| 2 | **NEW4-2** | Business / Footer / Product Notice | Individual-business identity; representative / registration; registered business address; Footer business facts; manufacturer direction where safe; non-origin product-notice cleanup; KC/safety field only within already verified scope. **EXCLUDES** final 제조국/원산지 publication. Must **not** publish `원산지 대한민국`, `대한민국산`, `한국산`, `Made in Korea`, or the final combined **제조국 또는 원산지** field. | A1 / A6 |
+| 3 | **NEW4-3** | Shipping / Returns / CS Copy | Dispatch periods, free-shipping presentation, return workflow, CS channels/hours. Provisional **6,000원** change-of-mind return cost must remain **conditional** until actual courier cost is verified. | A2 / A6 |
+| 4 | **NEW4-5** | Consent Ledger | Versioned server evidence for membership + Workshop + future checkout. | A3 / A6 |
+| 5 | **NEW4-6** | Workshop Retention Automation | `completed_at`, `image_purged_at`, 3-day scheduled purge, abandoned uploads. | A6 |
+| 6 | **NEW4-7** | Account Withdrawal Backend | Admin-assisted deletion/anonymization; statutory-order retention separation. Implements the already OWNER LOCKED §15 split. | A3 / A6 |
+| 7 | **NEW4-4** | Privacy Policy / Processor Disclosure | Actual data inventory, overseas processing, processor truth. Intentionally **after** NEW4-6 and NEW4-7 so public copy does not promise unimplemented purge/withdrawal behavior. | A6 |
+| 8 | **NEW4-8** | Product Notice / Origin Final Gate | Final legal review of **제조국 대한민국** vs **제조국 또는 원산지**. Only this ticket may publish the combined notice field after legal verification. | A6 |
+| 9 | **NEW4-9** | Integrated Legal / Trust QA | A5 strict read-only. Production candidate later only after the full NEW4 bundle. | A5 (READ ONLY) |
 
-Order rationale: policy split (4-1) before public copy (4-2, 4-3, 4-4), because Footer/PDP/privacy cannot truthfully describe catalog vs Workshop until the architecture lock exists. Consent ledger (4-5) and retention/withdrawal systems (4-6, 4-7) can proceed in parallel after 4-1, but public promises in 4-4 must not claim purge or withdrawal until 4-6/4-7 exist. Origin/notice final gate (4-8) stays last among copy tickets because it is **LEGAL HOLD**. NEW4-9 is verification, not a rewrite.
+Order rationale: policy split (4-1) before identity/shipping copy (4-2, 4-3). Consent ledger (4-5) and retention/withdrawal systems (4-6, 4-7) before privacy rewrite (4-4), so public copy cannot promise unimplemented purge or withdrawal. Origin/notice final gate (4-8) stays last among copy tickets because the combined 제조국/원산지 field is **LEGAL HOLD**. NEW4-9 is verification, not a rewrite.
 
 Each ticket still requires its own A0 PRE-STAGE REPORT before source writes.
 
