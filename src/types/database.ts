@@ -18,6 +18,7 @@ export interface Profile {
   agreed_to_privacy_at: string | null;
   agreed_to_cookie_at: string | null;
   updated_at: string | null;
+  withdrawn_at?: string | null;
 }
 
 export interface ProductOption {

@@ -137,8 +137,10 @@ export function isUsableMemberProfile(profile: {
   verified_phone_fingerprint?: string | null;
   phone_verified_at?: string | null;
   phone_number?: string | null;
+  withdrawn_at?: string | null;
 } | null): boolean {
   if (!profile?.id) return false;
+  if (typeof profile.withdrawn_at === 'string' && profile.withdrawn_at.trim()) return false;
   const username = profile.user_custom_id?.trim() ?? '';
   if (!username) return false;
   const fingerprint = profile.verified_phone_fingerprint?.trim() ?? '';

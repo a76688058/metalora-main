@@ -31,6 +31,14 @@ import {
   retentionJobAuthorized,
   runWorkshopRetentionPurge,
 } from "./src/lib/workshopRetention";
+import {
+  ACCOUNT_WITHDRAWAL_ADMIN_PATH,
+  httpStatusForWithdrawal,
+  isUuid,
+  parseWithdrawalSource,
+  runAccountWithdrawal,
+  verifyAdminCaller,
+} from "./src/lib/accountWithdrawal";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1978,6 +1986,46 @@ async function startServer() {
     } catch {
       console.error("[WORKSHOP_RETENTION] job_failed", { reason_class: "job_error" });
       return res.status(500).json({ error: "job_failed" });
+    }
+  });
+
+  app.post(ACCOUNT_WITHDRAWAL_ADMIN_PATH, async (req, res) => {
+    if (!supabaseAdmin || !supabasePublic) {
+      console.error("[ACCOUNT_WITHDRAWAL]", { stage: "config", reason_class: "config" });
+      return res.status(503).json({ ok: false, reason_class: "config" });
+    }
+    const actor = await verifyAdminCaller(
+      supabaseAdmin,
+      supabasePublic,
+      req.headers.authorization,
+    );
+    if (actor.ok === false) {
+      return res.status(actor.status).json({ ok: false, reason_class: actor.reason_class });
+    }
+    const body = (req.body ?? {}) as { user_id?: unknown; source?: unknown };
+    if (!isUuid(body.user_id)) {
+      return res.status(400).json({ ok: false, reason_class: "invalid_target" });
+    }
+    const source = parseWithdrawalSource(body.source) ?? "admin_assisted";
+    try {
+      const result = await runAccountWithdrawal(supabaseAdmin, {
+        targetUserId: body.user_id.trim(),
+        actorUserId: actor.actorUserId,
+        source,
+        actorIsAdmin: true,
+      });
+      return res.status(httpStatusForWithdrawal(result)).json({
+        ok: result.ok,
+        status: result.status,
+        already_complete: result.already_complete,
+        resumed: result.resumed,
+        active_order_count: result.active_order_count,
+        workshop_objects_removed: result.workshop_objects_removed,
+        reason_class: result.reason_class,
+      });
+    } catch {
+      console.error("[ACCOUNT_WITHDRAWAL]", { stage: "job_failed", reason_class: "job_error" });
+      return res.status(500).json({ ok: false, reason_class: "job_failed" });
     }
   });
 
