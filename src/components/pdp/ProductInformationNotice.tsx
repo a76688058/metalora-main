@@ -7,17 +7,17 @@ import { cn } from '../../lib/cn';
 import { FACTUAL_SHELL } from './factualVisuals';
 
 /**
- * DEVELOPMENT HOLD values for (40) 기타 재화 notice.
- * `심의 예정` is an unresolved development-stage label, NOT a legal conclusion
- * and NOT equivalent to `해당없음`. A6 production release stays BLOCKED while
- * certification or finished-product origin remains 심의 예정.
+ * Catalog product-information notice (기타 재화).
+ * Origin / importer remain development-hold until NEW4-8 / A6 review.
+ * `심의 예정` is not a legal conclusion and is not equivalent to `해당없음`.
  */
 export const NOTICE_REVIEW_PENDING = '심의 예정';
 
 const HEADING = '상품정보 제공고시';
 const CATEGORY_VALUE = '기타 재화';
 const MODEL_NAME = 'METALORA M';
-const MANUFACTURER = 'METALORA';
+const MANUFACTURER = '메탈로라(METALORA)';
+const CERTIFICATION_VALUE = '해당 없음';
 const AS_OWNER = '메탈로라';
 const AS_PHONE_DISPLAY = '010-5595-0541';
 const AS_PHONE_TEL = '01055950541';
@@ -51,8 +51,7 @@ export function ProductInformationNotice({ productTitle }: { productTitle: strin
     {
       key: 'certification',
       label: '법에 의한 인증·허가 등',
-      hold: 'certification',
-      value: <NoticeValue>{NOTICE_REVIEW_PENDING}</NoticeValue>,
+      value: <NoticeValue>{CERTIFICATION_VALUE}</NoticeValue>,
     },
     {
       key: 'origin',
