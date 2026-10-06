@@ -8,6 +8,7 @@ import { useToast } from '../../context/ToastContext';
 import Header from '../Header';
 import { recordPolicyConsent } from '../../lib/consentLedger';
 import { POLICY_TYPES, POLICY_VERSIONS } from '../../lib/policyVersions';
+import { policies } from '../../constants/policies';
 
 interface CopyrightPageProps {
   onAgree: () => void;
@@ -18,17 +19,9 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
   const { user } = useAuth();
   const { theme } = useTheme();
   const { showToast } = useToast();
-  const [agreements, setAgreements] = useState({
-    article1: false,
-    article2: false,
-    article3: false,
-    article4: false,
-  });
+  const [hasReadAndAgreed, setHasReadAndAgreed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
-
-  const allAgreed = Object.values(agreements).every(v => v);
-  const agreedCount = Object.values(agreements).filter(v => v).length;
 
   useEffect(() => {
     const checkInitialAgreement = async () => {
@@ -43,6 +36,7 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
           .select('id')
           .eq('user_id', user.id)
           .eq('policy_type', POLICY_TYPES.workshopCustom)
+          .eq('agreement_version', POLICY_VERSIONS.workshop_custom)
           .limit(1)
           .maybeSingle();
 
@@ -59,12 +53,8 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
     checkInitialAgreement();
   }, [user, onAgree]);
 
-  const toggleAgreement = (key: keyof typeof agreements) => {
-    setAgreements(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
   const handleAgree = async () => {
-    if (!allAgreed || !user) return;
+    if (!hasReadAndAgreed || !user) return;
     setIsSubmitting(true);
 
     try {
@@ -95,29 +85,6 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
     );
   }
 
-  const articles = [
-    {
-      id: 'article1' as const,
-      title: '제1조 [기술적 중립성 및 수동적 전달자 지위]',
-      content: 'METALORA는 이용자가 업로드한 데이터를 AI 기술로 가공하여 출력하는 기술 및 도구 제공 플랫폼입니다. 당사는 이용자가 생성하는 콘텐츠를 사전에 검수하거나 편집하지 않는 수동적 전달자(Passive Conduit)로서, 기술적 중립성을 유지하며 개별 콘텐츠의 위법성을 인지하지 못함을 고지합니다.'
-    },
-    {
-      id: 'article2' as const,
-      title: '제2조 [이용자의 권리 확약 및 보증]',
-      content: '이용자는 업로드 및 AI로 생성하는 모든 이미지(인물, 캐릭터 등)에 대하여 저작권, 초상권 및 퍼블리시티권을 적법하게 보유하고 있음을 보증합니다. 권리자의 허가 없는 무단 사용으로 발생하는 모든 법적 책임은 이용자에게 귀속되며, 당사를 기망하여 발생한 문제에 대해 당사는 일절 책임지지 않습니다.'
-    },
-    {
-      id: 'article3' as const,
-      title: '제3조 [데이터 즉시 파기 및 복구 불가]',
-      content: '개인정보 보호 및 보안 정책에 따라, 제작 완료 및 출고 시 모든 이미지 데이터는 서버에서 즉시 영구 삭제(Permanent Delete)됩니다. 데이터가 잔존하지 않으므로 당사는 사후 증빙 의무가 없으며, 삭제된 데이터의 복구 요청 또한 거부될 수 있습니다.'
-    },
-    {
-      id: 'article4' as const,
-      title: '제4조 [면책 및 손해배상 청구]',
-      content: '이용자의 위반 행위로 인해 METALORA가 제3자로부터 소송, 합의금 청구 등 법적 분쟁에 휘말릴 경우, 이용자는 변호사 선임비를 포함한 모든 법률 비용 및 배상금 전액을 부담하여 당사를 면책시켜야 합니다.'
-    }
-  ];
-
   return (
     <div className={`flex flex-col h-full overflow-hidden ${hideHeader ? '' : 'min-h-screen'} ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
       {!hideHeader && <Header />}
@@ -143,49 +110,50 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 pb-20 scrollbar-hide overscroll-contain touch-pan-y">
-        <div className="mx-auto max-w-3xl space-y-3">
-          {articles.map((article, index) => (
-            <motion.div
-              key={article.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 * index }}
-              onClick={() => toggleAgreement(article.id)}
-              className={`flex cursor-pointer gap-4 rounded-xl border p-5 transition-colors ${
-                agreements[article.id]
+        <div className="mx-auto max-w-3xl">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <h2 className="type-label mb-6 text-text-primary">
+              {policies.agreement.title}
+            </h2>
+            <div className="text-text-secondary">
+              {policies.agreement.content}
+            </div>
+          </motion.div>
+
+          <div className="pb-20 pt-8">
+            <label
+              className={`mb-6 flex cursor-pointer gap-4 rounded-xl border p-5 transition-colors ${
+                hasReadAndAgreed
                   ? 'border-text-primary/30 bg-surface'
                   : 'border-border-subtle hover:border-border-subtle'
               }`}
             >
+              <input
+                type="checkbox"
+                checked={hasReadAndAgreed}
+                onChange={(event) => setHasReadAndAgreed(event.target.checked)}
+                className="sr-only"
+              />
               <div
                 className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                  agreements[article.id]
+                  hasReadAndAgreed
                     ? 'border-text-primary bg-text-primary text-text-inverse'
                     : 'border-border-subtle bg-transparent'
                 }`}
+                aria-hidden="true"
               >
-                {agreements[article.id] && <Check size={14} />}
+                {hasReadAndAgreed && <Check size={14} />}
               </div>
-              <div className="space-y-2">
-                <span className="type-label block text-text-primary">
-                  {article.title}
-                </span>
-                <p className="type-metadata leading-relaxed text-text-secondary">
-                  {article.content}
-                </p>
-              </div>
-            </motion.div>
-          ))}
-
-          <div className="pb-20 pt-8">
-            <div className="mb-6 flex justify-center">
-              <span className="type-metadata text-text-tertiary">
-                동의 진행 <span className="text-text-primary">{agreedCount}</span> / 4
+              <span className="type-metadata leading-relaxed text-text-secondary">
+                위 WORKSHOP 제작 및 콘텐츠 이용 동의서({POLICY_VERSIONS.workshop_custom})를 확인하였으며 동의합니다.
               </span>
-            </div>
+            </label>
 
             <AnimatePresence>
-              {allAgreed && (
+              {hasReadAndAgreed && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}

@@ -6,7 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import CopyrightPage from './Workshop/CopyrightPage';
 import WorkshopView from './Workshop/WorkshopView';
 import { supabase } from '../lib/supabase';
-import { POLICY_TYPES } from '../lib/policyVersions';
+import { POLICY_TYPES, POLICY_VERSIONS } from '../lib/policyVersions';
 
 interface WorkshopOverlayProps {
   isOpen: boolean;
@@ -57,6 +57,7 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
           .select('id')
           .eq('user_id', user.id)
           .eq('policy_type', POLICY_TYPES.workshopCustom)
+          .eq('agreement_version', POLICY_VERSIONS.workshop_custom)
           .limit(1)
           .maybeSingle();
 

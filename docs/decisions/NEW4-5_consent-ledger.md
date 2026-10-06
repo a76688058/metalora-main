@@ -64,11 +64,24 @@ A0: AuthContext was not edited. Membership writes are in `passwordAuthHandlers` 
 
 ## Workshop
 
-Existing `ML_Legal_v260325` rows: preserved and classified `policy_type = workshop_custom` because that version is the known historic Workshop agreement.
+Existing `ML_Legal_v260325` rows: preserved and classified `policy_type = workshop_custom` because that version is the known historic Workshop agreement. Legacy evidence remains historical. It does **not** satisfy the current Workshop gate.
 
-New Workshop acceptance: current `workshop_custom_v26.10.06` via RPC. Overlay/CopyrightPage treat any `workshop_custom` row as sufficient (legacy or current). No forced re-consent.
+Current Workshop access requires evidence for `policy_type = workshop_custom` AND `agreement_version = workshop_custom_v26.10.06`.
 
-Catalog customers are not required to accept Workshop custom restrictions.
+New Workshop acceptance: current `workshop_custom_v26.10.06` via RPC after the user sees and explicitly accepts `policies.agreement`. Overlay/CopyrightPage do not treat a legacy-only row as sufficient. No silent re-consent. No automatic insertion from the older Workshop agreement.
+
+Once `workshop_custom_v26.10.06` is recorded, the current gate is satisfied. Catalog customers are not required to accept Workshop custom restrictions.
+
+## NEW4-5B
+
+Status: **CLOSED** (local source only; no production migration/deploy)
+
+- Legacy Workshop evidence remains historical
+- Current version required for current Workshop access
+- Legacy-only user must re-consent to `workshop_custom_v26.10.06`
+- Displayed agreement now matches v26.10.06 (`policies.agreement`)
+- Unimplemented retention / deletion-duration promises removed from the Workshop agreement
+- Production migration/deploy: **NO**
 
 ## Checkout
 
@@ -100,7 +113,7 @@ Signup still has a live “쿠키 정책” checkbox that stamps `agreed_to_cook
 - Optional later re-consent for legacy unversioned members
 - NEW7: public checkout will exercise the prepared finalize ledger write
 - NEW4-4 privacy rewrite must bump `privacy_v26.09.19` in TS + RPC together
-- CopyrightPage article microcopy still predates NEW4-1 agreement text (not reopened here)
+- NEW4-5C: membership fail-closed (A3)
 
 ## Ownership
 

@@ -599,6 +599,17 @@ export const policies = {
         </div>
         <Divider />
 
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제1조의2 [취소·청약철회 및 하자]</h3>
+        <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
+          <ol className="list-decimal pl-5 space-y-3">
+            <li>이미지 업로드나 결제 완료만으로 제작이 시작된 것으로 보지 않습니다. 제작은 이미지 검수 후 제작 승인이 이루어진 때부터 진행됩니다.</li>
+            <li>이미지 검수 및 제작 승인 전에는 취소할 수 있습니다.</li>
+            <li>제작 승인 이후에는 사전 안내 및 동의한 범위에서 단순변심에 의한 청약철회가 제한될 수 있습니다.</li>
+            <li>상품의 불량, 파손, 오배송에 대한 교환·환불 권리는 유지됩니다.</li>
+          </ol>
+        </div>
+        <Divider />
+
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제2조 [이용자의 권리 보유 및 책임]</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
           <p>이용자는 업로드 및 생성하는 모든 콘텐츠(이미지, 인물, 캐릭터 등)에 대해 다음 사항을 명시적으로 보증합니다.</p>
@@ -631,12 +642,9 @@ export const policies = {
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제5조 [데이터 보관 및 삭제]</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제5조 [이미지 처리]</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <ol className="list-decimal pl-5 space-y-3">
-            <li>이용자가 업로드한 이미지 및 제작 데이터는 주문 이행을 위해 일정 기간 보관되며, 제작 완료 및 출고 후 <span className="text-purple-600 dark:text-purple-400 font-medium">최대 7일 이내 안전하게 영구 삭제</span>됩니다.</li>
-            <li>단, 관계 법령에 따른 보관 의무가 있는 경우 해당 기간 동안 보관될 수 있습니다.</li>
-          </ol>
+          <p>이용자가 업로드한 이미지는 WORKSHOP 제작 및 배송 이행을 위해 처리됩니다.</p>
         </div>
         <Divider />
 
@@ -664,7 +672,7 @@ export const policies = {
 
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제8조 [동의의 기록 및 효력]</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>이용자는 본 동의서의 각 항목을 확인하고 개별적으로 동의하며, 회사는 동의 사실(동의 시각, IP 주소, 버전 정보 등)을 기록 및 보관할 수 있습니다.<br/>해당 기록은 분쟁 발생 시 법적 증거로 활용됩니다.</p>
+          <p>이용자는 본 동의서 내용을 확인하고 동의하며, 회사는 동의 사실(동의 시각, 버전 정보 등)을 기록 및 보관할 수 있습니다.<br/>해당 기록은 분쟁 발생 시 법적 증거로 활용됩니다.</p>
         </div>
         <Divider />
 
