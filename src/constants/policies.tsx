@@ -200,7 +200,7 @@ export const policies = {
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
           <ol className="list-decimal pl-5 space-y-3">
             <li>제품 하자, 파손, 오배송 등 회사 귀책 사유의 경우 배송비는 메탈로라가 부담합니다.</li>
-            <li>일반 상품의 단순변심 반품 배송비는 구매자가 부담합니다. 현재 안내하는 왕복 배송비는 6,000원이며, 실제 택배비 확인에 따라 달라질 수 있습니다.</li>
+            <li>단순변심 반품 배송비는 구매자 부담이며, 정확한 금액은 반품 접수 시 안내드립니다.</li>
           </ol>
         </div>
         <Divider />
