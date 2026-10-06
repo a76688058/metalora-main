@@ -762,12 +762,12 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
           <dd className="type-label text-text-primary">{orientation === 'landscape' ? '가로' : '세로'}</dd>
         </div>
         <div className="flex justify-between gap-4">
-          <dt className="type-supporting text-text-secondary">제작</dt>
-          <dd className="type-label text-text-primary">2–5영업일</dd>
+          <dt className="type-supporting text-text-secondary">출고</dt>
+          <dd className="type-label text-text-primary">승인 후 3–5영업일</dd>
         </div>
         <div className="flex justify-between gap-4">
           <dt className="type-supporting text-text-secondary">배송</dt>
-          <dd className="type-label text-right text-text-primary">출고 후 1–3영업일</dd>
+          <dd className="type-label text-right text-text-primary">현재 무료배송</dd>
         </div>
       </dl>
       <p className="type-body text-text-secondary">

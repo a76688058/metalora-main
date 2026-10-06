@@ -185,9 +185,11 @@ export const policies = {
 
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제5조 (CS 처리 절차)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>문제 발생 시 상품 수령일로부터 7일 이내 메신저, 홈페이지 Q&A 게시판 또는 이메일로 접수해주시기 바랍니다.</p>
+          <p>반품·교환·문의는 상품 수령일로부터 7일 이내 홈페이지 1:1 문의 또는 이메일로 접수해 주세요. 접수 후 반품 방법과 주소를 안내드립니다.</p>
           <ul className="list-disc pl-5 mt-2 space-y-2">
-            <li>이메일: <span className="font-bold">a76688058@gmail.com</span></li>
+            <li>이메일: <span className="font-bold">a84411448@gmail.com</span></li>
+            <li>운영시간: 평일 10:00~17:00 (점심 12:00~13:00), 토·일·공휴일 휴무</li>
+            <li>운영시간 내 순차적으로 답변드립니다.</li>
             <li>접수 시 문제 확인을 위한 사진(제품 전체, 문제 부위, 포장 상태 등)을 함께 제출해주셔야 원활한 처리가 가능합니다.</li>
             <li>파손의 경우 택배 박스 및 송장 사진을 함께 제출해주시면 신속한 처리에 도움이 됩니다.</li>
           </ul>
@@ -197,48 +199,47 @@ export const policies = {
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제6조 (배송비 부담 기준)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
           <ol className="list-decimal pl-5 space-y-3">
-            <li>제품 하자, 오배송 등 회사 귀책 사유의 경우 배송비는 메탈로라가 부담합니다.</li>
-            <li>고객 사유로 인한 교환 또는 반품이 인정되는 예외적 경우, 왕복 배송비(6,000원)는 고객이 부담합니다.</li>
+            <li>제품 하자, 파손, 오배송 등 회사 귀책 사유의 경우 배송비는 메탈로라가 부담합니다.</li>
+            <li>일반 상품의 단순변심 반품 배송비는 구매자가 부담합니다. 현재 안내하는 왕복 배송비는 6,000원이며, 실제 택배비 확인에 따라 달라질 수 있습니다.</li>
           </ol>
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제7조 (반품 주소)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제7조 (반품 절차)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>울산광역시 남구 삼산로45번길 30, 103동 201호(신정이안, 메탈로라)</p>
+          <p>반품 전 1:1 문의 또는 이메일로 접수해 주세요. 접수 후 반품 방법과 주소를 안내드립니다.</p>
         </div>
         <Divider />
 
         <div className="mt-12 mb-8">
           <h2 className="text-[20px] font-bold text-zinc-950 dark:text-white border-b-2 border-purple-500 pb-2 inline-block">배송 안내 (Metalora Shipping Policy)</h2>
-          <p className="mt-4 text-[15px] font-medium text-purple-600 dark:text-purple-400">"메탈로라는 타협하지 않는 퀄리티를 위해 정교한 제작 공정을 준수합니다."</p>
         </div>
 
         <div className="space-y-4">
           <div className="bg-zinc-50 dark:bg-white/5 p-6 rounded-2xl border border-zinc-100 dark:border-white/5 shadow-sm">
             <h4 className="font-bold text-zinc-950 dark:text-white mb-2 flex items-center gap-2 text-[16px]">
-              ■ 제작 및 검수
+              ■ 현재 무료배송
             </h4>
             <p className="text-[15px] text-zinc-700 dark:text-zinc-300 leading-relaxed font-normal">
-              결제 완료 후 프리미엄 금속 패널 제작 및 정밀 검수에 <span className="font-semibold text-zinc-950 dark:text-white">3~5 영업일</span>이 소요됩니다.
+              현재 무료배송입니다. 제주·도서산간을 포함한 고객 추가 배송비는 없습니다.
             </p>
           </div>
 
           <div className="bg-zinc-50 dark:bg-white/5 p-6 rounded-2xl border border-zinc-100 dark:border-white/5 shadow-sm">
             <h4 className="font-bold text-zinc-950 dark:text-white mb-2 flex items-center gap-2 text-[16px]">
-              ■ 배송 안내
+              ■ 일반 상품 출고
             </h4>
             <p className="text-[15px] text-zinc-700 dark:text-zinc-300 leading-relaxed font-normal">
-              출고 후 평일 기준 <span className="font-semibold text-zinc-950 dark:text-white">2~3일 이내</span>에 안전하게 배송됩니다 (도서산간 제외).
+              일반 상품은 주문 후 <span className="font-semibold text-zinc-950 dark:text-white">2~3영업일 이내 출고</span>됩니다.
             </p>
           </div>
 
           <div className="bg-zinc-50 dark:bg-white/5 p-6 rounded-2xl border border-zinc-100 dark:border-white/5 shadow-sm">
             <h4 className="font-bold text-zinc-950 dark:text-white mb-2 flex items-center gap-2 text-[16px]">
-              ■ WORKSHOP 안내
+              ■ WORKSHOP 출고
             </h4>
             <p className="text-[15px] text-zinc-700 dark:text-zinc-300 leading-relaxed font-normal">
-              WORKSHOP은 고객이 업로드한 이미지를 검수한 뒤 개별 제작합니다. 일정은 검수 및 작업량에 따라 달라질 수 있습니다.
+              WORKSHOP은 이미지 승인 후 <span className="font-semibold text-zinc-950 dark:text-white">3~5영업일 이내 출고</span>됩니다.
             </p>
           </div>
         </div>

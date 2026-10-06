@@ -8,8 +8,8 @@ import { cn } from '../../lib/cn';
 import { FACTUAL_SHELL, FactualIndex } from './factualVisuals';
 
 /**
- * Confirmed general-catalog commerce facts only (Rule 03).
- * Do not import Custom / Workshop policy. Do not claim free shipping.
+ * Confirmed general-catalog commerce facts only (Rule 03 / NEW4-0).
+ * Do not import Custom / Workshop policy.
  */
 
 function LeadNumber({
@@ -94,21 +94,21 @@ export function ProductOrderConfidence() {
           <ol className="m-0 grid list-none grid-cols-1 p-0 md:grid-cols-2">
             <ConfidenceCell
               index="01"
-              label="제작"
-              detail="주문 후 제작에 필요한 예상 기간입니다."
+              label="출고"
+              detail="주문 후 2~3영업일 이내 출고입니다."
               invert={invert}
               className="border-b border-border-subtle md:border-r"
             >
-              <LeadNumber figure="2–5" unit="영업일" />
+              <LeadNumber kicker="주문 후" figure="2–3" unit="영업일" />
             </ConfidenceCell>
             <ConfidenceCell
               index="02"
               label="배송"
-              detail="제주·도서산간 지역은 추가 배송비가 발생할 수 있습니다."
+              detail="제주·도서산간을 포함한 고객 추가 배송비는 없습니다."
               invert={invert}
               className="border-b border-border-subtle"
             >
-              <LeadNumber kicker="출고 후" figure="1–3" unit="영업일" />
+              <LeadNumber kicker="현재" figure="무료" unit="배송" />
             </ConfidenceCell>
             <ConfidenceCell
               index="03"

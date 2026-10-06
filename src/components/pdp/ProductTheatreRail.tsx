@@ -269,7 +269,7 @@ export function ProductTheatreRail({
         )}
 
         <p className="type-metadata text-text-secondary">
-          2–5 영업일 제작 · 출고 후 1–3 영업일
+          주문 후 2~3영업일 이내 출고 · 현재 무료배송
         </p>
 
         <div className="border-t border-border-subtle">
@@ -282,12 +282,11 @@ export function ProductTheatreRail({
             </summary>
             <div className="space-y-2 pb-3 type-metadata text-text-secondary">
               <p>
-                <span className="text-text-primary">제작 및 검수.</span> 결제 완료 후 제작에 2–5 영업일이
-                소요됩니다.
+                <span className="text-text-primary">출고 안내.</span> 주문 후 2~3영업일 이내 출고됩니다.
               </p>
               <p>
-                <span className="text-text-primary">배송 안내.</span> 출고 후 1–3 영업일입니다. 제주·도서산간
-                지역은 추가 배송비가 발생할 수 있습니다.
+                <span className="text-text-primary">배송 안내.</span> 현재 무료배송입니다. 제주·도서산간 추가
+                배송비는 없습니다.
               </p>
               <p>
                 <span className="text-text-primary">반품 안내.</span> 단순 변심에 의한 반품은 수령 후 7일 이내
