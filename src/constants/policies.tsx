@@ -5,19 +5,19 @@ const Divider = () => <div className="h-[1px] bg-current opacity-10 my-8" />;
 
 export const policies = {
   terms: {
-    title: '이용약관 (Metalora Terms v26.03.26)',
+    title: '이용약관 (Metalora Terms v26.10.06)',
     content: (
       <div className="font-sans pb-8">
         <div className="bg-white dark:bg-zinc-900/40 p-6 rounded-2xl mb-10 border border-zinc-200 dark:border-white/5 shadow-sm">
           <p className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-200 font-semibold">
-            메탈로라 서비스는 <span className="text-purple-600 dark:text-purple-400">1:1 맞춤형 주문제작</span> 방식으로 운영됩니다.<br/>
-            결제 완료 후 제작이 시작되면 <span className="text-purple-600 dark:text-purple-400">단순 변심으로 인한 취소 및 환불이 불가</span>하오니 신중한 주문 부탁드립니다.
+            메탈로라의 상품은 <span className="text-purple-600 dark:text-purple-400">일반 카탈로그 상품</span>과 <span className="text-purple-600 dark:text-purple-400">WORKSHOP 맞춤 제작</span>으로 구분됩니다.<br/>
+            일반 상품은 상품 수령 후 7일 이내 청약철회가 가능합니다. WORKSHOP은 고객이 제공한 이미지를 바탕으로 개별 제작되며, 이미지 검수 및 제작 승인 전에는 취소할 수 있습니다.
           </p>
         </div>
 
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제1조 (목적)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>본 약관은 주식회사 메탈로라(이하 "회사")가 제공하는 이미지 기반 주문 제작 서비스(이하 "서비스")의 이용과 관련하여 회사와 이용자 간의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.</p>
+          <p>본 약관은 메탈로라(이하 "회사")가 제공하는 일반 카탈로그 상품 판매 및 WORKSHOP 맞춤 제작 서비스(이하 "서비스")의 이용과 관련하여 회사와 이용자 간의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.</p>
         </div>
         <Divider />
 
@@ -25,8 +25,10 @@ export const policies = {
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
           <ul className="list-disc pl-5 space-y-3">
             <li><span className="font-medium text-zinc-950 dark:text-white">"이용자"</span>란 본 약관에 따라 회사가 제공하는 서비스를 이용하는 자를 말합니다.</li>
-            <li><span className="font-medium text-zinc-950 dark:text-white">"서비스"</span>란 이용자가 업로드한 이미지 및 데이터를 기반으로 상품을 제작 및 배송하는 일체의 서비스를 의미합니다.</li>
-            <li><span className="font-medium text-zinc-950 dark:text-white">"콘텐츠"</span>란 이용자가 서비스 이용 과정에서 업로드하거나 생성한 이미지, 텍스트 등 모든 자료를 의미합니다.</li>
+            <li><span className="font-medium text-zinc-950 dark:text-white">"일반 상품"</span>이란 회사가 카탈로그로 판매하는 상품으로, 고객 이미지 업로드나 개인화가 없습니다. 주문 후 회사가 제작·검수한다는 사실만으로 개별 주문제작 상품으로 보지 않습니다.</li>
+            <li><span className="font-medium text-zinc-950 dark:text-white">"WORKSHOP"</span>이란 이용자가 자신의 이미지를 업로드하여 개별 제작을 의뢰하는 맞춤 제작 서비스입니다. 이미지는 자동 승인되지 않으며, 회사의 검수 후 제작이 승인됩니다.</li>
+            <li><span className="font-medium text-zinc-950 dark:text-white">"서비스"</span>란 일반 상품 판매와 WORKSHOP을 포함하여 회사가 제공하는 일체의 서비스를 의미합니다.</li>
+            <li><span className="font-medium text-zinc-950 dark:text-white">"콘텐츠"</span>란 WORKSHOP 이용 과정에서 이용자가 업로드하거나 생성한 이미지, 텍스트 등 자료를 의미합니다.</li>
           </ul>
         </div>
         <Divider />
@@ -43,7 +45,9 @@ export const policies = {
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제4조 (서비스의 제공 및 변경)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
           <ol className="list-decimal pl-5 space-y-3">
-            <li>회사는 이용자가 업로드한 이미지를 기반으로 금속, 아크릴 등 다양한 소재의 커스텀 상품을 제작하여 제공합니다.</li>
+            <li>회사는 일반 카탈로그 상품과 WORKSHOP 맞춤 제작 상품을 제공합니다.</li>
+            <li>일반 상품은 고객 이미지 업로드나 개인화 없이 제공됩니다. 주문 접수 후 회사가 제작·검수·포장하여 배송하더라도, 그 사실만으로 개별 주문제작 상품으로 분류하지 않습니다.</li>
+            <li>WORKSHOP은 이용자가 업로드한 이미지를 바탕으로 개별 제작됩니다. 이미지는 자동 승인되지 않으며, 회사의 검수 후 제작이 승인됩니다.</li>
             <li>회사는 기술적 사양 변경, 운영상 필요 등에 따라 서비스 내용을 변경할 수 있습니다.</li>
           </ol>
         </div>
@@ -51,7 +55,7 @@ export const policies = {
 
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제5조 (계약의 성립)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>이용자가 주문 내용을 확인하고 결제를 완료한 시점에 계약이 성립합니다. 회사는 다음의 경우 주문을 거절하거나 취소할 수 있습니다.</p>
+          <p>이용자가 주문 내용을 확인하고 결제를 완료한 시점에 계약이 성립합니다. WORKSHOP은 이미지 검수 결과에 따라 제작이 승인되거나 거절될 수 있습니다. 회사는 다음의 경우 주문을 거절하거나 취소할 수 있습니다.</p>
           <ol className="list-decimal pl-5 space-y-3">
             <li>권리 침해가 우려되는 콘텐츠</li>
             <li>법령에 위반되는 콘텐츠</li>
@@ -63,7 +67,7 @@ export const policies = {
 
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제6조 (이용자의 의무)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>이용자는 다음 행위를 하여서는 안 됩니다.</p>
+          <p>WORKSHOP 이용 시 이용자는 다음 행위를 하여서는 안 됩니다.</p>
           <ol className="list-decimal pl-5 space-y-3">
             <li>타인의 저작권, 초상권, 퍼블리시티권 등 권리를 침해하는 콘텐츠 업로드</li>
             <li>타인의 개인정보를 무단으로 포함한 콘텐츠 업로드</li>
@@ -78,7 +82,7 @@ export const policies = {
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제7조 (콘텐츠에 대한 권리 및 책임)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
           <ol className="list-decimal pl-5 space-y-3">
-            <li>이용자가 업로드한 콘텐츠에 대한 저작권 및 기타 권리는 이용자에게 귀속됩니다.</li>
+            <li>이용자가 WORKSHOP에 업로드한 콘텐츠에 대한 저작권 및 기타 권리는 이용자에게 귀속됩니다.</li>
             <li>이용자는 해당 콘텐츠가 제3자의 권리를 침해하지 않음을 보증합니다.</li>
             <li>회사는 서비스 제공을 위해 필요한 범위 내에서 콘텐츠를 이용할 수 있습니다.</li>
           </ol>
@@ -115,33 +119,40 @@ export const policies = {
 
         <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">부칙</h3>
         <div className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-400 font-normal space-y-3">
-          <p>본 약관은 2026년 3월 26일부터 시행됩니다.</p>
+          <p>본 약관은 2026년 10월 6일부터 시행됩니다.</p>
         </div>
       </div>
     )
   },
   refund: {
-    title: '환불 및 교환 정책 (Metalora Brand Policy v26.03.26)',
+    title: '환불 및 교환 정책 (Metalora Brand Policy v26.10.06)',
     content: (
       <div className="font-sans pb-8">
-        <div className="bg-red-50 dark:bg-purple-900/10 border border-red-200 dark:border-purple-900/30 text-red-700 dark:text-purple-400 p-6 rounded-2xl font-semibold mb-10 leading-relaxed text-[15px]">
-          메탈로라는 <span className="font-bold underline text-red-800 dark:text-purple-300">1:1 주문 제작 방식</span>으로 운영됩니다. 주문 제작 상품의 특성상 제작이 시작된 이후에는 단순 변심에 의한 취소 및 환불이 제한됩니다.
+        <div className="bg-white dark:bg-zinc-900/40 border border-zinc-200 dark:border-white/5 text-zinc-900 dark:text-zinc-200 p-6 rounded-2xl font-semibold mb-10 leading-relaxed text-[15px]">
+          메탈로라는 <span className="font-bold text-purple-600 dark:text-purple-400">일반 상품</span>과 <span className="font-bold text-purple-600 dark:text-purple-400">WORKSHOP 맞춤 제작</span>을 구분하여 안내합니다. 일반 상품은 상품 수령 후 7일 이내 청약철회가 가능합니다. WORKSHOP은 이미지 검수 및 제작 승인 전에는 취소할 수 있으며, 제작 승인 이후에는 사전 안내 및 동의한 범위에서 단순변심에 의한 청약철회가 제한될 수 있습니다. 불량·파손·오배송에 대한 교환·환불 권리는 유지됩니다.
         </div>
 
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제1조 (청약철회 및 주문 취소)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>「전자상거래 등에서의 소비자보호에 관한 법률」 제17조 제2항 제6호에 따라, 소비자의 주문에 의해 개별적으로 생산되는 제품은 청약철회가 제한될 수 있음을 고지합니다.</p>
-          <ol className="list-decimal pl-5 mt-2 space-y-2">
-            <li>결제 완료 후 제작 시작 전(상태: 결제완료) 단계에서만 주문 취소 및 전액 환불이 가능합니다.</li>
-            <li>제작 공정(상태: 제작 중)이 시작된 이후에는 주문 취소 및 환불이 불가합니다.</li>
+          <ol className="list-decimal pl-5 mt-2 space-y-3">
+            <li>
+              <span className="font-medium text-zinc-950 dark:text-white">일반 상품.</span> 상품 수령 후 7일 이내 청약철회가 가능합니다. 단순변심에 따른 반품 배송비는 구매자가 부담합니다.
+            </li>
+            <li>
+              <span className="font-medium text-zinc-950 dark:text-white">WORKSHOP.</span> 고객이 제공한 이미지를 바탕으로 개별 제작됩니다. 이미지 검수 및 제작 승인 전에는 취소할 수 있습니다. 제작 승인 이후에는 사전 안내 및 동의한 범위에서 단순변심에 의한 청약철회가 제한될 수 있습니다.
+            </li>
+            <li>
+              상품의 불량, 파손, 오배송, 표시·광고와 다른 경우는 일반 상품과 WORKSHOP 모두 교환 또는 환불이 가능하며, 이때 배송비는 회사가 부담합니다.
+            </li>
           </ol>
         </div>
         <Divider />
 
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제2조 (교환 및 환불이 가능한 경우)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>상품 수령일로부터 7일 이내에 아래 사유가 발생한 경우에 한하여 교환 및 환불이 가능합니다.</p>
+          <p>다음의 경우 교환 및 환불이 가능합니다.</p>
           <ol className="list-decimal pl-5 mt-2 space-y-3">
+            <li>일반 상품의 단순변심: 상품 수령일로부터 7일 이내. 반품 배송비는 구매자 부담입니다.</li>
             <li>배송된 상품의 <span className="font-bold text-zinc-950 dark:text-white">명백한 파손 또는 불량</span>이 확인된 경우</li>
             <li>주문한 사양과 실제 배송된 상품이 다른 <span className="font-bold text-zinc-950 dark:text-white">오배송</span>의 경우</li>
             <li>상품 정보와 실제 제품의 내용이 현저히 다른 경우</li>
@@ -149,15 +160,15 @@ export const policies = {
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제3조 (교환 및 환불이 제한되는 경우 - 면책 사항)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제3조 (교환 및 환불이 제한되는 경우)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>아래 사유는 제품의 결함이 아니며, 주문 제작 상품의 특성상 교환 및 환불 대상에 해당하지 않습니다.</p>
+          <p>아래 사유는 제품의 결함으로 보지 않으며, 교환 및 환불이 제한될 수 있습니다.</p>
           <ol className="list-decimal pl-5 mt-2 space-y-3">
             <li><span className="font-bold text-zinc-950 dark:text-white">색상 차이</span>: 모니터 및 모바일 기기 환경(밝기, 색상 설정 등)에 따른 색상 차이</li>
-            <li><span className="font-bold text-zinc-950 dark:text-white">이미지 품질</span>: 고객이 업로드한 원본 파일의 해상도 부족, 노이즈, 초점 불량 등</li>
+            <li><span className="font-bold text-zinc-950 dark:text-white">이미지 품질</span>: WORKSHOP에서 고객이 업로드한 원본 파일의 해상도 부족, 노이즈, 초점 불량 등</li>
             <li><span className="font-bold text-zinc-950 dark:text-white">마감 오차</span>: 공정상 발생할 수 있는 1~2mm 내외의 재단 오차 및 미세한 스크래치</li>
             <li>고객 책임 사유: 상품 수령 후 고객의 부주의로 인한 훼손 또는 사용 흔적이 있는 경우</li>
-            <li>단순 변심 또는 주관적 만족도(예: “생각보다 마음에 들지 않음”)</li>
+            <li>WORKSHOP에서 제작 승인 이후의 단순변심: 사전 안내 및 동의한 범위에서 청약철회가 제한될 수 있습니다. 일반 상품의 단순변심 청약철회는 제1조에 따릅니다.</li>
           </ol>
         </div>
         <Divider />
@@ -165,9 +176,9 @@ export const policies = {
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제4조 (검수 및 책임 범위)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
           <ol className="list-decimal pl-5 space-y-3">
-            <li>메탈로라는 이용자가 업로드한 이미지의 내용, 권리 관계, 품질에 대해 사전 검수를 수행하지 않습니다.</li>
+            <li>WORKSHOP 이미지는 제작 전 검수합니다. 검수는 제작 가능 여부 확인을 위한 것이며, 저작권·초상권의 최종 책임은 이용자에게 있습니다.</li>
             <li>업로드된 이미지의 저작권, 초상권 및 사용 권한에 대한 책임은 전적으로 이용자에게 있습니다.</li>
-            <li>이미지 품질 및 해상도에 따른 결과물 차이에 대해서는 책임을 지지 않습니다.</li>
+            <li>원본 이미지 품질 및 해상도에 따른 결과물 차이는 제품 하자로 보지 않을 수 있습니다.</li>
           </ol>
         </div>
         <Divider />
@@ -224,17 +235,17 @@ export const policies = {
 
           <div className="bg-zinc-50 dark:bg-white/5 p-6 rounded-2xl border border-zinc-100 dark:border-white/5 shadow-sm">
             <h4 className="font-bold text-zinc-950 dark:text-white mb-2 flex items-center gap-2 text-[16px]">
-              ■ 커스텀 안내
+              ■ WORKSHOP 안내
             </h4>
             <p className="text-[15px] text-zinc-700 dark:text-zinc-300 leading-relaxed font-normal">
-              주문 제작 및 AI 최적화 공정 특성상, 작업량에 따라 <span className="font-semibold text-zinc-950 dark:text-white">최대 14일 이내</span>에 모든 서비스 제공이 완료됩니다.
+              WORKSHOP은 고객이 업로드한 이미지를 검수한 뒤 개별 제작합니다. 일정은 검수 및 작업량에 따라 달라질 수 있습니다.
             </p>
           </div>
         </div>
 
         <div className="text-[13px] opacity-70 text-zinc-500 mt-12">
           부칙<br />
-          본 정책은 2026년 3월 26일부터 적용됩니다.
+          본 정책은 2026년 10월 6일부터 적용됩니다.
         </div>
       </div>
     )
@@ -564,7 +575,7 @@ export const policies = {
     )
   },
   agreement: {
-    title: '커스텀 제작 및 콘텐츠 이용 동의서 (Metalora Consent v26.03.26)',
+    title: 'WORKSHOP 제작 및 콘텐츠 이용 동의서 (Metalora Consent v26.10.06)',
     content: (
       <div className="font-sans pb-8">
         <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 text-red-700 dark:text-red-400 p-6 rounded-2xl font-semibold mb-10 leading-relaxed">
@@ -572,16 +583,17 @@ export const policies = {
             <AlertCircle size={20} className="text-red-600 dark:text-red-500" />
             <span className="text-red-700 dark:text-red-500 font-bold text-[16px]">저작권 및 초상권 책임 안내</span>
           </div>
-          타인의 저작권, 초상권, 퍼블리시티권을 침해하는 콘텐츠(유명인 사진, 애니메이션 캐릭터, 타인의 창작물 등)를 무단으로 사용하여 발생하는 <span className="text-red-800 dark:text-red-300 font-bold">모든 민·형사상 법적 책임은 전적으로 주문자(이용자) 본인에게 귀속</span>됩니다.
+          본 동의서는 <span className="text-red-800 dark:text-red-300 font-bold">WORKSHOP 맞춤 제작</span>에 적용됩니다. 타인의 저작권, 초상권, 퍼블리시티권을 침해하는 콘텐츠(유명인 사진, 애니메이션 캐릭터, 타인의 창작물 등)를 무단으로 사용하여 발생하는 <span className="text-red-800 dark:text-red-300 font-bold">모든 민·형사상 법적 책임은 전적으로 주문자(이용자) 본인에게 귀속</span>됩니다.
         </div>
 
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제1조 [서비스의 성격 및 기술적 중립성]</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제1조 [서비스의 성격]</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>METALORA(이하 "회사")는 이용자가 업로드한 이미지 및 데이터를 기반으로 주문 제작 상품을 생산하는 기술 기반 플랫폼입니다.</p>
+          <p>본 동의서는 이용자가 이미지를 업로드하여 개별 제작을 의뢰하는 WORKSHOP에 적용됩니다. 일반 카탈로그 상품에는 적용되지 않습니다.</p>
           <ol className="list-decimal pl-5 space-y-3">
-            <li>회사는 이용자가 제공한 데이터를 기반으로 상품을 물리적으로 구현하는 <span className="text-purple-600 dark:text-purple-400 font-medium">자동화된 제작 플랫폼</span>입니다.</li>
-            <li>회사는 하루 수많은 주문을 처리함에 있어, 개별 이미지가 제3자의 권리를 침해하는지 여부를 <span className="text-purple-600 dark:text-purple-400 font-medium">사전에 일일이 심사하거나 검증할 의무를 지지 않습니다.</span></li>
-            <li>다만, 회사는 관련 법령 준수 및 서비스 운영을 위해 필요한 경우 콘텐츠를 제한, 거부 또는 삭제할 수 있습니다.</li>
+            <li>WORKSHOP은 이용자가 제공한 이미지를 바탕으로 개별 제작됩니다.</li>
+            <li>업로드된 이미지는 자동 승인되지 않으며, 회사의 검수 후 제작이 승인됩니다.</li>
+            <li>검수는 제작 가능 여부 확인을 위한 것이며, 저작권·초상권의 최종 책임은 이용자에게 있습니다.</li>
+            <li>회사는 관련 법령 준수 및 서비스 운영을 위해 필요한 경우 콘텐츠를 제한, 거부 또는 삭제할 수 있습니다.</li>
           </ol>
         </div>
         <Divider />
@@ -657,7 +669,7 @@ export const policies = {
 
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">부칙</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>본 동의서는 2026년 3월 26일부터 시행됩니다.</p>
+          <p>본 동의서는 2026년 10월 6일부터 시행됩니다.</p>
         </div>
       </div>
     )

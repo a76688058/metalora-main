@@ -771,7 +771,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
         </div>
       </dl>
       <p className="type-body text-text-secondary">
-        커스텀 상품은 제작이 시작된 이후 취소 및 환불이 불가합니다. 최종 시안을 다시 한번 확인해 주세요.
+        WORKSHOP은 고객이 제공한 이미지를 바탕으로 개별 제작됩니다. 이미지 검수 및 제작 승인 전에는 취소할 수 있으며, 제작 승인 이후에는 사전 안내 및 동의한 범위에서 단순변심에 의한 청약철회가 제한될 수 있습니다. 최종 시안을 다시 한번 확인해 주세요.
       </p>
     </div>
   );
