@@ -24,6 +24,13 @@ import {
   checkoutPolicyVersionSnapshot,
 } from "./src/lib/policyVersions";
 import { recordCheckoutReturnRefundConsent } from "./src/lib/consentLedger";
+import {
+  WORKSHOP_RETENTION_JOB_ENV,
+  WORKSHOP_RETENTION_PURGE_PATH,
+  isConfiguredRetentionSecret,
+  retentionJobAuthorized,
+  runWorkshopRetentionPurge,
+} from "./src/lib/workshopRetention";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1950,6 +1957,28 @@ async function startServer() {
   // API routes FIRST
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  app.post(WORKSHOP_RETENTION_PURGE_PATH, async (req, res) => {
+    const secret = process.env[WORKSHOP_RETENTION_JOB_ENV];
+    if (!isConfiguredRetentionSecret(secret)) {
+      console.error("[WORKSHOP_RETENTION] job_secret_missing");
+      return res.status(503).json({ error: "unavailable" });
+    }
+    if (!retentionJobAuthorized(req.headers.authorization, secret)) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+    if (!supabaseAdmin) {
+      console.error("[WORKSHOP_RETENTION] admin_client_missing");
+      return res.status(503).json({ error: "unavailable" });
+    }
+    try {
+      const summary = await runWorkshopRetentionPurge(supabaseAdmin);
+      return res.status(200).json(summary);
+    } catch {
+      console.error("[WORKSHOP_RETENTION] job_failed", { reason_class: "job_error" });
+      return res.status(500).json({ error: "job_failed" });
+    }
   });
 
   // RSS Feed for Naver Search Advisor
