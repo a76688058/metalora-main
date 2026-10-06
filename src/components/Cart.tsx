@@ -23,6 +23,7 @@ import {
 } from '../lib/paymentFailureAnalytics';
 import { isUsableMemberProfile } from '../lib/authIntegrity';
 import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../lib/publicPaymentFreeze';
+import { checkoutPolicyVersionSnapshot } from '../lib/policyVersions';
 
 interface CartProps {
   isOpen: boolean;
@@ -522,6 +523,7 @@ export default function Cart() {
             consents: {
               ...consents,
               agreed_at: new Date().toISOString(),
+              policy_versions: checkoutPolicyVersionSnapshot(hasWorkshopItems),
             },
           }),
         });
@@ -594,7 +596,8 @@ export default function Cart() {
         shipping_info: {
           consents: {
             ...consents,
-            agreed_at: new Date().toISOString()
+            agreed_at: new Date().toISOString(),
+            policy_versions: checkoutPolicyVersionSnapshot(hasWorkshopItems),
           }
         },
         ordered_items: selectedItems.map(item => ({

@@ -8,6 +8,7 @@ import { generateInternalSocialUsername } from "./internalSocialUsername";
 import { OTP_RATE_WINDOW_SECONDS, otpTicketHmac } from "./otpCrypto";
 import { isTrustedSocialIdentityProvider, normalizeSocialProvider } from "./trustedSocialProviders";
 import { resolveTrustedIpMode, trustedClientIp } from "./trustedClientIp";
+import { recordMembershipPolicyConsents } from "./consentLedger";
 
 const GENERIC_BAD = "요청을 처리할 수 없습니다.";
 const GENERIC_AUTH = "인증이 필요합니다.";
@@ -164,19 +165,23 @@ async function handleSocialComplete(req: Request, res: Response, deps: SocialAut
       return;
     }
     if (rpc.ok === true) {
+      const already = rpc.already_complete === true;
       logAuth("social_complete", {
         request_id: requestId,
-        outcome: rpc.already_complete === true ? "already_complete" : "accepted",
+        outcome: already ? "already_complete" : "accepted",
       });
       await recordAuthSecurityEvent(admin, pepper, ip, {
         event: "social_complete",
-        outcome: rpc.already_complete === true ? "already_complete" : "accepted",
+        outcome: already ? "already_complete" : "accepted",
         requestId,
         userId: user.id,
       });
+      if (!already) {
+        await recordMembershipPolicyConsents(admin, user.id, "membership_social");
+      }
       res.status(200).json({
         ok: true,
-        already_complete: rpc.already_complete === true,
+        already_complete: already,
       });
       return;
     }

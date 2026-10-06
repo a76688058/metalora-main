@@ -24,6 +24,7 @@ import {
 } from "./otpCrypto";
 import { memberPasswordError } from "./passwordPolicy";
 import { resolveTrustedIpMode, trustedClientIp } from "./trustedClientIp";
+import { recordMembershipPolicyConsents } from "./consentLedger";
 
 const GENERIC_BAD = "요청을 처리할 수 없습니다.";
 const GENERIC_AUTH = "인증이 필요합니다.";
@@ -806,6 +807,7 @@ async function handleSignupComplete(req: Request, res: Response, deps: PasswordA
     requestId,
     userId,
   });
+  await recordMembershipPolicyConsents(admin, userId, "membership_signup");
   res.status(200).json({ ok: true });
 }
 
@@ -1053,6 +1055,9 @@ async function handleMemberEnrollExisting(req: Request, res: Response, deps: Pas
       requestId,
       userId: caller.userId,
     });
+    if (!already) {
+      await recordMembershipPolicyConsents(admin, caller.userId, "membership_enroll");
+    }
     res.status(200).json({ ok: true, already_complete: already });
     return;
   }

@@ -6,6 +6,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import Header from '../Header';
+import { recordPolicyConsent } from '../../lib/consentLedger';
+import { POLICY_TYPES, POLICY_VERSIONS } from '../../lib/policyVersions';
 
 interface CopyrightPageProps {
   onAgree: () => void;
@@ -24,7 +26,6 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
-  const [clientIp, setClientIp] = useState<string>('unknown');
 
   const allAgreed = Object.values(agreements).every(v => v);
   const agreedCount = Object.values(agreements).filter(v => v).length;
@@ -39,10 +40,11 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
       try {
         const { data, error } = await supabase
           .from('user_agreements')
-          .select('*')
+          .select('id')
           .eq('user_id', user.id)
-          .eq('agreement_version', 'ML_Legal_v260325')
-          .single();
+          .eq('policy_type', POLICY_TYPES.workshopCustom)
+          .limit(1)
+          .maybeSingle();
 
         if (data && !error) {
           onAgree();
@@ -55,31 +57,6 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
     };
 
     checkInitialAgreement();
-
-    const fetchIp = async () => {
-      try {
-        const response = await fetch('https://api.ipify.org?format=json');
-        if (!response.ok) throw new Error('Primary IP fetch failed');
-        const data = await response.json();
-        setClientIp(data.ip);
-      } catch (err) {
-        try {
-          const cfResponse = await fetch('https://1.1.1.1/cdn-cgi/trace');
-          if (cfResponse.ok) {
-            const text = await cfResponse.text();
-            const ipMatch = text.match(/ip=(.*)/);
-            if (ipMatch && ipMatch[1]) {
-              setClientIp(ipMatch[1]);
-              return;
-            }
-          }
-        } catch (innerErr) {
-          // Both failed, ignore silently
-        }
-      }
-    };
-
-    fetchIp();
   }, [user, onAgree]);
 
   const toggleAgreement = (key: keyof typeof agreements) => {
@@ -91,17 +68,14 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase
-        .from('user_agreements')
-        .insert({
-          user_id: user.id,
-          agreement_version: 'ML_Legal_v260325',
-          ip_address: clientIp,
-          agreed_at: new Date().toISOString()
-        });
+      const recorded = await recordPolicyConsent(supabase, {
+        policyType: POLICY_TYPES.workshopCustom,
+        policyVersion: POLICY_VERSIONS.workshop_custom,
+        source: 'workshop',
+      });
 
-      if (error) {
-        throw error;
+      if (!recorded) {
+        throw new Error('consent_record_failed');
       }
 
       onAgree();
@@ -163,7 +137,7 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
             transition={{ delay: 0.2 }}
             className="type-metadata mt-2 text-text-tertiary"
           >
-            약관 번호: ML_Legal_v260325
+            약관 번호: {POLICY_VERSIONS.workshop_custom}
           </motion.p>
         </div>
       </div>

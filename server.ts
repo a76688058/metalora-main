@@ -20,6 +20,10 @@ import { registerSocialAuthRoutes } from "./src/lib/socialAuthHandlers";
 import { resolveSmsAdapter } from "./src/lib/smsAdapter";
 import { configureExpressTrustProxy, resolveTrustedIpMode } from "./src/lib/trustedClientIp";
 import { verifyPaymentMember } from "./src/lib/paymentMemberAuth";
+import {
+  checkoutPolicyVersionSnapshot,
+} from "./src/lib/policyVersions";
+import { recordCheckoutReturnRefundConsent } from "./src/lib/consentLedger";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1334,6 +1338,25 @@ type PaymentIntentSnapshot = {
   consents?: Record<string, unknown>;
 };
 
+function snapshotIncludesWorkshop(
+  orderedItems: Array<{ is_custom?: boolean; product_id?: string | null }>,
+): boolean {
+  return orderedItems.some(
+    (item) => item.is_custom === true || item.product_id === 'workshop-single',
+  );
+}
+
+function withAuthoritativeConsentVersions(
+  consents: Record<string, unknown> | undefined,
+  includesWorkshop: boolean,
+): Record<string, unknown> | undefined {
+  if (!consents) return undefined;
+  return {
+    ...consents,
+    policy_versions: checkoutPolicyVersionSnapshot(includesWorkshop),
+  };
+}
+
 type VerifiedPaymentUser = {
   verifiedUserId: string;
   verifiedUserCustomId: string;
@@ -1547,7 +1570,12 @@ function parsePaymentIntentSnapshot(raw: unknown):
   };
 
   if (value.consents != null && typeof value.consents === 'object' && !Array.isArray(value.consents)) {
-    snapshot.consents = value.consents as Record<string, unknown>;
+    snapshot.consents = withAuthoritativeConsentVersions(
+      value.consents as Record<string, unknown>,
+      snapshotIncludesWorkshop(
+        value.ordered_items as Array<{ is_custom?: boolean; product_id?: string | null }>,
+      ),
+    );
   }
 
   return { ok: true, snapshot };
@@ -2241,7 +2269,10 @@ ${staticUrls}${productUrls}
       };
 
       if (consents != null && typeof consents === 'object' && !Array.isArray(consents)) {
-        validatedSnapshot.consents = consents as Record<string, unknown>;
+        validatedSnapshot.consents = withAuthoritativeConsentVersions(
+          consents as Record<string, unknown>,
+          snapshotIncludesWorkshop(sanitizedOrderedItems),
+        );
       }
 
       const { error: insertError } = await supabaseAdmin!
@@ -2728,6 +2759,14 @@ ${staticUrls}${productUrls}
         return res.status(500).json({
           error: "주문 정보 저장 중 오류가 발생했습니다.",
         });
+      }
+
+      if (supabaseAdmin) {
+        await recordCheckoutReturnRefundConsent(
+          supabaseAdmin,
+          verifiedUserId,
+          paymentIntent.order_number,
+        );
       }
 
       const WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL;
