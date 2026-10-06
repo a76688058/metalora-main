@@ -113,7 +113,21 @@ Signup still has a live “쿠키 정책” checkbox that stamps `agreed_to_cook
 - Optional later re-consent for legacy unversioned members
 - NEW7: public checkout will exercise the prepared finalize ledger write
 - NEW4-4 privacy rewrite must bump `privacy_v26.09.19` in TS + RPC together
-- NEW4-5C: membership fail-closed (A3)
+- NEW4-5C: membership fail-closed — **CLOSED** (this follow-up; no production migration/deploy)
+
+## NEW4-5C
+
+Status: **CLOSED** (local source only; no production migration/deploy)
+
+New membership flows fail closed on versioned Terms + Privacy persistence:
+
+- Helper success = both `terms_v26.10.06` and `privacy_v26.09.19` persisted. Partial write is overall failure. Truthful successful row is kept. Retry is idempotent. No version fabrication.
+- Password signup: create user → phone bind → ledger both → success only if both persist. On ledger failure: `signup_fail_proof` + `deleteUser` of **this attempt’s** newly created user only. Cleanup failure still returns signup failure.
+- Social pending: ledger both **before** `social_activate_pending`. Ledger failure does not activate and does not delete the OAuth/Auth identity.
+- Existing-auth enroll: ledger both **before** `member_enroll_existing`. Ledger failure does not enroll and does not delete the user.
+- `already_complete` / already-usable members: not gated; no ledger fabrication; `isUsableMemberProfile` unchanged.
+- Legacy `agreed_to_*_at` timestamps remain compatibility fields and are not sufficient for new activation.
+- Production migration/deploy: **NO**
 
 ## Ownership
 

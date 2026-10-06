@@ -52,24 +52,28 @@ export async function recordPolicyConsent(
   return true;
 }
 
-/** Server-side membership Terms + Privacy. Does not record cookie/GA. */
+/**
+ * Server-side membership Terms + Privacy. Does not record cookie/GA.
+ * Success only when both current required versions persist. Partial write is failure.
+ */
 export async function recordMembershipPolicyConsents(
   admin: LedgerClient,
   userId: string,
   source: Extract<ConsentSource, 'membership_signup' | 'membership_social' | 'membership_enroll'>,
-): Promise<void> {
-  await recordPolicyConsent(admin, {
+): Promise<boolean> {
+  const termsOk = await recordPolicyConsent(admin, {
     userId,
     policyType: POLICY_TYPES.terms,
     policyVersion: POLICY_VERSIONS.terms,
     source,
   });
-  await recordPolicyConsent(admin, {
+  const privacyOk = await recordPolicyConsent(admin, {
     userId,
     policyType: POLICY_TYPES.privacy,
     policyVersion: POLICY_VERSIONS.privacy,
     source,
   });
+  return termsOk && privacyOk;
 }
 
 export async function recordCheckoutReturnRefundConsent(

@@ -800,6 +800,31 @@ async function handleSignupComplete(req: Request, res: Response, deps: PasswordA
     return;
   }
 
+  const consentOk = await recordMembershipPolicyConsents(admin, userId, "membership_signup");
+  if (!consentOk) {
+    await admin.rpc("signup_fail_proof", { p_ticket_hmac: proofHmac });
+    const deleted = await admin.auth.admin.deleteUser(userId);
+    if (deleted.error) {
+      logAuth("signup_complete", { request_id: requestId, outcome: "consent_cleanup_failed" });
+      await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+        event: "signup_complete",
+        outcome: "consent_cleanup_failed",
+        requestId,
+        userId,
+      });
+      res.status(500).json({ ok: false, error: GENERIC_CONFIG });
+      return;
+    }
+    logAuth("signup_complete", { request_id: requestId, outcome: "consent_failed" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "signup_complete",
+      outcome: "consent_failed",
+      requestId,
+    });
+    res.status(500).json({ ok: false, error: GENERIC_RETRY });
+    return;
+  }
+
   logAuth("signup_complete", { request_id: requestId, outcome: "accepted" });
   await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
     event: "signup_complete",
@@ -807,7 +832,6 @@ async function handleSignupComplete(req: Request, res: Response, deps: PasswordA
     requestId,
     userId,
   });
-  await recordMembershipPolicyConsents(admin, userId, "membership_signup");
   res.status(200).json({ ok: true });
 }
 
@@ -1025,6 +1049,19 @@ async function handleMemberEnrollExisting(req: Request, res: Response, deps: Pas
     return;
   }
 
+  const consentOk = await recordMembershipPolicyConsents(admin, caller.userId, "membership_enroll");
+  if (!consentOk) {
+    logAuth("member_enroll_existing", { request_id: requestId, outcome: "consent_failed" });
+    await recordAuthSecurityEvent(admin, secrets.otpPepper, ip, {
+      event: "member_enroll_existing",
+      outcome: "consent_failed",
+      requestId,
+      userId: caller.userId,
+    });
+    res.status(500).json({ ok: false, error: GENERIC_RETRY });
+    return;
+  }
+
   const { data, error } = await admin.rpc("member_enroll_existing", {
     p_user_id: caller.userId,
     p_ticket_hmac: proofHmac,
@@ -1055,9 +1092,6 @@ async function handleMemberEnrollExisting(req: Request, res: Response, deps: Pas
       requestId,
       userId: caller.userId,
     });
-    if (!already) {
-      await recordMembershipPolicyConsents(admin, caller.userId, "membership_enroll");
-    }
     res.status(200).json({ ok: true, already_complete: already });
     return;
   }

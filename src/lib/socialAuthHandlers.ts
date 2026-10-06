@@ -151,6 +151,20 @@ async function handleSocialComplete(req: Request, res: Response, deps: SocialAut
   }
 
   const ticketHmac = otpTicketHmac(pepper, body.proof_token);
+
+  const consentOk = await recordMembershipPolicyConsents(admin, user.id, "membership_social");
+  if (!consentOk) {
+    logAuth("social_complete", { request_id: requestId, outcome: "consent_failed" });
+    await recordAuthSecurityEvent(admin, pepper, ip, {
+      event: "social_complete",
+      outcome: "consent_failed",
+      requestId,
+      userId: user.id,
+    });
+    res.status(500).json({ ok: false, error: GENERIC_RETRY });
+    return;
+  }
+
   for (let attempt = 0; attempt < USERNAME_RETRY_CAP; attempt += 1) {
     const username = generateInternalSocialUsername();
     const { data, error } = await admin.rpc("social_activate_pending", {
@@ -176,9 +190,6 @@ async function handleSocialComplete(req: Request, res: Response, deps: SocialAut
         requestId,
         userId: user.id,
       });
-      if (!already) {
-        await recordMembershipPolicyConsents(admin, user.id, "membership_social");
-      }
       res.status(200).json({
         ok: true,
         already_complete: already,
