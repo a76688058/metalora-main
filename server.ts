@@ -38,7 +38,28 @@ import {
   parseWithdrawalSource,
   runAccountWithdrawal,
   verifyAdminCaller,
+  isAdminProfile,
 } from "./src/lib/accountWithdrawal";
+import {
+  WORKSHOP_MEDIA_PATHS,
+  WorkshopStorageConfigError,
+  applyWorkshopMediaResponseHeaders,
+  createSupabaseLegacyWorkshopStore,
+  createSupabaseWorkshopReferenceSource,
+  createWorkshopStorageAdapter,
+  handleCommit,
+  handleDiscard,
+  handleSignRead,
+  handleSignUpload,
+  isWorkshopMediaOrSignedValue,
+  legacySupabaseHosts,
+  readWorkshopGcsConfig,
+  workshopGcsStoreFor,
+  workshopRefIdentity,
+  type WorkshopMediaCaller,
+  type WorkshopMediaResponse,
+  type WorkshopStorageAdapter,
+} from "./src/lib/workshopStorage";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -129,6 +150,22 @@ const supabaseAdmin = supabaseServiceKey
 const supabasePublic = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
+
+// Workshop media (NEW4-4D-3). GCS is enabled only by the exact approved WORKSHOP_GCS_* values;
+// partial/non-approved config fails closed. Live Workshop uploads stay on Supabase until cutover.
+const workshopGcsConfig = readWorkshopGcsConfig(process.env);
+const workshopLegacyHosts = legacySupabaseHosts(supabaseUrl);
+const workshopRefOptions = { legacyHosts: workshopLegacyHosts };
+
+function workshopStorageAdapterFor(admin: NonNullable<typeof supabaseAdmin>): WorkshopStorageAdapter {
+  if (workshopGcsConfig.state === "invalid") {
+    throw new WorkshopStorageConfigError(workshopGcsConfig.reason);
+  }
+  return createWorkshopStorageAdapter({
+    legacy: createSupabaseLegacyWorkshopStore(admin),
+    gcs: workshopGcsStoreFor(workshopGcsConfig),
+  });
+}
 
 /**
  * Production-only: refuse to listen if payment/auth runtime secrets are blank.
@@ -547,13 +584,15 @@ function resolvePublicImageUrl(pathOrUrl: string | null | undefined): string | n
   if (!pathOrUrl || typeof pathOrUrl !== "string") return null;
   const trimmed = pathOrUrl.trim();
   if (!trimmed) return null;
+  // Customer Workshop media (canonical paths, legacy bucket URLs, GCS/signed URLs) is never public.
+  if (isWorkshopMediaOrSignedValue(trimmed)) return null;
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
   const cleanPath = trimmed.split("?")[0];
   const encodedPath = cleanPath
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
-  if (cleanPath.includes("workshop/") || cleanPath.includes("products/")) {
+  if (cleanPath.includes("products/")) {
     return `${STORAGE_PUBLIC_BASE}/${encodedPath}`;
   }
   return `${STORAGE_PUBLIC_BASE}/products/${encodedPath}`;
@@ -1156,9 +1195,12 @@ function isCompleteCustomV1Production(cfg: unknown, orientation: unknown): boole
   const rec = cfg as Record<string, unknown>;
   if (!isCustomOrientation(orientation)) return false;
 
-  const original = nonEmptyUrl(rec.original_image_url);
-  const preview = nonEmptyUrl(rec.preview_image_url);
-  if (!original || !preview || original === preview) return false;
+  const original = customImageRef(rec.original_image_url);
+  const preview = customImageRef(rec.preview_image_url);
+  if (!original || !preview) return false;
+  if (workshopRefIdentity(original, workshopRefOptions) === workshopRefIdentity(preview, workshopRefOptions)) {
+    return false;
+  }
 
   const rawComp = rec.composition;
   if (!rawComp || typeof rawComp !== 'object' || Array.isArray(rawComp)) return false;
@@ -1210,12 +1252,10 @@ function passthroughCustomConfig(
   if (composition) out.composition = composition;
   if (src.source_width != null) out.source_width = src.source_width;
   if (src.source_height != null) out.source_height = src.source_height;
-  if (typeof src.original_image_url === 'string' && src.original_image_url.trim()) {
-    out.original_image_url = src.original_image_url.trim();
-  }
-  if (typeof src.preview_image_url === 'string' && src.preview_image_url.trim()) {
-    out.preview_image_url = src.preview_image_url.trim();
-  }
+  const originalRef = customImageRef(src.original_image_url);
+  if (originalRef) out.original_image_url = originalRef;
+  const previewRef = customImageRef(src.preview_image_url);
+  if (previewRef) out.preview_image_url = previewRef;
   if (src.serial_number != null) out.serial_number = src.serial_number;
   if (src.ai_upscale != null) out.ai_upscale = !!src.ai_upscale;
   if (src.ai_outpaint != null) out.ai_outpaint = !!src.ai_outpaint;
@@ -1282,18 +1322,36 @@ function nonEmptyUrl(value: unknown): string | null {
   return trimmed ? trimmed : null;
 }
 
+/**
+ * Custom image reference as stored: canonical Workshop path (GCS era) or legacy Supabase URL.
+ * Temporary GCS/signed URLs are never persisted into payment/order snapshots.
+ */
+function customImageRef(value: unknown): string | null {
+  const ref = nonEmptyUrl(value);
+  if (!ref) return null;
+  if (/x-goog-(signature|credential)/i.test(ref)) return null;
+  try {
+    const host = new URL(ref).hostname.toLowerCase();
+    if (host.endsWith("googleapis.com") || host === "storage.cloud.google.com") return null;
+  } catch {
+    // not a URL: canonical path or legacy value
+  }
+  return ref;
+}
+
+/** Canonical identities (canonical path for trusted Workshop refs) of the row's image refs. */
 function customRowImageUrls(row: CustomCartRow): string[] {
   const cfg = row.custom_config && typeof row.custom_config === 'object' ? row.custom_config : {};
   return [
-    nonEmptyUrl(row.custom_image),
-    nonEmptyUrl(cfg.preview_image_url),
-    nonEmptyUrl(cfg.original_image_url),
+    workshopRefIdentity(customImageRef(row.custom_image), workshopRefOptions),
+    workshopRefIdentity(customImageRef(cfg.preview_image_url), workshopRefOptions),
+    workshopRefIdentity(customImageRef(cfg.original_image_url), workshopRefOptions),
   ].filter((url): url is string => !!url);
 }
 
 function customDisplayImage(row: CustomCartRow): string | null {
   const cfg = row.custom_config && typeof row.custom_config === 'object' ? row.custom_config : {};
-  return nonEmptyUrl(cfg.preview_image_url) || nonEmptyUrl(row.custom_image);
+  return customImageRef(cfg.preview_image_url) || customImageRef(row.custom_image);
 }
 
 function claimMatchingCustomCartRow(
@@ -1307,10 +1365,10 @@ function claimMatchingCustomCartRow(
     return null;
   }
 
-  const image =
-    nonEmptyUrl(item?.user_image_url) ||
-    nonEmptyUrl(item?.image) ||
-    '';
+  const image = workshopRefIdentity(
+    nonEmptyUrl(item?.user_image_url) || nonEmptyUrl(item?.image),
+    workshopRefOptions,
+  );
   if (!image) return null;
   const idx = rows.findIndex((row) => customRowImageUrls(row).includes(image));
   if (idx >= 0) return rows.splice(idx, 1)[0] || null;
@@ -1980,8 +2038,15 @@ async function startServer() {
       console.error("[WORKSHOP_RETENTION] admin_client_missing");
       return res.status(503).json({ error: "unavailable" });
     }
+    let adapter: WorkshopStorageAdapter;
     try {
-      const summary = await runWorkshopRetentionPurge(supabaseAdmin);
+      adapter = workshopStorageAdapterFor(supabaseAdmin);
+    } catch {
+      console.error("[WORKSHOP_RETENTION] storage_config_invalid", { reason_class: "config" });
+      return res.status(503).json({ error: "unavailable" });
+    }
+    try {
+      const summary = await runWorkshopRetentionPurge(supabaseAdmin, new Date(), adapter);
       return res.status(200).json(summary);
     } catch {
       console.error("[WORKSHOP_RETENTION] job_failed", { reason_class: "job_error" });
@@ -2007,13 +2072,24 @@ async function startServer() {
       return res.status(400).json({ ok: false, reason_class: "invalid_target" });
     }
     const source = parseWithdrawalSource(body.source) ?? "admin_assisted";
+    let workshopAdapter: WorkshopStorageAdapter;
     try {
-      const result = await runAccountWithdrawal(supabaseAdmin, {
-        targetUserId: body.user_id.trim(),
-        actorUserId: actor.actorUserId,
-        source,
-        actorIsAdmin: true,
-      });
+      workshopAdapter = workshopStorageAdapterFor(supabaseAdmin);
+    } catch {
+      console.error("[ACCOUNT_WITHDRAWAL]", { stage: "config", reason_class: "config" });
+      return res.status(503).json({ ok: false, reason_class: "config" });
+    }
+    try {
+      const result = await runAccountWithdrawal(
+        supabaseAdmin,
+        {
+          targetUserId: body.user_id.trim(),
+          actorUserId: actor.actorUserId,
+          source,
+          actorIsAdmin: true,
+        },
+        workshopAdapter,
+      );
       return res.status(httpStatusForWithdrawal(result)).json({
         ok: result.ok,
         status: result.status,
@@ -2028,6 +2104,76 @@ async function startServer() {
       return res.status(500).json({ ok: false, reason_class: "job_failed" });
     }
   });
+
+  // Workshop private media (NEW4-4D-3). Responses may carry signed URLs: never cached,
+  // never logged, no Referer. Not used by the live client until the consumer cutover tickets.
+  if (workshopGcsConfig.state !== "ready") {
+    console.log("[WORKSHOP_MEDIA]", { gcs_config: workshopGcsConfig.state });
+  }
+
+  const resolveWorkshopMediaCaller = async (
+    authorizationHeader: string | undefined,
+  ): Promise<{ ok: true; caller: WorkshopMediaCaller } | { ok: false; status: number; error: string }> => {
+    if (!supabaseAdmin || !supabasePublic) return { ok: false, status: 503, error: "unavailable" };
+    if (!authorizationHeader || !authorizationHeader.startsWith("Bearer ")) {
+      return { ok: false, status: 401, error: "unauthorized" };
+    }
+    const token = authorizationHeader.slice(7).trim();
+    if (!token) return { ok: false, status: 401, error: "unauthorized" };
+    const { data, error } = await supabasePublic.auth.getUser(token);
+    if (error || !data.user?.id || data.user.app_metadata?.withdrawn === true) {
+      return { ok: false, status: 401, error: "unauthorized" };
+    }
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("id, is_admin, withdrawn_at")
+      .eq("id", data.user.id)
+      .maybeSingle();
+    if (profileError) return { ok: false, status: 503, error: "unavailable" };
+    if (typeof profile?.withdrawn_at === "string" && profile.withdrawn_at.trim()) {
+      return { ok: false, status: 403, error: "forbidden" };
+    }
+    return { ok: true, caller: { userId: data.user.id, isAdmin: isAdminProfile(profile) } };
+  };
+
+  const workshopMediaRoute = (
+    routePath: string,
+    op: string,
+    handler: (
+      deps: Parameters<typeof handleSignUpload>[0],
+      caller: WorkshopMediaCaller,
+      body: unknown,
+    ) => Promise<WorkshopMediaResponse>,
+  ) => {
+    app.post(routePath, async (req, res) => {
+      applyWorkshopMediaResponseHeaders(res);
+      try {
+        const auth = await resolveWorkshopMediaCaller(req.headers.authorization);
+        if (auth.ok === false) return res.status(auth.status).json({ error: auth.error });
+        if (workshopGcsConfig.state !== "ready") {
+          return res.status(503).json({ error: "workshop_gcs_not_configured" });
+        }
+        const result = await handler(
+          {
+            gcs: workshopGcsStoreFor(workshopGcsConfig),
+            references: createSupabaseWorkshopReferenceSource(supabaseAdmin!),
+            legacyHosts: workshopLegacyHosts,
+          },
+          auth.caller,
+          req.body,
+        );
+        return res.status(result.status).json(result.body);
+      } catch {
+        console.error("[WORKSHOP_MEDIA]", { op, reason_class: "internal_error" });
+        return res.status(500).json({ error: "internal_error" });
+      }
+    });
+  };
+
+  workshopMediaRoute(WORKSHOP_MEDIA_PATHS.signUpload, "sign_upload", handleSignUpload);
+  workshopMediaRoute(WORKSHOP_MEDIA_PATHS.signRead, "sign_read", handleSignRead);
+  workshopMediaRoute(WORKSHOP_MEDIA_PATHS.commit, "commit", handleCommit);
+  workshopMediaRoute(WORKSHOP_MEDIA_PATHS.discard, "discard", handleDiscard);
 
   // RSS Feed for Naver Search Advisor
   const rssCdata = (value: string): string =>

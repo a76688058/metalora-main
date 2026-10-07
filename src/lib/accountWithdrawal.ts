@@ -1,10 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  WORKSHOP_BUCKET,
   collectWorkshopPaths,
+  defaultWorkshopStorageAdapter,
   isCanonicalWorkshopObjectPath,
-} from './workshopRetention';
+  type WorkshopStorageAdapter,
+} from './workshopStorage';
 
 export const ACCOUNT_WITHDRAWAL_ADMIN_PATH = '/api/admin/account-withdrawal';
 export const WITHDRAWN_EMAIL_DOMAIN = 'users.invalid';
@@ -339,37 +340,29 @@ async function protectedWorkshopPathsForUser(
   return protectedPaths;
 }
 
-async function listUserWorkshopPaths(admin: SupabaseClient, userId: string): Promise<string[]> {
-  const out: string[] = [];
-  for (const root of ['originals', 'previews'] as const) {
-    const prefix = `${root}/${userId}`;
-    const { data, error } = await admin.storage.from(WORKSHOP_BUCKET).list(prefix, {
-      limit: 1000,
-      offset: 0,
-      sortBy: { column: 'name', order: 'asc' },
-    });
-    if (error) throw new Error('storage_list_failed');
-    for (const entry of data ?? []) {
-      if (!entry.name || entry.name === '.emptyFolderPlaceholder') continue;
-      const path = `${prefix}/${entry.name}`;
-      if (isCanonicalWorkshopObjectPath(path)) out.push(path);
-    }
-  }
-  return out;
+/** GCS `originals|previews/{uid}/` ∪ Supabase legacy `originals|previews/{uid}`. */
+async function listUserWorkshopPaths(adapter: WorkshopStorageAdapter, userId: string): Promise<string[]> {
+  const listed = await adapter.listCustomerObjects({ kind: 'user', uid: userId.toLowerCase() });
+  return [...new Set(listed.map((object) => object.path).filter(isCanonicalWorkshopObjectPath))];
 }
 
-async function removeUnorderedWorkshopAssets(
+export async function removeUnorderedWorkshopAssets(
   admin: SupabaseClient,
+  adapter: WorkshopStorageAdapter,
   userId: string,
 ): Promise<{ ok: boolean; removed: number }> {
   const protectedPaths = await protectedWorkshopPathsForUser(admin, userId);
-  const listed = await listUserWorkshopPaths(admin, userId);
+  const listed = await listUserWorkshopPaths(adapter, userId);
   const toDelete = listed.filter((path) => !protectedPaths.has(path));
   let removed = 0;
   for (const path of toDelete) {
-    const { error } = await admin.storage.from(WORKSHOP_BUCKET).remove([path]);
-    if (error && !/not found|not_found|does not exist/i.test(error.message)) {
-      logWithdrawal('workshop_unordered_delete_failed', { reason_class: 'db_failed' });
+    const outcome = await adapter.removePath(path);
+    if (outcome.ok === false) {
+      logWithdrawal('workshop_unordered_delete_failed', {
+        reason_class: 'db_failed',
+        store: outcome.store,
+        retryable: outcome.retryable,
+      });
       return { ok: false, removed };
     }
     removed += 1;
@@ -437,6 +430,7 @@ export async function runAccountWithdrawal(
     source: WithdrawalSource;
     actorIsAdmin: boolean;
   },
+  adapter?: WorkshopStorageAdapter,
 ): Promise<WithdrawalResult> {
   const authz = evaluateWithdrawalAuthorization(input);
   if (authz !== 'ok') {
@@ -481,7 +475,11 @@ export async function runAccountWithdrawal(
     return { ok: false, reason_class: 'db_failed', resumed };
   }
 
-  const workshop = await removeUnorderedWorkshopAssets(admin, input.targetUserId);
+  const workshop = await removeUnorderedWorkshopAssets(
+    admin,
+    adapter ?? defaultWorkshopStorageAdapter(admin),
+    input.targetUserId,
+  );
   if (!workshop.ok) {
     await markFailure(admin, input.targetUserId, 'db_failed');
     return { ok: false, reason_class: 'db_failed', resumed };

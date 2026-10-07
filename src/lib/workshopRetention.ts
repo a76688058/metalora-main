@@ -1,24 +1,31 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  WORKSHOP_STORAGE_LIST_PAGE,
+  collectGcsEraPaths,
+  collectWorkshopPaths,
+  defaultWorkshopStorageAdapter,
+  isCanonicalWorkshopObjectPath,
+  workshopStoragePathFromUrl,
+  type WorkshopListedObject,
+  type WorkshopStorageAdapter,
+} from './workshopStorage';
 
-export const WORKSHOP_BUCKET = 'workshop';
+export {
+  WORKSHOP_BUCKET,
+  collectWorkshopPaths,
+  isCanonicalWorkshopObjectPath,
+  workshopStoragePathFromUrl,
+} from './workshopStorage';
+
 export const WORKSHOP_RETENTION_DAYS = 3;
 export const WORKSHOP_RETENTION_JOB_ENV = 'WORKSHOP_RETENTION_JOB_SECRET';
 export const WORKSHOP_RETENTION_PURGE_PATH = '/api/internal/workshop-retention/purge';
 export const WORKSHOP_RETENTION_MIN_SECRET_LENGTH = 32;
 export const COMPLETED_PURGE_BATCH = 25;
-export const STORAGE_LIST_PAGE = 1000;
+export const STORAGE_LIST_PAGE = WORKSHOP_STORAGE_LIST_PAGE;
 export const CUSTOM_SHADER_TYPE = '커스텀 제작';
 export const WORKSHOP_PRODUCT_ID = 'workshop-single';
-
-const WORKSHOP_OBJECT_PATH_RE =
-  /^(originals|previews)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[^\\/]+$/i;
-
-const STORAGE_PUBLIC_MARKERS = [
-  '/storage/v1/object/public/workshop/',
-  '/storage/v1/object/sign/workshop/',
-  '/storage/v1/object/authenticated/workshop/',
-] as const;
 
 export type OrderRetentionRow = {
   id: string;
@@ -50,55 +57,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 export function retentionCutoffIso(now: Date, days = WORKSHOP_RETENTION_DAYS): string {
   return new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
-}
-
-export function isCanonicalWorkshopObjectPath(path: string): boolean {
-  return WORKSHOP_OBJECT_PATH_RE.test(path);
-}
-
-export function workshopStoragePathFromUrl(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (isCanonicalWorkshopObjectPath(trimmed)) return trimmed;
-
-  let pathname = trimmed;
-  try {
-    const parsed = new URL(trimmed);
-    pathname = decodeURIComponent(parsed.pathname);
-  } catch {
-    try {
-      pathname = decodeURIComponent(trimmed.split('?')[0] ?? trimmed);
-    } catch {
-      return null;
-    }
-  }
-
-  const lower = pathname.toLowerCase();
-  for (const marker of STORAGE_PUBLIC_MARKERS) {
-    const idx = lower.indexOf(marker);
-    if (idx < 0) continue;
-    const rest = pathname.slice(idx + marker.length).replace(/^\/+/, '');
-    if (isCanonicalWorkshopObjectPath(rest)) return rest;
-  }
-  return null;
-}
-
-export function collectWorkshopPaths(value: unknown, acc: Set<string> = new Set(), depth = 0): string[] {
-  if (depth > 8 || value == null) return [...acc];
-  if (typeof value === 'string') {
-    const path = workshopStoragePathFromUrl(value);
-    if (path) acc.add(path);
-    return [...acc];
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) collectWorkshopPaths(item, acc, depth + 1);
-    return [...acc];
-  }
-  const rec = asRecord(value);
-  if (!rec) return [...acc];
-  for (const nested of Object.values(rec)) collectWorkshopPaths(nested, acc, depth + 1);
-  return [...acc];
 }
 
 export function stripWorkshopImageRefs(value: unknown, depth = 0): unknown {
@@ -160,18 +118,9 @@ export function retentionJobAuthorized(
   return timingSafeEqual(expected, got);
 }
 
-function isMissingStorageObjectError(message: string): boolean {
-  const lower = message.toLowerCase();
-  return (
-    lower.includes('not found') ||
-    lower.includes('not_found') ||
-    lower.includes('does not exist') ||
-    lower.includes('no such file')
-  );
-}
-
-async function removeWorkshopObjects(
-  admin: SupabaseClient,
+/** Dual-store removal: a path counts as removed only when every configured store removed it or never had it. */
+export async function removeWorkshopObjects(
+  adapter: WorkshopStorageAdapter,
   paths: string[],
 ): Promise<{ ok: boolean; removed: number; failed: number }> {
   const unique = [...new Set(paths.filter(isCanonicalWorkshopObjectPath))];
@@ -180,81 +129,28 @@ async function removeWorkshopObjects(
   let removed = 0;
   let failed = 0;
   for (const path of unique) {
-    const { error } = await admin.storage.from(WORKSHOP_BUCKET).remove([path]);
-    if (!error || isMissingStorageObjectError(error.message)) {
-      removed += 1;
+    const outcome = await adapter.removePath(path);
+    if (outcome.ok === false) {
+      failed += 1;
+      console.error('[WORKSHOP_RETENTION] storage_remove_failed', {
+        reason_class: 'storage_error',
+        store: outcome.store,
+        retryable: outcome.retryable,
+      });
       continue;
     }
-    failed += 1;
-    console.error('[WORKSHOP_RETENTION] storage_remove_failed', {
-      reason_class: 'storage_error',
-    });
+    removed += 1;
   }
   return { ok: failed === 0, removed, failed };
 }
 
-async function listPrefix(
-  admin: SupabaseClient,
-  prefix: string,
-): Promise<{ name: string; id: string | null; createdAtMs: number | null }[]> {
-  const rows: { name: string; id: string | null; createdAtMs: number | null }[] = [];
-  let offset = 0;
-  while (true) {
-    const { data, error } = await admin.storage.from(WORKSHOP_BUCKET).list(prefix, {
-      limit: STORAGE_LIST_PAGE,
-      offset,
-      sortBy: { column: 'name', order: 'asc' },
-    });
-    if (error) {
-      throw new Error('storage_list_failed');
-    }
-    const page = data ?? [];
-    if (page.length === 0) break;
-    for (const entry of page) {
-      const createdRaw = typeof entry.created_at === 'string' ? Date.parse(entry.created_at) : Number.NaN;
-      const updatedRaw = typeof entry.updated_at === 'string' ? Date.parse(entry.updated_at) : Number.NaN;
-      const createdAtMs = Number.isFinite(createdRaw)
-        ? createdRaw
-        : Number.isFinite(updatedRaw)
-          ? updatedRaw
-          : null;
-      rows.push({
-        name: entry.name,
-        id: entry.id ?? null,
-        createdAtMs,
-      });
-    }
-    if (page.length < STORAGE_LIST_PAGE) break;
-    offset += page.length;
-  }
-  return rows;
-}
-
 export async function listWorkshopCustomerObjects(
-  admin: SupabaseClient,
+  adapter: WorkshopStorageAdapter,
 ): Promise<StorageListedObject[]> {
-  const out: StorageListedObject[] = [];
-  for (const root of ['originals', 'previews'] as const) {
-    const folders = await listPrefix(admin, root);
-    for (const folder of folders) {
-      if (!folder.name || folder.name === '.emptyFolderPlaceholder') continue;
-      if (folder.id) {
-        const direct = `${root}/${folder.name}`;
-        if (isCanonicalWorkshopObjectPath(direct) && folder.createdAtMs != null) {
-          out.push({ path: direct, createdAtMs: folder.createdAtMs });
-        }
-        continue;
-      }
-      const files = await listPrefix(admin, `${root}/${folder.name}`);
-      for (const file of files) {
-        if (!file.name || file.name === '.emptyFolderPlaceholder') continue;
-        const path = `${root}/${folder.name}/${file.name}`;
-        if (!isCanonicalWorkshopObjectPath(path) || file.createdAtMs == null) continue;
-        out.push({ path, createdAtMs: file.createdAtMs });
-      }
-    }
-  }
-  return out;
+  const listed: WorkshopListedObject[] = await adapter.listCustomerObjects({ kind: 'all' });
+  return listed
+    .filter((object): object is WorkshopListedObject & { createdAtMs: number } => object.createdAtMs != null)
+    .map((object) => ({ path: object.path, createdAtMs: object.createdAtMs }));
 }
 
 async function selectAllRows<T>(
@@ -470,6 +366,7 @@ async function markOrderPurged(admin: SupabaseClient, order: OrderRetentionRow):
 
 async function purgeCompletedOrders(
   admin: SupabaseClient,
+  adapter: WorkshopStorageAdapter,
   now: Date,
 ): Promise<Pick<RetentionJobSummary, 'completed_orders_scanned' | 'completed_orders_purged' | 'completed_orders_failed'>> {
   const cutoffIso = retentionCutoffIso(now);
@@ -496,7 +393,18 @@ async function purgeCompletedOrders(
 
   for (const order of scannedRows) {
     const paths = collectWorkshopPaths(order.ordered_items);
-    const removal = await removeWorkshopObjects(admin, paths);
+    if (!adapter.gcs && collectGcsEraPaths(order.ordered_items).length > 0) {
+      failed += 1;
+      console.error('[WORKSHOP_RETENTION] completed_purge_deferred', {
+        order_number: order.order_number,
+        attempted: paths.length,
+        deleted: 0,
+        failed: paths.length,
+        reason_class: 'gcs_not_configured',
+      });
+      continue;
+    }
+    const removal = await removeWorkshopObjects(adapter, paths);
     if (!removal.ok) {
       failed += 1;
       console.error('[WORKSHOP_RETENTION] completed_purge_deferred', {
@@ -535,10 +443,11 @@ async function purgeCompletedOrders(
 
 async function purgeAbandonedUploads(
   admin: SupabaseClient,
+  adapter: WorkshopStorageAdapter,
   now: Date,
 ): Promise<Pick<RetentionJobSummary, 'abandoned_objects_attempted' | 'abandoned_objects_deleted' | 'abandoned_failed'>> {
   const protectedPaths = await loadProtectedWorkshopPaths(admin, now);
-  const objects = await listWorkshopCustomerObjects(admin);
+  const objects = await listWorkshopCustomerObjects(adapter);
   const cutoffMs = now.getTime() - WORKSHOP_RETENTION_DAYS * 24 * 60 * 60 * 1000;
   const abandoned = objects.filter(
     (object) => object.createdAtMs <= cutoffMs && !protectedPaths.has(object.path),
@@ -549,7 +458,7 @@ async function purgeAbandonedUploads(
   }
 
   const paths = abandoned.map((object) => object.path);
-  const removal = await removeWorkshopObjects(admin, paths);
+  const removal = await removeWorkshopObjects(adapter, paths);
   if (!removal.ok) {
     console.error('[WORKSHOP_RETENTION] abandoned_purge_deferred', {
       attempted: paths.length,
@@ -587,10 +496,11 @@ async function purgeAbandonedUploads(
 export async function runWorkshopRetentionPurge(
   admin: SupabaseClient,
   now: Date = new Date(),
+  adapter: WorkshopStorageAdapter = defaultWorkshopStorageAdapter(admin),
 ): Promise<RetentionJobSummary> {
-  const completed = await purgeCompletedOrders(admin, now);
+  const completed = await purgeCompletedOrders(admin, adapter, now);
   try {
-    const abandoned = await purgeAbandonedUploads(admin, now);
+    const abandoned = await purgeAbandonedUploads(admin, adapter, now);
     return { ...completed, ...abandoned };
   } catch {
     console.error('[WORKSHOP_RETENTION] abandoned_pass_failed', { reason_class: 'job_error' });
