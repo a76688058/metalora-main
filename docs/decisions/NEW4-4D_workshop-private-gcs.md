@@ -1,7 +1,7 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — SERVER FOUNDATION + SHARED RESOLVER + A2 WORKSHOP CLIENT + A3 CART / ADMIN CONSUMERS IMPLEMENTED + A3 ORDERSMODAL (NEW4-4D-3 / 4 / 5 / 6 / 7B, local commits, not deployed)**. Signed regional delivery proven in NEW4-4D-2A. `OrdersModal.tsx` migrated (D-7B) and no longer blocks the cutover. D-4 verifier aligned to the post-D-7B state (NEW4-4D-7C). Open: A6 D-3 verifier refresh (one stale assertion), release guard below.
-Production still runs the pre-D-3 build on Supabase Storage. D-5 / D-6 client code exists locally and **must not be deployed** until the release guard below is met. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
+Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8). BLOCKED for release** on the items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
+Production cutover: RELEASE-GATED. Production still runs `b9664fb` on Supabase Storage. HEAD must not be deployed until the release-plan blockers are cleared with owner approval. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
 
@@ -149,7 +149,7 @@ Code: `src/lib/workshopMediaDisplay.ts` (display controller, no Supabase import;
 3. Backend smoke of sign-upload / sign-read / commit / discard.
 4. `20261007100000_new4_4d_path_validation.sql` applied in the order below.
 5. ~~`OrdersModal.tsx` protected-WIP handoff and migration (A3).~~ **DONE locally (NEW4-4D-7B).**
-6. D-3 / D-4 application-state verifier checks refreshed (A6 / A0). D-3 pending (A6): one stale assertion, "live client still uploads to Supabase workshop bucket" (192/193). D-4 **DONE locally (NEW4-4D-7C, 95/95).**
+6. ~~D-3 / D-4 application-state verifier checks refreshed (A6 / A0).~~ **DONE locally** (D-4 NEW4-4D-7C 95/95; D-3 NEW4-4D-8).
 7. Dual-store QA on the production origin (upload, cart, PDP, admin, retention, withdrawal).
 8. Legacy object copy to GCS with verification.
 9. Supabase `workshop` bucket private cutover (drop insert / public select).
@@ -212,7 +212,7 @@ Status: **DONE locally.** Owner approved a narrow handoff (2026-10-07): Workshop
 
 All other D-4 security sections are unchanged. Result: 95/95. Deeper OrdersModal behavior stays in the D-7B verifier. No protected product file was changed in this ticket; OrdersModal's seven older WIP hunks remain uncommitted.
 
-## Path validation migration ordering (NEW4-4D-3, prepared, NOT applied)
+## Path validation migration ordering (NEW4-4D-3, prepared, NOT applied; order superseded by "Release plan (NEW4-4D-8)")
 
 `20261007100000_new4_4d_path_validation.sql` is transitional dual-format: `workshop_ref_is_accepted(ref, kind)` = `workshop_ref_is_own_canonical` (canonical path for `auth.uid()`) OR `workshop_ref_is_own_legacy_supabase` (exact `https://qifloweuwyhvukabgnoa.supabase.co/storage/v1/object/public/workshop/` + own canonical path). Applied to `add_custom_cart_item` (closes the any-string gap) and to `BEFORE INSERT OR UPDATE` guards on `cart_items` (`custom_image`, `custom_config.preview_image_url`, `custom_config.original_image_url`) and `user_progress.uploaded_image_url`. INSERT checks every non-blank field; UPDATE checks only changed fields; `service_role` is exempt. `custom_cart_payload_is_complete_v1` is unchanged (IMMUTABLE, also used by service-role paths).
 
@@ -221,6 +221,110 @@ Order:
 2. Apply this migration (A6 + owner approval). The current client keeps working: it writes own legacy public URLs with UUID filenames. Not accepted: legacy non-UUID filenames (pre-`crypto.randomUUID` fallback), `data:`/`blob:` values, other hosts, the payment-test project host. Payment-test needs its own host decision if it is ever applied there.
 3. A0/A2/A3 consumers switch to canonical paths and the media endpoints.
 4. A later tightening migration replaces `workshop_ref_is_accepted` with canonical-only, after legacy cutover and TTL.
+
+## Release plan (NEW4-4D-8, A6, plan only)
+
+Status: **BLOCKED for release** until the blockers below are cleared. No deploy, push, env, migration, IAM, Supabase or GCS action was taken. Baseline HEAD `77d05dd`; production `metalora-direct` (us-west1) revision `metalora-direct-00119-nij` at 100 %, `DEPLOY_SHA` `b9664fb` (= `origin/main`).
+
+**D-3 verifier.** The stale check "live client still uploads to Supabase workshop bucket" is replaced by the group "release forward state" (A–F). It runs the real `uploadWorkshopOriginal` against a mocked fetch (sign-upload → regional PUT → commit; commit / PUT failure → discard; Bearer never on the PUT). It also scans `src/**` (no `storage.from('workshop')`; `getPublicUrl` only on `products`), checks canonical durable values and legacy compatibility (client + server parse, shared identity, legacy store, migration legacy branch), and checks the release gate: zero-traffic candidate, clean-tree check, no implicit `WORKSHOP_GCS_*` binding, no active values in `.env.example`, migration not applied, this note's gate line. No security or adapter check was weakened.
+
+### Release architecture (single artifact)
+
+- `Dockerfile`: the builder runs `vite build` → `dist/client`. The runner copies `server.ts`, top-level `src/lib/*.ts`, the full `node_modules` (incl. `@google-cloud/storage`, `google-auth-library`) and `dist/client`. One Express process serves both the API and the SPA. The server import closure is flat `src/lib/*.ts` only (checked), so the image has every backend dependency.
+- **One Cloud Run revision = backend + client.** "Backend first, client later" is not possible with the current deploy architecture. What separates them is the **zero-traffic candidate**: `deploy-candidate.ps1` builds the image, deploys `--no-traffic --tag=candidate`, and tags the current revision `stable`; `promote-candidate.ps1` moves 100 % to `candidate`; `rollback-production.ps1` moves 100 % back to `stable`.
+- Candidate tag URL (`candidate---…run.app`) shares production Supabase. GCS CORS allows only `https://metalora.art`, so **browser** uploads / canvas reads on the candidate URL fail CORS. Pre-promotion smoke must be server-to-server (Node script, no browser); browser E2E is only possible after promotion on `metalora.art` (`www.` 301-redirects to the apex in `server.ts`).
+- `deploy-candidate.ps1` requires branch `main`, a clean worktree and `HEAD == origin/main`, and uploads the directory with `gcloud builds submit .` (no `.gcloudignore`; `.dockerignore` excludes `dist`, `.env*`, `node_modules`). The Dockerfile `COPY src` would bake any uncommitted WIP into the image. **Deploy only from a fresh clone of the pushed release commit**, never from this working copy (5 protected WIP files, untracked `dist/`). Never stash/reset the WIP to make the tree clean.
+- `deploy-candidate.ps1` sets only `DEPLOY_SHA`. Binding `WORKSHOP_GCS_*` in the same candidate revision needs either a reviewed A6 script change (e.g. an extra `--update-env-vars` parameter) or a one-off reviewed `gcloud run deploy … --no-traffic --tag=candidate --update-env-vars=DEPLOY_SHA=…,WORKSHOP_GCS_BUCKET=…,WORKSHOP_GCS_ENDPOINT=…,WORKSHOP_GCS_SIGNER_SA=…`. Answer: **YES, one revision.** Do not bind env with a separate `services update` after the candidate (creates a second untagged revision).
+
+### Release candidate (`b9664fb..77d05dd`, 27 commits, unpushed)
+
+| Class | Commits |
+|---|---|
+| Docs only | `b98a5f3`, `b82fea9` |
+| Application: policy / legal / notice copy (visible; A6 legal gate) | `9821336`, `84bdce8`, `bed06de`, `d95e1e6`, `eb7b6eb`, `f946628`, `e4a9f17`, `6d6ff5b`, `647b12e`, `481fb5f`, `a75fe9b` |
+| Application + migration: consent ledger | `ad08fdf` (NEW4-5), `471b131` (NEW4-5A, migration only), `0cf28c4` (auth fail-closed) |
+| Application + migration: retention / withdrawal | `5c61d0a` (NEW4-6), `0c06974` (NEW4-7) |
+| Dependency / package | `ff3cf7b` (`@google-cloud/storage`), `e238471` (`google-auth-library` 9.15.1 exact) |
+| Application + migration: Workshop private media | `42abecb` (backend + path-validation migration), `b000bf9`, `c2f1f35`, `cfb89cb`, `433c668` |
+| Verifier only (+ docs) | `dd55f05`, `77d05dd`, this ticket |
+
+Protected WIP is excluded by construction (never committed): `InquiryModal`, `OrdersModal` (the seven older Member/Account hunks; `433c668` committed only the Workshop hunks), `ProfileEditModal`, `ProfileOverlay`, `ProfileComplete`.
+
+### Migration order and classification
+
+HEAD server/client hard dependencies: `profiles.withdrawn_at` (every media request, admin checks) → NEW4-7; `orders.image_purged_at` (sign-read / discard reference index, retention) → NEW4-6; `record_policy_consent` with current versions (signup / social / enroll fail closed; Workshop consent) → NEW4-5, 5A, NEW4-4. Production `b9664fb` writes Workshop consent by direct `insert` into `user_agreements` (`CopyrightPage`), which NEW4-5 removes.
+
+| # | Migration | Depends on | Old prod (`b9664fb`) | HEAD | Class |
+|---|---|---|---|---|---|
+| 1 | `new4_5_consent_ledger` | — | **breaks** first-time Workshop consent insert (policy dropped) | required | **PROMOTION-COUPLED, MUST PRECEDE PROMOTION** |
+| 2 | `new4_5a_restrict_consent_rpc` | 1 (replaces its function) | unaffected | required | with 1 |
+| 3 | `new4_6_workshop_retention` | — | compatible (additive column + trigger) | required | **MUST PRECEDE BACKEND** (candidate smoke) |
+| 4 | `new4_7_account_withdrawal` | — (FK RESTRICT on `user_agreements` / `cs_inquiries`, `withdrawn_at`, triggers) | compatible (no withdrawn users) | required | **MUST PRECEDE BACKEND** (candidate smoke) |
+| 5 | `new4_4_privacy_version` | 2 (replaces its function; Privacy version only) | unaffected | required | with 1–2 |
+| 6 | `new4_4d_path_validation` | 2B-5A `add_custom_cart_item(integer,text,text,text,jsonb)` | compatible: old client writes own legacy public URLs with UUID names | compatible: canonical paths | **SAFE BEFORE PROMOTION, AFTER CANDIDATE SMOKE** |
+
+The NEW4-4D-3 order ("server + env first, then migration") is **superseded**: with one artifact the DB must lead the **promotion** (the zero-traffic candidate may be built first). Apply 1–5 in file (timestamp) order in one window, after the candidate is built and right before the candidate smoke, then promote promptly. Between apply and promotion, old production cannot record **new** Workshop consents (users who already consented are unaffected; signup on old prod does not touch the ledger). Keep that window short. Applying 3–4 earlier (out of timestamp order) shortens the window, but needs an explicit migration-history decision. Apply only with reviewed SQL through the approved path; `supabase db push` stays forbidden. Before migration 6: OPS check that the production `add_custom_cart_item` signature matches 2B-5A. Known reject: legacy fallback IDs `Date.now()-rand` (browsers without `crypto.randomUUID`), on new writes only.
+
+### Feature gate
+
+**NO FEATURE GATE REQUIRED** (no `PUBLIC_WORKSHOP_PRIVATE_MEDIA_ENABLED`). Reasons: the zero-traffic candidate isolates backend smoke from customers; promotion and rollback are single traffic moves; the dual-store adapter keeps legacy refs working; HEAD has no Supabase upload path left, so a gate would mean re-adding legacy upload code. Payment is frozen (`PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = true`), so no order can capture a canonical ref during the soak. Rolled-back old client: canonical refs in `cart_items` / `user_progress` show broken thumbnails until re-promotion (objects intact; no data loss). **Re-assess** (gate becomes required) if NEW7 payment activation is scheduled before Phase D soak ends.
+
+### First production revision
+
+Image = release commit; env = existing + `DEPLOY_SHA` + the three `WORKSHOP_GCS_*` (approved values); `WORKSHOP_RETENTION_JOB_SECRET` optional (purge endpoint stays disabled without it; scheduler is a separate ticket). Backward compatible with production data: legacy Supabase refs render, upload paths unchanged for existing rows. **Not** backward compatible with the old **schema**: HEAD needs migrations 1–5.
+
+### Sequence (adjusted to the single artifact)
+
+0. Blockers cleared (below); owner approval; push the release commits (explicit user request), fresh clone, A6 env-in-candidate tooling.
+1. Deploy candidate (0 %) with `WORKSHOP_GCS_*` (harmless: no traffic; its NEW4 paths fail until step 2). `/api/health` on the tag URL.
+2. Apply migrations 1–5 in file order → read-back (columns, functions, policies, triggers). The consent window opens here.
+3. Endpoint smoke via tag URL (server-to-server).
+4. Apply migration 6 → DB checks (own canonical accepted, own legacy accepted, other UID / other host / `data:` / `blob:` / non-UUID rejected, `service_role` exempt) with the QA identity.
+5. Promote (closes the consent window) → browser E2E on `metalora.art` (upload, resume, cart, PDP + WebGL texture, admin, order history, signup / Workshop consent) → Phase D soak.
+
+### Endpoint smoke (synthetic, not run)
+
+Identity: **OWNER-PROVISIONED QA MEMBER REQUIRED**. The owner creates or names a dedicated internal QA account through the normal signup (own phone, consents recorded) and records it as internal-only (no UID in docs). Its JWT is obtained at smoke time inside the script and never printed. Objects only under that UID; every object is discarded / deleted at the end. Admin checks use an existing owner admin account. Never a customer account.
+
+A health: `GET /api/health` 200 on the tag URL; candidate image digest = release SHA. B sign-upload: 200 with `path` = own canonical, `expiresAt` ≤ 300 s; client `path`/`uid` refused; no token → 401. C signed PUT (Node, exact headers) → 200. D commit → 200 `{path, kind, contentType, sizeBytes}`; foreign path → refused. E sign-read: unreferenced → `not_authorized`; after an own `user_progress.uploaded_image_url` write → `gcs` src; signed GET 200 exact bytes. F discard: unreferenced → 200; referenced → 409; again → `already_absent`. G every signed URL host = `storage.asia-northeast3.rep.googleapis.com`, credential = signer SA, `X-Goog-Expires=300`. H API responses `no-store, private`; object `Cache-Control: private, no-store`. I `sizeBytes` > cap → 413; body over the signed range → 400; wider client range → 403. J second PUT → 412, bytes unchanged. K anonymous GET on regional and global hosts → denied; bucket PAP enforced. L Cloud Logging query on the candidate revision for `X-Goog-Signature`, `X-Goog-Credential`, `Bearer` → 0 hits; app logs carry `op` / `reason_class` only. Plus: NEW4-6 / NEW4-7 adapter construction returns no 503 (`workshop_gcs_not_configured`), without running a purge or a withdrawal.
+
+### Cutover phases (Workshop media)
+
+A Foundation (done). B Candidate with env, migrations 1–5, smoke, migration 6. C Promotion: new uploads go to GCS. D Dual-store soak on the production origin (legacy + canonical; retention / withdrawal dual delete; A4 texture check). E Legacy copy (NEW4-4D-9 script). F Final delta copy. G Supabase `workshop` bucket private + drop authenticated insert policy. H Drop public select policy. I Delete legacy objects (only after copy verification; active orders preserved in GCS). J Wait ≥ 1 h CDN TTL + margin (Free plan, historical `cacheControl` 3600; recheck plan at release; on Pro use Smart CDN invalidation). K Prove no public Supabase Workshop URL is served or emitted (pages, API, RSS / OG / JSON-LD, admin) and public URLs return 4xx. L Privacy finalization, then the canonical-only tightening migration, then A5 final QA.
+
+Legacy refs after G: `supabase_legacy` answers still point at the public bucket. Before G, either DB refs must be rewritten to canonical paths (service-role, audited) or the server must answer legacy refs from GCS after the copy. **Decision required in NEW4-4D-9.**
+
+### Legacy copy: NOT YET IMPLEMENTED
+
+Next A6 ticket **NEW4-4D-9 (legacy Workshop object copy)**. Requirements: paginated Supabase listing (`originals/`, `previews/`, past 1000); same canonical path in GCS (signer, regional endpoint); create-only (`ifGenerationMatch: 0`); `Content-Type` + `Cache-Control: private, no-store`; size + MD5/CRC32C verification after write; manifest with counts / bytes / error classes only (no names, no UIDs); idempotent (existing identical object = skip; mismatch = report); delta pass; no Supabase delete until the GCS copy is verified; objects referenced by active orders / payment intents always preserved; non-canonical legacy names reported as counts with a separate disposition. Dry-run first.
+
+### Supabase production state: OPS FACT REQUIRED
+
+Not queried in this ticket. Needed read-only before Phase E: `workshop` bucket exists, `public` flag, `storage.objects` policies on `workshop`, aggregate object counts / bytes per prefix (no names, no UIDs, no bytes read), Supabase plan (Free vs Pro). Historical: public bucket, uploads with `cacheControl` 3600, project `qifloweuwyhvukabgnoa` (ap-northeast-2, Free).
+
+### Release blockers (must clear before step 1)
+
+1. **A2: `referrerPolicy="no-referrer"`** on PDP `<img>` that render the Workshop front image (`ProductTheatreStage` `displayUrl`, `ProductTheatreRoomPreview` `artworkUrl`, `factualVisuals` / `ProductTruthSection`, `PdpStoryStatic` / `PdpStoryMobile` `frontTextureUrl`). For `workshop-single`, `ProductDetail` passes the signed src into these elements. Practical exposure is low: the global `Referrer-Policy: strict-origin-when-cross-origin` sends only the origin, and signed query strings are never in a referrer. It is still a consumer-contract violation and must ship in the release image.
+2. Owner-provisioned QA identity (smoke).
+3. A6 tooling for env-in-candidate deploy (or a reviewed one-off command).
+4. Visible policy / legal copy in the release (11 commits) passes the A6 legal gate and A5 production-final QA.
+5. Owner approval for push, migrations 1–6, deploy and promotion.
+
+Not blocking promotion: A4 texture review (classified **NON-BLOCKING** for promotion). `TextureLoader.setCrossOrigin('anonymous')` is set. Textures persist in GPU memory after load, and signed srcs live in memory only. The ProductDetail refresh at 85 % swaps the URL and triggers a reload (possible flash, no leak). There is no re-sign on texture error. Check it in Phase D, required before A5 final QA. Legacy copy is required before Phase G, not before promotion.
+
+### IAM follow-ups (no change)
+
+None blocks promotion or Phase G. `run.builder` direct read (runtime SA can read objects without the signer): does not expose public access; required before declaring least privilege complete and recommended before Privacy finalization. Firebase project-wide TokenCreator: the same, plus owner audit. Editor `buckets.delete`: only an empty bucket; low risk while objects exist; required before least privilege complete.
+
+### Privacy, logging, payment
+
+Privacy CDN marker stays until Phase L (`NEW4-4_privacy-processors.md`); public Privacy copy unchanged. Cloud Logging `_Default` global bucket: OPEN → separate A6 logging-regionalization ticket (before Privacy finalization). Discord: NEW7 blocker. Payment frozen; no Toss; payment-test project `bvihpoorwriejybixmoc` is never used.
+
+### Source control and rollback
+
+Push: user request + owner approval → `git push origin main` of the release commits (WIP stays local, uncommitted) → fresh clone → `deploy-candidate.ps1` (or the env-capable variant) → smoke → `promote-candidate.ps1 -ValidateOnly` → promote.
+
+Revision rollback (`rollback-production.ps1` → `stable`) if: sign-upload / sign-read unavailable or 5xx; commit / discard errors; canonical refs rejected by DB or server; Cart / PDP / admin / order-history image failures; NEW4-6 / NEW4-7 adapter 503; 5xx spike; any auth / signup / consent regression. After rollback the old client still works on the new schema, except new Workshop consents (NEW4-5) and canonical-ref thumbnails (see Feature gate). Migrations are additive: **do not roll back blindly**. Fix forward. Revert a single function only by a reviewed SQL that restores the prior definition (e.g. `add_custom_cart_item` from 2B-5A, or dropping the two path triggers). Never drop columns or ledger rows. GCS objects stay (create-only, private).
 
 ## Foundation smoke (NEW4-4D-2)
 
@@ -271,7 +375,9 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 
 - ~~A0 NEW4-4D-4: shared Workshop media resolver.~~ **DONE locally.**
 - ~~A2 NEW4-4D-5: Workshop upload switch, resume, PDP workshop-single.~~ **DONE locally.** A4 targeted review of the WebGL texture expiry path recommended (no A4 code change required).
-- ~~A0: D-4 R-scope refresh.~~ **DONE locally (NEW4-4D-7A, then NEW4-4D-7C post-D-7B, 95/95).** A6: D-3 application-state check refresh (192/193 by design until then).
+- ~~A0: D-4 R-scope refresh.~~ **DONE locally (NEW4-4D-7A, then NEW4-4D-7C post-D-7B, 95/95).** ~~A6: D-3 application-state check refresh.~~ **DONE locally (NEW4-4D-8).**
+- A2: `referrerPolicy="no-referrer"` on PDP Workshop-capable `<img>` (release blocker, see release plan).
+- A6: legacy copy script (NEW4-4D-9), deploy tooling for env-in-candidate, release execution (NEW4-4D-10).
 - ~~A3 NEW4-4D-6: Cart, CartContext, admin consumers.~~ **DONE locally.**
 - ~~A3: `OrdersModal.tsx` after owner-approved protected-WIP handoff.~~ **DONE locally (NEW4-4D-7B)**; its seven pre-existing WIP hunks stay uncommitted for later Member/Account UX work.
 - A4: targeted review of expiring texture sources before final cutover (see D-6).

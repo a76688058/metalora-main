@@ -50,6 +50,13 @@ import {
 } from '../src/lib/workshopStorage';
 import { removeWorkshopObjects, runWorkshopRetentionPurge } from '../src/lib/workshopRetention';
 import { removeUnorderedWorkshopAssets } from '../src/lib/accountWithdrawal';
+import {
+  WORKSHOP_MEDIA_ENDPOINTS,
+  WorkshopUploadError,
+  uploadWorkshopOriginal,
+  type WorkshopMediaApi,
+} from '../src/lib/customComposition/durableHandoff';
+import { WORKSHOP_MEDIA_GCS_HOST, parseWorkshopMediaRef } from '../src/lib/workshopMediaCore';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const results: { group: string; name: string; pass: boolean }[] = [];
@@ -758,12 +765,157 @@ section('checkout normalization + migration + application state');
   assert('2B-5A migration unchanged (still has original add_custom_cart_item)',
     fs.readFileSync(path.join(root, 'supabase/migrations/20260921120000_2b5a_custom_m_price_trusted_snapshot.sql'), 'utf8').includes("RAISE EXCEPTION 'incomplete custom snapshot'"));
 
-  const handoff = fs.readFileSync(path.join(root, 'src/lib/customComposition/durableHandoff.ts'), 'utf8');
-  assert('live client still uploads to Supabase workshop bucket', /supabase\.storage\.from\('workshop'\)\.upload/.test(handoff));
   const env = fs.readFileSync(path.join(root, '.env.example'), 'utf8');
   assert('.env.example documents WORKSHOP_GCS_* names', ['WORKSHOP_GCS_BUCKET', 'WORKSHOP_GCS_ENDPOINT', 'WORKSHOP_GCS_SIGNER_SA'].every((n) => env.includes(n)));
   const freeze = fs.readFileSync(path.join(root, 'src/lib/publicPaymentFreeze.ts'), 'utf8');
   assert('payment freeze unchanged', /PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = true/.test(freeze));
+}
+
+// ---------------------------------------------------------------------------
+section('release forward state (post D-5/D-6/D-7)');
+{
+  type Call = { url: string; init: RequestInit };
+  const SIGNED_PUT = FAKE_SIGNED(ORIGINAL);
+  const fakeApi = (opts: { putOk?: boolean; commitStatus?: number } = {}) => {
+    const calls: Call[] = [];
+    const reply = (status: number, body: unknown) => ({
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+      blob: async () => new Blob(),
+    });
+    const api: WorkshopMediaApi = {
+      getAccessToken: async () => 'synthetic-token',
+      now: () => 0,
+      fetch: async (url, init) => {
+        calls.push({ url, init });
+        if (url === WORKSHOP_MEDIA_ENDPOINTS.signUpload) {
+          return reply(200, {
+            path: ORIGINAL,
+            upload: { method: 'PUT', url: SIGNED_PUT, headers: { 'Content-Type': 'image/png', 'Cache-Control': 'private, no-store' } },
+            expiresAt: new Date(300_000).toISOString(),
+          });
+        }
+        if (url === SIGNED_PUT) return reply(opts.putOk === false ? 403 : 200, null);
+        if (url === WORKSHOP_MEDIA_ENDPOINTS.commit) {
+          const status = opts.commitStatus ?? 200;
+          return reply(status, status === 200 ? { path: ORIGINAL } : { error: 'commit_failed' });
+        }
+        if (url === WORKSHOP_MEDIA_ENDPOINTS.discard) return reply(200, { ok: true });
+        return reply(404, null);
+      },
+    };
+    return { api, calls };
+  };
+  const file = new File([new Uint8Array([1, 2, 3])], 'synthetic.png', { type: 'image/png' });
+
+  assert('A endpoints are sign-upload / commit / discard',
+    WORKSHOP_MEDIA_ENDPOINTS.signUpload === '/api/workshop-media/sign-upload'
+    && WORKSHOP_MEDIA_ENDPOINTS.commit === '/api/workshop-media/commit'
+    && WORKSHOP_MEDIA_ENDPOINTS.discard === '/api/workshop-media/discard');
+  assert('A server registers sign-upload / commit / discard / sign-read',
+    WORKSHOP_MEDIA_PATHS.signUpload === WORKSHOP_MEDIA_ENDPOINTS.signUpload
+    && WORKSHOP_MEDIA_PATHS.commit === WORKSHOP_MEDIA_ENDPOINTS.commit
+    && WORKSHOP_MEDIA_PATHS.discard === WORKSHOP_MEDIA_ENDPOINTS.discard);
+
+  const ok = fakeApi();
+  const committed = await uploadWorkshopOriginal(ok.api, file);
+  assert('A upload order is sign-upload -> signed PUT -> commit',
+    ok.calls.map((c) => c.url).join('|') === [WORKSHOP_MEDIA_ENDPOINTS.signUpload, SIGNED_PUT, WORKSHOP_MEDIA_ENDPOINTS.commit].join('|'));
+  const signBody = JSON.parse(String(ok.calls[0]?.init.body ?? '{}'));
+  assert('A sign-upload sends kind/contentType/size only',
+    Object.keys(signBody).sort().join(',') === 'contentType,kind,sizeBytes' && signBody.kind === 'original' && signBody.sizeBytes === 3);
+  const put = ok.calls[1]?.init;
+  assert('A signed PUT targets the Seoul regional host without credentials/referrer',
+    new URL(SIGNED_PUT).host === WORKSHOP_MEDIA_GCS_HOST && put?.method === 'PUT' && put?.credentials === 'omit'
+    && put?.referrerPolicy === 'no-referrer' && put?.redirect === 'error');
+  assert('A signed PUT is never sent with the Bearer token',
+    !JSON.stringify(put?.headers ?? {}).includes('synthetic-token'));
+
+  const failedCommit = fakeApi({ commitStatus: 500 });
+  let commitError = '';
+  try {
+    await uploadWorkshopOriginal(failedCommit.api, file);
+  } catch (error) {
+    commitError = error instanceof WorkshopUploadError ? error.reason : 'other';
+  }
+  const discardCall = failedCommit.calls.find((c) => c.url === WORKSHOP_MEDIA_ENDPOINTS.discard);
+  assert('A failed commit discards the uncommitted canonical path',
+    commitError === 'commit_failed' && JSON.parse(String(discardCall?.init.body ?? '{}')).path === ORIGINAL);
+
+  const failedPut = fakeApi({ putOk: false });
+  let putError = '';
+  try {
+    await uploadWorkshopOriginal(failedPut.api, file);
+  } catch (error) {
+    putError = error instanceof WorkshopUploadError ? error.reason : 'other';
+  }
+  assert('A failed PUT never commits and discards each signed path',
+    putError === 'upload_failed'
+    && !failedPut.calls.some((c) => c.url === WORKSHOP_MEDIA_ENDPOINTS.commit)
+    && failedPut.calls.filter((c) => c.url === WORKSHOP_MEDIA_ENDPOINTS.discard).length === 2);
+
+  const sources: { rel: string; text: string }[] = [];
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.(ts|tsx)$/.test(entry.name)) {
+        sources.push({ rel: path.relative(root, full).replace(/\\/g, '/'), text: fs.readFileSync(full, 'utf8') });
+      }
+    }
+  };
+  walk(path.join(root, 'src'));
+  const workshopBucketCall = /storage\s*\.\s*from\(\s*['"`]workshop['"`]\s*\)/;
+  const directWorkshopStorage = sources.filter((s) => workshopBucketCall.test(s.text)).map((s) => s.rel);
+  assert('B no src file calls supabase.storage.from(\'workshop\')', directWorkshopStorage.length === 0, directWorkshopStorage.join(', '));
+  assert('B no src file uploads to the workshop bucket',
+    !sources.some((s) => /from\(\s*['"`]workshop['"`]\s*\)\s*\.\s*upload/.test(s.text)));
+  assert('B scanned the client tree', sources.some((s) => s.rel === 'src/lib/customComposition/durableHandoff.ts')
+    && sources.some((s) => s.rel === 'src/components/Workshop/WorkshopView.tsx'));
+
+  const publicUrlLines = sources.flatMap((s) =>
+    s.text.split('\n').filter((line) => line.includes('getPublicUrl')).map((line) => ({ rel: s.rel, line })));
+  const nonProductPublicUrl = publicUrlLines.filter((p) => !/storage\.from\('products'\)\.getPublicUrl/.test(p.line));
+  assert('C getPublicUrl only on the products bucket', nonProductPublicUrl.length === 0,
+    [...new Set(nonProductPublicUrl.map((p) => p.rel))].join(', '));
+  assert('C Workshop modules never build public Storage URLs',
+    sources.filter((s) => /workshop/i.test(s.rel)).every((s) => !/getPublicUrl|\/storage\/v1\/object\/public\/workshop\/\$\{/.test(s.text)));
+
+  assert('D committed value is the bare canonical path', committed === ORIGINAL);
+  assert('D committed value carries no host, query or signature',
+    !committed.includes('://') && !committed.includes('?') && !/x-goog/i.test(committed));
+  assert('D client and server agree the committed value is canonical',
+    parseWorkshopMediaRef(committed)?.source === 'canonical' && normalizeWorkshopRef(committed) === committed);
+  assert('D server builds canonical paths for new uploads',
+    /^originals\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.png$/.test(buildCanonicalWorkshopPath('original', UID, 'image/png') ?? '')
+    && /^previews\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.jpg$/.test(buildCanonicalWorkshopPath('preview', UID, 'image/jpeg') ?? ''));
+  assert('D signed URL is not a durable ref', normalizeWorkshopRef(SIGNED_PUT, opts) === null
+    && parseWorkshopMediaRef(SIGNED_PUT, [LEGACY_HOST]) === null);
+
+  const legacy = `${LEGACY_BASE}${ORIGINAL}`;
+  const clientLegacy = parseWorkshopMediaRef(legacy, [LEGACY_HOST]);
+  assert('E legacy Supabase public URL still parses on the client',
+    clientLegacy?.source === 'legacy_supabase' && clientLegacy.path === ORIGINAL);
+  assert('E legacy Supabase public URL still normalizes on the server', normalizeWorkshopRef(legacy, opts) === ORIGINAL);
+  assert('E legacy and canonical refs share one identity',
+    workshopRefIdentity(legacy, opts) === workshopRefIdentity(ORIGINAL, opts));
+  const adapterSource = fs.readFileSync(path.join(root, 'src/lib/workshopStorage.ts'), 'utf8');
+  assert('E legacy Supabase store remains in the adapter', /export function createSupabaseLegacyWorkshopStore/.test(adapterSource));
+  const transitionMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261007100000_new4_4d_path_validation.sql'), 'utf8');
+  assert('E path-validation migration still accepts own legacy Supabase refs',
+    /FUNCTION public\.workshop_ref_is_own_legacy_supabase/.test(transitionMigration));
+
+  const deployScript = fs.readFileSync(path.join(root, 'scripts/deploy-candidate.ps1'), 'utf8');
+  assert('F deploy script ships a zero-traffic candidate only', /"--no-traffic"/.test(deployScript) && /"--tag=candidate"/.test(deployScript));
+  assert('F deploy script refuses a dirty worktree', /Working tree is not clean/.test(deployScript));
+  assert('F deploy script does not bind WORKSHOP_GCS_* implicitly', !/WORKSHOP_GCS_/.test(deployScript));
+  const envExample = fs.readFileSync(path.join(root, '.env.example'), 'utf8');
+  assert('F .env.example carries no active WORKSHOP_GCS_* values',
+    !/^\s*WORKSHOP_GCS_[A-Z_]+=\S/m.test(envExample));
+  assert('F path-validation migration is still marked not applied', /NOT applied/.test(transitionMigration));
+  const decision = fs.readFileSync(path.join(root, 'docs/decisions/NEW4-4D_workshop-private-gcs.md'), 'utf8');
+  assert('F decision note keeps production cutover release-gated', /Production cutover: RELEASE-GATED/.test(decision));
 }
 
 // ---------------------------------------------------------------------------
