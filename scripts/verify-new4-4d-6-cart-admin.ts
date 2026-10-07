@@ -568,12 +568,15 @@ async function main(): Promise<void> {
   assert('PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 is true', PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 === true);
   assert('Cart still gates on the freeze', /PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7/.test(cartSrc));
 
-  section('X OrdersModal excluded');
+  section('X OrdersModal (migrated in NEW4-4D-7B handoff)');
+  const ordersModalStagedClean = () => {
+    const staged = git('diff', '--cached', '--', 'src/components/OrdersModal.tsx');
+    return !/^[+-].*(loadError|zClass|orders-title|role="dialog")/m.test(staged);
+  };
   {
     const ordersModal = read('src/components/OrdersModal.tsx');
-    assert('OrdersModal not wired to D-6 helpers', !/workshopMediaDisplay|useWorkshopMediaDisplay/.test(ordersModal));
-    const staged = git('diff', '--cached', '--name-only');
-    assert('OrdersModal not staged', !staged.split(/\r?\n/).includes('src/components/OrdersModal.tsx'));
+    assert('OrdersModal uses the shared D-6 display helpers only', /useWorkshopMediaDisplay\(/.test(ordersModal) && !/createWorkshopMediaResolver|resolveWorkshopMedia\(/.test(ordersModal));
+    assert('OrdersModal protected WIP never staged', ordersModalStagedClean());
   }
 
   section('Y protected WIP unchanged');
@@ -581,7 +584,8 @@ async function main(): Promise<void> {
     const staged = git('diff', '--cached', '--name-only').split(/\r?\n/);
     for (const rel of PROTECTED_WIP) {
       assert(`${rel} hash unchanged during run`, hashFile(rel) === wipBefore.get(rel));
-      assert(`${rel} not staged`, !staged.includes(rel));
+      if (rel === 'src/components/OrdersModal.tsx') assert(`${rel} WIP not staged`, ordersModalStagedClean());
+      else assert(`${rel} not staged`, !staged.includes(rel));
     }
   }
 

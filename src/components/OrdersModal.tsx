@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { OrderStepper } from './OrderStepper';
 import { getFullImageUrl } from '../lib/utils';
+import { useWorkshopMediaDisplay, workshopDisplayApi } from '../hooks/useWorkshopMediaDisplay';
+import { workshopOrderItemThumbRef } from '../lib/workshopMediaDisplay';
 
 interface OrdersModalProps {
   isOpen: boolean;
@@ -89,6 +91,16 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
       };
     }
   }, [user, isOpen]);
+
+  const workshopMedia = useWorkshopMediaDisplay(
+    isOpen
+      ? orders
+          .flatMap((order) => (Array.isArray(order.ordered_items) ? order.ordered_items : []))
+          .filter((ji: any) => ji?.product_id === 'workshop-single')
+          .map((ji: any) => workshopOrderItemThumbRef(ji, workshopDisplayApi))
+      : [],
+    'customer',
+  );
 
   if (!isOpen) return null;
 
@@ -188,7 +200,10 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
                         <div className="space-y-3">
                           {(order.ordered_items as any[])?.map((ji: any, index: number) => {
                             const isWorkshop = ji.product_id === 'workshop-single';
-                            const displayImageUrl = getFullImageUrl(ji.user_image_url || ji.front_image, isWorkshop);
+                            const workshopRef = isWorkshop ? workshopOrderItemThumbRef(ji, workshopDisplayApi) : null;
+                            const displayImageUrl = isWorkshop
+                              ? workshopMedia.get(workshopRef).src
+                              : getFullImageUrl(ji.user_image_url || ji.front_image, isWorkshop);
 
                             return (
                               <div key={index} className={`flex items-center gap-4 p-4 rounded-2xl border group/item ${
@@ -197,7 +212,15 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
                                 <div className={`w-16 h-16 rounded-xl overflow-hidden border flex-shrink-0 ${
                                   theme === 'dark' ? 'bg-zinc-800 border-white/5' : 'bg-zinc-100 border-black/5'
                                 }`}>
-                                  {displayImageUrl ? (
+                                  {displayImageUrl && isWorkshop ? (
+                                    <img
+                                      src={displayImageUrl}
+                                      alt=""
+                                      className="w-full h-full object-cover"
+                                      referrerPolicy="no-referrer"
+                                      onError={() => void workshopMedia.onLoadError(workshopRef, displayImageUrl)}
+                                    />
+                                  ) : displayImageUrl ? (
                                     <img 
                                       src={displayImageUrl} 
                                       className="w-full h-full object-cover" 
