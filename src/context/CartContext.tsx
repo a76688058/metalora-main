@@ -4,6 +4,8 @@ import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { Product } from '../data/products';
 import { track } from '../lib/analytics';
+import { normalizeWorkshopMediaRef } from '../lib/workshopMedia';
+import { hasOnlyDurableWorkshopRefs } from '../lib/workshopMediaDisplay';
 
 interface CartItem {
   id: string;
@@ -13,6 +15,7 @@ interface CartItem {
   quantity: number;
   created_at: string;
   orientation?: 'portrait' | 'landscape';
+  /** Durable Workshop ref (canonical path or legacy Supabase URL), not a display src. */
   custom_image?: string;
   custom_config?: any;
   product?: Product;
@@ -132,6 +135,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               id: 'workshop-single',
               title: '나만의 커스텀 포스터',
               artist: 'METALORA Workshop',
+              // Durable ref; render through useWorkshopMediaDisplay, not as an <img> src.
               image: item.custom_image || '',
               description: '워크숍에서 직접 제작한 커스텀 포스터입니다.',
               limited: false,
@@ -195,6 +199,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!Number.isFinite(quantity) || quantity < 1) {
+        return false;
+      }
+
+      if (!hasOnlyDurableWorkshopRefs(customImage, customConfig, normalizeWorkshopMediaRef)) {
         return false;
       }
 

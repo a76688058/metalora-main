@@ -24,6 +24,7 @@ import {
 import { isUsableMemberProfile } from '../lib/authIntegrity';
 import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../lib/publicPaymentFreeze';
 import { checkoutPolicyVersionSnapshot } from '../lib/policyVersions';
+import { useWorkshopMediaDisplay } from '../hooks/useWorkshopMediaDisplay';
 
 interface CartProps {
   isOpen: boolean;
@@ -211,6 +212,11 @@ export default function Cart() {
       setSelectedIds(new Set(cartItems.map(item => item.id)));
     }
   }, [isOpen, cartItems.length]);
+
+  const workshopMedia = useWorkshopMediaDisplay(
+    isOpen ? cartItems.filter(isCustomCartRow).map((item) => item.custom_image) : [],
+    'customer',
+  );
 
   const selectedItems = cartItems.filter(item => selectedIds.has(item.id));
   const selectedTotalPrice = selectedItems.reduce((sum, item) => {
@@ -893,7 +899,7 @@ export default function Cart() {
                           ? customUnitPrice(item)
                           : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
                         const image = isWorkshop
-                          ? (item.custom_image || '')
+                          ? (workshopMedia.get(item.custom_image).src || '')
                           : (rowOrientation === 'landscape' && item.product?.landscape_image
                             ? item.product.landscape_image
                             : (item.product?.front_image || item.product?.image || ''));
@@ -936,6 +942,7 @@ export default function Cart() {
                                 alt=""
                                 className="w-full h-full object-contain"
                                 referrerPolicy="no-referrer"
+                                onError={isWorkshop ? () => void workshopMedia.onLoadError(item.custom_image, image) : undefined}
                               />
                             ) : null}
                           </button>
@@ -1017,7 +1024,7 @@ export default function Cart() {
                         ? customUnitPrice(item)
                         : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
                       const image = isWorkshop
-                        ? (item.custom_image || '')
+                        ? (workshopMedia.get(item.custom_image).src || '')
                         : (rowOrientation === 'landscape' && item.product?.landscape_image
                           ? item.product.landscape_image
                           : (item.product?.front_image || item.product?.image || ''));
@@ -1030,6 +1037,7 @@ export default function Cart() {
                                 alt=""
                                 className="w-full h-full object-contain"
                                 referrerPolicy="no-referrer"
+                                onError={isWorkshop ? () => void workshopMedia.onLoadError(item.custom_image, image) : undefined}
                               />
                             ) : null}
                           </div>

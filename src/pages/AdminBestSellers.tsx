@@ -7,6 +7,7 @@ import {
   Award, BarChart3, RefreshCcw
 } from 'lucide-react';
 import { getFullImageUrl } from '../lib/utils';
+import { useWorkshopMediaDisplay } from '../hooks/useWorkshopMediaDisplay';
 import {
   BEST_SELLER_ERROR_MESSAGE,
   bestSellerQueryKey,
@@ -27,9 +28,16 @@ const PERIOD_TABS: Array<{ value: Exclude<BestSellerPeriod, 'custom'>; label: st
   { value: 'all', label: '전체' },
 ];
 
-const downloadImage = async (url: string, filename: string) => {
+/**
+ * Workshop srcs are temporary signed URLs: fetched without referrer or credentials and never
+ * opened in a tab, so they do not reach navigation or history.
+ */
+const downloadImage = async (url: string, filename: string, workshop = false) => {
   try {
-    const response = await fetch(url);
+    const response = workshop
+      ? await fetch(url, { referrerPolicy: 'no-referrer', credentials: 'omit', cache: 'no-store' })
+      : await fetch(url);
+    if (workshop && !response.ok) return;
     const blob = await response.blob();
     const blobUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -40,7 +48,7 @@ const downloadImage = async (url: string, filename: string) => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(blobUrl);
   } catch {
-    window.open(url, '_blank');
+    if (!workshop) window.open(url, '_blank');
   }
 };
 
@@ -107,6 +115,10 @@ export default function AdminBestSellers() {
   const queryKey = bestSellerQueryKey(period, appliedRange);
   const rankingVisible = loadState === 'ready' && loadedKey === queryKey;
   const displayedItems = rankingVisible ? items : [];
+  const workshopMedia = useWorkshopMediaDisplay(
+    displayedItems.filter((item) => item.isWorkshop).map((item) => item.image),
+    'admin',
+  );
 
   const loadReport = useCallback(async (targetPeriod: BestSellerPeriod, custom: BestSellerCustomRange | null) => {
     if (targetPeriod === 'custom' && (!custom || validateCustomRange(custom.start, custom.end))) return;
@@ -306,7 +318,9 @@ export default function AdminBestSellers() {
                   displayedItems.map((item, index) => {
                     const rank = index + 1;
                     const percentage = (item.count / stats.maxCount) * 100;
-                    const imageUrl = getFullImageUrl(item.image, item.isWorkshop);
+                    const imageUrl = item.isWorkshop
+                      ? workshopMedia.get(item.image).src
+                      : getFullImageUrl(item.image);
 
                     return (
                       <motion.div
@@ -330,13 +344,13 @@ export default function AdminBestSellers() {
                             role={imageUrl ? 'button' : undefined}
                             tabIndex={imageUrl ? 0 : undefined}
                             onClick={() => {
-                              if (imageUrl) void downloadImage(imageUrl, `${item.name}.png`);
+                              if (imageUrl) void downloadImage(imageUrl, `${item.name}.png`, item.isWorkshop);
                             }}
                             onKeyDown={(event) => {
                               if (!imageUrl) return;
                               if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                void downloadImage(imageUrl, `${item.name}.png`);
+                                void downloadImage(imageUrl, `${item.name}.png`, item.isWorkshop);
                               }
                             }}
                             className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border border-white/10 flex-shrink-0 cursor-pointer group-hover:border-purple-500/30 transition-all"
@@ -348,6 +362,7 @@ export default function AdminBestSellers() {
                                   alt=""
                                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                   referrerPolicy="no-referrer"
+                                  onError={item.isWorkshop ? () => void workshopMedia.onLoadError(item.image, imageUrl) : undefined}
                                 />
                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                   <Download size={18} className="text-white" aria-hidden="true" />

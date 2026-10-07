@@ -1,5 +1,7 @@
 import { supabase } from '../../lib/supabase';
 import { getFullImageUrl } from '../../lib/utils';
+import { workshopOrderItemThumbRef } from '../../lib/workshopMediaDisplay';
+import { workshopDisplayApi } from '../../hooks/useWorkshopMediaDisplay';
 
 export const ADMIN_ORDER_STATUSES = ['PAID', 'PRODUCTION', 'SHIPPING', 'COMPLETED'] as const;
 export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
@@ -62,6 +64,7 @@ export type AdminOrderItem = {
   option: string;
   quantity: number;
   price: number | null;
+  /** Catalog: public image URL. Workshop: durable ref (canonical path or legacy URL) for the resolver. */
   imageUrl: string | null;
   orientation: string | null;
   isWorkshop: boolean;
@@ -105,19 +108,20 @@ export function mapAdminOrderItem(raw: unknown): AdminOrderItem {
   const item = asRecord(raw);
   const productId = asString(item.product_id);
   const isWorkshop = productId === 'workshop-single' || productId === '' || item.product_id == null;
-  const imagePath =
-    asString(item.image) ||
-    asString(item.user_image_url) ||
-    asString(item.front_image) ||
-    asString(item.custom_image) ||
-    asString(item.preview_url) ||
-    '';
+  const imagePath = isWorkshop
+    ? workshopOrderItemThumbRef(item, workshopDisplayApi)
+    : asString(item.image) ||
+      asString(item.user_image_url) ||
+      asString(item.front_image) ||
+      asString(item.custom_image) ||
+      asString(item.preview_url) ||
+      '';
   return {
     title: asString(item.title) || asString(item.product_title) || asString(item.name) || '제품',
     option: asString(item.option) || asString(item.selected_option) || '',
     quantity: asNumber(item.quantity) ?? 0,
     price: asNumber(item.price),
-    imageUrl: imagePath ? getFullImageUrl(imagePath, isWorkshop) : null,
+    imageUrl: isWorkshop ? imagePath || null : imagePath ? getFullImageUrl(imagePath) : null,
     orientation: asString(item.orientation) || null,
     isWorkshop,
   };

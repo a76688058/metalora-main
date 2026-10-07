@@ -21,6 +21,14 @@ import {
 import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/cn';
+import { useWorkshopMediaDisplay } from '../hooks/useWorkshopMediaDisplay';
+import type { WorkshopMediaDisplay } from '../lib/workshopMediaDisplay';
+
+function visibleWorkshopRefs(orders: AdminOrder[], selected: AdminOrder | null): (string | null)[] {
+  const listed = orders.map((order) => order.items[0]).filter((item) => item?.isWorkshop);
+  const detail = selected ? selected.items.filter((item) => item.isWorkshop) : [];
+  return [...listed, ...detail].map((item) => item?.imageUrl ?? null);
+}
 
 const DATE_FILTERS: { value: DateFilter; label: string }[] = [
   { value: 'all', label: '전체' },
@@ -87,7 +95,19 @@ function ShippingCell({ order }: { order: AdminOrder }) {
   );
 }
 
-function OrderThumb({ src, compact = false }: { src: string | null; compact?: boolean }) {
+function OrderThumb({
+  item,
+  workshopMedia,
+  compact = false,
+}: {
+  item: AdminOrderItem | undefined;
+  workshopMedia: WorkshopMediaDisplay;
+  compact?: boolean;
+}) {
+  const value = item?.imageUrl ?? null;
+  const isWorkshop = Boolean(item?.isWorkshop);
+  const workshop = isWorkshop ? workshopMedia.get(value) : null;
+  const src = workshop ? workshop.src : value;
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     setFailed(false);
@@ -96,7 +116,17 @@ function OrderThumb({ src, compact = false }: { src: string | null; compact?: bo
   return (
     <div className={cn('overflow-hidden bg-zinc-800 border border-white/5 flex items-center justify-center', compact ? 'w-12 h-12 rounded-md' : 'w-16 h-16 rounded-lg')}>
       {empty ? (
-        <span className="text-[10px] text-zinc-500 text-center px-1">이미지 없음</span>
+        workshop?.status === 'loading' ? null : (
+          <span className="text-[10px] text-zinc-500 text-center px-1">이미지 없음</span>
+        )
+      ) : isWorkshop ? (
+        <img
+          src={src}
+          alt=""
+          className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
+          onError={() => void workshopMedia.onLoadError(value, src)}
+        />
       ) : (
         <img src={src} alt="" className="w-full h-full object-cover" onError={() => setFailed(true)} />
       )}
@@ -121,6 +151,7 @@ export default function AdminOrders() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const lastOpenerRef = useRef<HTMLElement | null>(null);
+  const workshopMedia = useWorkshopMediaDisplay(visibleWorkshopRefs(orders, selectedOrder), 'admin');
 
   const filtersActive = Boolean(debouncedSearch) || statusFilter !== 'all' || dateFilter !== 'all';
   const pageCount = Math.max(1, Math.ceil(count / ADMIN_ORDERS_PAGE_SIZE));
@@ -403,7 +434,7 @@ export default function AdminOrders() {
                     <tr key={order.id} className="border-t border-zinc-800/80 bg-zinc-950 align-middle">
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2 min-w-0">
-                          <OrderThumb src={order.items[0]?.imageUrl ?? null} compact />
+                          <OrderThumb item={order.items[0]} workshopMedia={workshopMedia} compact />
                           <span className="text-white font-medium truncate" title={order.order_number || order.id}>
                             {listOrderNumber(order)}
                           </span>
@@ -538,7 +569,7 @@ export default function AdminOrders() {
                     <li className="text-sm text-zinc-500">상품 정보가 없습니다.</li>
                   ) : selectedOrder.items.map((item: AdminOrderItem, index) => (
                     <li key={`${item.title}-${index}`} className="flex gap-3">
-                      <OrderThumb src={item.imageUrl} />
+                      <OrderThumb item={item} workshopMedia={workshopMedia} />
                       <div className="min-w-0">
                         <p className="text-sm text-white truncate">{item.title}</p>
                         <p className="text-xs text-zinc-400 mt-1">

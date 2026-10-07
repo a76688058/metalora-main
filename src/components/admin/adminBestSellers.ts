@@ -1,5 +1,7 @@
 import { supabase } from '../../lib/supabase';
 import { ADMIN_ORDER_STATUSES } from './adminOrders';
+import { workshopOrderItemThumbRef } from '../../lib/workshopMediaDisplay';
+import { workshopDisplayApi } from '../../hooks/useWorkshopMediaDisplay';
 
 /** Canonical paid-commerce statuses. Same contract as NEW3-2 / NEW3-6. No KR/lowercase aliases. */
 export const BEST_SELLER_PAID_STATUSES = ADMIN_ORDER_STATUSES;
@@ -21,6 +23,7 @@ export type BestSellerItem = {
   count: number;
   revenue: number;
   isWorkshop: boolean;
+  /** Catalog: stored image path/URL. Workshop: durable ref (canonical path or legacy URL) for the resolver. */
   image: string | null;
 };
 
@@ -173,7 +176,8 @@ function isWorkshopItem(item: Record<string, unknown>, name: string): boolean {
   );
 }
 
-function itemImagePath(item: Record<string, unknown>): string | null {
+function itemImagePath(item: Record<string, unknown>, isWorkshop: boolean): string | null {
+  if (isWorkshop) return workshopOrderItemThumbRef(item, workshopDisplayApi);
   const path =
     asString(item.user_image_url) ||
     asString(item.front_image) ||
@@ -197,17 +201,18 @@ export function aggregateBestSellers(rows: Record<string, unknown>[]): BestSelle
       if (!name || quantity == null || quantity <= 0 || price == null || price < 0) continue;
 
       if (!aggregation[name]) {
+        const isWorkshop = isWorkshopItem(item, name);
         aggregation[name] = {
           name,
           count: 0,
           revenue: 0,
-          isWorkshop: isWorkshopItem(item, name),
-          image: itemImagePath(item),
+          isWorkshop,
+          image: itemImagePath(item, isWorkshop),
         };
       }
       aggregation[name].count += quantity;
       aggregation[name].revenue += quantity * price;
-      if (!aggregation[name].image) aggregation[name].image = itemImagePath(item);
+      if (!aggregation[name].image) aggregation[name].image = itemImagePath(item, aggregation[name].isWorkshop);
     }
   }
 

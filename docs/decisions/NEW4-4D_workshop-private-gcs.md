@@ -1,7 +1,7 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — SERVER FOUNDATION + SHARED RESOLVER + A2 WORKSHOP CLIENT IMPLEMENTED (NEW4-4D-3 / 4 / 5, local commits, not deployed)**. Signed regional delivery proven in NEW4-4D-2A. Next: A3 NEW4-4D-6 Cart / admin consumers.
-Production still runs the pre-D-3 build on Supabase Storage. D-5 client code exists locally and **must not be deployed** until the release guard below is met. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
+Status: **ACCEPTED — SERVER FOUNDATION + SHARED RESOLVER + A2 WORKSHOP CLIENT + A3 CART / ADMIN CONSUMERS IMPLEMENTED (NEW4-4D-3 / 4 / 5 / 6, local commits, not deployed)**. Signed regional delivery proven in NEW4-4D-2A. Open: `OrdersModal.tsx` (protected WIP, cutover blocker), release guard below.
+Production still runs the pre-D-3 build on Supabase Storage. D-5 / D-6 client code exists locally and **must not be deployed** until the release guard below is met. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
 
@@ -126,7 +126,37 @@ Code: `src/lib/customComposition/durableHandoff.ts` (no Supabase import; testabl
 
 **Verifier note.** The D-3 check "live client still uploads to Supabase workshop bucket" and the D-4 R-scope checks "no consumer imports the resolver" / "live upload still Supabase" were application-state snapshots for the pre-D-5 state and now fail by design (D-3 192/193, D-4 82/84; all contract checks pass). Owners (A6 for D-3, A0 for D-4) should update them to the D-5 state.
 
-**Release guard.** D-5 must not be publicly deployed until: (1) D-3 backend deployed, (2) `WORKSHOP_GCS_*` bound on Cloud Run, (3) backend smoke of all four endpoints, (4) `20261007100000_new4_4d_path_validation.sql` applied in the order below, (5) remaining consumers migrated (Cart, CartContext, admin), (6) `OrdersModal.tsx` handoff complete, (7) legacy copy / cutover later. Privacy CDN marker stays.
+**Release guard.** Superseded by the consolidated list in the D-6 section.
+
+## Cart / CartContext / admin consumers (NEW4-4D-6, A3)
+
+Code: `src/lib/workshopMediaDisplay.ts` (display controller, no Supabase import; testable in Node), `src/hooks/useWorkshopMediaDisplay.ts` (binds it to the shared resolver), `src/context/CartContext.tsx`, `src/components/Cart.tsx`, `src/components/admin/adminOrders.ts`, `src/pages/AdminOrders.tsx`, `src/components/admin/adminBestSellers.ts`, `src/pages/AdminBestSellers.tsx`. Verifier: `npx tsx scripts/verify-new4-4d-6-cart-admin.ts` (real `handleSignRead`, mocked signer + DB refs, network disabled; no npm script).
+
+- **Durable refs.** `cart_items.custom_image`, `custom_config.*_image_url` and `orders.ordered_items[]` keep the stored value (canonical path or legacy URL); nothing is rewritten. `CartContext.addToCart` refuses Workshop media that `normalizeWorkshopMediaRef` rejects (signed / regional / `blob:` / `data:` / other hosts) before any `cart_items` write. Workshop rows still enter through `add_custom_cart_item` (D-5). Hydrated `product.image` of a Workshop row is the durable ref. `AdminOrderItem.imageUrl` and `BestSellerItem.image` keep their names; for Workshop items they hold the durable ref, not a URL.
+- **Display.** Canonical ref → one batched `resolveWorkshopMedia` per view (Cart only while open; AdminOrders list first items + open detail; best sellers visible Workshop rows) → temporary src in controller memory, re-resolved at 85 % of remaining lifetime, dropped on unmount. No new cache; the resolver cache is shared. Legacy Supabase Workshop URLs (strict, or older non-UUID public URLs on the production host) render exactly as stored and are never sent to sign-read. Anything else (relative paths, `workshop/…`, queries, other hosts, signed URLs) → existing placeholder; no `getFullImageUrl` / public URL building for Workshop values. Catalog images unchanged.
+- **Errors.** `<img onError>` → `retryWorkshopMediaAfterLoadError` once per issued src; second failure or legacy failure → placeholder. No technical error text, no logging.
+- **Admin.** `mode: 'admin'` is cache context only; the server authorizes via `profiles.is_admin`. Refusal / 401 / 403 / 5xx / signed out → placeholder, never a legacy URL synthesized from a path. Thumbnails use the preview (`custom_config.preview_image_url`, `image`, `user_image_url`, `front_image`, `custom_image`, `preview_url`; canonical `originals/…` skipped). No A3 surface resolves originals: AdminOrders has no production-download workflow and the best-seller download is a representative thumbnail. Best-seller Workshop download fetches with `no-referrer`, `credentials: omit`, `no-store` into a `blob:` link and never falls back to `window.open` (catalog fallback unchanged). Dashboard renders no Workshop media (counts only), no change.
+- **No signed persistence.** Signed srcs exist only in controller memory and `<img src>`: not in cart rows, admin data, React data state, storage, DB writes, URLs / navigation state, analytics, logs. All Workshop `<img>` carry `referrerPolicy="no-referrer"`; no `crossOrigin` (plain images, no canvas).
+- **Payment.** Freeze unchanged. `prepare` items, `pendingOrder` and `ordered_items` are built from durable refs (`user_image_url: item.custom_image`).
+- **OrdersModal.** Excluded (protected WIP). **KNOWN PROTECTED CUTOVER BLOCKER**: synchronous `getFullImageUrl` keeps legacy URLs working and returns null for canonical paths. No workaround (no public redirect, anonymous sign endpoint, cookie, or Supabase URL reconstruction).
+- **Local dev.** Bucket CORS allows `https://metalora.art` only; `<img>` loads are not CORS-bound, but the best-seller Workshop download fetch fails CORS on localhost (silently, no fallback).
+
+**A4 TARGETED REVIEW RECOMMENDED BEFORE FINAL CUTOVER**: expiring signed texture sources in `MetaloraArtwork3D` / story canvas (no Workshop re-sign hook on texture error), the ProductDetail pre-expiry refresh swapping texture URLs, and `crossOrigin = 'anonymous'` on every Workshop texture path. No A4 code changed in D-6.
+
+**Release guard (consolidated).** D-5 / D-6 client code must not be publicly deployed, and the Supabase bucket must not go private, until all of:
+1. D-3 backend deployed (A6 + owner approval).
+2. `WORKSHOP_GCS_*` bound on Cloud Run.
+3. Backend smoke of sign-upload / sign-read / commit / discard.
+4. `20261007100000_new4_4d_path_validation.sql` applied in the order below.
+5. `OrdersModal.tsx` protected-WIP handoff and migration (A3).
+6. D-3 / D-4 application-state verifier checks refreshed to the D-5/D-6 state (A6 / A0).
+7. Dual-store QA on the production origin (upload, cart, PDP, admin, retention, withdrawal).
+8. Legacy object copy to GCS with verification.
+9. Supabase `workshop` bucket private cutover (drop insert / public select).
+10. Wait at least the CDN cache TTL.
+11. Runtime proof that no page emits a public Supabase Workshop URL.
+12. Privacy finalization (CDN entry and markers removed; until then the CDN Privacy marker stays).
+13. A5 final QA.
 
 ## Path validation migration ordering (NEW4-4D-3, prepared, NOT applied)
 
@@ -179,7 +209,7 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 ## Not done (by design)
 
 - No deploy, no Cloud Run env binding or revision, no migration applied.
-- A2 consumers (WorkshopView, durableHandoff, ProductDetail) switched in source only (NEW4-4D-5). Cart, CartContext, OrdersModal and admin consumers untouched. Production Workshop uploads and reads remain on Supabase.
+- A2 consumers (WorkshopView, durableHandoff, ProductDetail) switched in source only (NEW4-4D-5); A3 Cart, CartContext and admin consumers switched in source only (NEW4-4D-6). OrdersModal untouched. Production Workshop uploads and reads remain on Supabase.
 - Supabase `workshop` bucket and policies unchanged; no customer object read, copied, moved or deleted.
 - Payment frozen until NEW7.
 
@@ -187,8 +217,10 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 
 - ~~A0 NEW4-4D-4: shared Workshop media resolver.~~ **DONE locally.**
 - ~~A2 NEW4-4D-5: Workshop upload switch, resume, PDP workshop-single.~~ **DONE locally.** A4 targeted review of the WebGL texture expiry path recommended (no A4 code change required).
-- A0 / A6: update the D-4 R-scope and D-3 application-state snapshot checks to the D-5 state.
-- A3: Cart, CartContext, admin consumers (`mode: 'admin'`); `OrdersModal.tsx` after the protected-WIP handoff (**cutover blocker**; synchronous `getFullImageUrl` at ~line 226 keeps working for legacy URLs, returns null for canonical paths).
+- A0 / A6: update the D-4 R-scope and D-3 application-state snapshot checks to the D-5 / D-6 state (D-3 192/193, D-4 82/84 by design).
+- ~~A3 NEW4-4D-6: Cart, CartContext, admin consumers.~~ **DONE locally.**
+- A3: `OrdersModal.tsx` after the protected-WIP handoff (**cutover blocker**; synchronous `getFullImageUrl` keeps working for legacy URLs, returns null for canonical paths).
+- A4: targeted review of expiring texture sources before final cutover (see D-6).
 - A6: deploy + env binding, migration apply, later tightening migration, legacy copy and cutover, Privacy finalization.
 
 ## Do not do
@@ -205,7 +237,7 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 1. Owner decisions on the open IAM items (parallel; required before calling least privilege complete).
 2. ~~A6 NEW4-4D-3: adapter, NEW4-6/7 dual-store wiring, endpoints, path-validation migration (prepared).~~ **DONE locally.** Deploy + env binding is a separate A6 ticket with owner approval and must land before any client GCS upload.
 3. ~~A0 NEW4-4D-4: `src/lib/workshopMedia.ts` resolver and `getFullImageUrl` handling for both legacy URLs and paths.~~ **DONE locally.**
-4. A2 / A3 / A4: display consumers through the resolver. **A2 (Workshop upload / resume, PDP) done locally (D-5).** Remaining: A3 Cart, CartContext, admin.
+4. A2 / A3 / A4: display consumers through the resolver. **A2 (Workshop upload / resume, PDP) done locally (D-5). A3 Cart, CartContext, admin done locally (D-6).** A4 review pending.
 5. `OrdersModal.tsx` protected-WIP handoff and migration (A3). **Cutover blocker.**
 6. A6: apply the dual-format path-validation migration (see ordering above); A2 switches uploads to GCS.
 7. Dual-store QA, legacy copy with verification, Supabase cutover (drop insert policy, make private, drop public select, delete legacy objects, wait at least the cache TTL), then the canonical-only tightening migration.
@@ -217,4 +249,4 @@ A6: GCS ops/IAM, adapter, server endpoints, migrations, NEW4-6/7 integration, le
 
 ## Relevant files
 
-`src/lib/workshopStorage.ts`, `src/lib/workshopMediaCore.ts`, `src/lib/workshopMedia.ts`, `src/lib/utils.ts`, `scripts/verify-new4-4d-4-workshop-media.ts`, `src/lib/customComposition/durableHandoff.ts`, `src/components/Workshop/WorkshopView.tsx`, `src/components/ProductDetail.tsx`, `scripts/verify-new4-4d-5-workshop-client.ts`, `src/lib/workshopRetention.ts`, `src/lib/accountWithdrawal.ts`, `server.ts`, `supabase/migrations/20261007100000_new4_4d_path_validation.sql`, `scripts/verify-new4-4d-3-workshop-media.ts`, `scripts/verify-workshop-gcs-foundation.ts`, `.env.example`, `package.json`, `package-lock.json`, `docs/decisions/NEW4-4_privacy-processors.md`.
+`src/lib/workshopStorage.ts`, `src/lib/workshopMediaCore.ts`, `src/lib/workshopMedia.ts`, `src/lib/utils.ts`, `scripts/verify-new4-4d-4-workshop-media.ts`, `src/lib/customComposition/durableHandoff.ts`, `src/components/Workshop/WorkshopView.tsx`, `src/components/ProductDetail.tsx`, `scripts/verify-new4-4d-5-workshop-client.ts`, `src/lib/workshopMediaDisplay.ts`, `src/hooks/useWorkshopMediaDisplay.ts`, `src/context/CartContext.tsx`, `src/components/Cart.tsx`, `src/components/admin/adminOrders.ts`, `src/pages/AdminOrders.tsx`, `src/components/admin/adminBestSellers.ts`, `src/pages/AdminBestSellers.tsx`, `scripts/verify-new4-4d-6-cart-admin.ts`, `src/lib/workshopRetention.ts`, `src/lib/accountWithdrawal.ts`, `server.ts`, `supabase/migrations/20261007100000_new4_4d_path_validation.sql`, `scripts/verify-new4-4d-3-workshop-media.ts`, `scripts/verify-workshop-gcs-foundation.ts`, `.env.example`, `package.json`, `package-lock.json`, `docs/decisions/NEW4-4_privacy-processors.md`.
