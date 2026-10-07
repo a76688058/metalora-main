@@ -2,7 +2,7 @@
 
 Status: **OPEN — SOURCE STILL BLOCKED** (NEW4-4C). Two country fields cannot be filled truthfully: Supabase Storage CDN cache (Cloudflare, global) and Cloud Logging `_Default` (`global`). Cloud Logging retention is an owner fact. Public promotion is blocked by the `공개 전 확인 필요` markers and the release guard below.
 
-NEW4-4D (2026-10-07): Workshop private Seoul GCS architecture is owner-approved and the bucket is provisioned (`docs/decisions/NEW4-4D_workshop-private-gcs.md`). The Privacy CDN blocker is **NOT** closed until application cutover, legacy Supabase deletion, the cache TTL wait and A5 verification are complete. The live app still serves Workshop images from Supabase. Keep the current markers.
+NEW4-4D (2026-10-07): Workshop private Seoul GCS architecture is owner-approved, provisioned, and the V4 signed PUT/GET chain through the Seoul regional endpoint is proven with synthetic data (NEW4-4D-2A) (`docs/decisions/NEW4-4D_workshop-private-gcs.md`). The Privacy CDN blocker is **NOT** closed until application cutover, legacy Supabase deletion, the cache TTL wait and A5 verification are complete. The live app still serves Workshop images from Supabase. Keep the current markers.
 
 ---
 
