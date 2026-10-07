@@ -371,7 +371,7 @@ export const policies = {
           <p>회사는 서비스 운영을 위해 아래와 같이 처리를 맡깁니다. 고객 개인정보를 제3자에게 판매하지 않습니다.</p>
           <ul className="list-disc pl-5 space-y-3">
             <li>
-              <span className="text-zinc-950 dark:text-white font-bold">Supabase:</span> 회원 인증, 데이터베이스 보관, WORKSHOP 이미지 저장. 계정·주문·문의·동의 기록과 업로드 이미지가 이 목적 범위에서 처리됩니다.
+              <span className="text-zinc-950 dark:text-white font-bold">Supabase:</span> 회원 인증, 데이터베이스 보관, WORKSHOP 이미지 저장. 계정·주문·문의·동의 기록과 업로드 이미지가 이 목적 범위에서 처리됩니다. 보관 위치는 대한민국(서울)입니다.
             </li>
             <li>
               <span className="text-zinc-950 dark:text-white font-bold">Google Cloud (Cloud Run):</span> 웹사이트·서버 요청 처리. 요청에 계정·주문·문의·인증 정보가 포함되면 그 요청 처리 과정에서 함께 다뤄질 수 있습니다. 주문·계정 원장은 Cloud Run에 따로 쌓아 두지 않습니다.
@@ -400,21 +400,10 @@ export const policies = {
             <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> 이용자가 보낸 요청에 포함된 계정·인증, 주문·배송, 문의, 보안 관련 정보와 그 처리 과정에서 생기는 서버 운영 기록</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">이용 목적:</span> 회사 웹사이트 제공과 API 요청 처리 등 서비스 인프라 운영</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">이전 시기·방법:</span> 이용자가 웹사이트를 이용할 때마다 암호화된 통신(HTTPS)으로 전송</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 요청을 처리하는 동안 처리하며, 서버 운영 기록은 회사의 Google Cloud 로그 보관 설정에 따른 기간 동안 보관됩니다. 계정·주문 원장은 이 인프라에 따로 저장하지 않으며, 계속 보관되는 데이터의 위치는 아래 Supabase 항목에 따릅니다.</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 요청을 처리하는 동안 처리하며, 서버 운영 기록은 회사의 Google Cloud 로그 보관 설정에 따른 기간 동안 보관됩니다. 계정·주문 원장은 이 인프라에 따로 저장하지 않으며, 대한민국(서울)에 있는 Supabase에 보관됩니다(제8조).</li>
           </ul>
 
-          <p className="text-zinc-950 dark:text-white font-bold">2. Supabase (회원 인증, 데이터베이스, WORKSHOP 이미지 저장)</p>
-          <ul className="list-disc pl-5 space-y-3">
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전받는 자:</span> Supabase, Inc.</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">연락처:</span> privacy@supabase.com</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 국가:</span> [공개 전 확인 필요: Supabase 호스팅 국가·지역]</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> 계정·인증 정보, 주문·배송 정보, 문의 기록, 약관·정책 동의 기록, WORKSHOP 업로드·미리보기 이미지</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이용 목적:</span> 회원 인증, 데이터 보관, WORKSHOP 이미지 저장</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 시기·방법:</span> 회원 가입, 주문, 문의, 이미지 업로드 등 이용 시 암호화된 통신(HTTPS)으로 전송</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 제4조부터 제6조까지에서 정한 보유 기간 또는 위탁 계약 종료 시까지</li>
-          </ul>
-
-          <p className="text-zinc-950 dark:text-white font-bold">3. Discord (내부 주문·결제 운영 알림)</p>
+          <p className="text-zinc-950 dark:text-white font-bold">2. Discord (내부 주문·결제 운영 알림)</p>
           <ul className="list-disc pl-5 space-y-3">
             <li><span className="text-zinc-950 dark:text-white font-bold">이전받는 자:</span> Discord Inc.</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">연락처:</span> privacy@discord.com / 444 De Haro Street #200, San Francisco, CA 94107, USA</li>

@@ -1,6 +1,6 @@
 # NEW4-4 — Privacy policy / processor disclosure
 
-Status: **OPEN — OWNER FACT REQUIRED** (production Supabase Auth/DB/Storage hosting country/region). NEW4-4A source patch ready for A5 re-review. Not production-ready.
+Status: **READY FOR A5 FINAL RE-REVIEW** (NEW4-4B: Supabase region owner fact resolved). Not production-ready — public promotion stays blocked by the release guard below.
 
 Date: 2026-10-07
 
@@ -94,7 +94,7 @@ Production capability today: NEW4-6 source exists; scheduler **NOT CONFIGURED**;
 
 | Service | Classification | Notes |
 |---|---|---|
-| Supabase | 처리위탁 | Auth + Postgres + Workshop Storage. Hosting country **unresolved** — do not invent. |
+| Supabase | 처리위탁 (국내 보관, NEW4-4B) | Auth + Postgres + Workshop Storage. Production project `qifloweuwyhvukabgnoa` region `ap-northeast-2` (owner-confirmed) = “Northeast Asia (Seoul)” per Supabase official regions docs. Public: 보관 위치 대한민국(서울). |
 | Google Cloud Run | 처리위탁 + 국외 처리 | Production region **us-west1** = Oregon, USA (Google Cloud official regions docs). Request processing; not the persistent DB. |
 | SOLAPI | 처리위탁 (국내) | OTP SMS: destination number + verification message. Official privacy lists 솔라피 주식회사, Seoul. |
 | Google / Kakao / Naver OAuth | 외부 인증 제공자 | User authorizes the provider; METALORA receives identity. Not 제3자 제공 of METALORA’s profile dump. |
@@ -118,16 +118,25 @@ Public 제9조 entries:
 | Recipient | Country | Contact | Source |
 |---|---|---|---|
 | Google Cloud (Korea billing contracting entity: Google Cloud Korea LLC, reseller; “Google” = Google Asia Pacific Pte. Ltd. and affiliates) | USA, Oregon (`us-west1`) | Google Cloud Data Protection Team `https://support.google.com/cloud/contact/dpo` | cloud.google.com/terms/google-entity; Cloud DPA §12 / Appendix; Compute Engine regions-zones |
-| Supabase, Inc. | **OWNER FACT REQUIRED** — public text carries marker `[공개 전 확인 필요: Supabase 호스팅 국가·지역]` | privacy@supabase.com | supabase.com/contact-us, supabase.com/privacy |
 | Discord Inc. | USA (official policy: US servers; may also store in other countries depending on user/provider location) | privacy@discord.com; 444 De Haro Street #200, San Francisco, CA 94107, USA | discord.com/privacy |
 
-Retention fields: no vendor-side day counts invented. Google Cloud = request processing duration + server logs per METALORA's Google Cloud log retention setting. Discord = until METALORA deletes the notification or the relationship ends; Discord-side per Discord policy. Supabase = retention in Privacy 제4조–제6조 or until outsourcing ends.
+Retention fields: no vendor-side day counts invented. Google Cloud = request processing duration + server logs per METALORA's Google Cloud log retention setting. Discord = until METALORA deletes the notification or the relationship ends; Discord-side per Discord policy.
 
 Refusal: necessary infrastructure; no per-user exclusion exists. Refusal path = request withdrawal / stop use via 1:1 문의 or a84411448@gmail.com; effect = membership and orders cannot be provided. Kept separate from optional GA refusal.
 
-Unresolved legally required fact:
+Supabase region (NEW4-4B) — **RESOLVED**:
 
-- **Production Supabase Auth/DB/Storage hosting country/region**. Do not invent. The public marker must be replaced with the confirmed country (and region) before promotion. Promotion check: `rg "공개 전 확인 필요" src/constants/policies.tsx` must return no hits.
+- Owner-confirmed region: `ap-northeast-2` (project `qifloweuwyhvukabgnoa`)
+- Verified official location: “Northeast Asia (Seoul)” — supabase.com/docs/guides/platform/regions and supabase.com/regions. Public wording: 대한민국(서울).
+- Supabase official regions page: primary Postgres database, Auth service, and Storage objects at origin stay in the chosen region.
+- Classification: domestic 처리위탁 (Privacy 제8조). Removed from the 제9조 overseas list. A foreign vendor entity alone does not make Seoul-hosted storage an overseas transfer.
+- Public marker `공개 전 확인 필요` removed. Promotion check: `rg "공개 전 확인 필요" src/constants/policies.tsx` must return no hits (currently none).
+
+Remaining documented Supabase overseas aspect (A5/legal classification required, not speculated in public text):
+
+- Supabase official regions page: **Storage CDN cache — Global, cached on Cloudflare**. METALORA serves Workshop images through `getPublicUrl` (`src/lib/customComposition/durableHandoff.ts`), so Workshop image copies may be cached on Cloudflare edge servers outside Korea. Supabase does not publish a country list. A5/legal must decide whether this needs a 제28조의8 entry (and with what country wording) or is acceptable as transient delivery caching.
+- Supabase Edge Functions run globally, but METALORA has no `supabase/functions` and no `functions.invoke` usage → not applicable.
+- Supabase DPA/subprocessor list (June 1, 2026) lists US vendors for support/monitoring (for example Sentry, Slack, OpenAI). Customer-data access through these for support is not documented for this project; not speculated.
 
 Verification items (not owner facts; read-only, need approval to run):
 
@@ -173,10 +182,11 @@ HARD public-promotion prerequisites. NEW4-4 is **not** production-ready until al
 9. configure hourly Workshop retention scheduler
 10. verify protected retention endpoint operationally
 11. verify account-withdrawal backend operationally
-12. confirm production Supabase Auth/DB/Storage hosting country/region
-13. complete the corresponding overseas-processing disclosure (replace the `공개 전 확인 필요` marker)
-14. confirm Discord overseas-processing facts required by the final disclosure
-15. only then allow Privacy v26.10.07 / 3-day Workshop wording to become public
+12. ensure no `공개 전 확인 필요` markers remain
+13. A5 final Privacy review, including: Supabase Storage CDN (Cloudflare global cache) classification; Discord country wording sufficiency
+14. only then allow Privacy v26.10.07 / 3-day Workshop wording public promotion
+
+RESOLVED (NEW4-4B): production Supabase Auth/DB/Storage hosting region = `ap-northeast-2`, Seoul, South Korea. Overseas disclosure updated accordingly.
 
 Privacy revision may be promoted before NEW4-6 scheduler verification: **NO**
 
