@@ -379,6 +379,9 @@ export const policies = {
             <li>
               <span className="text-zinc-950 dark:text-white font-bold">SOLAPI:</span> 휴대전화 문자 인증. 수신 번호와 인증 문자 발송에 필요한 정보만 전달합니다. 프로필·주문 전체를 보내지 않습니다.
             </li>
+            <li>
+              <span className="text-zinc-950 dark:text-white font-bold">Discord:</span> 회사 내부 운영 알림. 결제가 승인되거나 결제 처리 중 오류가 생기면 주문 처리에 필요한 제한된 주문 정보가 회사 내부 알림 채널로 전송됩니다. 이름, 전화번호, 주소, 이메일, WORKSHOP 이미지, 문의 내용은 보내지 않습니다. 광고, 프로파일링, 고객 대상 메시지 발송에는 쓰지 않습니다.
+            </li>
           </ul>
           <p>택배사 시스템에 배송 정보를 자동으로 넘기는 연동은 현재 없습니다. 관리자가 운송장 내용을 기록하는 것과, 택배사를 개인정보 처리 수탁자로 두는 것은 다릅니다.</p>
           <p>공개 결제가 시작되면 결제 처리를 위해 토스페이먼츠가 사용될 수 있습니다. 지금은 공개 결제 경로가 멈춰 있어, 고객 결제정보를 토스페이먼츠가 받아 처리하는 상태로 보지 않습니다.</p>
@@ -387,16 +390,44 @@ export const policies = {
 
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제9조 (국외 이전·처리)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>회사의 웹사이트·서버는 Google Cloud Run의 us-west1 리전에서 운영됩니다. Google Cloud 공식 문서상 이 리전은 미국 오리건입니다.</p>
+          <p>회사는 이용자와의 계약을 체결하고 이행하는 데 필요한 처리위탁·보관을 위해, 「개인정보 보호법」 제28조의8 제1항 제3호에 따라 아래 사항을 이 처리방침에 공개하고 개인정보를 국외로 이전합니다. 이 이전은 별도 동의를 받는 방식이 아닙니다.</p>
+
+          <p className="text-zinc-950 dark:text-white font-bold">1. Google Cloud (웹사이트·서버 운영)</p>
           <ul className="list-disc pl-5 space-y-3">
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전받는 자:</span> Google Cloud (Cloud Run)</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 국가:</span> 미국 (오리건, us-west1)</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> 해당 요청에 포함된 계정·주문·문의·인증 관련 정보</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 목적:</span> 웹사이트 및 API 요청 처리</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 시기·방법:</span> 서비스 이용 시 HTTPS로 전송</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">보유 기간:</span> 요청 처리에 필요한 동안. 계정·주문 원장은 이 인프라에 영구 저장하지 않습니다.</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전받는 자:</span> Google Cloud 서비스를 제공하는 Google 법인. Google Cloud 공식 안내상 대한민국 결제 주소 고객의 계약 주체는 Google Cloud Korea LLC(서울특별시 강남구 테헤란로 152 강남파이낸스센터 20층)입니다.</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">연락처:</span> Google Cloud 데이터 보호팀 (https://support.google.com/cloud/contact/dpo)</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 국가:</span> 미국 (오리건, Google Cloud Run us-west1 리전)</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> 이용자가 보낸 요청에 포함된 계정·인증, 주문·배송, 문의, 보안 관련 정보와 그 처리 과정에서 생기는 서버 운영 기록</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이용 목적:</span> 회사 웹사이트 제공과 API 요청 처리 등 서비스 인프라 운영</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 시기·방법:</span> 이용자가 웹사이트를 이용할 때마다 암호화된 통신(HTTPS)으로 전송</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 요청을 처리하는 동안 처리하며, 서버 운영 기록은 회사의 Google Cloud 로그 보관 설정에 따른 기간 동안 보관됩니다. 계정·주문 원장은 이 인프라에 따로 저장하지 않으며, 계속 보관되는 데이터의 위치는 아래 Supabase 항목에 따릅니다.</li>
           </ul>
-          <p>Supabase에 맡긴 계정·주문·이미지 등 보관 데이터의 호스팅 국가·지역은 본 개정 시점에 공식 확인되지 않았습니다. 확인되는 즉시 본 방침에 명시합니다.</p>
+
+          <p className="text-zinc-950 dark:text-white font-bold">2. Supabase (회원 인증, 데이터베이스, WORKSHOP 이미지 저장)</p>
+          <ul className="list-disc pl-5 space-y-3">
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전받는 자:</span> Supabase, Inc.</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">연락처:</span> privacy@supabase.com</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 국가:</span> [공개 전 확인 필요: Supabase 호스팅 국가·지역]</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> 계정·인증 정보, 주문·배송 정보, 문의 기록, 약관·정책 동의 기록, WORKSHOP 업로드·미리보기 이미지</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이용 목적:</span> 회원 인증, 데이터 보관, WORKSHOP 이미지 저장</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 시기·방법:</span> 회원 가입, 주문, 문의, 이미지 업로드 등 이용 시 암호화된 통신(HTTPS)으로 전송</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 제4조부터 제6조까지에서 정한 보유 기간 또는 위탁 계약 종료 시까지</li>
+          </ul>
+
+          <p className="text-zinc-950 dark:text-white font-bold">3. Discord (내부 주문·결제 운영 알림)</p>
+          <ul className="list-disc pl-5 space-y-3">
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전받는 자:</span> Discord Inc.</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">연락처:</span> privacy@discord.com / 444 De Haro Street #200, San Francisco, CA 94107, USA</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 국가:</span> 미국. Discord는 공식 개인정보처리방침에서 미국 서버에서 정보를 처리·저장하며, 이용자와 서비스 제공자의 위치에 따라 다른 국가의 서버에도 저장할 수 있다고 밝히고 있습니다.</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> 결제 승인 알림의 경우 주문번호, 결제 금액, 결제수단, 상품명·옵션·수량, 맞춤 제작 여부와 선택한 제작 옵션. 결제 오류 알림의 경우 요청·주문 식별자, 처리 단계, 응답 코드. 이름, 전화번호, 주소, 이메일, WORKSHOP 이미지, 문의 내용은 포함하지 않습니다.</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이용 목적:</span> 회사 내부의 주문 확인과 결제 장애 대응</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 시기·방법:</span> 결제가 승인되거나 결제 처리 오류가 생길 때 암호화된 통신(HTTPS)으로 회사 내부 알림 채널에 전송. 현재 공개 결제는 준비 중이어서, 공개 결제가 시작되기 전에는 주문 승인 알림이 생기지 않습니다.</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 회사가 해당 알림을 삭제하거나 위탁 관계가 끝날 때까지. Discord 측 처리는 Discord의 개인정보처리방침에 따릅니다.</li>
+          </ul>
+
+          <p className="text-zinc-950 dark:text-white font-bold">국외 이전을 거부하는 방법과 효과</p>
+          <p>위 국외 이전을 원하지 않으시면 사이트 1:1 문의 또는 a84411448@gmail.com으로 회원 탈퇴나 이용 중단을 요청하실 수 있습니다. 위 서비스는 웹사이트, 회원, 주문 처리에 꼭 필요한 기반이어서 특정 이용자만 따로 제외하는 기능은 없습니다. 따라서 거부하시면 회원 서비스와 주문을 제공할 수 없습니다.</p>
+          <p>이와 달리 선택적 분석(Google Analytics)은 사이트의 쿠키 설정에서 거절할 수 있고, 거절해도 회원 가입과 기본 서비스 이용에는 영향이 없습니다.</p>
           <p>이용자가 분석 기능을 허용한 경우에 한해 이용 정보가 Google Analytics로 전송될 수 있습니다. Google의 처리 위치는 Google이 공개하는 정책에 따르며, 확인되지 않은 국가 목록을 이 방침에서 단정하지 않습니다.</p>
         </div>
         <Divider />

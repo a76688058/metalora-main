@@ -1,6 +1,6 @@
 # NEW4-4 — Privacy policy / processor disclosure
 
-Status: **READY FOR A5 NEW4-4 PRIVACY / PROCESSOR REVIEW**
+Status: **OPEN — OWNER FACT REQUIRED** (production Supabase Auth/DB/Storage hosting country/region). NEW4-4A source patch ready for A5 re-review. Not production-ready.
 
 Date: 2026-10-07
 
@@ -99,7 +99,7 @@ Production capability today: NEW4-6 source exists; scheduler **NOT CONFIGURED**;
 | SOLAPI | 처리위탁 (국내) | OTP SMS: destination number + verification message. Official privacy lists 솔라피 주식회사, Seoul. |
 | Google / Kakao / Naver OAuth | 외부 인증 제공자 | User authorizes the provider; METALORA receives identity. Not 제3자 제공 of METALORA’s profile dump. |
 | GA4 | optional analytics | After separate `cookieConsent`. Not a membership ledger type. Processing country not invented; Google partner-sites policy linked. |
-| Discord | excluded from current live customer-PII 수탁자 table | Production webhook bound. Success payload = order id / amount / method / product title·option·qty. No name/phone/address/images/CS body. Public payment is frozen so this path does not currently receive live public-storefront orders. Ops alerts = event/phase/request_id/order_id/http_status only. |
+| Discord | 처리위탁 + 국외 이전 (NEW4-4A) | Production webhook bound; not removed. Called only from payment code in `server.ts`. Order notification after confirmed payment: 주문번호, 결제 금액, 결제수단, product title/option/qty, [커스텀]/[기성], AI option flags. Payment-ops alert: payment_event, phase, request_id, order_id, http_status, provider/provider_code, retryable, recovery_required, deploy_sha. Does NOT receive name, phone, address, email, Workshop image, CS body. Order-linked transaction data can be linkable to a customer, so it is disclosed. Not 제3자 제공. Public payment frozen (client-side `PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7`), so order notifications do not occur before public payment opens; disclosed conditionally. |
 | ipify | not a current processor | No current `src/` or `server.ts` usage. |
 | Cloudflare trace | not a current processor | No current usage. |
 | Toss | PREPARED / NOT LIVE | Disclosed as future/conditional only. |
@@ -111,13 +111,29 @@ Genuine 제3자 제공: none claimed (except lawful requests). No “판매”.
 
 ## Overseas processing
 
-Supported by evidence:
+Legal basis (NEW4-4A): 개인정보 보호법 제28조의8 제1항 제3호 가목 — 계약 체결·이행에 필요한 처리위탁·보관으로서 제2항 각 호(항목, 국가·시기·방법, 이전받는 자 명칭·연락처, 이용목적·보유기간, 거부 방법·절차·효과)를 처리방침에 공개. Source: 국가법령정보센터 조문 (시행 2026. 9. 11., 법률 제21445호). Not consent-based; the product collects no separate overseas consent. 시행령 제31조 was not separately fetched; the public text cites the statute only.
 
-- Google Cloud Run **us-west1** — United States, Oregon (official Google Cloud region documentation).
+Public 제9조 entries:
+
+| Recipient | Country | Contact | Source |
+|---|---|---|---|
+| Google Cloud (Korea billing contracting entity: Google Cloud Korea LLC, reseller; “Google” = Google Asia Pacific Pte. Ltd. and affiliates) | USA, Oregon (`us-west1`) | Google Cloud Data Protection Team `https://support.google.com/cloud/contact/dpo` | cloud.google.com/terms/google-entity; Cloud DPA §12 / Appendix; Compute Engine regions-zones |
+| Supabase, Inc. | **OWNER FACT REQUIRED** — public text carries marker `[공개 전 확인 필요: Supabase 호스팅 국가·지역]` | privacy@supabase.com | supabase.com/contact-us, supabase.com/privacy |
+| Discord Inc. | USA (official policy: US servers; may also store in other countries depending on user/provider location) | privacy@discord.com; 444 De Haro Street #200, San Francisco, CA 94107, USA | discord.com/privacy |
+
+Retention fields: no vendor-side day counts invented. Google Cloud = request processing duration + server logs per METALORA's Google Cloud log retention setting. Discord = until METALORA deletes the notification or the relationship ends; Discord-side per Discord policy. Supabase = retention in Privacy 제4조–제6조 or until outsourcing ends.
+
+Refusal: necessary infrastructure; no per-user exclusion exists. Refusal path = request withdrawal / stop use via 1:1 문의 or a84411448@gmail.com; effect = membership and orders cannot be provided. Kept separate from optional GA refusal.
 
 Unresolved legally required fact:
 
-- **Production Supabase Auth/DB/Storage hosting country/region** is not established from safe repo/deploy metadata. Do not invent. Korean 국외이전 country field for the persistent datastore remains incomplete until owner confirms from read-only project settings.
+- **Production Supabase Auth/DB/Storage hosting country/region**. Do not invent. The public marker must be replaced with the confirmed country (and region) before promotion. Promotion check: `rg "공개 전 확인 필요" src/constants/policies.tsx` must return no hits.
+
+Verification items (not owner facts; read-only, need approval to run):
+
+- METALORA Google Cloud billing account address is Korea (determines Google Cloud Korea LLC as contracting entity). Public text states the official rule, not the account fact.
+- Cloud Logging `_Default` bucket location and retention for project `metalora-auth`. Bucket location may differ from the Cloud Run region; public text does not claim log location beyond the Google Cloud entry.
+- Discord: vendor does not enumerate countries beyond the US. A5/legal to confirm the US-plus-vendor-statement wording is sufficient for 제28조의8 제2항 제2호.
 
 GA / Google OAuth processing country: not invented; official Google policy linked.
 
@@ -144,18 +160,27 @@ GA / Google OAuth processing country: not invented; official Google policy linke
 
 ## Release guard
 
-Do **NOT** publicly promote this Privacy revision until:
+HARD public-promotion prerequisites. NEW4-4 is **not** production-ready until all are complete:
 
-1. NEW4-5 migrations applied
-2. NEW4-6 migration applied
-3. NEW4-7 migration applied
-4. NEW4 app backend deployed
-5. `WORKSHOP_RETENTION_JOB_SECRET` bound
-6. hourly retention scheduler configured
-7. protected retention endpoint verified
-8. withdrawal backend verified operationally
+1. apply `20261006220000_new4_5_consent_ledger.sql`
+2. apply `20261006223000_new4_5a_restrict_consent_rpc.sql`
+3. apply `20261007070000_new4_6_workshop_retention.sql`
+4. apply `20261007080000_new4_7_account_withdrawal.sql`
+5. apply `20261007090000_new4_4_privacy_version.sql`
+6. verify all migrations
+7. deploy matching NEW4 backend/app revision
+8. bind `WORKSHOP_RETENTION_JOB_SECRET`
+9. configure hourly Workshop retention scheduler
+10. verify protected retention endpoint operationally
+11. verify account-withdrawal backend operationally
+12. confirm production Supabase Auth/DB/Storage hosting country/region
+13. complete the corresponding overseas-processing disclosure (replace the `공개 전 확인 필요` marker)
+14. confirm Discord overseas-processing facts required by the final disclosure
+15. only then allow Privacy v26.10.07 / 3-day Workshop wording to become public
 
 Privacy revision may be promoted before NEW4-6 scheduler verification: **NO**
+
+NEW4-6 verifier (NEW4-4A): the old check `배송완료\s*후\s*3일` did not match the real wording `배송완료로 처리한 후 3일`, so it passed by accident. It now detects the real 3-day wording, requires this release guard (secret + hourly scheduler) whenever that wording exists, and rejects 72시간 / 배송사가 배송완료 / 제작 직후 즉시 삭제 variants.
 
 ---
 
@@ -187,3 +212,4 @@ A6 policy/legal. `policies.tsx` privacy/cookie bodies only; Terms / refund / Wor
 - `src/lib/policyVersions.ts`
 - `supabase/migrations/20261007090000_new4_4_privacy_version.sql`
 - `docs/decisions/NEW4-5_consent-ledger.md` (migration-list successor note only)
+- `scripts/verify-new4-6-workshop-retention.ts` (NEW4-4A copy assertion only)

@@ -159,9 +159,20 @@ assert('NEW4-5 consent migration preserved', new45.includes('record_policy_conse
 assert('NEW4-5A RPC restriction preserved', new45a.includes('NEW4-5A'));
 
 const policies = fs.readFileSync(path.join(root, 'src/constants/policies.tsx'), 'utf8');
+const threeDayCopy =
+  /배송완료[^\n<]{0,20}3일/.test(policies) || /3일이\s*지나면\s*순차\s*삭제/.test(policies);
+const releaseGuardDoc = fs.existsSync(path.join(root, 'docs/decisions/NEW4-4_privacy-processors.md'))
+  ? fs.readFileSync(path.join(root, 'docs/decisions/NEW4-4_privacy-processors.md'), 'utf8')
+  : '';
 assert(
-  'no public 3-day Workshop deletion promise added',
-  !/배송완료\s*후\s*3일/.test(policies) && !/completed_at/.test(policies),
+  'public 3-day Workshop copy is backed by the NEW4-4 release guard',
+  !threeDayCopy
+    || (/WORKSHOP_RETENTION_JOB_SECRET/.test(releaseGuardDoc)
+      && /hourly Workshop retention scheduler/.test(releaseGuardDoc)),
+);
+assert(
+  'no incorrect Workshop retention wording',
+  !/72시간|배송사가\s*배송완료|제작\s*직후\s*즉시\s*삭제/.test(policies) && !/completed_at/.test(policies),
 );
 
 const freeze = fs.readFileSync(path.join(root, 'src/lib/publicPaymentFreeze.ts'), 'utf8');
