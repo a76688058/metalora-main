@@ -252,157 +252,167 @@ export const policies = {
     )
   },
   privacy: {
-    title: '개인정보 처리방침 (Metalora Legal v26.09.19)',
+    title: '개인정보 처리방침 (Metalora Legal v26.10.07)',
     content: (
       <div className="font-sans pb-8">
         <div className="bg-white dark:bg-zinc-900/40 p-6 rounded-2xl mb-10 border border-zinc-200 dark:border-white/5 shadow-sm">
           <p className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-200 font-semibold">
-            메탈로라는 서비스 제공을 위해 <span className="text-purple-600 dark:text-purple-400">꼭 필요한 최소한의 정보</span>만 수집합니다.<br/>
-            업로드하신 이미지 데이터는 제작 완료 후 <span className="text-purple-600 dark:text-purple-400">최대 7일 이내에 안전하게 영구 파기</span>됩니다.
+            메탈로라는 회원 가입, 주문·배송, WORKSHOP 제작, 고객 문의 처리에 <span className="text-purple-600 dark:text-purple-400">실제로 필요한 정보</span>만 처리합니다.<br/>
+            WORKSHOP 주문에 사용된 원본 및 미리보기 이미지는 관리자가 주문 상태를 배송완료로 처리한 후 <span className="text-purple-600 dark:text-purple-400">3일이 지나면 순차 삭제</span>합니다.
           </p>
         </div>
 
-        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제1조 (개인정보의 수집 및 이용 목적)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제1조 (개인정보 처리자)</h3>
+        <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
+          <p>본 방침은 메탈로라가 운영하는 웹사이트에서 처리하는 개인정보에 적용됩니다.</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li><span className="text-zinc-950 dark:text-white font-bold">상호:</span> 메탈로라(METALORA)</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">사업자 형태:</span> 개인사업자</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">대표자:</span> 강동훈</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">사업자등록번호:</span> 776-19-02470</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">통신판매업 신고:</span> 2026-울산울주-0166</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">사업장 소재지:</span> 울산광역시 울주군 서생면 진하해변길 8, 12층 1202호 라-04호실(아성 일마레)</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이메일:</span> a84411448@gmail.com</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">전화:</span> 010-5595-0541</li>
+          </ul>
+          <p>본 방침에서 “회사”는 위 메탈로라를 말합니다. 사이트 1:1 문의도 현재 운영 중인 고객 연락 창구입니다.</p>
+        </div>
+        <Divider />
+
+        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제2조 (처리 항목과 이용 목적)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-400 font-normal space-y-4">
-          <p>회사는 다음의 목적을 위해 개인정보를 수집 및 이용합니다.</p>
-          <div className="bg-white dark:bg-zinc-900/30 rounded-xl border border-zinc-200 dark:border-white/5 overflow-hidden mt-4">
-            <div className="grid grid-cols-3 border-b border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-white/5 p-3 text-zinc-900 dark:text-white font-bold text-sm">
-              <div>수집 목적</div>
-              <div>수집 항목</div>
-              <div>보유 기간</div>
-            </div>
-            <div className="grid grid-cols-3 border-b border-zinc-200 dark:border-white/5 p-3 text-sm text-zinc-950 dark:text-zinc-300">
-              <div className="text-zinc-950 dark:text-white font-medium">서비스 제공 및 계약 이행 (주문, 결제, 배송)</div>
-              <div>성명, 휴대전화번호, 배송지 주소</div>
-              <div className="text-purple-600 dark:text-purple-400 font-bold">5년 (전자상거래법)</div>
-            </div>
-            <div className="grid grid-cols-3 border-b border-zinc-200 dark:border-white/5 p-3 text-sm text-zinc-950 dark:text-zinc-300">
-              <div className="text-zinc-950 dark:text-white font-medium">상품 맞춤 제작</div>
-              <div>업로드 이미지, 편집 데이터</div>
-              <div className="text-purple-600 dark:text-purple-400 font-bold">제작 완료 후 7일 이내 파기</div>
-            </div>
-            <div className="grid grid-cols-3 p-3 text-sm text-zinc-950 dark:text-zinc-300">
-              <div className="text-zinc-950 dark:text-white font-medium">부정 이용 방지 및 서비스 개선</div>
-              <div>IP 주소, 쿠키, 접속 로그, 기기 정보</div>
-              <div>3개월 이상 (통신비밀보호법)</div>
-            </div>
-          </div>
-        </div>
-        <Divider />
-
-        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제2조 (수집하는 개인정보 항목)</h3>
-        <div className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-400 font-normal space-y-3">
-          <p>회사는 다음의 개인정보를 수집합니다.</p>
-          <ol className="list-decimal pl-5 space-y-3">
-            <li><span className="text-zinc-900 dark:text-white font-bold">필수 항목:</span> 성명, 휴대전화번호, 배송지 주소</li>
-            <li><span className="text-zinc-900 dark:text-white font-bold">주문 관련 정보:</span> 이용자가 업로드한 이미지 및 편집 데이터</li>
-            <li><span className="text-zinc-900 dark:text-white font-bold">자동 수집 항목:</span> IP 주소, 쿠키, 접속 로그, 이용 기록, 기기 정보</li>
-          </ol>
-          <p>이용자는 타인의 권리를 침해하거나 개인정보가 포함된 콘텐츠를 업로드할 경우 이에 대한 모든 책임이 본인에게 있음을 확인합니다.</p>
-        </div>
-        <Divider />
-
-        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제3조 (개인정보의 보유 및 이용 기간)</h3>
-        <div className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-400 font-normal space-y-3">
-          <p>회사는 개인정보 수집 및 이용 목적 달성 시 지체 없이 파기합니다. 다만, 다음의 경우에는 해당 기간 동안 보관합니다.</p>
-          <ol className="list-decimal pl-5 space-y-3">
+          <p>회사는 아래 목적 범위에서 개인정보를 처리합니다. 광고·마케팅을 위한 별도 활용은 하지 않습니다.</p>
+          <ol className="list-decimal pl-5 space-y-4">
             <li>
-              <span className="text-zinc-950 dark:text-white font-bold">이미지 데이터</span>
-              <ul className="list-disc pl-5 mt-2 text-zinc-800 dark:text-zinc-300 space-y-2">
-                <li>주문 제작 완료 및 출고 후 <span className="text-purple-600 dark:text-purple-400 font-bold">최대 7일 이내 삭제</span></li>
-              </ul>
+              <span className="text-zinc-900 dark:text-white font-bold">회원 계정·인증</span>
+              <p className="mt-2">로그인 이메일, 비밀번호 계정의 경우 서비스가 생성하는 아이디@metalora.me 형식의 인증용 이메일, 소셜 로그인 시 해당 제공자가 돌려주는 이메일·식별정보, 이름, 휴대전화번호, 전화번호 인증 관련 정보, 회원 아이디, 인증·제공자 식별값을 회원 가입·로그인·본인 확인·계정 유지에 사용합니다.</p>
             </li>
             <li>
-              <span className="text-zinc-950 dark:text-white font-bold">법령에 따른 보관</span>
-              <ul className="list-disc pl-5 mt-2 text-zinc-800 dark:text-zinc-300 space-y-2">
-                <li>계약 또는 청약철회: 5년</li>
-                <li>대금결제 및 재화 공급: 5년</li>
-                <li>소비자 분쟁 처리: 3년</li>
-                <li>표시/광고 기록: 6개월</li>
-                <li>접속 로그: 3개월 이상</li>
-              </ul>
+              <span className="text-zinc-900 dark:text-white font-bold">주문·배송</span>
+              <p className="mt-2">수령인 이름, 연락처, 주소, 우편번호, 주문·상품·옵션·수량·금액·상태 정보를 주문 접수, 제작, 배송, 거래 이행에 사용합니다. 현재 공개 결제 경로는 준비 중이며, 이 방침은 고객으로부터 살아있는 결제카드·결제키 정보를 지금 수집한다고 보지 않습니다.</p>
+            </li>
+            <li>
+              <span className="text-zinc-900 dark:text-white font-bold">WORKSHOP 맞춤 제작</span>
+              <p className="mt-2">이용자가 업로드한 원본 이미지, 생성된 미리보기·파생 이미지, WORKSHOP 설정값을 개별 제작·검수·재현에 사용합니다.</p>
+            </li>
+            <li>
+              <span className="text-zinc-900 dark:text-white font-bold">고객 문의</span>
+              <p className="mt-2">문의 제목·내용, 답변, 작성 시각, 관련 계정 정보를 상담·분쟁 처리에 사용합니다.</p>
+            </li>
+            <li>
+              <span className="text-zinc-900 dark:text-white font-bold">약관·정책 동의 기록</span>
+              <p className="mt-2">정책 종류, 정책 버전, 동의 시각, 동의 경로, 관련 주문번호를 동의·계약 이행 증빙에 사용합니다. 과거 일부 기록에 접속 IP가 남아 있을 수 있으나, 현재 새로 쌓는 동의 기록은 IP를 필수로 받지 않습니다.</p>
+            </li>
+            <li>
+              <span className="text-zinc-900 dark:text-white font-bold">보안·운영</span>
+              <p className="mt-2">접속 IP, User-Agent, 보안·인증 이벤트, 문자 인증 메타데이터, 요청 제한에 필요한 식별값을 부정이용·남용 방지와 서비스 안정 운영에 사용합니다.</p>
+            </li>
+            <li>
+              <span className="text-zinc-900 dark:text-white font-bold">선택적 이용 분석</span>
+              <p className="mt-2">사이트 쿠키 설정에서 분석 기능을 허용한 경우에만 Google Analytics로 이용 현황을 측정합니다. 이 선택은 회원 가입에 필요한 개인정보 처리방침 동의와 별개입니다. 분석을 거절해도 회원 가입과 기본 서비스 이용 자체가 막히지는 않습니다.</p>
             </li>
           </ol>
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제4조 (개인정보의 파기 방법)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제3조 (수집 방법)</h3>
+        <div className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-400 font-normal space-y-3">
+          <ol className="list-decimal pl-5 space-y-3">
+            <li>이용자가 회원 가입, 프로필, 주문, 문의, WORKSHOP 이용 과정에서 직접 입력하거나 업로드하는 정보</li>
+            <li>이용자가 Google, 카카오, 네이버로 로그인을 허용한 뒤 해당 제공자가 회사에 돌려주는 계정 정보</li>
+            <li>웹사이트·서버 이용 과정에서 자동으로 생성되는 기술·보안 정보</li>
+            <li>주문·제작·고객 지원 과정에서 쌓이는 거래·상담 기록</li>
+          </ol>
+          <p>회사는 이용자가 허용하지 않은 외부 출처에서 개인정보를 수집하지 않습니다. 소셜 로그인 시 회사가 이용자의 전체 프로필을 각 제공자에게 보내는 방식은 아닙니다.</p>
+        </div>
+        <Divider />
+
+        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제4조 (보유 기간)</h3>
+        <div className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-400 font-normal space-y-3">
+          <p>아래 기간은 법령상 보관이 필요한 기간입니다. 기간이 끝났다고 해서 지금 시스템이 주문·결제·문의 기록을 자동으로 지우는 것은 아닙니다.</p>
+          <ol className="list-decimal pl-5 space-y-3">
+            <li>계약 또는 청약철회 등에 관한 기록: 5년</li>
+            <li>대금결제 및 재화 등의 공급에 관한 기록: 5년</li>
+            <li>소비자 불만 또는 분쟁처리에 관한 기록: 3년</li>
+            <li>표시·광고에 관한 기록: 해당 기록이 실제로 있는 경우에 한해 6개월</li>
+          </ol>
+          <p>회원 계정·프로필 중 법령 보관 대상이 아닌 정보는 탈퇴 처리 시 삭제하거나 알아볼 수 없도록 바꿉니다. 거래·분쟁·동의 증빙처럼 보관이 필요한 기록은 해당 목적과 기간 동안 따로 남습니다.</p>
+        </div>
+        <Divider />
+
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제5조 (WORKSHOP 이미지 보관)</h3>
+        <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
+          <p>WORKSHOP 주문에 사용된 원본 및 미리보기 이미지는 관리자가 주문 상태를 배송완료로 처리한 후 3일이 지나면 순차 삭제합니다.</p>
+          <p>주문으로 이어지지 않은 WORKSHOP 업로드 이미지는 마지막 관련 활동 후 3일이 지나면 순차 삭제합니다. 진행 중인 주문, 장바구니, 제작 과정에 묶여 있는 이미지는 그 보호 대상에서 빼지 않습니다.</p>
+          <p>이미 결제가 되었거나 제작·배송이 진행 중인 WORKSHOP 주문은, 회원이 탈퇴하더라도 주문을 마치기 위해 필요한 동안 이미지가 남을 수 있습니다. 이후 관리자가 배송완료로 처리하고 3일이 지나면 제1항에 따라 삭제됩니다.</p>
+          <p>이미지가 삭제된 뒤에는 같은 그림으로 다시 만들거나 재인쇄하려면 이미지를 다시 올려 주셔야 합니다.</p>
+        </div>
+        <Divider />
+
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제6조 (회원 탈퇴)</h3>
+        <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
+          <p>현재 회원 탈퇴는 사이트 메뉴에서 바로 누르는 방식이 아닙니다. 사이트 1:1 문의 또는 a84411448@gmail.com으로 요청하시면, 요청 내용을 확인한 뒤 처리합니다.</p>
+          <p>탈퇴가 처리되면 해당 회원 계정은 사용할 수 없게 되고, 법령 보관에 필요 없는 계정·프로필 정보는 삭제되거나 알아볼 수 없도록 바뀝니다. 거래·분쟁·동의 증빙처럼 보관이 필요한 기록은 해당 기간 동안 남습니다.</p>
+          <p>탈퇴 후에도 진행 중인 주문을 마치기 위해 필요한 배송·제작 정보는 주문 이행이 끝날 때까지 유지될 수 있습니다. 이미 남긴 약관·정책 동의 기록은 나중에 이용자가 고치거나 지울 수 있는 대상이 아닙니다.</p>
+        </div>
+        <Divider />
+
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제7조 (파기 방법)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
           <ol className="list-decimal pl-5 space-y-3">
-            <li><span className="text-zinc-950 dark:text-white font-bold">전자적 파일:</span> 복구 불가능한 방법으로 영구 삭제</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">출력물:</span> 분쇄 또는 소각</li>
+            <li>전자적 계정·프로필 정보: 데이터베이스에서 삭제하거나 알아볼 수 없도록 처리합니다.</li>
+            <li>WORKSHOP 이미지: 저장소에서 해당 파일을 삭제합니다.</li>
           </ol>
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제5조 (개인정보 처리의 위탁)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제8조 (처리위탁)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>회사는 서비스 제공을 위해 다음과 같이 업무를 위탁합니다.</p>
+          <p>회사는 서비스 운영을 위해 아래와 같이 처리를 맡깁니다. 고객 개인정보를 제3자에게 판매하지 않습니다.</p>
           <ul className="list-disc pl-5 space-y-3">
-            <li><span className="text-zinc-950 dark:text-white font-bold">Supabase:</span> 데이터 저장 및 클라우드 인프라</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">토스페이먼츠:</span> 결제 처리</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">CJ대한통운 / 우체국:</span> 배송</li>
+            <li>
+              <span className="text-zinc-950 dark:text-white font-bold">Supabase:</span> 회원 인증, 데이터베이스 보관, WORKSHOP 이미지 저장. 계정·주문·문의·동의 기록과 업로드 이미지가 이 목적 범위에서 처리됩니다.
+            </li>
+            <li>
+              <span className="text-zinc-950 dark:text-white font-bold">Google Cloud (Cloud Run):</span> 웹사이트·서버 요청 처리. 요청에 계정·주문·문의·인증 정보가 포함되면 그 요청 처리 과정에서 함께 다뤄질 수 있습니다. 주문·계정 원장은 Cloud Run에 따로 쌓아 두지 않습니다.
+            </li>
+            <li>
+              <span className="text-zinc-950 dark:text-white font-bold">SOLAPI:</span> 휴대전화 문자 인증. 수신 번호와 인증 문자 발송에 필요한 정보만 전달합니다. 프로필·주문 전체를 보내지 않습니다.
+            </li>
           </ul>
+          <p>택배사 시스템에 배송 정보를 자동으로 넘기는 연동은 현재 없습니다. 관리자가 운송장 내용을 기록하는 것과, 택배사를 개인정보 처리 수탁자로 두는 것은 다릅니다.</p>
+          <p>공개 결제가 시작되면 결제 처리를 위해 토스페이먼츠가 사용될 수 있습니다. 지금은 공개 결제 경로가 멈춰 있어, 고객 결제정보를 토스페이먼츠가 받아 처리하는 상태로 보지 않습니다.</p>
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제6조 (개인정보의 국외 이전)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제9조 (국외 이전·처리)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>회사는 서비스 제공을 위해 개인정보를 국외로 이전할 수 있습니다.</p>
+          <p>회사의 웹사이트·서버는 Google Cloud Run의 us-west1 리전에서 운영됩니다. Google Cloud 공식 문서상 이 리전은 미국 오리건입니다.</p>
           <ul className="list-disc pl-5 space-y-3">
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 대상:</span> Supabase</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 국가:</span> 미국 등 서버 위치 국가</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> 이름, 연락처, 주소, 주문 데이터</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 목적:</span> 데이터 저장 및 서비스 운영</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">보유 기간:</span> 회원 탈퇴 또는 위탁 계약 종료 시까지</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전받는 자:</span> Google Cloud (Cloud Run)</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 국가:</span> 미국 (오리건, us-west1)</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> 해당 요청에 포함된 계정·주문·문의·인증 관련 정보</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 목적:</span> 웹사이트 및 API 요청 처리</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 시기·방법:</span> 서비스 이용 시 HTTPS로 전송</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">보유 기간:</span> 요청 처리에 필요한 동안. 계정·주문 원장은 이 인프라에 영구 저장하지 않습니다.</li>
           </ul>
-          <p>이용자는 국외 이전을 거부할 수 있으며, 이 경우 서비스 이용이 제한될 수 있습니다.</p>
+          <p>Supabase에 맡긴 계정·주문·이미지 등 보관 데이터의 호스팅 국가·지역은 본 개정 시점에 공식 확인되지 않았습니다. 확인되는 즉시 본 방침에 명시합니다.</p>
+          <p>이용자가 분석 기능을 허용한 경우에 한해 이용 정보가 Google Analytics로 전송될 수 있습니다. Google의 처리 위치는 Google이 공개하는 정책에 따르며, 확인되지 않은 국가 목록을 이 방침에서 단정하지 않습니다.</p>
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제7조 (이용자의 권리 및 행사 방법)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제10조 (외부 인증 및 제3자 제공)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>이용자는 언제든지 자신의 개인정보를 조회, 수정, 삭제 또는 처리정지를 요청할 수 있습니다. 회사는 지체 없이 이를 처리합니다.</p>
+          <p>회사는 원칙적으로 개인정보를 제3자에게 제공하지 않습니다. 법령에 따른 요청이 있는 경우는 예외입니다.</p>
+          <p>Google, 카카오, 네이버 로그인은 이용자가 해당 사업자에게 직접 인증을 허용한 뒤, 회사가 그 결과로 계정 식별에 필요한 정보를 받는 과정입니다. 이는 회사가 고객 정보를 해당 사업자에게 넘기는 제3자 제공과 다릅니다.</p>
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제8조 (쿠키 및 자동 수집 장치)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제11조 (쿠키 및 선택적 분석)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>회사는 서비스 제공 및 이용 편의 향상을 위해 쿠키를 사용할 수 있습니다. 쿠키의 종류와 선택 방법은 쿠키 정책에서 안내합니다.</p>
-          <p>이용자는 사이트의 쿠키 설정에서 분석 기능 허용 여부를 변경할 수 있습니다. 필수만 허용을 선택한 경우에도 필수적인 서비스 기능은 이용할 수 있습니다.</p>
-          <p>이와 별도로 브라우저 설정에서 쿠키를 차단하거나 삭제할 수 있으며, 이 경우에는 로그인 유지 등 일부 기능에 영향을 줄 수 있습니다.</p>
-        </div>
-        <Divider />
-
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제8조의2 (Google Analytics)</h3>
-        <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>회사는 서비스 개선을 위해 Google Analytics를 사용합니다. Google Analytics는 Google이 제공하는 분석 서비스입니다.</p>
-          <p>분석 기능을 허용한 경우에만 작동하며, 필수만 허용을 선택한 경우 Google Analytics는 작동하지 않습니다.</p>
-          <p>분석 기능을 허용한 경우 이용자의 브라우저에서 Google Analytics의 분석 시스템으로 관련 정보가 전송될 수 있습니다.</p>
-          <p>Google Analytics는 다음 목적으로 사용될 수 있습니다.</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li>사이트 이용 현황 측정</li>
-            <li>페이지 및 상품 이용 분석</li>
-            <li>장바구니·결제 진행 과정 분석</li>
-            <li>구매/전환 측정</li>
-            <li>서비스 개선</li>
-          </ul>
-          <p>분석 기능을 허용한 경우 다음 정보가 처리될 수 있습니다.</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li>방문 페이지 및 경로</li>
-            <li>상품 조회 정보</li>
-            <li>장바구니 이용</li>
-            <li>결제 진행 과정</li>
-            <li>구매/전환 정보</li>
-            <li>상품 식별정보, 상품명, 옵션</li>
-            <li>거래 식별자</li>
-            <li>금액 및 통화</li>
-            <li>브라우저·기기 정보</li>
-            <li>대략적인 지역 정보</li>
-            <li>세션 및 이용 상호작용 정보</li>
-            <li>분석 식별자 및 분석 쿠키</li>
-          </ul>
-          <p>Google Analytics 설정에 따라 스크롤, 외부 링크 클릭, 사이트 검색, 파일 다운로드 등 일부 이용 상호작용이 자동으로 측정될 수 있습니다.</p>
+          <p>로그인 유지, 화면 설정, 보안처럼 서비스에 필요한 브라우저·기기 저장값은 서비스 제공을 위해 사용될 수 있습니다. 자세한 내용은 쿠키 정책을 따릅니다.</p>
+          <p>선택적 분석(Google Analytics)은 사이트의 쿠키 설정에서 따로 허용한 경우에만 켜집니다. 회원 가입 시 확인하는 개인정보 처리방침 동의는 분석 동의가 아닙니다.</p>
+          <p>분석 기능을 허용한 경우 방문 페이지, 상품 조회, 장바구니 이용, 브라우저·기기 정보, 대략적인 지역, 분석 식별자가 처리될 수 있습니다. 공개 결제가 시작되면 같은 분석 경로에 결제·구매 측정이 포함될 수 있습니다.</p>
           <p>
             Google이 정보를 사용하는 방식은{' '}
             <a
@@ -415,127 +425,137 @@ export const policies = {
             </a>
             에서 확인할 수 있습니다.
           </p>
-          <p>Google Analytics 관련 정보의 보관 기간은 다음과 같습니다.</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li>이벤트 수준 데이터: 현재 Google Analytics 계정 설정 기준 2개월</li>
-            <li>사용자 수준 데이터: 현재 계정 설정 기준 14개월이며, 새로운 활동 시 보관 기간이 갱신될 수 있습니다</li>
-            <li>분석 쿠키: Google 정책 및 이용 브라우저 정책에 따라 별도 기간이 적용됩니다</li>
-          </ul>
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제9조 (개인정보 보호 조치)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제12조 (이용자의 권리)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>회사는 개인정보 보호를 위해 다음과 같은 조치를 시행합니다.</p>
-          <ol className="list-decimal pl-5 space-y-3">
-            <li>암호화 저장 및 전송</li>
-            <li>접근 권한 최소화</li>
-            <li>보안 시스템 운영</li>
-            <li>내부 관리 및 교육</li>
-          </ol>
+          <p>이용자는 자신의 개인정보에 대해 열람, 정정, 삭제, 처리정지, 회원 탈퇴를 요청할 수 있습니다. 현재는 사이트 1:1 문의 또는 a84411448@gmail.com으로 요청해 주시면, 본인 확인 후 처리합니다.</p>
+          <p>법령상 보관이 필요한 거래·분쟁·동의 기록은 요청만으로 바로 지우지 못할 수 있습니다. 법정 기한 밖의 임의 처리 기한은 약속하지 않습니다.</p>
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제10조 (개인정보 유출 대응)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제13조 (개인정보 보호책임자)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>개인정보 유출이 발생한 경우 회사는 지체 없이 이용자에게 통지하고 관련 법령에 따라 조치합니다.</p>
-        </div>
-        <Divider />
-
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제11조 (개인정보 보호책임자)</h3>
-        <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
+          <p>개인정보 처리에 관한 업무와 고충 처리를 위해 아래와 같이 개인정보 보호책임자를 둡니다. 별도의 전담 부서는 두지 않습니다.</p>
           <ul className="list-disc pl-5 space-y-3">
             <li><span className="text-zinc-950 dark:text-white font-bold">성명:</span> 강동훈</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">직책:</span> 대표이사 / 개인정보 보호책임자</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">연락처:</span> a76688058@gmail.com</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">직책:</span> 대표자 / 개인정보 보호책임자</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이메일:</span> a84411448@gmail.com</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">전화:</span> 010-5595-0541</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">기타:</span> 사이트 1:1 문의</li>
           </ul>
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제12조 (개인정보 처리방침 변경)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제14조 (안전성 확보조치)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>회사는 본 방침을 변경할 수 있으며, 변경 시 사전 공지합니다.</p>
+          <p>회사는 개인정보 보호를 위해 접근 권한 제한, 전송 구간 암호화, 인증·보안 이벤트 기록, 내부 관리를 시행합니다.</p>
+        </div>
+        <Divider />
+
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제15조 (개인정보 유출 대응)</h3>
+        <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
+          <p>개인정보 유출이 발생한 경우 회사는 관련 법령에 따라 이용자에게 알리고 필요한 조치를 합니다.</p>
+        </div>
+        <Divider />
+
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제16조 (권익침해 구제)</h3>
+        <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
+          <p>개인정보 침해에 대한 상담이나 신고는 아래 기관에도 문의할 수 있습니다.</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li>개인정보분쟁조정위원회: 1833-6972 (www.kopico.go.kr)</li>
+            <li>개인정보침해신고센터: 118 (privacy.kisa.or.kr)</li>
+            <li>대검찰청: 1301 (www.spo.go.kr)</li>
+            <li>경찰청: 182 (ecrm.police.go.kr)</li>
+          </ul>
+        </div>
+        <Divider />
+
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제17조 (개인정보 처리방침 변경)</h3>
+        <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
+          <p>회사는 처리 내용이 바뀌면 본 방침을 개정하고, 변경 사항을 사이트에 알립니다. 예전 버전에 대한 동의 기록은 그때 실제로 동의하신 내용의 증빙으로 남습니다.</p>
         </div>
         <Divider />
 
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">부칙</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>본 방침은 2026년 9월 19일부터 시행됩니다.</p>
+          <p>본 방침은 2026년 10월 7일부터 시행합니다.</p>
         </div>
       </div>
     )
   },
   cookie: {
-    title: '쿠키 정책 (Metalora Cookie Policy v26.09.19)',
+    title: '쿠키 정책 (Metalora Cookie Policy v26.10.07)',
     content: (
       <div className="font-sans pb-8">
         <div className="bg-white dark:bg-zinc-900/40 p-6 rounded-2xl mb-10 border border-zinc-200 dark:border-white/5 shadow-sm">
           <p className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-200 font-semibold">
-            더 나은 서비스 제공을 위해 쿠키(Cookie)를 사용합니다.<br/>
-            분석 기능은 <span className="text-purple-600 dark:text-purple-400">허용한 경우에만</span> 작동하며, 필수만 허용을 선택한 경우 Google Analytics는 작동하지 않습니다.
+            서비스 제공에 필요한 브라우저·기기 저장값과, <span className="text-purple-600 dark:text-purple-400">따로 허용한 경우에만</span> 켜지는 선택적 분석을 구분해 안내합니다.<br/>
+            분석 기능을 거절해도 회원 가입과 기본 서비스 이용 자체가 막히지는 않습니다.
           </p>
         </div>
 
         <p className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-300 font-normal mb-8">
-          주식회사 메탈로라(이하 "회사")는 사이트 이용을 파악하고 서비스를 개선하기 위해 쿠키(Cookie)를 사용합니다. 본 쿠키 정책은 쿠키의 사용 목적 및 관리 방법에 대해 설명합니다.
+          메탈로라(이하 “회사”)는 로그인 유지, 화면 설정, 보안처럼 서비스 운영에 필요한 저장값과, 이용 현황 파악을 위한 선택적 분석 저장값을 구분해 사용합니다. 본 정책은 그 내용과 선택 방법을 설명합니다.
         </p>
 
-        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제1조 (쿠키의 정의)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">제1조 (쿠키와 로컬 저장값)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>쿠키란 이용자가 웹사이트를 방문할 때 이용자의 기기(컴퓨터, 모바일 등)에 저장되는 소량의 데이터 파일로서, 웹사이트가 이용자의 브라우저를 인식하고 정보를 저장하거나 불러오는 데 사용됩니다.</p>
+          <p>쿠키는 이용자가 웹사이트를 방문할 때 기기에 저장되는 소량의 데이터입니다. 이와 별도로 브라우저는 로그인 상태, 화면 테마, 언어, 분석 선택값처럼 서비스에 필요한 값을 기기에 저장할 수 있습니다.</p>
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제2조 (쿠키의 사용 목적)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제2조 (사용 목적)</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
           <div className="bg-white dark:bg-zinc-900/40 p-6 rounded-2xl flex items-start gap-4 border border-zinc-200 dark:border-white/5 shadow-sm">
             <div className="p-2 bg-zinc-50 dark:bg-zinc-800 rounded-lg text-zinc-900 dark:text-white border border-zinc-100 dark:border-white/5 flex-shrink-0"><Settings size={20} /></div>
             <div>
               <h4 className="text-zinc-900 dark:text-white font-bold mb-1">서비스 편의 제공</h4>
-              <p className="text-[14px] text-zinc-900 dark:text-zinc-400 leading-relaxed font-medium">로그인 상태 유지 및 이용자의 환경 설정 값을 기억하여 편리한 이용을 돕습니다.</p>
+              <p className="text-[14px] text-zinc-900 dark:text-zinc-400 leading-relaxed font-medium">로그인 상태 유지 및 화면·언어 설정을 기억하여 편리한 이용을 돕습니다.</p>
             </div>
           </div>
           <div className="bg-white dark:bg-zinc-900/40 p-6 rounded-2xl flex items-start gap-4 border border-zinc-200 dark:border-white/5 shadow-sm">
             <div className="p-2 bg-zinc-50 dark:bg-zinc-800 rounded-lg text-zinc-900 dark:text-white border border-zinc-100 dark:border-white/5 flex-shrink-0"><ShieldCheck size={20} /></div>
             <div>
               <h4 className="text-zinc-900 dark:text-white font-bold mb-1">보안 및 안정성</h4>
-              <p className="text-[14px] text-zinc-900 dark:text-zinc-400 leading-relaxed font-medium">비정상적인 접속 시도를 탐지하고 안전한 결제 환경을 유지합니다.</p>
+              <p className="text-[14px] text-zinc-900 dark:text-zinc-400 leading-relaxed font-medium">비정상적인 접속 시도를 탐지하고 세션을 안전하게 유지합니다.</p>
             </div>
           </div>
           <div className="bg-white dark:bg-zinc-900/40 p-6 rounded-2xl flex items-start gap-4 border border-zinc-200 dark:border-white/5 shadow-sm">
             <div className="p-2 bg-zinc-50 dark:bg-zinc-800 rounded-lg text-zinc-900 dark:text-white border border-zinc-100 dark:border-white/5 flex-shrink-0"><BarChart3 size={20} /></div>
             <div>
-              <h4 className="text-zinc-900 dark:text-white font-bold mb-1">서비스 개선 분석</h4>
-              <p className="text-[14px] text-zinc-900 dark:text-zinc-400 leading-relaxed font-medium">분석 식별자와 이용 기록을 바탕으로 사이트 이용을 파악하고 서비스를 개선합니다.</p>
+              <h4 className="text-zinc-900 dark:text-white font-bold mb-1">선택적 이용 분석</h4>
+              <p className="text-[14px] text-zinc-900 dark:text-zinc-400 leading-relaxed font-medium">분석 기능을 허용한 경우에만 사이트 이용을 측정하고 서비스를 개선합니다.</p>
             </div>
           </div>
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제3조 (쿠키의 종류)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제3조 (저장값의 종류)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-400 font-normal space-y-3">
           <ol className="list-decimal pl-5 space-y-4">
             <li>
-              <span className="font-bold text-zinc-900 dark:text-white">필수 쿠키</span><br/>
-              서비스 제공에 필요한 쿠키로, 로그인 유지 및 보안 기능에 사용됩니다.
+              <span className="font-bold text-zinc-900 dark:text-white">필수 저장값</span><br/>
+              로그인, 보안, 장바구니·제작 진행처럼 서비스를 제공하는 데 필요한 브라우저·기기 저장값입니다.
             </li>
             <li>
-              <span className="font-bold text-zinc-900 dark:text-white">기능 쿠키</span><br/>
-              이용자의 설정을 저장하여 보다 편리한 서비스를 제공합니다.
+              <span className="font-bold text-zinc-900 dark:text-white">기능 저장값</span><br/>
+              화면 테마, 언어처럼 이용자 설정을 기억하는 값입니다.
             </li>
             <li>
-              <span className="font-bold text-zinc-900 dark:text-white">분석 쿠키</span><br/>
-              분석 기능을 허용한 경우 사이트 이용 및 참여도를 측정하기 위해 사용됩니다.
+              <span className="font-bold text-zinc-900 dark:text-white">선택적 분석</span><br/>
+              사이트의 쿠키 설정에서 분석을 허용한 경우에만 Google Analytics가 켜집니다. 이 선택은 회원 가입에 필요한 약관·개인정보 처리방침 동의와 별개입니다.
             </li>
           </ol>
         </div>
         <Divider />
 
-        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제4조 (쿠키의 저장 및 선택)</h3>
+        <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제4조 (분석 선택)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-400 font-normal space-y-3">
           <ol className="list-decimal pl-5 space-y-3">
-            <li>이용자는 처음 방문 시 분석 기능을 허용하거나 필수만 허용할 수 있습니다.</li>
-            <li>필수만 허용을 선택한 경우 Google Analytics는 작동하지 않으며, 필수적인 서비스 기능은 계속 이용할 수 있습니다.</li>
+            <li>이용자는 처음 방문 시 분석 기능을 허용하거나 필수만 허용할 수 있습니다. 이 선택은 기기의 로컬 저장값으로 기억됩니다.</li>
+            <li>필수만 허용을 선택한 경우 Google Analytics는 작동하지 않으며, 회원 가입과 필수 서비스 기능은 계속 이용할 수 있습니다.</li>
             <li>이후에는 사이트의 쿠키 설정에서 분석 기능 허용 여부를 변경할 수 있습니다.</li>
             <li>이와 별도로 웹 브라우저 설정에서 쿠키를 차단하거나 삭제할 수 있습니다. 브라우저에서 쿠키를 차단하면 로그인 유지 등 일부 기능에 영향을 줄 수 있습니다.</li>
           </ol>
@@ -564,13 +584,13 @@ export const policies = {
 
         <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">제6조 (쿠키 정책의 변경)</h3>
         <div className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-400 font-normal space-y-3">
-          <p>회사는 관련 법령 및 서비스 변경에 따라 본 쿠키 정책을 변경할 수 있으며, 변경 시 사전 공지합니다.</p>
+          <p>회사는 관련 법령 및 서비스 변경에 따라 본 쿠키 정책을 변경할 수 있으며, 변경 시 사이트에 알립니다.</p>
         </div>
         <Divider />
 
         <h3 className="text-[17px] font-semibold text-zinc-900 dark:text-white mt-10 mb-4">부칙</h3>
         <div className="text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-400 font-normal space-y-3">
-          <p>본 정책은 2026년 9월 19일부터 시행됩니다.</p>
+          <p>본 정책은 2026년 10월 7일부터 시행합니다.</p>
         </div>
       </div>
     )

@@ -40,7 +40,7 @@ Production applied: **NO**
 These ids match the live policy titles. Privacy was not rewritten in NEW4-1/2/3.
 
 - Terms: `terms_v26.10.06`
-- Privacy: `privacy_v26.09.19`
+- Privacy at NEW4-5 close: `privacy_v26.09.19`. Successor (NEW4-4, do not reopen NEW4-5): `privacy_v26.10.07` via additive `20261007090000_new4_4_privacy_version.sql`
 - Workshop: `workshop_custom_v26.10.06` (current). Historic known row: `ML_Legal_v260325`
 - Checkout/return: `checkout_return_refund_v26.10.06`
 
@@ -112,7 +112,7 @@ Signup still has a live “쿠키 정책” checkbox that stamps `agreed_to_cook
 - Apply migration in the dedicated environment ticket (not production from NEW4-5)
 - Optional later re-consent for legacy unversioned members
 - NEW7: public checkout will exercise the prepared finalize ledger write
-- NEW4-4 privacy rewrite must bump `privacy_v26.09.19` in TS + RPC together
+- NEW4-4 privacy rewrite must bump `privacy_v26.09.19` in TS + RPC together — **done in NEW4-4** (`privacy_v26.10.07`; additive RPC migration `20261007090000_new4_4_privacy_version.sql`; this ticket not reopened)
 - NEW4-5C: membership fail-closed — **CLOSED** (this follow-up; no production migration/deploy)
 
 ## NEW4-5C
@@ -121,7 +121,7 @@ Status: **CLOSED** (local source only; no production migration/deploy)
 
 New membership flows fail closed on versioned Terms + Privacy persistence:
 
-- Helper success = both `terms_v26.10.06` and `privacy_v26.09.19` persisted. Partial write is overall failure. Truthful successful row is kept. Retry is idempotent. No version fabrication.
+- Helper success = both current Terms + Privacy persisted (`terms_v26.10.06` and, after NEW4-4, `privacy_v26.10.07`). Partial write is overall failure. Truthful successful row is kept. Retry is idempotent. No version fabrication.
 - Password signup: create user → phone bind → ledger both → success only if both persist. On ledger failure: `signup_fail_proof` + `deleteUser` of **this attempt’s** newly created user only. Cleanup failure still returns signup failure.
 - Social pending: ledger both **before** `social_activate_pending`. Ledger failure does not activate and does not delete the OAuth/Auth identity.
 - Existing-auth enroll: ledger both **before** `member_enroll_existing`. Ledger failure does not enroll and does not delete the user.
@@ -136,6 +136,8 @@ A3 Cart/Workshop UX + A6 schema/server/auth handlers.
 ## Relevant Files
 
 - `supabase/migrations/20261006220000_new4_5_consent_ledger.sql`
+- `supabase/migrations/20261006223000_new4_5a_restrict_consent_rpc.sql`
+- Successor Privacy allowlist (NEW4-4, not this ticket): `supabase/migrations/20261007090000_new4_4_privacy_version.sql`
 - `src/lib/policyVersions.ts`
 - `src/lib/consentLedger.ts`
 - `src/lib/passwordAuthHandlers.ts`
