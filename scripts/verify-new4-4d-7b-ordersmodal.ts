@@ -91,6 +91,9 @@ type World = { rows: WorkshopCustomerRows; requests: string[][]; signCount: numb
 function makeApi(world: World): WorkshopDisplayApi {
   const gcs = {
     name: 'gcs',
+    async head() {
+      return null;
+    },
     async signRead(p: string) {
       world.signCount += 1;
       return {
@@ -121,6 +124,7 @@ function makeApi(world: World): WorkshopDisplayApi {
   return {
     isCanonical: resolver.isCanonical,
     isLegacy: resolver.isLegacy,
+    normalize: resolver.normalize,
     resolve: resolver.resolve,
     retryAfterLoadError: resolver.retryAfterLoadError,
     now: () => world.t,
@@ -155,16 +159,17 @@ async function main(): Promise<void> {
     assert('getFullImageUrl returns null for canonical refs (not usable as fallback)', getFullImageUrl(prev(1), true) === null);
   }
 
-  section('C legacy Workshop');
+  section('C legacy Workshop (resolver-mediated, NEW4-4D-9B)');
   {
     const world: World = { rows: { cart: [], progress: [], intents: [], orders: [] }, requests: [], signCount: 0, t: 0 };
-    const api = makeApi(world);
     const item = { product_id: 'workshop-single', user_image_url: legacy(2), image: legacy(2) };
+    world.rows.orders = [{ ordered_items: [item] }];
+    const api = makeApi(world);
     const ref = workshopOrderItemThumbRef(item, api);
     const display = createWorkshopMediaDisplay(api, 'customer', () => undefined);
     await display.setRefs([ref]);
-    assert('legacy URL renders as stored', display.get(ref).src === legacy(2));
-    assert('legacy URL not sent to sign-read', world.requests.length === 0);
+    assert('legacy URL renders the server-approved src (transition fallback)', display.get(ref).src === legacy(2));
+    assert('legacy URL sent to sign-read', world.requests.length === 1 && world.requests[0].join() === legacy(2));
   }
 
   section('D/K catalog unchanged');

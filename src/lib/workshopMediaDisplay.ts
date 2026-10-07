@@ -1,25 +1,26 @@
 /**
  * NEW4-4D-6 — Workshop media at Cart / admin display boundaries (browser-safe, no Supabase import).
  *
- * Durable values (cart rows, order items) keep the stored ref. A canonical ref resolves through the
- * shared resolver to a temporary src held only in this controller (view state, cleared on dispose);
- * the resolver owns caching. A legacy Supabase Workshop URL renders exactly as stored. Anything else
- * renders the caller's placeholder: the input is never used as a src and no public URL is built.
+ * Durable values (cart rows, order items) keep the stored ref. Canonical paths and strict legacy
+ * Supabase Workshop URLs both resolve through the shared resolver; the server decides the src
+ * (signed GCS, or the legacy URL while its transition fallback is on). The src is held only in this
+ * controller (view state, cleared on dispose); the resolver owns caching. Anything else, and any
+ * resolver failure, renders the caller's placeholder: the input is never used as a src.
  */
-import { PRODUCTION_SUPABASE_HOST } from './supabaseHosts';
 import type {
   ResolveWorkshopMediaOptions,
   WorkshopMediaMode,
   WorkshopResolvedMedia,
 } from './workshopMediaCore';
 
-const LEGACY_PUBLIC_PREFIX = '/storage/v1/object/public/workshop/';
 const MIN_REFRESH_DELAY_MS = 5_000;
 const REFRESH_FRACTION = 0.85;
 
 export type WorkshopDisplayApi = {
   isCanonical(value: unknown): boolean;
   isLegacy(value: unknown): boolean;
+  /** Canonical object path of a trusted ref (lets legacy URLs be classified as original / preview). */
+  normalize?(value: unknown): string | null;
   resolve(
     refs: Iterable<unknown>,
     options: ResolveWorkshopMediaOptions,
@@ -35,43 +36,24 @@ export type WorkshopDisplayApi = {
 };
 
 export type WorkshopDisplayRef =
-  | { kind: 'canonical'; ref: string }
-  | { kind: 'legacy'; src: string }
+  | { kind: 'resolve'; ref: string; source: 'canonical' | 'legacy_supabase' }
   | { kind: 'none' };
 
 export type WorkshopDisplayState = { status: 'loading' | 'ready' | 'failed'; src: string | null };
 
-/**
- * Public Workshop URL on the production project written before UUID file names. Display only:
- * rendered as stored, never signed, never treated as a trusted ref.
- */
-function isLegacyPublicWorkshopUrl(value: string): boolean {
-  if (!value.startsWith('https://')) return false;
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return false;
-  }
-  return (
-    url.hostname === PRODUCTION_SUPABASE_HOST &&
-    !url.username &&
-    !url.password &&
-    !url.port &&
-    !url.search &&
-    !url.hash &&
-    url.pathname.startsWith(LEGACY_PUBLIC_PREFIX) &&
-    url.pathname.length > LEGACY_PUBLIC_PREFIX.length
-  );
-}
-
+/** Only refs accepted by the shared Workshop parser are resolvable; everything else is `none`. */
 export function workshopDisplayRef(value: unknown, api: WorkshopDisplayApi): WorkshopDisplayRef {
   if (typeof value !== 'string') return { kind: 'none' };
   const trimmed = value.trim();
   if (!trimmed) return { kind: 'none' };
-  if (api.isCanonical(trimmed)) return { kind: 'canonical', ref: trimmed };
-  if (api.isLegacy(trimmed) || isLegacyPublicWorkshopUrl(trimmed)) return { kind: 'legacy', src: trimmed };
+  if (api.isCanonical(trimmed)) return { kind: 'resolve', ref: trimmed, source: 'canonical' };
+  if (api.isLegacy(trimmed)) return { kind: 'resolve', ref: trimmed, source: 'legacy_supabase' };
   return { kind: 'none' };
+}
+
+function isOriginalRef(ref: string, api: WorkshopDisplayApi): boolean {
+  const path = api.isCanonical(ref) ? ref : api.normalize?.(ref) ?? null;
+  return typeof path === 'string' && path.startsWith('originals/');
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -97,7 +79,8 @@ export function hasOnlyDurableWorkshopRefs(
 
 /**
  * Thumbnail ref for a Workshop order item (`orders.ordered_items[]`, read only). Preview first;
- * canonical originals are skipped: admin thumbnails never sign an original.
+ * originals (canonical, or legacy when `normalize` is available) are skipped: thumbnails never
+ * sign an original.
  */
 export function workshopOrderItemThumbRef(raw: unknown, api: WorkshopDisplayApi): string | null {
   const item = asRecord(raw);
@@ -113,18 +96,18 @@ export function workshopOrderItemThumbRef(raw: unknown, api: WorkshopDisplayApi)
   for (const candidate of candidates) {
     if (typeof candidate !== 'string' || !candidate.trim()) continue;
     const trimmed = candidate.trim();
-    if (api.isCanonical(trimmed) && trimmed.startsWith('originals/')) continue;
+    if (isOriginalRef(trimmed, api)) continue;
     return trimmed;
   }
   return null;
 }
 
-/** Sorted, de-duplicated canonical refs among `values` (stable key for effects). */
-export function canonicalWorkshopRefs(values: Iterable<unknown>, api: WorkshopDisplayApi): string[] {
+/** Sorted, de-duplicated resolvable refs (canonical + strict legacy) among `values` (stable effect key). */
+export function resolvableWorkshopRefs(values: Iterable<unknown>, api: WorkshopDisplayApi): string[] {
   const refs = new Set<string>();
   for (const value of values) {
     const display = workshopDisplayRef(value, api);
-    if (display.kind === 'canonical') refs.add(display.ref);
+    if (display.kind === 'resolve') refs.add(display.ref);
   }
   return [...refs].sort();
 }
@@ -147,7 +130,6 @@ export function createWorkshopMediaDisplay(
   let timer: unknown = null;
   const srcs = new Map<string, string>();
   const failed = new Set<string>();
-  const brokenLegacy = new Set<string>();
   const retriedSrcs = new Set<string>();
 
   const stopTimer = () => {
@@ -184,7 +166,7 @@ export function createWorkshopMediaDisplay(
 
   /** Sets the refs currently on screen; resolves them as one batch (resolver chunks by 20). */
   function setRefs(values: Iterable<unknown>): Promise<void> {
-    const next = canonicalWorkshopRefs(values, api);
+    const next = resolvableWorkshopRefs(values, api);
     const nextKey = next.join('\n');
     if (nextKey === key) return Promise.resolve();
     key = nextKey;
@@ -203,9 +185,6 @@ export function createWorkshopMediaDisplay(
 
   function get(value: unknown): WorkshopDisplayState {
     const display = workshopDisplayRef(value, api);
-    if (display.kind === 'legacy') {
-      return brokenLegacy.has(display.src) ? { status: 'failed', src: null } : { status: 'ready', src: display.src };
-    }
     if (display.kind === 'none') return { status: 'failed', src: null };
     const src = srcs.get(display.ref);
     if (src) return { status: 'ready', src };
@@ -213,15 +192,13 @@ export function createWorkshopMediaDisplay(
     return { status: 'loading', src: null };
   }
 
-  /** Call from <img onError>. One re-sign per issued src; then the placeholder. */
+  /**
+   * Call from <img onError>. Same policy for canonical and legacy refs: one shared-resolver retry
+   * per issued src (re-signs GCS results; legacy-store results return null), then the placeholder.
+   */
   async function onLoadError(value: unknown, failedSrc: string): Promise<void> {
     const display = workshopDisplayRef(value, api);
-    if (display.kind === 'legacy') {
-      brokenLegacy.add(display.src);
-      onChange();
-      return;
-    }
-    if (display.kind !== 'canonical' || srcs.get(display.ref) !== failedSrc) return;
+    if (display.kind !== 'resolve' || srcs.get(display.ref) !== failedSrc) return;
     const gen = generation;
     if (retriedSrcs.has(failedSrc)) {
       srcs.delete(display.ref);
@@ -250,7 +227,6 @@ export function createWorkshopMediaDisplay(
     key = '';
     srcs.clear();
     failed.clear();
-    brokenLegacy.clear();
     retriedSrcs.clear();
   }
 

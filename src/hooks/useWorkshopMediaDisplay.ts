@@ -2,13 +2,14 @@ import { useEffect, useReducer, useRef } from 'react';
 import {
   isCanonicalWorkshopRef,
   isLegacyWorkshopRef,
+  normalizeWorkshopMediaRef,
   resolveWorkshopMedia,
   retryWorkshopMediaAfterLoadError,
   type WorkshopMediaMode,
 } from '../lib/workshopMedia';
 import {
-  canonicalWorkshopRefs,
   createWorkshopMediaDisplay,
+  resolvableWorkshopRefs,
   type WorkshopDisplayApi,
   type WorkshopMediaDisplay,
 } from '../lib/workshopMediaDisplay';
@@ -16,6 +17,7 @@ import {
 export const workshopDisplayApi: WorkshopDisplayApi = {
   isCanonical: isCanonicalWorkshopRef,
   isLegacy: isLegacyWorkshopRef,
+  normalize: normalizeWorkshopMediaRef,
   resolve: resolveWorkshopMedia,
   retryAfterLoadError: retryWorkshopMediaAfterLoadError,
 };
@@ -29,7 +31,7 @@ export function useWorkshopMediaDisplay(values: readonly unknown[], mode: Worksh
   const displayRef = useRef<WorkshopMediaDisplay | null>(null);
   if (!displayRef.current) displayRef.current = createWorkshopMediaDisplay(workshopDisplayApi, mode, rerender);
   const display = displayRef.current;
-  const key = canonicalWorkshopRefs(values, workshopDisplayApi).join('\n');
+  const key = resolvableWorkshopRefs(values, workshopDisplayApi).join('\n');
 
   useEffect(() => {
     void display.setRefs(key ? key.split('\n') : []);

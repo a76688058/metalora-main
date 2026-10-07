@@ -25,7 +25,7 @@ import {
   createWorkshopMediaResolver,
 } from '../src/lib/workshopMediaCore';
 import {
-  canonicalWorkshopRefs,
+  resolvableWorkshopRefs,
   createWorkshopMediaDisplay,
   hasOnlyDurableWorkshopRefs,
   workshopDisplayRef,
@@ -138,6 +138,9 @@ function makeWorld(): World {
 function gcsStore(world: World): WorkshopGcsObjectStore {
   return {
     name: 'gcs',
+    async head() {
+      return null;
+    },
     async signRead(p: string) {
       world.signCount += 1;
       const url = `https://${WORKSHOP_GCS_REGIONAL_HOST}/${WORKSHOP_GCS_APPROVED_BUCKET}/${p}?X-Goog-Expires=${WORKSHOP_SIGNED_URL_TTL_SECONDS}&X-Goog-Signature=synthetic${world.signCount}`;
@@ -176,6 +179,7 @@ function makeApi(world: World): WorkshopDisplayApi {
   return {
     isCanonical: resolver.isCanonical,
     isLegacy: resolver.isLegacy,
+    normalize: resolver.normalize,
     resolve: resolver.resolve,
     retryAfterLoadError: resolver.retryAfterLoadError,
     now: () => world.clock.t,
@@ -240,17 +244,18 @@ async function main(): Promise<void> {
   }
 
   // ---------------------------------------------------------------- B
-  section('B cart legacy URL');
+  section('B cart legacy URL (resolver-mediated, NEW4-4D-9B)');
   {
     const world = makeWorld();
+    world.customerRows.cart = [{ custom_image: legacy(2) }];
     const api = makeApi(world);
     const display = createWorkshopMediaDisplay(api, 'customer', () => undefined);
     await display.setRefs([legacy(2)]);
     const state = display.get(legacy(2));
-    assert('legacy URL renders exactly as stored', state.status === 'ready' && state.src === legacy(2));
-    assert('legacy URL not sent to sign-read', world.requests.length === 0);
+    assert('legacy URL renders the server-approved src (transition fallback)', state.status === 'ready' && state.src === legacy(2));
+    assert('legacy URL sent to sign-read', world.requests.length === 1 && world.requests[0].refs.join() === legacy(2));
     const oldName = `${LEGACY_BASE}${UID}/1700000000000.png`;
-    assert('pre-UUID legacy public URL renders as stored', display.get(oldName).src === oldName);
+    assert('pre-UUID legacy public URL: placeholder, not rendered raw', display.get(oldName).src === null);
     assert('pre-UUID legacy URL is not a trusted ref', api.isLegacy(oldName) === false && !api.isCanonical(oldName));
   }
 
@@ -260,7 +265,7 @@ async function main(): Promise<void> {
     const world = makeWorld();
     const api = makeApi(world);
     assert('catalog URL is not a Workshop display ref', workshopDisplayRef(CATALOG, api).kind === 'none');
-    assert('catalog URL never sent to resolver', canonicalWorkshopRefs([CATALOG], api).length === 0);
+    assert('catalog URL never sent to resolver', resolvableWorkshopRefs([CATALOG], api).length === 0);
     assert(
       'Cart catalog branch unchanged',
       (cartSrc.match(/: \(item\.product\?\.front_image \|\| item\.product\?\.image \|\| ''\)\);/g) ?? []).length === 2,
@@ -363,7 +368,7 @@ async function main(): Promise<void> {
   section('H shared retry (once)');
   {
     const world = makeWorld();
-    world.customerRows.cart = [{ custom_image: prev(1) }];
+    world.customerRows.cart = [{ custom_image: prev(1) }, { custom_image: legacy(2) }];
     const api = makeApi(world);
     const display = createWorkshopMediaDisplay(api, 'customer', () => undefined);
     await display.setRefs([prev(1), legacy(2)]);
@@ -375,8 +380,9 @@ async function main(): Promise<void> {
     assert('second load error shows placeholder', display.get(prev(1)).src === null && display.get(prev(1)).status === 'failed');
     assert('no further sign after second failure', world.signCount === 2);
     const before = world.requests.length;
+    const legacyShown = display.get(legacy(2)).src === legacy(2);
     await display.onLoadError(legacy(2), legacy(2));
-    assert('legacy load error: placeholder, no sign-read', display.get(legacy(2)).src === null && world.requests.length === before);
+    assert('legacy-store load error: placeholder, no re-sign', legacyShown && display.get(legacy(2)).src === null && world.requests.length === before);
     assert('stale failed src ignored', (await display.onLoadError(prev(1), 'https://stale.example/x'), world.signCount === 2));
     assert('Cart / admin use controller retry', [cartSrc, adminOrdersPageSrc, bestSellersPageSrc].every((s) => s.includes('workshopMedia.onLoadError(')));
     assert('controller retry uses shared resolver retry', /api\.retryAfterLoadError\(/.test(displaySrc) && /retryWorkshopMediaAfterLoadError/.test(hookSrc));
@@ -441,17 +447,18 @@ async function main(): Promise<void> {
     assert('admin data layer does not resolve', !/resolveWorkshopMedia/.test(adminOrdersSrc + bestSellersSrc));
   }
 
-  section('K admin legacy');
+  section('K admin legacy (resolver-mediated, NEW4-4D-9B)');
   {
     const world = makeWorld();
     world.session = { userId: ADMIN, accessToken: 'token-admin' };
-    const api = makeApi(world);
     const item = { product_id: null, image: legacy(4), user_image_url: legacy(4) };
+    world.adminOrders = [{ uid: UID, ordered_items: [item] }];
+    const api = makeApi(world);
     const thumb = workshopOrderItemThumbRef(item, api);
     const display = createWorkshopMediaDisplay(api, 'admin', () => undefined);
     await display.setRefs([thumb]);
-    assert('legacy order item renders as stored', thumb === legacy(4) && display.get(thumb).src === legacy(4));
-    assert('legacy order item: no sign-read', world.requests.length === 0);
+    assert('legacy order item renders the server-approved src', thumb === legacy(4) && display.get(thumb).src === legacy(4));
+    assert('legacy order item sent to admin sign-read', world.requests.length === 1 && world.requests[0].refs.join() === legacy(4));
     const relative = { product_id: null, image: `${UID}/old.png` };
     assert('relative legacy path: placeholder, no public URL built', display.get(workshopOrderItemThumbRef(relative, api)).src === null);
   }
@@ -544,7 +551,10 @@ async function main(): Promise<void> {
         assert(`${file}: no public Workshop URL literal`, !code.includes('/storage/v1/object/public/workshop'));
       }
     }
-    assert('display module only recognizes the legacy prefix (no string building)', !/`[^`]*\$\{[^}]*\}[^`]*storage\/v1/.test(displaySrc) && !/LEGACY_PUBLIC_PREFIX\s*\+|\+\s*LEGACY_PUBLIC_PREFIX/.test(displaySrc));
+    assert(
+      'display module has no raw legacy shortcut or URL building (NEW4-4D-9B)',
+      !/storage\/v1/.test(strip(displaySrc)) && !/LEGACY_PUBLIC_PREFIX|isLegacyPublicWorkshopUrl|kind: 'legacy'/.test(displaySrc),
+    );
   }
 
   // ---------------------------------------------------------------- S–V
