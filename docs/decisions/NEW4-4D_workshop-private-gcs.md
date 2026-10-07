@@ -1,7 +1,7 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — SERVER FOUNDATION IMPLEMENTED (NEW4-4D-3, local commit, not deployed)**. Signed regional delivery proven in NEW4-4D-2A. Next: A0 NEW4-4D-4 shared Workshop media resolver.
-The live app still uses Supabase Storage for Workshop images. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
+Status: **ACCEPTED — SERVER FOUNDATION + SHARED CLIENT RESOLVER IMPLEMENTED (NEW4-4D-3 / NEW4-4D-4, local commits, not deployed)**. Signed regional delivery proven in NEW4-4D-2A. Next: A2 NEW4-4D-5 Workshop upload / resume + PDP consumers.
+The live app still uses Supabase Storage for Workshop images; no consumer uses the resolver yet. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
 
@@ -84,6 +84,26 @@ Admin (`profiles.is_admin = true`, not withdrawn): any Workshop ref inside an un
 
 **SEO / public leak guard.** `resolvePublicImageUrl` (OG image, Product JSON-LD, RSS `<img>`) returns null for canonical paths, legacy Workshop URLs, `workshop/…`, GCS hosts and signed URLs (OG falls back to the default image). It no longer maps `workshop/` paths to the public bucket. The sitemap emits no images.
 
+## Shared client resolver (NEW4-4D-4)
+
+Code: `src/lib/workshopMediaCore.ts` (browser-safe core, no Supabase import, testable in Node), `src/lib/workshopMedia.ts` (app entry: default instance on `supabase.auth.getSession()`; cache cleared on `SIGNED_OUT`), one guard line in `src/lib/utils.ts`. Verifier: `npx tsx scripts/verify-new4-4d-4-workshop-media.ts` (runs the resolver against the real `handleSignRead` with mocks; no npm script, `package.json` untouched).
+
+Exports (`workshopMedia.ts`): `resolveWorkshopMedia(refs, {mode})` → `Map<input, {ref, src, store, expiresAt}>` (usable results only), `resolveWorkshopMediaSrc`, `retryWorkshopMediaAfterLoadError(ref, failedSrc)`, `invalidateWorkshopMedia`, `clearWorkshopMediaCache`, `normalizeWorkshopMediaRef`, `isCanonicalWorkshopRef`, `isLegacyWorkshopRef`, `isCanonicalWorkshopPathLike`.
+
+- **Contract.** Body exactly `{refs}`; Bearer = current Supabase access token; `cache: no-store`, `referrerPolicy: no-referrer`. Server per-ref items are matched by index + `ref`. Client parser mirrors server `parseWorkshopRef` (parity-tested); refs the client rejects are never sent, so one bad ref cannot 400 a batch. Server stays the authority.
+- **Batching.** Dedupe by trimmed ref; callers in the same tick coalesce; chunks of 20 (21 → 20 + 1). In-flight map: one sign per ref at a time.
+- **Cache.** Memory only (no local/session storage, IndexedDB, DB, persisted state). Key = session user + mode + ref. Lifetime = min(300 s, server `expiresAt` − local request start) on the local clock; refresh at 80 % (240 s); expired URLs are dropped and never returned. If refresh fails while the old URL is still valid, the old URL is kept. Past/skewed `expiresAt` → usable once, not cached. Denials are not cached.
+- **Modes.** `customer | admin` is request context and part of the cache key only; it is not sent (the endpoint has no mode field) and never grants privilege.
+- **Legacy.** `supabase_legacy` → `src` = the exact legacy input URL. A canonical path whose DB value is legacy → no `src` (never mints a Supabase URL). No DB rewrite, no client copy.
+- **Failures** (`invalid_ref`, `not_authorized`, cross-user, purged, 401/403/5xx, network, malformed body, non-regional `src`, signed out) → no `src`; input is never used as a fallback. Consumers choose placeholders.
+- **Retry.** `retryWorkshopMediaAfterLoadError` re-signs a GCS ref once per URL chain; a second failure, or any legacy failure, returns null.
+- **`getFullImageUrl`.** Returns null for canonical Workshop paths (also `workshop/`-prefixed, leading `/`, or with a query), so they never become `/object/public/workshop/…`. Products, external, blob/data and full legacy Workshop URLs are unchanged. No live row holds a bare canonical path yet, so no current consumer changes. Workshop consumers must not use `getFullImageUrl` / `getOptimizedImageUrl` / `deriveVariantUrl` after migration.
+
+Consumer contract (A2 / A3 / A4):
+- `<img>` / texture elements for Workshop media: `referrerPolicy="no-referrer"`. Never put `src` in analytics, logs, storage, DB or snapshots; persist the ref only.
+- Canvas / WebGL: set `crossOrigin = 'anonymous'` (`img.crossOrigin` / `TextureLoader.setCrossOrigin('anonymous')`) before assigning `src`, else the canvas is tainted. Bucket CORS allows GET only from `https://metalora.art` (not `www.`, not localhost), so local dev canvas reads of GCS media will fail CORS. Draw from the local `File`/blob where one exists; the resolver does not fetch bytes.
+- Re-resolve on mount and before 240 s; reuse the cached result otherwise.
+
 ## Path validation migration ordering (NEW4-4D-3, prepared, NOT applied)
 
 `20261007100000_new4_4d_path_validation.sql` is transitional dual-format: `workshop_ref_is_accepted(ref, kind)` = `workshop_ref_is_own_canonical` (canonical path for `auth.uid()`) OR `workshop_ref_is_own_legacy_supabase` (exact `https://qifloweuwyhvukabgnoa.supabase.co/storage/v1/object/public/workshop/` + own canonical path). Applied to `add_custom_cart_item` (closes the any-string gap) and to `BEFORE INSERT OR UPDATE` guards on `cart_items` (`custom_image`, `custom_config.preview_image_url`, `custom_config.original_image_url`) and `user_progress.uploaded_image_url`. INSERT checks every non-blank field; UPDATE checks only changed fields; `service_role` is exempt. `custom_cart_payload_is_complete_v1` is unchanged (IMMUTABLE, also used by service-role paths).
@@ -135,15 +155,15 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 ## Not done (by design)
 
 - No deploy, no Cloud Run env binding or revision, no migration applied.
-- No client change: WorkshopView, durableHandoff, Cart, CartContext, ProductDetail, OrdersModal, admin consumers and the shared client resolver untouched. Live Workshop uploads and reads remain on Supabase.
+- No consumer switched: WorkshopView, durableHandoff, Cart, CartContext, ProductDetail, OrdersModal and admin consumers untouched (NEW4-4D-4 added only the resolver and the `getFullImageUrl` guard). Live Workshop uploads and reads remain on Supabase.
 - Supabase `workshop` bucket and policies unchanged; no customer object read, copied, moved or deleted.
 - Payment frozen until NEW7.
 
 ## Remaining owners
 
-- A0 NEW4-4D-4: shared Workshop media resolver (`getFullImageUrl` for legacy URLs + canonical paths via sign-read).
-- A2: Workshop upload switch (`durableHandoff`: sign-upload → PUT → commit → discard on abandon), PDP.
-- A3: Cart, CartContext, admin consumers; `OrdersModal.tsx` after the protected-WIP handoff (**cutover blocker**; synchronous `getFullImageUrl` at ~line 226).
+- ~~A0 NEW4-4D-4: shared Workshop media resolver.~~ **DONE locally.**
+- A2 NEW4-4D-5: Workshop upload switch (`durableHandoff`: sign-upload → PUT → commit → discard on abandon), resume, PDP workshop-single, all through `workshopMedia.ts` (A4 review for WebGL textures).
+- A3: Cart, CartContext, admin consumers (`mode: 'admin'`); `OrdersModal.tsx` after the protected-WIP handoff (**cutover blocker**; synchronous `getFullImageUrl` at ~line 226 keeps working for legacy URLs, returns null for canonical paths).
 - A6: deploy + env binding, migration apply, later tightening migration, legacy copy and cutover, Privacy finalization.
 
 ## Do not do
@@ -159,7 +179,7 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 
 1. Owner decisions on the open IAM items (parallel; required before calling least privilege complete).
 2. ~~A6 NEW4-4D-3: adapter, NEW4-6/7 dual-store wiring, endpoints, path-validation migration (prepared).~~ **DONE locally.** Deploy + env binding is a separate A6 ticket with owner approval and must land before any client GCS upload.
-3. A0 NEW4-4D-4: `src/lib/workshopMedia.ts` resolver and `getFullImageUrl` handling for both legacy URLs and paths.
+3. ~~A0 NEW4-4D-4: `src/lib/workshopMedia.ts` resolver and `getFullImageUrl` handling for both legacy URLs and paths.~~ **DONE locally.**
 4. A2 / A3 / A4: display consumers (Cart, CartContext, PDP, admin) through the resolver.
 5. `OrdersModal.tsx` protected-WIP handoff and migration (A3). **Cutover blocker.**
 6. A6: apply the dual-format path-validation migration (see ordering above); A2 switches uploads to GCS.
@@ -172,4 +192,4 @@ A6: GCS ops/IAM, adapter, server endpoints, migrations, NEW4-6/7 integration, le
 
 ## Relevant files
 
-`src/lib/workshopStorage.ts`, `src/lib/workshopRetention.ts`, `src/lib/accountWithdrawal.ts`, `server.ts`, `supabase/migrations/20261007100000_new4_4d_path_validation.sql`, `scripts/verify-new4-4d-3-workshop-media.ts`, `scripts/verify-workshop-gcs-foundation.ts`, `.env.example`, `package.json`, `package-lock.json`, `docs/decisions/NEW4-4_privacy-processors.md`.
+`src/lib/workshopStorage.ts`, `src/lib/workshopMediaCore.ts`, `src/lib/workshopMedia.ts`, `src/lib/utils.ts`, `scripts/verify-new4-4d-4-workshop-media.ts`, `src/lib/workshopRetention.ts`, `src/lib/accountWithdrawal.ts`, `server.ts`, `supabase/migrations/20261007100000_new4_4d_path_validation.sql`, `scripts/verify-new4-4d-3-workshop-media.ts`, `scripts/verify-workshop-gcs-foundation.ts`, `.env.example`, `package.json`, `package-lock.json`, `docs/decisions/NEW4-4_privacy-processors.md`.

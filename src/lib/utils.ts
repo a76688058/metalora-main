@@ -1,4 +1,5 @@
 import { deriveVariantUrl, type ImageDerivativeVariant } from './imageDerivatives';
+import { isCanonicalWorkshopPathLike } from './workshopMediaCore';
 
 export const STORAGE_BASE_URL = 'https://qifloweuwyhvukabgnoa.supabase.co/storage/v1/object/public';
 
@@ -6,6 +7,8 @@ export const BROKEN_IMAGE_FALLBACK = 'https://picsum.photos/seed/metalora_fallba
 
 export const getFullImageUrl = (path: string | null | undefined, isWorkshop: boolean = false) => {
   if (!path) return null;
+  // Private Workshop objects have no public URL; they resolve only through workshopMedia.
+  if (isCanonicalWorkshopPathLike(path)) return null;
   
   // HTTP 링크인 경우 쿼리 파라미터 보존 (Naver 등 외부 이미지의 경우 ?type= 파라미터가 필수)
   if (path.startsWith('http')) return path;
