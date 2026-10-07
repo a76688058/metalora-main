@@ -7,7 +7,7 @@ import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
 import { track } from '../lib/analytics';
 import { getFullImageUrl } from '../lib/utils';
-import { isCanonicalWorkshopRef, resolveWorkshopMediaSrc } from '../lib/workshopMedia';
+import { normalizeWorkshopMediaRef, resolveWorkshopMediaSrc } from '../lib/workshopMedia';
 import LoginModal from './LoginModal';
 import { Product } from '../data/products';
 import { Button } from './ui/Button';
@@ -20,6 +20,12 @@ import { ProductMountIncluded } from './pdp/ProductMountIncluded';
 import { ProductOrderConfidence } from './pdp/ProductOrderConfidence';
 import { ProductInformationNotice } from './pdp/ProductInformationNotice';
 import { PdpStorySection } from './pdp/story';
+import {
+  initialWorkshopPreviewState,
+  startWorkshopPreview,
+  type WorkshopPreviewDeps,
+  type WorkshopPreviewState,
+} from './pdp/workshopPreviewSource';
 
 /**
  * Short-lived StrictMode duplicate guard only (not session-wide suppression).
@@ -56,53 +62,27 @@ function isLookupNotFound(error: { code?: string } | null | undefined): boolean 
   return code === 'PGRST116' || code === '22P02';
 }
 
-type WorkshopPreviewState = { ref: string; src: string | null; status: 'loading' | 'ready' | 'failed' };
+const workshopPreviewDeps: WorkshopPreviewDeps = {
+  normalize: normalizeWorkshopMediaRef,
+  resolve: (ref) => resolveWorkshopMediaSrc(ref, { mode: 'customer' }),
+  setTimer: (fn, ms) => window.setTimeout(fn, ms),
+  clearTimer: (handle) => window.clearTimeout(handle as number),
+  now: () => Date.now(),
+};
 
 /**
- * workshop-single preview. Canonical refs resolve to a temporary signed src (React state only,
- * re-resolved before expiry); legacy and other refs render as before.
+ * workshop-single preview. Canonical and strict legacy refs both go through sign-read; the server
+ * picks the source (private GCS or transitional legacy). The src is React state only and is
+ * re-resolved before expiry. Any other ref yields no src.
  */
 function useWorkshopPreviewSrc(ref: string): WorkshopPreviewState {
-  const canonical = Boolean(ref) && isCanonicalWorkshopRef(ref);
-  const [state, setState] = useState<WorkshopPreviewState>(() => ({
-    ref,
-    src: canonical ? null : ref,
-    status: canonical ? 'loading' : 'ready',
-  }));
+  const [state, setState] = useState<WorkshopPreviewState>(() =>
+    initialWorkshopPreviewState(ref, normalizeWorkshopMediaRef),
+  );
 
-  useEffect(() => {
-    if (!canonical) {
-      setState({ ref, src: ref, status: 'ready' });
-      return undefined;
-    }
-    let cancelled = false;
-    let timer: number | undefined;
-    const run = async () => {
-      const media = await resolveWorkshopMediaSrc(ref, { mode: 'customer' }).catch(() => null);
-      if (cancelled) return;
-      if (!media) {
-        setState((prev) =>
-          prev.ref === ref && prev.src ? prev : { ref, src: null, status: 'failed' },
-        );
-        return;
-      }
-      setState((prev) =>
-        prev.ref === ref && prev.src === media.src ? prev : { ref, src: media.src, status: 'ready' },
-      );
-      if (media.expiresAt !== null) {
-        const delay = Math.max(5_000, (media.expiresAt - Date.now()) * 0.85);
-        timer = window.setTimeout(() => void run(), delay);
-      }
-    };
-    setState({ ref, src: null, status: 'loading' });
-    void run();
-    return () => {
-      cancelled = true;
-      if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, [ref, canonical]);
+  useEffect(() => startWorkshopPreview(ref, workshopPreviewDeps, setState), [ref]);
 
-  return state.ref === ref ? state : { ref, src: canonical ? null : ref, status: canonical ? 'loading' : 'ready' };
+  return state.ref === ref ? state : initialWorkshopPreviewState(ref, normalizeWorkshopMediaRef);
 }
 
 function PdpStatusScreen({

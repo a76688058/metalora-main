@@ -301,6 +301,7 @@ async function main(): Promise<void> {
   const workshopView = read('src/components/Workshop/WorkshopView.tsx');
   const durable = read('src/lib/customComposition/durableHandoff.ts');
   const productDetail = read('src/components/ProductDetail.tsx');
+  const previewSource = read('src/components/pdp/workshopPreviewSource.ts');
   const rasterize = read('src/lib/customComposition/rasterize.ts');
   const artwork3d = read('src/components/artwork3d/MetaloraArtwork3D.tsx');
 
@@ -572,7 +573,7 @@ async function main(): Promise<void> {
     assert('M. bytes fetched once from regional signed URL', gets.length === 1 && gets[0].url.startsWith(`${GCS_ORIGIN}/`));
     assert('M. GET is CORS, no-referrer, no credentials, no redirects', gets[0]?.init.mode === 'cors' && gets[0]?.init.referrerPolicy === 'no-referrer' && gets[0]?.init.credentials === 'omit' && gets[0]?.init.redirect === 'error');
     assert('M. editor receives a local blob: URL', typeof objectUrl === 'string' && objectUrl.startsWith('blob:') && !hasSignedMarker(objectUrl));
-    assert('M. WorkshopView resume uses resolver in customer mode', /resolveWorkshopMediaSrc\(value, \{ mode: 'customer' \}\)/.test(workshopView) && /if \(!isCanonicalWorkshopRef\(ref\)\)/.test(workshopView));
+    assert('M. WorkshopView resume uses resolver in customer mode', /resolveWorkshopMediaSrc\(value, \{ mode: 'customer' \}\)/.test(workshopView) && /normalizeWorkshopMediaRef\(ref\) \? await loadResumedWorkshopOriginal\(ref\) : null/.test(workshopView));
 
     const w2 = makeWorld();
     w2.objects.set(original, { contentType: 'image/jpeg', cacheControl: 'private, no-store', sizeBytes: 40, createdAtMs: w2.clock.t });
@@ -594,9 +595,9 @@ async function main(): Promise<void> {
   section('N/O. legacy resume + resolver failure');
   {
     const resume = between(workshopView, 'const handleResume = async', 'const saveProgress');
-    const legacyBranch = between(resume, 'if (!isCanonicalWorkshopRef(ref))', 'setIsRestoring(true)');
-    assert('N. legacy branch keeps the legacy URL as display + durable ref', /setDurableOriginalRef\(ref\)/.test(legacyBranch) && /replaceUploadedImage\(ref\)/.test(legacyBranch));
-    assert('N. legacy branch does not call resolver / re-upload', legacyBranch.length > 0 && !/loadResumedWorkshopOriginal|resolveWorkshopMedia|uploadWorkshop|persistWorkshop|sign-upload/.test(legacyBranch));
+    // NEW4-4D-9A: strict legacy refs are resolver-mediated like canonical refs (no raw legacy display).
+    assert('N. legacy resume is resolver-mediated (no raw legacy display branch)', resume.length > 0 && !/replaceUploadedImage\(ref\)|isCanonicalWorkshopRef|isLegacyWorkshopRef/.test(resume));
+    assert('N. resume never re-uploads; durable ref stays the persisted ref', !/uploadWorkshop|persistWorkshop|sign-upload/.test(resume) && /setDurableOriginalRef\(ref\)/.test(resume));
     const failBranch = between(resume, 'if (!objectUrl) {', 'return;');
     assert('O. failure branch shows re-upload prompt', /showToast\('이전 이미지를 불러오지 못했습니다/.test(failBranch));
     assert('O. failure branch does not write/clear progress', failBranch.length > 0 && !/upsert|clearProgress|uploaded_image_url|setDurableOriginalRef/.test(failBranch));
@@ -621,12 +622,13 @@ async function main(): Promise<void> {
 
   section('Q/R/S. ProductDetail');
   {
-    const hook = between(productDetail, 'function useWorkshopPreviewSrc', 'function PdpStatusScreen');
-    assert('Q. canonical preview resolved via resolveWorkshopMediaSrc (customer)', /resolveWorkshopMediaSrc\(ref, \{ mode: 'customer' \}\)/.test(hook));
-    assert('Q. resolver gated by isCanonicalWorkshopRef', /isCanonicalWorkshopRef\(ref\)/.test(hook));
-    assert('Q. re-resolve scheduled before expiry', /media\.expiresAt - Date\.now\(\)\) \* 0\.85/.test(hook));
+    const hook = between(productDetail, 'const workshopPreviewDeps', 'function PdpStatusScreen');
+    assert('Q. Workshop preview resolved via resolveWorkshopMediaSrc (customer)', /resolveWorkshopMediaSrc\(ref, \{ mode: 'customer' \}\)/.test(hook));
+    // NEW4-4D-9A: gate is the strict shared normalizer (canonical + trusted legacy), not canonical-only.
+    assert('Q. resolver gated by the shared strict normalizer', /normalize: normalizeWorkshopMediaRef/.test(hook) && /status: normalize\(ref\) \? 'loading' : 'failed'/.test(previewSource));
+    assert('Q. re-resolve scheduled before expiry', /\(media\.expiresAt - deps\.now\(\)\) \* REFRESH_FRACTION/.test(previewSource) && /const REFRESH_FRACTION = 0\.85;/.test(previewSource));
     assert('Q. workshop product image = resolved src state', /image: workshopPreviewSrc/.test(productDetail) && /front_image: workshopPreviewSrc/.test(productDetail));
-    assert('Q. legacy / other refs render as before', /src: ref, status: 'ready'/.test(hook));
+    assert('Q. no raw ref used as display src', !/src: ref\b/.test(hook + previewSource));
     assert('R. resolver used nowhere else in ProductDetail', (productDetail.match(/resolveWorkshopMediaSrc\(/g) ?? []).length === 1);
     assert('R. catalog factual image path unchanged', /getFullImageUrl\(\s*selectedOrientation === 'landscape' && product\.landscape_image/.test(productDetail));
     assert('R. resolver only for workshop-single', /id === 'workshop-single' && cartItemFromState\s*\?\s*cartItemFromState\.custom_image/.test(productDetail));
@@ -648,7 +650,7 @@ async function main(): Promise<void> {
     assert('U. durableHandoff never logs', !/console\./.test(durable));
     assert('U. WorkshopView RPC error logs code only', /console\.error\('add_custom_cart_item failed:', \{ code: error\.code \}\)/.test(workshopView));
     assert('W. no localStorage / sessionStorage / IndexedDB access in flows', storageAccess.length === 0, storageAccess.join(','));
-    assert('W. durableHandoff / ProductDetail hook do not touch web storage', !/localStorage|sessionStorage|indexedDB/.test(durable) && !/localStorage|sessionStorage/.test(between(productDetail, 'function useWorkshopPreviewSrc', 'function PdpStatusScreen')));
+    assert('W. durableHandoff / ProductDetail hook do not touch web storage', !/localStorage|sessionStorage|indexedDB/.test(durable) && !/localStorage|sessionStorage/.test(between(productDetail, 'const workshopPreviewDeps', 'function PdpStatusScreen') + previewSource));
     const setItems = workshopView.match(/(local|session)Storage\.setItem\([^)]*\)/g) ?? [];
     assert('W. WorkshopView web-storage writes are flags only', setItems.every((s) => /'(force_new_start|workshop_just_finished)', 'true'/.test(s)));
     const analytics = between(workshopView, "track('add_to_cart'", '});');

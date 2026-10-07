@@ -202,8 +202,14 @@ function main(): void {
     'src/lib/workshopStorage.ts keeps every baseline export (additive only)',
     exportsOf(readBaseline('src/lib/workshopStorage.ts')).every((l) => storageNow.includes(l)),
   );
-  const hookOf = (s: string) => s.slice(s.indexOf('function useWorkshopPreviewSrc'), s.indexOf('function PdpStatusScreen'));
-  assert('ProductDetail useWorkshopPreviewSrc unchanged', hookOf(src.pdp) === hookOf(readBaseline(FILES.pdp)));
+  // NEW4-4D-9A moved the hook body into pdp/workshopPreviewSource.ts and routes strict legacy refs
+  // through the resolver too; the forward contract is "resolver only, never the raw ref".
+  const hookOf = (s: string) => s.slice(s.indexOf('const workshopPreviewDeps'), s.indexOf('function PdpStatusScreen'));
+  const previewSource = read('src/components/pdp/workshopPreviewSource.ts');
+  assert(
+    'ProductDetail Workshop preview is resolver-only (no raw ref as src)',
+    /resolveWorkshopMediaSrc\(ref, \{ mode: 'customer' \}\)/.test(hookOf(src.pdp)) && !/src: ref\b/.test(hookOf(src.pdp) + previewSource),
+  );
 
   section('I catalog behavior unchanged');
   const surfaceCatalog = html(React.createElement(ImageSurfaceVisual, { src: CATALOG }));
@@ -223,8 +229,17 @@ function main(): void {
     'factualImageSrc derivation unchanged',
     /const factualImageSrc =\s+getFullImageUrl\(\s+selectedOrientation === 'landscape' && product\.landscape_image\s+\? product\.landscape_image\s+: product\.front_image \|\| product\.image,\s+\) \|\| null;/.test(src.pdp),
   );
+  /** Preview-hook region and its imports are NEW4-4D-9A scope, compared by the D-9A verifier. */
+  const stripPreviewHook = (s: string) => {
+    const start = s.search(/type WorkshopPreviewState =|const workshopPreviewDeps/);
+    const end = s.indexOf('function PdpStatusScreen');
+    const cut = start >= 0 && end > start ? s.slice(0, start) + s.slice(end) : s;
+    return cut
+      .replace(/import \{[^}]*\} from '\.\.\/lib\/workshopMedia';/g, '')
+      .replace(/import \{[^}]*\} from '\.\/pdp\/workshopPreviewSource';/g, '');
+  };
   const stripPolicy = (s: string) =>
-    s
+    stripPreviewHook(s)
       .replace(/\/\*\* Private Workshop media \(temporary signed src\)\. Catalog omits this\. \*\//g, '')
       .replace(/const workshopImageReferrerPolicy = workshopPreviewRef \? \('no-referrer' as const\) : undefined;/g, '')
       .replace(/imageReferrerPolicy=\{(workshopImageReferrerPolicy|imageReferrerPolicy)\}/g, '')

@@ -30,7 +30,6 @@ import {
   type WorkshopMediaApi,
 } from '../../lib/customComposition/durableHandoff';
 import {
-  isCanonicalWorkshopRef,
   normalizeWorkshopMediaRef,
   resolveWorkshopMediaSrc,
   retryWorkshopMediaAfterLoadError,
@@ -45,7 +44,10 @@ const workshopMediaApi: WorkshopMediaApi = {
   },
 };
 
-/** Persisted canonical original → local blob: URL. The signed src never leaves this call. */
+/**
+ * Persisted Workshop original (canonical path or strict legacy URL) → sign-read → local blob: URL.
+ * The server decides the source (private GCS or transitional legacy); the src never leaves this call.
+ */
 function loadResumedWorkshopOriginal(ref: string): Promise<string | null> {
   return loadWorkshopMediaAsObjectUrl(ref, {
     resolve: (value) => resolveWorkshopMediaSrc(value, { mode: 'customer' }),
@@ -356,16 +358,9 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       setCurrentStep(1);
       return;
     }
-    if (!isCanonicalWorkshopRef(ref)) {
-      setUploadedFile(null);
-      setDurableOriginalRef(ref);
-      replaceUploadedImage(ref);
-      setCurrentStep(normalizeWorkshopStep(progress.current_step));
-      return;
-    }
     setIsRestoring(true);
     try {
-      const objectUrl = await loadResumedWorkshopOriginal(ref);
+      const objectUrl = normalizeWorkshopMediaRef(ref) ? await loadResumedWorkshopOriginal(ref) : null;
       if (!objectUrl) {
         setCurrentStep(1);
         showToast('이전 이미지를 불러오지 못했습니다. 사진을 다시 업로드해 주세요.', 'error');
