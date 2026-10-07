@@ -13,6 +13,8 @@ interface PdpStorySectionProps {
   orientation: 'portrait' | 'landscape';
   viewerOpen: boolean;
   roomPreviewOpen: boolean;
+  /** Private Workshop media (temporary signed src). Catalog omits this. */
+  imageReferrerPolicy?: 'no-referrer';
 }
 
 export function PdpStorySection({
@@ -20,6 +22,7 @@ export function PdpStorySection({
   orientation,
   viewerOpen,
   roomPreviewOpen,
+  imageReferrerPolicy,
 }: PdpStorySectionProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -51,9 +54,17 @@ export function PdpStorySection({
   return (
     <>
       {reducedMotion ? (
-        <PdpStoryStatic frontTextureUrl={frontTextureUrl} orientation={orientation} />
+        <PdpStoryStatic
+          frontTextureUrl={frontTextureUrl}
+          orientation={orientation}
+          imageReferrerPolicy={imageReferrerPolicy}
+        />
       ) : !desktop ? (
-        <PdpStoryMobile frontTextureUrl={frontTextureUrl} orientation={orientation} />
+        <PdpStoryMobile
+          frontTextureUrl={frontTextureUrl}
+          orientation={orientation}
+          imageReferrerPolicy={imageReferrerPolicy}
+        />
       ) : (
         <section
           ref={bindSection}

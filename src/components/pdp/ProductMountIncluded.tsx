@@ -55,7 +55,13 @@ function MountBlock() {
   );
 }
 
-function IncludedBlock({ imageSrc }: { imageSrc: string | null }) {
+function IncludedBlock({
+  imageSrc,
+  imageReferrerPolicy,
+}: {
+  imageSrc: string | null;
+  imageReferrerPolicy?: 'no-referrer';
+}) {
   const [ref, show] = useEditorialInView<HTMLDivElement>();
 
   return (
@@ -91,7 +97,11 @@ function IncludedBlock({ imageSrc }: { imageSrc: string | null }) {
         >
           {INCLUDED_ITEMS.map((item) => (
             <li key={item.name} className="min-w-0">
-              <IncludedSilhouette kind={item.key} imageSrc={imageSrc} />
+              <IncludedSilhouette
+                kind={item.key}
+                imageSrc={imageSrc}
+                imageReferrerPolicy={imageReferrerPolicy}
+              />
               <div className="mt-4 flex min-w-0 items-baseline gap-3">
                 <span className="type-body">{item.name}</span>
                 <span className="shrink-0 type-body tabular-nums text-text-secondary">× {item.qty}</span>
@@ -104,7 +114,14 @@ function IncludedBlock({ imageSrc }: { imageSrc: string | null }) {
   );
 }
 
-export function ProductMountIncluded({ imageSrc = null }: { imageSrc?: string | null }) {
+export function ProductMountIncluded({
+  imageSrc = null,
+  imageReferrerPolicy,
+}: {
+  imageSrc?: string | null;
+  /** Private Workshop media (temporary signed src). Catalog omits this. */
+  imageReferrerPolicy?: 'no-referrer';
+}) {
   return (
     <section
       id="pdp-mount-included"
@@ -115,7 +132,7 @@ export function ProductMountIncluded({ imageSrc = null }: { imageSrc?: string | 
     >
       <div className={cn(FACTUAL_SHELL, 'pb-24 pt-8 sm:pb-28 sm:pt-12 min-[1100px]:pb-36 min-[1100px]:pt-16')}>
         <MountBlock />
-        <IncludedBlock imageSrc={imageSrc} />
+        <IncludedBlock imageSrc={imageSrc} imageReferrerPolicy={imageReferrerPolicy} />
       </div>
     </section>
   );

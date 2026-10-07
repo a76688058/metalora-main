@@ -39,6 +39,8 @@ const WALL_ASPECT = `${STORY_PANEL_WIDTH_MM * STORY_WALL_FACE_SCALE.x} / ${STORY
 interface PdpStoryMobileProps {
   frontTextureUrl: string | null;
   orientation: 'portrait' | 'landscape';
+  /** Private Workshop media (temporary signed src). Catalog omits this. */
+  imageReferrerPolicy?: 'no-referrer';
 }
 
 function panelAspect(orientation: 'portrait' | 'landscape'): string {
@@ -112,7 +114,7 @@ function AnatomyPlate({
   );
 }
 
-export function PdpStoryMobile({ frontTextureUrl, orientation }: PdpStoryMobileProps) {
+export function PdpStoryMobile({ frontTextureUrl, orientation, imageReferrerPolicy }: PdpStoryMobileProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const travelVh = getMobileStorySectionTravelVh();
@@ -214,6 +216,7 @@ export function PdpStoryMobile({ frontTextureUrl, orientation }: PdpStoryMobileP
                     <img
                       src={frontTextureUrl}
                       alt=""
+                      referrerPolicy={imageReferrerPolicy}
                       draggable={false}
                       decoding="async"
                       className="h-full w-full object-cover"

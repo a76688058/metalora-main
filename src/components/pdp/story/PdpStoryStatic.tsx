@@ -114,6 +114,8 @@ const PANEL_SLAB = `inset 0 0 0 1px ${STORY_LAYER_TONES.panelEdge}, ${CONTACT_SH
 interface PdpStoryStaticProps {
   frontTextureUrl: string | null;
   orientation: 'portrait' | 'landscape';
+  /** Private Workshop media (temporary signed src). Catalog omits this. */
+  imageReferrerPolicy?: 'no-referrer';
 }
 
 function panelAspect(orientation: 'portrait' | 'landscape'): string {
@@ -144,7 +146,7 @@ function AnatomyPlate({ plate }: { plate: StaticPlate }) {
   );
 }
 
-export function PdpStoryStatic({ frontTextureUrl, orientation }: PdpStoryStaticProps) {
+export function PdpStoryStatic({ frontTextureUrl, orientation, imageReferrerPolicy }: PdpStoryStaticProps) {
   const aspect = panelAspect(orientation);
 
   return (
@@ -166,6 +168,7 @@ export function PdpStoryStatic({ frontTextureUrl, orientation }: PdpStoryStaticP
               <img
                 src={frontTextureUrl}
                 alt=""
+                referrerPolicy={imageReferrerPolicy}
                 draggable={false}
                 loading="lazy"
                 decoding="async"
@@ -276,6 +279,7 @@ export function PdpStoryStatic({ frontTextureUrl, orientation }: PdpStoryStaticP
                 <img
                   src={frontTextureUrl}
                   alt=""
+                  referrerPolicy={imageReferrerPolicy}
                   draggable={false}
                   loading="lazy"
                   decoding="async"

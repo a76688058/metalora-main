@@ -188,6 +188,7 @@ export default function ProductDetail() {
       : '';
   const workshopPreview = useWorkshopPreviewSrc(workshopPreviewRef);
   const workshopPreviewSrc = workshopPreview.src ?? '';
+  const workshopImageReferrerPolicy = workshopPreviewRef ? ('no-referrer' as const) : undefined;
 
   const workshopProduct: Product | null =
     id === 'workshop-single' && cartItemFromState
@@ -454,6 +455,7 @@ export default function ProductDetail() {
             onOpenRoomPreview={() => setRoomPreviewOpen(true)}
             roomPreviewEntryRef={roomPreviewEntryRef}
             onViewerOpenChange={setViewerOpen}
+            imageReferrerPolicy={workshopImageReferrerPolicy}
           />
         }
         rail={
@@ -483,11 +485,12 @@ export default function ProductDetail() {
         orientation={selectedOrientation}
         viewerOpen={viewerOpen}
         roomPreviewOpen={roomPreviewOpen}
+        imageReferrerPolicy={workshopImageReferrerPolicy}
       />
 
-      <ProductTruthSection imageSrc={factualImageSrc} />
+      <ProductTruthSection imageSrc={factualImageSrc} imageReferrerPolicy={workshopImageReferrerPolicy} />
 
-      <ProductMountIncluded imageSrc={factualImageSrc} />
+      <ProductMountIncluded imageSrc={factualImageSrc} imageReferrerPolicy={workshopImageReferrerPolicy} />
 
       <ProductOrderConfidence />
 
@@ -501,6 +504,7 @@ export default function ProductDetail() {
           optionDimension={selectedOption?.dimension ?? ''}
           returnFocusRef={roomPreviewEntryRef}
           onClose={() => setRoomPreviewOpen(false)}
+          imageReferrerPolicy={workshopImageReferrerPolicy}
         />
       ) : null}
     </div>

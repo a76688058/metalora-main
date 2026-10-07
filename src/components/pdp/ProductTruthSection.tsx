@@ -166,7 +166,14 @@ function MadeByModule() {
   );
 }
 
-export function ProductTruthSection({ imageSrc = null }: { imageSrc?: string | null }) {
+export function ProductTruthSection({
+  imageSrc = null,
+  imageReferrerPolicy,
+}: {
+  imageSrc?: string | null;
+  /** Private Workshop media (temporary signed src). Catalog omits this. */
+  imageReferrerPolicy?: 'no-referrer';
+}) {
   return (
     <section
       id="pdp-product-truth"
@@ -192,7 +199,7 @@ export function ProductTruthSection({ imageSrc = null }: { imageSrc?: string | n
           <TruthModule
             fact="image"
             visualSide="right"
-            visual={<ImageSurfaceVisual src={imageSrc} />}
+            visual={<ImageSurfaceVisual src={imageSrc} imageReferrerPolicy={imageReferrerPolicy} />}
           />
           <MadeByModule />
         </ol>

@@ -1,6 +1,6 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8). BLOCKED for release** on the items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
+Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
 Production cutover: RELEASE-GATED. Production still runs `b9664fb` on Supabase Storage. HEAD must not be deployed until the release-plan blockers are cleared with owner approval. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
@@ -120,7 +120,7 @@ Code: `src/lib/customComposition/durableHandoff.ts` (no Supabase import; testabl
 
 **ProductDetail (`workshop-single`).** Canonical `custom_image` → resolver (customer mode) → temporary src in React state, re-resolved before expiry (85 % of remaining lifetime), loading screen while resolving, image-less product on failure. Legacy / non-canonical refs render exactly as before. Catalog products never touch the resolver.
 
-**WebGL / A4 boundary.** The workshop preview reaches `ProductTheatreStage` → `PdpSpatialCanvas` → `MetaloraArtwork3D` (and the story canvas). The A4 `TextureLoader` already sets `crossOrigin = 'anonymous'`; no A4 code changed. A4 review recommended: texture load error has no Workshop re-sign hook (A2 mitigates with the pre-expiry refresh; a refresh swaps the texture URL). The theatre / room-preview `<img>` elements (A2 PDP files outside this ticket) carry no `referrerPolicy`; image requests send the page URL as referrer, not the signed query, so no signed-param leak. Add `referrerPolicy="no-referrer"` in the Cart / PDP display ticket.
+**WebGL / A4 boundary.** The workshop preview reaches `ProductTheatreStage` → `PdpSpatialCanvas` → `MetaloraArtwork3D` (and the story canvas). The A4 `TextureLoader` already sets `crossOrigin = 'anonymous'`; no A4 code changed. A4 review recommended: texture load error has no Workshop re-sign hook (A2 mitigates with the pre-expiry refresh; a refresh swaps the texture URL). The theatre / room-preview `<img>` elements (A2 PDP files outside this ticket) carry no `referrerPolicy`; image requests send the page URL as referrer, not the signed query, so no signed-param leak. Add `referrerPolicy="no-referrer"` in the Cart / PDP display ticket. **Done in NEW4-4D-8A.**
 
 **Local dev limitation.** Bucket CORS allows GET/PUT only from `https://metalora.art`. On localhost the signed PUT and the resume byte fetch fail CORS (generic upload / re-upload message); WebGL textures from GCS also fail. Verify end to end only on the production origin after the release guard, or with mocks.
 
@@ -304,7 +304,7 @@ Not queried in this ticket. Needed read-only before Phase E: `workshop` bucket e
 
 ### Release blockers (must clear before step 1)
 
-1. **A2: `referrerPolicy="no-referrer"`** on PDP `<img>` that render the Workshop front image (`ProductTheatreStage` `displayUrl`, `ProductTheatreRoomPreview` `artworkUrl`, `factualVisuals` / `ProductTruthSection`, `PdpStoryStatic` / `PdpStoryMobile` `frontTextureUrl`). For `workshop-single`, `ProductDetail` passes the signed src into these elements. Practical exposure is low: the global `Referrer-Policy: strict-origin-when-cross-origin` sends only the origin, and signed query strings are never in a referrer. It is still a consumer-contract violation and must ship in the release image.
+1. ~~**A2: `referrerPolicy="no-referrer"`**~~ **CLOSED locally (NEW4-4D-8A, see that section).** On PDP `<img>` that render the Workshop front image (`ProductTheatreStage` `displayUrl`, `ProductTheatreRoomPreview` `artworkUrl`, `factualVisuals` / `ProductTruthSection`, `PdpStoryStatic` / `PdpStoryMobile` `frontTextureUrl`). For `workshop-single`, `ProductDetail` passes the signed src into these elements. Practical exposure is low: the global `Referrer-Policy: strict-origin-when-cross-origin` sends only the origin, and signed query strings are never in a referrer. It is still a consumer-contract violation and must ship in the release image.
 2. Owner-provisioned QA identity (smoke).
 3. A6 tooling for env-in-candidate deploy (or a reviewed one-off command).
 4. Visible policy / legal copy in the release (11 commits) passes the A6 legal gate and A5 production-final QA.
@@ -325,6 +325,16 @@ Privacy CDN marker stays until Phase L (`NEW4-4_privacy-processors.md`); public 
 Push: user request + owner approval → `git push origin main` of the release commits (WIP stays local, uncommitted) → fresh clone → `deploy-candidate.ps1` (or the env-capable variant) → smoke → `promote-candidate.ps1 -ValidateOnly` → promote.
 
 Revision rollback (`rollback-production.ps1` → `stable`) if: sign-upload / sign-read unavailable or 5xx; commit / discard errors; canonical refs rejected by DB or server; Cart / PDP / admin / order-history image failures; NEW4-6 / NEW4-7 adapter 503; 5xx spike; any auth / signup / consent regression. After rollback the old client still works on the new schema, except new Workshop consents (NEW4-5) and canonical-ref thumbnails (see Feature gate). Migrations are additive: **do not roll back blindly**. Fix forward. Revert a single function only by a reviewed SQL that restores the prior definition (e.g. `add_custom_cart_item` from 2B-5A, or dropping the two path triggers). Never drop columns or ledger rows. GCS objects stay (create-only, private).
+
+## PDP signed-media referrer (NEW4-4D-8A, A2)
+
+Status: **DONE locally.** Closes release blocker 1. No deploy, no cutover, no remote mutation.
+
+- **Flow.** For `workshop-single` with a cart item, `ProductDetail` puts the resolved temporary src into `product.image` / `front_image`. `getFullImageUrl` passes https through unchanged. So `ProductTheatreStage` `displayUrl`, `ProductTheatreRoomPreview` `artworkUrl`, `PdpStorySection` → `PdpStoryStatic` / `PdpStoryMobile` `frontTextureUrl`, and `factualImageSrc` → `ProductTruthSection` (`ImageSurfaceVisual`) and `ProductMountIncluded` (`IncludedSilhouette`) can all carry a signed src.
+- **Fix.** Narrow optional prop `imageReferrerPolicy?: 'no-referrer'`, set by `ProductDetail` only when a Workshop preview ref exists and passed straight to those `<img>`: the theatre 2D image, the room-preview artwork, both static-story images, the mobile-story front, `ImageSurfaceVisual`, `IncludedSilhouette` artwork. Catalog omits the prop, so the attribute is not rendered and catalog markup is byte-identical (external catalog hosts may check Referer). No resolver, TTL, signed-read or storage change; no new logging or persistence.
+- **Not patched (proven not to receive signed media).** The room photo `<img>` (local user photo object URL). `MountSchematicVisual` (not mounted). `WorkshopView`'s use of the theatre / room preview (local `blob:` raster preview, no network request).
+- **A4 follow-up (Phase D, not a promotion blocker).** three.js `ImageLoader` creates its `<img>` with `crossOrigin` only. The `MetaloraArtwork3D` texture request (theatre viewer, desktop story canvas) therefore falls back to the global `strict-origin-when-cross-origin` and sends the page origin as referrer, never the signed query. A4 should load Workshop textures with no referrer (e.g. a fetch with `referrerPolicy: 'no-referrer'` into `ImageBitmap` / `blob:`). It belongs with the texture-expiry review. No A4 source touched here.
+- **Verifier.** `npx tsx scripts/verify-new4-4d-8a-pdp-referrer.ts` (render + static, baseline via `git show`).
 
 ## Foundation smoke (NEW4-4D-2)
 
@@ -376,11 +386,11 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 - ~~A0 NEW4-4D-4: shared Workshop media resolver.~~ **DONE locally.**
 - ~~A2 NEW4-4D-5: Workshop upload switch, resume, PDP workshop-single.~~ **DONE locally.** A4 targeted review of the WebGL texture expiry path recommended (no A4 code change required).
 - ~~A0: D-4 R-scope refresh.~~ **DONE locally (NEW4-4D-7A, then NEW4-4D-7C post-D-7B, 95/95).** ~~A6: D-3 application-state check refresh.~~ **DONE locally (NEW4-4D-8).**
-- A2: `referrerPolicy="no-referrer"` on PDP Workshop-capable `<img>` (release blocker, see release plan).
+- ~~A2: `referrerPolicy="no-referrer"` on PDP Workshop-capable `<img>`.~~ **DONE locally (NEW4-4D-8A).**
 - A6: legacy copy script (NEW4-4D-9), deploy tooling for env-in-candidate, release execution (NEW4-4D-10).
 - ~~A3 NEW4-4D-6: Cart, CartContext, admin consumers.~~ **DONE locally.**
 - ~~A3: `OrdersModal.tsx` after owner-approved protected-WIP handoff.~~ **DONE locally (NEW4-4D-7B)**; its seven pre-existing WIP hunks stay uncommitted for later Member/Account UX work.
-- A4: targeted review of expiring texture sources before final cutover (see D-6).
+- A4: targeted review of expiring texture sources before final cutover (see D-6), plus no-referrer texture loading (see NEW4-4D-8A). Phase D QA; not a promotion blocker.
 - A6: deploy + env binding, migration apply, later tightening migration, legacy copy and cutover, Privacy finalization.
 
 ## Do not do
@@ -409,4 +419,4 @@ A6: GCS ops/IAM, adapter, server endpoints, migrations, NEW4-6/7 integration, le
 
 ## Relevant files
 
-`src/lib/workshopStorage.ts`, `src/lib/workshopMediaCore.ts`, `src/lib/workshopMedia.ts`, `src/lib/utils.ts`, `scripts/verify-new4-4d-4-workshop-media.ts`, `src/lib/customComposition/durableHandoff.ts`, `src/components/Workshop/WorkshopView.tsx`, `src/components/ProductDetail.tsx`, `scripts/verify-new4-4d-5-workshop-client.ts`, `src/lib/workshopMediaDisplay.ts`, `src/hooks/useWorkshopMediaDisplay.ts`, `src/context/CartContext.tsx`, `src/components/Cart.tsx`, `src/components/admin/adminOrders.ts`, `src/pages/AdminOrders.tsx`, `src/components/admin/adminBestSellers.ts`, `src/pages/AdminBestSellers.tsx`, `scripts/verify-new4-4d-6-cart-admin.ts`, `src/components/OrdersModal.tsx`, `scripts/verify-new4-4d-7b-ordersmodal.ts`, `src/lib/workshopRetention.ts`, `src/lib/accountWithdrawal.ts`, `server.ts`, `supabase/migrations/20261007100000_new4_4d_path_validation.sql`, `scripts/verify-new4-4d-3-workshop-media.ts`, `scripts/verify-workshop-gcs-foundation.ts`, `.env.example`, `package.json`, `package-lock.json`, `docs/decisions/NEW4-4_privacy-processors.md`.
+`src/lib/workshopStorage.ts`, `src/lib/workshopMediaCore.ts`, `src/lib/workshopMedia.ts`, `src/lib/utils.ts`, `scripts/verify-new4-4d-4-workshop-media.ts`, `src/lib/customComposition/durableHandoff.ts`, `src/components/Workshop/WorkshopView.tsx`, `src/components/ProductDetail.tsx`, `scripts/verify-new4-4d-5-workshop-client.ts`, `src/lib/workshopMediaDisplay.ts`, `src/hooks/useWorkshopMediaDisplay.ts`, `src/context/CartContext.tsx`, `src/components/Cart.tsx`, `src/components/admin/adminOrders.ts`, `src/pages/AdminOrders.tsx`, `src/components/admin/adminBestSellers.ts`, `src/pages/AdminBestSellers.tsx`, `scripts/verify-new4-4d-6-cart-admin.ts`, `src/components/OrdersModal.tsx`, `scripts/verify-new4-4d-7b-ordersmodal.ts`, `src/components/pdp/ProductTheatreStage.tsx`, `src/components/pdp/ProductTheatreRoomPreview.tsx`, `src/components/pdp/ProductTruthSection.tsx`, `src/components/pdp/ProductMountIncluded.tsx`, `src/components/pdp/factualVisuals.tsx`, `src/components/pdp/story/PdpStorySection.tsx`, `src/components/pdp/story/PdpStoryStatic.tsx`, `src/components/pdp/story/PdpStoryMobile.tsx`, `scripts/verify-new4-4d-8a-pdp-referrer.ts`, `src/lib/workshopRetention.ts`, `src/lib/accountWithdrawal.ts`, `server.ts`, `supabase/migrations/20261007100000_new4_4d_path_validation.sql`, `scripts/verify-new4-4d-3-workshop-media.ts`, `scripts/verify-workshop-gcs-foundation.ts`, `.env.example`, `package.json`, `package-lock.json`, `docs/decisions/NEW4-4_privacy-processors.md`.

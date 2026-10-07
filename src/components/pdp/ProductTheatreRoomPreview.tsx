@@ -39,6 +39,8 @@ interface ProductTheatreRoomPreviewProps {
   optionDimension: string;
   returnFocusRef: React.RefObject<HTMLButtonElement | null>;
   onClose: () => void;
+  /** Private Workshop media (temporary signed src). Catalog omits this. */
+  imageReferrerPolicy?: 'no-referrer';
 }
 
 function isRealAssetUrl(url: string | null | undefined): url is string {
@@ -350,6 +352,7 @@ export function ProductTheatreRoomPreview({
   optionDimension,
   returnFocusRef,
   onClose,
+  imageReferrerPolicy,
 }: ProductTheatreRoomPreviewProps) {
   const titleId = useId();
   const fileInputId = useId();
@@ -997,6 +1000,7 @@ export function ProductTheatreRoomPreview({
                         <img
                           src={artworkUrl}
                           alt=""
+                          referrerPolicy={imageReferrerPolicy}
                           draggable={false}
                           className="pointer-events-none block h-full w-full border-0 select-none object-cover"
                         />

@@ -90,16 +90,24 @@ export function SublimationHeatVisual({ className }: { className?: string }) {
 export function ImageSurfaceVisual({
   src,
   className,
+  imageReferrerPolicy,
 }: {
   src: string | null;
   className?: string;
+  /** Private Workshop media (temporary signed src). Catalog omits this. */
+  imageReferrerPolicy?: 'no-referrer';
 }) {
   return (
     <div aria-hidden="true" className={cn('relative mx-auto w-full max-w-[18rem]', className)}>
       <div className="relative aspect-[200/283] w-full">
         <div className="absolute inset-0 overflow-hidden bg-metal-light">
           {src ? (
-            <img src={src} alt="" className="h-full w-full object-cover" />
+            <img
+              src={src}
+              alt=""
+              referrerPolicy={imageReferrerPolicy}
+              className="h-full w-full object-cover"
+            />
           ) : (
             <div className="h-full w-full bg-[linear-gradient(160deg,var(--color-metal-light),var(--color-metal-mid))]" />
           )}
@@ -233,9 +241,12 @@ type IncludedKind = 'artwork' | 'ppf' | 'sticker' | 'magnets';
 export function IncludedSilhouette({
   kind,
   imageSrc,
+  imageReferrerPolicy,
 }: {
   kind: IncludedKind;
   imageSrc?: string | null;
+  /** Private Workshop media (temporary signed src). Catalog omits this. */
+  imageReferrerPolicy?: 'no-referrer';
 }) {
   if (kind === 'artwork') {
     return (
@@ -244,7 +255,12 @@ export function IncludedSilhouette({
         className="aspect-[200/283] w-[8.75rem] bg-metal-light ring-1 ring-black/12 sm:w-[10.5rem] lg:w-[11.5rem] dark:ring-white/15"
       >
         {imageSrc ? (
-          <img src={imageSrc} alt="" className="h-full w-full object-cover" />
+          <img
+            src={imageSrc}
+            alt=""
+            referrerPolicy={imageReferrerPolicy}
+            className="h-full w-full object-cover"
+          />
         ) : null}
       </div>
     );

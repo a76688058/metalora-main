@@ -41,6 +41,8 @@ interface ProductTheatreStageProps {
   onViewerOpenChange?: (open: boolean) => void;
   /** Custom Workshop only. Catalog omits this and keeps the idle 2D theatre. */
   startInViewer?: boolean;
+  /** Private Workshop media (temporary signed src). Catalog omits this. */
+  imageReferrerPolicy?: 'no-referrer';
 }
 
 function isRealAssetUrl(url: string | null | undefined): url is string {
@@ -168,6 +170,7 @@ export function ProductTheatreStage({
   roomPreviewEntryRef,
   onViewerOpenChange,
   startInViewer = false,
+  imageReferrerPolicy,
 }: ProductTheatreStageProps) {
   const quality = usePdpQualityTier();
   const compact = useCompactTheatre();
@@ -593,6 +596,7 @@ export function ProductTheatreStage({
               <img
                 src={displayUrl}
                 alt={product.title}
+                referrerPolicy={imageReferrerPolicy}
                 fetchPriority="high"
                 decoding="async"
                 draggable={false}
