@@ -345,6 +345,7 @@ export const policies = {
           <p>WORKSHOP 주문에 사용된 원본 및 미리보기 이미지는 관리자가 주문 상태를 배송완료로 처리한 후 3일이 지나면 순차 삭제합니다.</p>
           <p>주문으로 이어지지 않은 WORKSHOP 업로드 이미지는 마지막 관련 활동 후 3일이 지나면 순차 삭제합니다. 진행 중인 주문, 장바구니, 제작 과정에 묶여 있는 이미지는 그 보호 대상에서 빼지 않습니다.</p>
           <p>이미 결제가 되었거나 제작·배송이 진행 중인 WORKSHOP 주문은, 회원이 탈퇴하더라도 주문을 마치기 위해 필요한 동안 이미지가 남을 수 있습니다. 이후 관리자가 배송완료로 처리하고 3일이 지나면 제1항에 따라 삭제됩니다.</p>
+          <p>위 삭제는 원본 저장소를 기준으로 합니다. 이미지 전송을 위한 임시 캐시(전송망·브라우저)는 원본 저장소에서 삭제된 뒤에도 설정된 캐시 유효기간(현재 약 1시간) 또는 제공자의 무효화 처리까지 일시적으로 남을 수 있습니다.</p>
           <p>이미지가 삭제된 뒤에는 같은 그림으로 다시 만들거나 재인쇄하려면 이미지를 다시 올려 주셔야 합니다.</p>
         </div>
         <Divider />
@@ -371,7 +372,7 @@ export const policies = {
           <p>회사는 서비스 운영을 위해 아래와 같이 처리를 맡깁니다. 고객 개인정보를 제3자에게 판매하지 않습니다.</p>
           <ul className="list-disc pl-5 space-y-3">
             <li>
-              <span className="text-zinc-950 dark:text-white font-bold">Supabase:</span> 회원 인증, 데이터베이스 보관, WORKSHOP 이미지 저장. 계정·주문·문의·동의 기록과 업로드 이미지가 이 목적 범위에서 처리됩니다. 보관 위치는 대한민국(서울)입니다.
+              <span className="text-zinc-950 dark:text-white font-bold">Supabase:</span> 회원 인증, 데이터베이스 보관, WORKSHOP 이미지 저장. 계정·주문·문의·동의 기록과 업로드 이미지가 이 목적 범위에서 처리됩니다. 보관 위치는 대한민국(서울)입니다. WORKSHOP 이미지를 불러올 때는 Supabase가 사용하는 전송망(CDN)에 임시 사본이 캐시될 수 있습니다(제9조).
             </li>
             <li>
               <span className="text-zinc-950 dark:text-white font-bold">Google Cloud (Cloud Run):</span> 웹사이트·서버 요청 처리. 요청에 계정·주문·문의·인증 정보가 포함되면 그 요청 처리 과정에서 함께 다뤄질 수 있습니다. 주문·계정 원장은 Cloud Run에 따로 쌓아 두지 않습니다.
@@ -392,18 +393,39 @@ export const policies = {
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
           <p>회사는 이용자와의 계약을 체결하고 이행하는 데 필요한 처리위탁·보관을 위해, 「개인정보 보호법」 제28조의8 제1항 제3호에 따라 아래 사항을 이 처리방침에 공개하고 개인정보를 국외로 이전합니다. 이 이전은 별도 동의를 받는 방식이 아닙니다.</p>
 
-          <p className="text-zinc-950 dark:text-white font-bold">1. Google Cloud (웹사이트·서버 운영)</p>
+          <p className="text-zinc-950 dark:text-white font-bold">1. Google Cloud Run (웹사이트·서버 요청 처리)</p>
           <ul className="list-disc pl-5 space-y-3">
             <li><span className="text-zinc-950 dark:text-white font-bold">이전받는 자:</span> Google Cloud 서비스를 제공하는 Google 법인. Google Cloud 공식 안내상 대한민국 결제 주소 고객의 계약 주체는 Google Cloud Korea LLC(서울특별시 강남구 테헤란로 152 강남파이낸스센터 20층)입니다.</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">연락처:</span> Google Cloud 데이터 보호팀 (https://support.google.com/cloud/contact/dpo)</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">이전 국가:</span> 미국 (오리건, Google Cloud Run us-west1 리전)</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> 이용자가 보낸 요청에 포함된 계정·인증, 주문·배송, 문의, 보안 관련 정보와 그 처리 과정에서 생기는 서버 운영 기록</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> 이용자가 보낸 요청에 포함된 계정·인증, 주문·배송, 문의, 보안 관련 정보</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">이용 목적:</span> 회사 웹사이트 제공과 API 요청 처리 등 서비스 인프라 운영</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">이전 시기·방법:</span> 이용자가 웹사이트를 이용할 때마다 암호화된 통신(HTTPS)으로 전송</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 요청을 처리하는 동안 처리하며, 서버 운영 기록은 회사의 Google Cloud 로그 보관 설정에 따른 기간 동안 보관됩니다. 계정·주문 원장은 이 인프라에 따로 저장하지 않으며, 대한민국(서울)에 있는 Supabase에 보관됩니다(제8조).</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 요청을 처리하는 동안. 계정·주문 원장은 이 인프라에 따로 저장하지 않으며, 대한민국(서울)에 있는 Supabase에 보관됩니다(제8조). 서버 운영 기록은 아래 2번 항목에 따릅니다.</li>
           </ul>
 
-          <p className="text-zinc-950 dark:text-white font-bold">2. Discord (내부 주문·결제 운영 알림)</p>
+          <p className="text-zinc-950 dark:text-white font-bold">2. Google Cloud Logging (서버 운영 기록 보관)</p>
+          <ul className="list-disc pl-5 space-y-3">
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전받는 자·연락처:</span> 1번 항목과 같습니다.</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 국가:</span> [공개 전 확인 필요: Cloud Logging 로그 보관 국가]</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> 웹사이트 요청 기록(접속 IP, 브라우저 정보(User-Agent), 요청 주소, 응답 상태, 처리 시간)과 회사 서버가 남기는 운영 기록(요청 식별자, 처리 단계와 결과, 오류 분류, 결제 처리 시의 주문번호와 내부 회원 식별값)</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이용 목적:</span> 장애 대응, 보안 점검, 부정이용 방지</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 시기·방법:</span> 서버가 요청을 처리할 때 Google Cloud 내부에서 자동 기록</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> [공개 전 확인 필요: Cloud Logging 로그 보관 기간]</li>
+          </ul>
+
+          <p className="text-zinc-950 dark:text-white font-bold">3. Supabase 저장소 전송망(CDN) 캐시</p>
+          <ul className="list-disc pl-5 space-y-3">
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전받는 자:</span> Supabase, Inc. (재위탁: Cloudflare, Inc. — Supabase 공식 하위 처리자 목록 기준)</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">연락처:</span> privacy@supabase.com</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 국가:</span> [공개 전 확인 필요: CDN 캐시 국가]</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> WORKSHOP 업로드 원본·미리보기 이미지의 임시 사본</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이용 목적:</span> 이미지 전송</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 시기·방법:</span> 이미지를 불러올 때 전송망 서버에 임시로 캐시</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 설정된 캐시 유효기간(현재 약 1시간) 또는 제공자의 무효화 처리까지</li>
+          </ul>
+
+          <p className="text-zinc-950 dark:text-white font-bold">4. Discord (내부 주문·결제 운영 알림)</p>
           <ul className="list-disc pl-5 space-y-3">
             <li><span className="text-zinc-950 dark:text-white font-bold">이전받는 자:</span> Discord Inc.</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">연락처:</span> privacy@discord.com / 444 De Haro Street #200, San Francisco, CA 94107, USA</li>
