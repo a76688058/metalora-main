@@ -23,12 +23,38 @@ import {
 } from '../../lib/customComposition/customMPrice';
 import {
   buildCompleteV1Config,
-  removeWorkshopPaths,
-  uploadWorkshopOriginal,
-  uploadWorkshopPreview,
+  loadWorkshopMediaAsObjectUrl,
+  persistWorkshopCartMedia,
   verifyTrustedCustomCartRow,
+  WORKSHOP_UPLOAD_LIMITS,
+  type WorkshopMediaApi,
 } from '../../lib/customComposition/durableHandoff';
+import {
+  isCanonicalWorkshopRef,
+  normalizeWorkshopMediaRef,
+  resolveWorkshopMediaSrc,
+  retryWorkshopMediaAfterLoadError,
+} from '../../lib/workshopMedia';
 import CustomImageEditor, { CustomCompositionControls, CustomPreviewPanel } from './CustomImageEditor';
+
+const workshopMediaApi: WorkshopMediaApi = {
+  fetch: (input, init) => fetch(input, init),
+  getAccessToken: async () => {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  },
+};
+
+/** Persisted canonical original → local blob: URL. The signed src never leaves this call. */
+function loadResumedWorkshopOriginal(ref: string): Promise<string | null> {
+  return loadWorkshopMediaAsObjectUrl(ref, {
+    resolve: (value) => resolveWorkshopMediaSrc(value, { mode: 'customer' }),
+    retryAfterLoadError: (value, failedSrc) =>
+      retryWorkshopMediaAfterLoadError(value, failedSrc, { mode: 'customer' }),
+    fetch: (input, init) => fetch(input, init),
+    createObjectUrl: (blob) => URL.createObjectURL(blob),
+  });
+}
 
 const STEPS = [
   { id: 1, title: '이미지 편집' },
@@ -106,6 +132,8 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
   const [customPrice, setCustomPrice] = useState<number | null>(null);
   const [customPriceStatus, setCustomPriceStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  /** Persisted original ref (canonical path or legacy URL) behind `uploadedImage`. Never a signed src. */
+  const [durableOriginalRef, setDurableOriginalRef] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(true);
@@ -287,6 +315,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
     isClearingRef.current = true;
 
     replaceUploadedImage(null);
+    setDurableOriginalRef(null);
     setPendingProgress(null);
     setMaterialType('aluminum');
     setSize('A4');
@@ -316,24 +345,45 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
     setCurrentStep(1);
   };
 
-  const handleResume = () => {
-    if (pendingProgress) {
-      setMaterialType(pendingProgress.selected_material as 'aluminum');
-      setSize((pendingProgress.selected_size as SizeType) || 'A4');
-      if (pendingProgress.uploaded_image_url) {
-        replaceUploadedImage(pendingProgress.uploaded_image_url);
-        setCurrentStep(normalizeWorkshopStep(pendingProgress.current_step));
-      } else {
-        setCurrentStep(1);
-      }
-    }
+  const handleResume = async () => {
+    const progress = pendingProgress;
     setShowResumeModal(false);
+    if (!progress) return;
+    setMaterialType(progress.selected_material as 'aluminum');
+    setSize((progress.selected_size as SizeType) || 'A4');
+    const ref = typeof progress.uploaded_image_url === 'string' ? progress.uploaded_image_url : '';
+    if (!ref) {
+      setCurrentStep(1);
+      return;
+    }
+    if (!isCanonicalWorkshopRef(ref)) {
+      setUploadedFile(null);
+      setDurableOriginalRef(ref);
+      replaceUploadedImage(ref);
+      setCurrentStep(normalizeWorkshopStep(progress.current_step));
+      return;
+    }
+    setIsRestoring(true);
+    try {
+      const objectUrl = await loadResumedWorkshopOriginal(ref);
+      if (!objectUrl) {
+        setCurrentStep(1);
+        showToast('이전 이미지를 불러오지 못했습니다. 사진을 다시 업로드해 주세요.', 'error');
+        return;
+      }
+      setUploadedFile(null);
+      setDurableOriginalRef(ref);
+      replaceUploadedImage(objectUrl);
+      setCurrentStep(normalizeWorkshopStep(progress.current_step));
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
-  const saveProgress = useCallback(async (step: number, mat: string, sz: string, imgUrl: string | null) => {
+  const saveProgress = useCallback(async (step: number, mat: string, sz: string, originalRef: string | null) => {
     if (!user) return;
 
-    const urlToSave = imgUrl?.startsWith('blob:') ? null : imgUrl;
+    const urlToSave = originalRef?.startsWith('blob:') ? null : originalRef;
     if (!urlToSave) return;
 
     if (saveTimeoutRef.current) {
@@ -364,10 +414,10 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
   }, [user]);
 
   useEffect(() => {
-    if (!isRestoring && !showResumeModal && uploadedImage) {
-      saveProgress(currentStep, materialType, size, uploadedImage);
+    if (!isRestoring && !showResumeModal && uploadedImage && durableOriginalRef) {
+      saveProgress(currentStep, materialType, size, durableOriginalRef);
     }
-  }, [currentStep, materialType, size, uploadedImage, isRestoring, showResumeModal, saveProgress]);
+  }, [currentStep, materialType, size, uploadedImage, durableOriginalRef, isRestoring, showResumeModal, saveProgress]);
 
   const clearProgress = async () => {
     if (!user) return;
@@ -388,6 +438,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id' });
       replaceUploadedImage(null);
+      setDurableOriginalRef(null);
       loadedSourceUrlRef.current = null;
       localStorage.removeItem('temp_image_url');
       localStorage.removeItem('workshop_draft');
@@ -478,8 +529,6 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
 
     cartSubmitLockRef.current = true;
     setIsUploading(true);
-    const createdPaths: string[] = [];
-    let rowPersisted = false;
 
     try {
       const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
@@ -500,45 +549,41 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
         return response.blob();
       });
 
-      let originalUrl: string | null = null;
-      if (uploadedFile) {
-        const original = await uploadWorkshopOriginal(currentUser.id, uploadedFile);
-        createdPaths.push(original.path);
-        originalUrl = original.publicUrl;
-      } else if (uploadedImage && !uploadedImage.startsWith('blob:')) {
-        originalUrl = uploadedImage;
-      }
+      const handoff = await persistWorkshopCartMedia(
+        workshopMediaApi,
+        { originalFile: uploadedFile, existingOriginalRef: durableOriginalRef, previewBlob },
+        async ({ originalRef, previewRef }) => {
+          const { data, error } = await supabase.rpc('add_custom_cart_item', {
+            p_quantity: 1,
+            p_orientation: orientation,
+            p_original_image_url: originalRef,
+            p_preview_image_url: previewRef,
+            p_custom_config: buildCompleteV1Config(source, composition),
+          });
+          if (error) {
+            console.error('add_custom_cart_item failed:', { code: error.code });
+            return null;
+          }
+          return { rpcData: data as unknown };
+        },
+      );
 
-      if (!originalUrl) {
-        showToast('원본 이미지를 저장하지 못했습니다. 다시 시도해 주세요.', 'error');
+      if (handoff.ok === false) {
+        showToast(
+          handoff.reason === 'no_original'
+            ? '원본 이미지를 저장하지 못했습니다. 다시 시도해 주세요.'
+            : '장바구니에 담지 못했습니다. 다시 시도해 주세요.',
+          'error',
+        );
         return;
       }
 
-      const preview = await uploadWorkshopPreview(currentUser.id, previewBlob);
-      createdPaths.push(preview.path);
-
-      const { data: rpcData, error: rpcError } = await supabase.rpc('add_custom_cart_item', {
-        p_quantity: 1,
-        p_orientation: orientation,
-        p_original_image_url: originalUrl,
-        p_preview_image_url: preview.publicUrl,
-        p_custom_config: buildCompleteV1Config(source, composition),
-      });
-
-      if (rpcError) {
-        console.error('add_custom_cart_item failed:', rpcError);
-        showToast('장바구니에 담지 못했습니다. 다시 시도해 주세요.', 'error');
-        await removeWorkshopPaths(createdPaths).catch(() => undefined);
-        return;
-      }
-
-      rowPersisted = true;
-
+      const { rpcData } = handoff.value;
       const row = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as {
         custom_image?: string | null;
         custom_config?: Record<string, unknown> | null;
       } | null;
-      const verified = verifyTrustedCustomCartRow(row, preview.publicUrl);
+      const verified = verifyTrustedCustomCartRow(row, handoff.refs.previewRef, normalizeWorkshopMediaRef);
       if (verified.ok === false) {
         showToast('장바구니에 담지 못했습니다. 다시 시도해 주세요.', 'error');
         return;
@@ -574,6 +619,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       await clearProgress();
       replaceUploadedImage(null);
       setUploadedFile(null);
+      setDurableOriginalRef(null);
       setPendingProgress(null);
       localStorage.removeItem('temp_image_url');
       localStorage.removeItem('workshop_draft');
@@ -588,11 +634,8 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       }
       setTimeout(() => openCart(), 100);
     } catch (err: unknown) {
-      console.error('Failed to save to collection:', err);
+      console.error('Failed to save to collection:', err instanceof Error ? err.message : 'unknown');
       showToast('장바구니에 담지 못했습니다. 다시 시도해 주세요.', 'error');
-      if (!rowPersisted) {
-        await removeWorkshopPaths(createdPaths).catch(() => undefined);
-      }
     } finally {
       cartSubmitLockRef.current = false;
       setIsUploading(false);
@@ -605,6 +648,11 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
     input.value = '';
     if (!file) return;
 
+    if (file.size > WORKSHOP_UPLOAD_LIMITS.original) {
+      showToast('25MB 이하의 사진을 선택해 주세요.', 'error');
+      return;
+    }
+
     const validated = await validateCustomImageFile(file);
     if (validated.ok === false) {
       showToast(validated.message, 'error');
@@ -612,6 +660,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
     }
 
     setUploadedFile(file);
+    setDurableOriginalRef(null);
     replaceUploadedImage(validated.objectUrl);
   };
 

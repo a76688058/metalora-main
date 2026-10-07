@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
 import { track } from '../lib/analytics';
 import { getFullImageUrl } from '../lib/utils';
+import { isCanonicalWorkshopRef, resolveWorkshopMediaSrc } from '../lib/workshopMedia';
 import LoginModal from './LoginModal';
 import { Product } from '../data/products';
 import { Button } from './ui/Button';
@@ -53,6 +54,55 @@ function mapProductRecord(data: Record<string, unknown>): Product {
 function isLookupNotFound(error: { code?: string } | null | undefined): boolean {
   const code = error?.code;
   return code === 'PGRST116' || code === '22P02';
+}
+
+type WorkshopPreviewState = { ref: string; src: string | null; status: 'loading' | 'ready' | 'failed' };
+
+/**
+ * workshop-single preview. Canonical refs resolve to a temporary signed src (React state only,
+ * re-resolved before expiry); legacy and other refs render as before.
+ */
+function useWorkshopPreviewSrc(ref: string): WorkshopPreviewState {
+  const canonical = Boolean(ref) && isCanonicalWorkshopRef(ref);
+  const [state, setState] = useState<WorkshopPreviewState>(() => ({
+    ref,
+    src: canonical ? null : ref,
+    status: canonical ? 'loading' : 'ready',
+  }));
+
+  useEffect(() => {
+    if (!canonical) {
+      setState({ ref, src: ref, status: 'ready' });
+      return undefined;
+    }
+    let cancelled = false;
+    let timer: number | undefined;
+    const run = async () => {
+      const media = await resolveWorkshopMediaSrc(ref, { mode: 'customer' }).catch(() => null);
+      if (cancelled) return;
+      if (!media) {
+        setState((prev) =>
+          prev.ref === ref && prev.src ? prev : { ref, src: null, status: 'failed' },
+        );
+        return;
+      }
+      setState((prev) =>
+        prev.ref === ref && prev.src === media.src ? prev : { ref, src: media.src, status: 'ready' },
+      );
+      if (media.expiresAt !== null) {
+        const delay = Math.max(5_000, (media.expiresAt - Date.now()) * 0.85);
+        timer = window.setTimeout(() => void run(), delay);
+      }
+    };
+    setState({ ref, src: null, status: 'loading' });
+    void run();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [ref, canonical]);
+
+  return state.ref === ref ? state : { ref, src: canonical ? null : ref, status: canonical ? 'loading' : 'ready' };
 }
 
 function PdpStatusScreen({
@@ -132,14 +182,21 @@ export default function ProductDetail() {
 
   const currentUser = user || adminUser;
 
+  const workshopPreviewRef: string =
+    id === 'workshop-single' && cartItemFromState
+      ? cartItemFromState.custom_image || cartItemFromState.image || ''
+      : '';
+  const workshopPreview = useWorkshopPreviewSrc(workshopPreviewRef);
+  const workshopPreviewSrc = workshopPreview.src ?? '';
+
   const workshopProduct: Product | null =
     id === 'workshop-single' && cartItemFromState
       ? {
           id: 'workshop-single',
           title: '커스텀 작품',
           artist: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'METALORA Artist',
-          image: cartItemFromState.custom_image || cartItemFromState.image || '',
-          front_image: cartItemFromState.custom_image || cartItemFromState.image || '',
+          image: workshopPreviewSrc,
+          front_image: workshopPreviewSrc,
           description: 'METALORA 워크숍에서 제작된 세상에 단 하나뿐인 커스텀 작품입니다.',
           limited: true,
           options: [
@@ -293,7 +350,7 @@ export default function ProductDetail() {
     void fetchProducts();
   };
 
-  if (pageStatus === 'loading') {
+  if (pageStatus === 'loading' || (workshopProduct && workshopPreview.status === 'loading')) {
     return (
       <PdpStatusScreen title="불러오는 중">
         <span className="sr-only">상품 정보를 불러오는 중입니다.</span>
