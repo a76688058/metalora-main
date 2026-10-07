@@ -1,6 +1,6 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — SERVER FOUNDATION + SHARED RESOLVER + A2 WORKSHOP CLIENT + A3 CART / ADMIN CONSUMERS IMPLEMENTED + A3 ORDERSMODAL (NEW4-4D-3 / 4 / 5 / 6 / 7B, local commits, not deployed)**. Signed regional delivery proven in NEW4-4D-2A. `OrdersModal.tsx` migrated (D-7B) and no longer blocks the cutover. Open: A6 D-3 verifier refresh, A0 D-4 R-scope check refresh (OrdersModal now imports the display helpers), release guard below.
+Status: **ACCEPTED — SERVER FOUNDATION + SHARED RESOLVER + A2 WORKSHOP CLIENT + A3 CART / ADMIN CONSUMERS IMPLEMENTED + A3 ORDERSMODAL (NEW4-4D-3 / 4 / 5 / 6 / 7B, local commits, not deployed)**. Signed regional delivery proven in NEW4-4D-2A. `OrdersModal.tsx` migrated (D-7B) and no longer blocks the cutover. D-4 verifier aligned to the post-D-7B state (NEW4-4D-7C). Open: A6 D-3 verifier refresh (one stale assertion), release guard below.
 Production still runs the pre-D-3 build on Supabase Storage. D-5 / D-6 client code exists locally and **must not be deployed** until the release guard below is met. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
@@ -149,7 +149,7 @@ Code: `src/lib/workshopMediaDisplay.ts` (display controller, no Supabase import;
 3. Backend smoke of sign-upload / sign-read / commit / discard.
 4. `20261007100000_new4_4d_path_validation.sql` applied in the order below.
 5. ~~`OrdersModal.tsx` protected-WIP handoff and migration (A3).~~ **DONE locally (NEW4-4D-7B).**
-6. D-3 / D-4 application-state verifier checks refreshed (A6 / A0). D-3 pending (A6). D-4 needs one more refresh after D-7B (A0): "protected WIP files do not import the resolver" now fails by design (86/87).
+6. D-3 / D-4 application-state verifier checks refreshed (A6 / A0). D-3 pending (A6): one stale assertion, "live client still uploads to Supabase workshop bucket" (192/193). D-4 **DONE locally (NEW4-4D-7C, 95/95).**
 7. Dual-store QA on the production origin (upload, cart, PDP, admin, retention, withdrawal).
 8. Legacy object copy to GCS with verification.
 9. Supabase `workshop` bucket private cutover (drop insert / public select).
@@ -202,6 +202,15 @@ Status: **DONE locally.** Owner approved a narrow handoff (2026-10-07): Workshop
 - **Verifier.** `npx tsx scripts/verify-new4-4d-7b-ordersmodal.ts` (static + mocked resolver/sign-read; no network). D-6 verifier X/Y checks updated to the post-handoff state.
 - **Cutover.** OrdersModal **no longer blocks** the Supabase-private cutover. No remaining customer-facing Workshop consumer builds public Workshop URLs or passes canonical refs to `getFullImageUrl` (Cart, CartContext, admin, ProductDetail, WorkshopView, OrdersModal all on the shared resolver). Legacy URLs answered `supabase_legacy` still point at the public bucket, so release-guard steps 8–9 (legacy copy, then private cutover) remain required. Non-blocking follow-ups: A4 texture expiry review; PDP theatre / room-preview `<img>` `referrerPolicy` (A2).
 - No deploy, no Cloud Run env, no migration apply, no Supabase / GCS / IAM mutation; payment frozen.
+
+**D-4 verifier refresh (NEW4-4D-7C, A0, test-only).** OrdersModal handoff is complete, so the D-4 R-scope no longer treats it as an unmigrated consumer. The stale "protected WIP files do not import the resolver" check and the "OrdersModal still on `getFullImageUrl`" label were replaced with architectural-state checks:
+- OrdersModal must use the shared display hook and the order thumb ref, in customer mode only.
+- Its Workshop src may come only from `workshopMedia.get(ref).src`; `onError` must go to `onLoadError`.
+- It must not use a canonical ref or raw field as src, build public Supabase URLs, call the resolver core directly, or persist anything to storage.
+- The catalog path stays on `getFullImageUrl`.
+- InquiryModal, ProfileEditModal, ProfileOverlay and ProfileComplete must stay free of Workshop media imports until separately handed over.
+
+All other D-4 security sections are unchanged. Result: 95/95. Deeper OrdersModal behavior stays in the D-7B verifier. No protected product file was changed in this ticket; OrdersModal's seven older WIP hunks remain uncommitted.
 
 ## Path validation migration ordering (NEW4-4D-3, prepared, NOT applied)
 
@@ -262,7 +271,7 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 
 - ~~A0 NEW4-4D-4: shared Workshop media resolver.~~ **DONE locally.**
 - ~~A2 NEW4-4D-5: Workshop upload switch, resume, PDP workshop-single.~~ **DONE locally.** A4 targeted review of the WebGL texture expiry path recommended (no A4 code change required).
-- ~~A0: D-4 R-scope refresh.~~ **DONE locally (NEW4-4D-7A, 87/87).** A6: D-3 application-state check refresh (192/193 by design until then).
+- ~~A0: D-4 R-scope refresh.~~ **DONE locally (NEW4-4D-7A, then NEW4-4D-7C post-D-7B, 95/95).** A6: D-3 application-state check refresh (192/193 by design until then).
 - ~~A3 NEW4-4D-6: Cart, CartContext, admin consumers.~~ **DONE locally.**
 - ~~A3: `OrdersModal.tsx` after owner-approved protected-WIP handoff.~~ **DONE locally (NEW4-4D-7B)**; its seven pre-existing WIP hunks stay uncommitted for later Member/Account UX work.
 - A4: targeted review of expiring texture sources before final cutover (see D-6).

@@ -516,8 +516,24 @@ async function main(): Promise<void> {
   section('R scope');
   {
     const read = (f: string) => fs.readFileSync(path.join(root, f), 'utf8');
-    const orders = read('src/components/OrdersModal.tsx');
-    assert('R OrdersModal still on getFullImageUrl (not switched)', orders.includes('getFullImageUrl(ji.user_image_url || ji.front_image, isWorkshop)'));
+    const code = (f: string) => read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const orders = code('src/components/OrdersModal.tsx');
+    assert('R OrdersModal uses the shared display abstraction (hook + order thumb ref)',
+      /import \{[^}]*\buseWorkshopMediaDisplay\b[^}]*\bworkshopDisplayApi\b[^}]*\} from '\.\.\/hooks\/useWorkshopMediaDisplay'/.test(orders)
+      && /import \{[^}]*\bworkshopOrderItemThumbRef\b[^}]*\} from '\.\.\/lib\/workshopMediaDisplay'/.test(orders)
+      && /workshopOrderItemThumbRef\(ji, workshopDisplayApi\)/.test(orders));
+    assert('R OrdersModal resolves Workshop media in customer mode only',
+      /useWorkshopMediaDisplay\([\s\S]*?'customer',?\s*\)/.test(orders) && !/'admin'/.test(orders));
+    assert('R OrdersModal Workshop src comes only from the resolver (no canonical ref / raw field as src)',
+      /\?\s*workshopMedia\.get\(workshopRef\)\.src/.test(orders)
+      && /onError=\{\(\) => void workshopMedia\.onLoadError\(workshopRef, displayImageUrl\)\}/.test(orders)
+      && !/src=\{\s*(workshopRef|ji\.(user_image_url|front_image|preview_url|image_url))\s*\}/.test(orders));
+    assert('R OrdersModal does not build public Supabase Workshop URLs or call the resolver core directly',
+      !/storage\/v1\/object\/public|getPublicUrl|storage\.from\(|createSignedUrl|workshopMediaCore|resolveWorkshopMedia/.test(orders));
+    assert('R OrdersModal catalog path keeps getFullImageUrl, separate from the Workshop branch',
+      /:\s*getFullImageUrl\(ji\.user_image_url \|\| ji\.front_image, isWorkshop\)/.test(orders));
+    assert('R OrdersModal does not persist signed src',
+      !/localStorage|sessionStorage|indexedDB|caches\.|setItem\(/.test(orders));
     const listSource = (dir: string): string[] =>
       fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((entry) => {
         const rel = `${dir}/${entry.name}`;
@@ -526,12 +542,13 @@ async function main(): Promise<void> {
       });
     const sources = listSource('src').map((f) => ({ f, text: read(f) }));
 
-    const protectedFiles = [
-      'src/components/InquiryModal.tsx', 'src/components/OrdersModal.tsx', 'src/components/ProfileEditModal.tsx',
+    for (const f of [
+      'src/components/InquiryModal.tsx', 'src/components/ProfileEditModal.tsx',
       'src/components/ProfileOverlay.tsx', 'src/pages/ProfileComplete.tsx',
-    ];
-    assert('R protected WIP files do not import the resolver (OrdersModal = known unmigrated consumer)',
-      protectedFiles.every((f) => !/workshopMedia/.test(read(f))));
+    ]) {
+      assert(`R ${path.basename(f)} (protected WIP, not handed over) has no Workshop media resolver import`,
+        !/workshopMedia|useWorkshopMediaDisplay|workshopStorage/i.test(code(f)));
+    }
     const coreImporters = sources.filter(({ text }) => /from ['"][^'"]*workshopMediaCore['"]/.test(text)).map(({ f }) => f).sort();
     assert('R only the shared layers import workshopMediaCore (display consumers use workshopMedia / display helpers)',
       coreImporters.join() === [
