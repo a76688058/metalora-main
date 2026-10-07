@@ -1,6 +1,6 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — SERVER FOUNDATION + SHARED RESOLVER + A2 WORKSHOP CLIENT + A3 CART / ADMIN CONSUMERS IMPLEMENTED (NEW4-4D-3 / 4 / 5 / 6, local commits, not deployed)**. Signed regional delivery proven in NEW4-4D-2A. Open: `OrdersModal.tsx` (protected WIP, cutover blocker), release guard below.
+Status: **ACCEPTED — SERVER FOUNDATION + SHARED RESOLVER + A2 WORKSHOP CLIENT + A3 CART / ADMIN CONSUMERS IMPLEMENTED (NEW4-4D-3 / 4 / 5 / 6, local commits, not deployed)**. Signed regional delivery proven in NEW4-4D-2A. Open: `OrdersModal.tsx` (protected WIP, cutover blocker; handoff plan NEW4-4D-7A awaiting owner approval), A6 D-3 verifier refresh, release guard below.
 Production still runs the pre-D-3 build on Supabase Storage. D-5 / D-6 client code exists locally and **must not be deployed** until the release guard below is met. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
@@ -148,8 +148,8 @@ Code: `src/lib/workshopMediaDisplay.ts` (display controller, no Supabase import;
 2. `WORKSHOP_GCS_*` bound on Cloud Run.
 3. Backend smoke of sign-upload / sign-read / commit / discard.
 4. `20261007100000_new4_4d_path_validation.sql` applied in the order below.
-5. `OrdersModal.tsx` protected-WIP handoff and migration (A3).
-6. D-3 / D-4 application-state verifier checks refreshed to the D-5/D-6 state (A6 / A0).
+5. `OrdersModal.tsx` protected-WIP handoff and migration (A3; plan in NEW4-4D-7A).
+6. D-3 / D-4 application-state verifier checks refreshed to the D-5/D-6 state (A6 / A0). D-4 **done** (NEW4-4D-7A); D-3 pending (A6).
 7. Dual-store QA on the production origin (upload, cart, PDP, admin, retention, withdrawal).
 8. Legacy object copy to GCS with verification.
 9. Supabase `workshop` bucket private cutover (drop insert / public select).
@@ -157,6 +157,38 @@ Code: `src/lib/workshopMediaDisplay.ts` (display controller, no Supabase import;
 11. Runtime proof that no page emits a public Supabase Workshop URL.
 12. Privacy finalization (CDN entry and markers removed; until then the CDN Privacy marker stays).
 13. A5 final QA.
+
+## OrdersModal protected-WIP handoff plan (NEW4-4D-7A, plan only)
+
+D-6 verifier 138/138 PASS. `OrdersModal.tsx` was **not** edited; it remains the protected cutover blocker. The other four protected files have no Workshop media and are not blockers.
+
+**WIP snapshot (read only, vs HEAD `cfb89cb`).** SHA-256 `23991DAF463BF8DDCF21F32E811421454457D04676ED2188C1F446F4966932D4`, LF in the working copy (do not let tooling convert to CRLF). Seven hunks, all modal/accessibility/layout/error UX, none touching images or Workshop:
+1. imports `cn`, `zClass` (L12–13)
+2. `loadError` state (L26)
+3. Escape-key effect (L50–59)
+4. `setLoadError` in `fetchOrders` (L65, L76)
+5. `role="dialog"` / `aria-modal` / `aria-labelledby`, `zClass('sheet')`, backdrop `<button>` (L118–128)
+6. panel `max-w-lg`, header without sticky blur, back-button `type` / `aria-label` / `focus-ring`, `id="orders-title"` (L135–154)
+7. load-error + "다시 시도" retry state (L164–178)
+
+**Current Workshop rendering (unchanged vs HEAD, L224–242).** One shared branch for catalog and Workshop: `getFullImageUrl(ji.user_image_url || ji.front_image, isWorkshop)`. Workshop snapshot `user_image_url` = preview. Legacy Supabase URL → rendered as stored (public bucket). Canonical path → `null` (D-4 guard) → `<Image>` placeholder. `onError` swaps in a picsum image for every item.
+
+**Preservation map.** KEEP EXACTLY + PRESERVE FOR NEW5: hunks 1–7, plus the unchanged status badge, `OrderStepper`, delivery info and empty state. SAFE A3 EDIT ZONE: one import line after L13; one hook call between the realtime effect (ends L107) and `if (!isOpen) return null;` (L109); the item thumbnail block L225–242. CONFLICT ZONE: NONE (the required edit overlaps no WIP hunk; the import addition is adjacent to hunk 1 but does not change it).
+
+**Minimal future A3 edit (display only).**
+- Imports: `useWorkshopMediaDisplay`, `workshopDisplayApi` from `../hooks/useWorkshopMediaDisplay`; `workshopOrderItemThumbRef` from `../lib/workshopMediaDisplay`. No new layer, no direct `workshopMedia` / core import. Keep `getFullImageUrl` for catalog items.
+- Hook (before the early return): `useWorkshopMediaDisplay(isOpen ? <Workshop items of loaded orders>.map((ji) => workshopOrderItemThumbRef(ji, workshopDisplayApi)) : [], 'customer')`.
+- Workshop items only (`product_id === 'workshop-single'`): thumb ref = `workshopOrderItemThumbRef` (preview first, never originals); `src` = `workshopMedia.get(ref).src`; null/loading/failed → existing `<Image>` placeholder; `<img referrerPolicy="no-referrer">`; `onError` → `workshopMedia.onLoadError(ref, src)` (no picsum swap for Workshop). No `crossOrigin` (plain `<img>`).
+- Catalog items: existing code path, unchanged.
+- Server authorizes customer previews from unpurged `orders.ordered_items` (`image`, `user_image_url`, `custom_config.preview_image_url`); purged orders → placeholder.
+- Lifecycle: the modal can stay open past 240 s; the hook re-resolves at 85 % of remaining lifetime and disposes on unmount. Realtime refetches do not re-sign unless the ref set changes (sorted key). No TTL logic or cache in OrdersModal.
+- Never: canonical path as `src`, Supabase URL synthesis, signed `src` in state/storage/DB/analytics, `ordered_items` rewrite, order-status change.
+
+**WIP-preserving method.** Owner first decides how the WIP lands: (a) **recommended**: owner commits or explicitly hands over the WIP as-is, then A3 edits on top; (b) A3 edits the dirty file and commits only its own hunks (`git add -p`), which is higher risk. Either way: record the before hash and save `git diff -- src/components/OrdersModal.tsx` outside the repo; edit only the three zones; no formatter, no import sorting, no line-ending change, no stash/reset/checkout/restore; afterwards confirm all seven pre-existing hunks are byte-identical in the new diff and only the planned zones changed. Any overlap found then = HANDOFF CONFLICT → stop and report.
+
+**Cutover.** Supabase `workshop` cannot go private before this migration: OrdersModal renders legacy order previews straight from the public bucket and has no resolver path, so order-history thumbnails would break. (Legacy URLs answered as `supabase_legacy` still point at the public bucket for every consumer; the legacy copy / resolver strategy in release-guard steps 8–9 stays required.)
+
+**Verifiers.** D-4 refreshed by A0 (87/87): the stale "no consumer imports resolver" / "live upload still Supabase" checks are replaced by forward-state checks (protected files unmigrated, core imported only by shared layers, no Supabase `workshop` upload / URL building anywhere in `src`, sign-upload → PUT → commit flow, release-gated cutover). D-3 still has one stale A6-owned check ("live client still uploads to Supabase workshop bucket"); A6 refresh pending.
 
 ## Path validation migration ordering (NEW4-4D-3, prepared, NOT applied)
 
@@ -217,9 +249,9 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 
 - ~~A0 NEW4-4D-4: shared Workshop media resolver.~~ **DONE locally.**
 - ~~A2 NEW4-4D-5: Workshop upload switch, resume, PDP workshop-single.~~ **DONE locally.** A4 targeted review of the WebGL texture expiry path recommended (no A4 code change required).
-- A0 / A6: update the D-4 R-scope and D-3 application-state snapshot checks to the D-5 / D-6 state (D-3 192/193, D-4 82/84 by design).
+- ~~A0: D-4 R-scope refresh.~~ **DONE locally (NEW4-4D-7A, 87/87).** A6: D-3 application-state check refresh (192/193 by design until then).
 - ~~A3 NEW4-4D-6: Cart, CartContext, admin consumers.~~ **DONE locally.**
-- A3: `OrdersModal.tsx` after the protected-WIP handoff (**cutover blocker**; synchronous `getFullImageUrl` keeps working for legacy URLs, returns null for canonical paths).
+- A3: `OrdersModal.tsx` after owner-approved protected-WIP handoff (**cutover blocker**; exact plan in NEW4-4D-7A; no overlap with existing WIP hunks).
 - A4: targeted review of expiring texture sources before final cutover (see D-6).
 - A6: deploy + env binding, migration apply, later tightening migration, legacy copy and cutover, Privacy finalization.
 

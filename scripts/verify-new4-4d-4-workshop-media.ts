@@ -518,14 +518,39 @@ async function main(): Promise<void> {
     const read = (f: string) => fs.readFileSync(path.join(root, f), 'utf8');
     const orders = read('src/components/OrdersModal.tsx');
     assert('R OrdersModal still on getFullImageUrl (not switched)', orders.includes('getFullImageUrl(ji.user_image_url || ji.front_image, isWorkshop)'));
-    const consumers = [
-      'src/components/Workshop/WorkshopView.tsx', 'src/lib/customComposition/durableHandoff.ts', 'src/components/ProductDetail.tsx',
-      'src/components/Cart.tsx', 'src/context/CartContext.tsx', 'src/components/admin/adminOrders.ts',
-      'src/components/admin/adminBestSellers.ts', 'src/components/admin/adminDashboard.ts', 'src/components/OrdersModal.tsx',
-      'src/components/InquiryModal.tsx', 'src/components/ProfileEditModal.tsx', 'src/components/ProfileOverlay.tsx', 'src/pages/ProfileComplete.tsx',
+    const listSource = (dir: string): string[] =>
+      fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((entry) => {
+        const rel = `${dir}/${entry.name}`;
+        if (entry.isDirectory()) return listSource(rel);
+        return /\.(ts|tsx)$/.test(entry.name) ? [rel] : [];
+      });
+    const sources = listSource('src').map((f) => ({ f, text: read(f) }));
+
+    const protectedFiles = [
+      'src/components/InquiryModal.tsx', 'src/components/OrdersModal.tsx', 'src/components/ProfileEditModal.tsx',
+      'src/components/ProfileOverlay.tsx', 'src/pages/ProfileComplete.tsx',
     ];
-    assert('R no consumer / protected file imports the resolver', consumers.every((f) => !/workshopMedia/.test(read(f))));
-    assert('R live upload still Supabase', /supabase\.storage\.from\('workshop'\)\.upload/.test(read('src/lib/customComposition/durableHandoff.ts')));
+    assert('R protected WIP files do not import the resolver (OrdersModal = known unmigrated consumer)',
+      protectedFiles.every((f) => !/workshopMedia/.test(read(f))));
+    const coreImporters = sources.filter(({ text }) => /from ['"][^'"]*workshopMediaCore['"]/.test(text)).map(({ f }) => f).sort();
+    assert('R only the shared layers import workshopMediaCore (display consumers use workshopMedia / display helpers)',
+      coreImporters.join() === [
+        'src/lib/customComposition/durableHandoff.ts', 'src/lib/utils.ts', 'src/lib/workshopMedia.ts', 'src/lib/workshopMediaDisplay.ts',
+      ].join(), coreImporters.join(', '));
+    const supabaseWorkshop = sources.filter(({ f, text }) =>
+      /storage\.from\(\s*['"]workshop['"]\s*\)/.test(text) ||
+      (f !== 'src/lib/workshopStorage.ts' && /storage\.from\(\s*WORKSHOP_BUCKET\s*\)/.test(text)) ||
+      /storage\.from\(\s*WORKSHOP_BUCKET\s*\)\s*\.(upload|getPublicUrl|createSignedUrl)/.test(text));
+    assert('R no source uploads to or builds URLs on the Supabase workshop bucket',
+      supabaseWorkshop.length === 0, supabaseWorkshop.map(({ f }) => f).join(', '));
+
+    const handoff = read('src/lib/customComposition/durableHandoff.ts');
+    assert('R source Workshop upload = sign-upload → signed PUT (regional host) → commit, discard on failure',
+      handoff.includes(`'${WORKSHOP_MEDIA_PATHS.signUpload}'`) && handoff.includes(`'${WORKSHOP_MEDIA_PATHS.commit}'`)
+      && handoff.includes(`'${WORKSHOP_MEDIA_PATHS.discard}'`) && /WORKSHOP_MEDIA_GCS_HOST/.test(handoff));
+    const note = read('docs/decisions/NEW4-4D_workshop-private-gcs.md');
+    assert('R production cutover stays release-gated (server deploy with WORKSHOP_GCS_* before migration / client upload)',
+      /1\. Deploy NEW4-4D-3 server code with `WORKSHOP_GCS_\*` bound/.test(note) && /2\. Apply this migration/.test(note));
     assert('R payment freeze unchanged', /PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = true/.test(read('src/lib/publicPaymentFreeze.ts')));
   }
 
