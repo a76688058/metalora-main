@@ -1,6 +1,6 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
+Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
 Production cutover: RELEASE-GATED. Production still runs `b9664fb` on Supabase Storage. HEAD must not be deployed until the release-plan blockers are cleared with owner approval. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
@@ -292,11 +292,72 @@ A health: `GET /api/health` 200 on the tag URL; candidate image digest = release
 
 A Foundation (done). B Candidate with env, migrations 1–5, smoke, migration 6. C Promotion: new uploads go to GCS. D Dual-store soak on the production origin (legacy + canonical; retention / withdrawal dual delete; A4 texture check). E Legacy copy (NEW4-4D-9 script). F Final delta copy. G Supabase `workshop` bucket private + drop authenticated insert policy. H Drop public select policy. I Delete legacy objects (only after copy verification; active orders preserved in GCS). J Wait ≥ 1 h CDN TTL + margin (Free plan, historical `cacheControl` 3600; recheck plan at release; on Pro use Smart CDN invalidation). K Prove no public Supabase Workshop URL is served or emitted (pages, API, RSS / OG / JSON-LD, admin) and public URLs return 4xx. L Privacy finalization, then the canonical-only tightening migration, then A5 final QA.
 
-Legacy refs after G: `supabase_legacy` answers still point at the public bucket. Before G, either DB refs must be rewritten to canonical paths (service-role, audited) or the server must answer legacy refs from GCS after the copy. **Decision required in NEW4-4D-9.**
+Legacy refs after G: **decided in NEW4-4D-9: the server answers legacy refs from GCS after the copy; DB refs are not rewritten** (see "Legacy continuity" below).
 
-### Legacy copy: NOT YET IMPLEMENTED
+## Legacy continuity, read bridge and copy tooling (NEW4-4D-9, A6)
 
-Next A6 ticket **NEW4-4D-9 (legacy Workshop object copy)**. Requirements: paginated Supabase listing (`originals/`, `previews/`, past 1000); same canonical path in GCS (signer, regional endpoint); create-only (`ifGenerationMatch: 0`); `Content-Type` + `Cache-Control: private, no-store`; size + MD5/CRC32C verification after write; manifest with counts / bytes / error classes only (no names, no UIDs); idempotent (existing identical object = skip; mismatch = report); delta pass; no Supabase delete until the GCS copy is verified; objects referenced by active orders / payment intents always preserved; non-canonical legacy names reported as counts with a separate disposition. Dry-run first.
+Status: **DONE locally, NOT RUN.** No customer object read or copied, no Supabase / GCS / IAM / Cloud Run mutation, no migration, no production inventory executed. Baseline HEAD `fc680e3`.
+
+### Continuity model (decided)
+
+Authorized legacy DB ref → server normalizes it to its canonical path → GCS HEAD → a **verified copy** is served as a regional signed GCS src; otherwise the item stays `supabase_legacy`. Historical `orders.ordered_items`, `payment_intents.validated_snapshot` and consent evidence are never rewritten. Mutable tables that could later be canonicalized (separate, audited, optional ticket; not needed for the bridge): `cart_items.custom_image` / `custom_config`, `user_progress.uploaded_image_url`.
+
+### Server bridge (`handleSignRead`, `workshopStorage.ts`)
+
+- Authorization is unchanged: the DB reference index decides. The bridge runs only for refs already authorized as `supabase_legacy`.
+- Response for a bridged item: `ref` = the original requested legacy ref, `store` = `gcs`, `src` = regional signed URL (300 s), `expiresAt`. The client resolver needs no change.
+- Served from GCS only if `isBridgeableLegacyCopy`: custom metadata `workshop_origin=supabase_legacy` and `workshop_copy_state=verified`, metadata path equals the normalized path, and `validateCommitMetadata` passes (content type matches the extension, 1 ≤ size ≤ cap, `Cache-Control: private, no-store`). A GCS object without the marker (e.g. a new-upload object at the same path) is never served for a legacy ref.
+- Flag `WORKSHOP_LEGACY_SUPABASE_FALLBACK_ENABLED` (not bound in Cloud Run; absent = `true`, backward-compatible):
+  - `true`: absent / unverified copy → `supabase_legacy`; GCS HEAD or sign error → `supabase_legacy` (logged as `legacy_fallback_gcs_error` / `legacy_fallback_sign_error`, reason class only).
+  - `false` (post-cutover): absent / unverified → item `{ ok: false, reason: 'unavailable' }` (client shows the placeholder); retryable GCS error → 503. Never a silent downgrade.
+  - any other value → media routes 503 `workshop_legacy_mode_invalid` (fail closed).
+- Discard refuses any object carrying the copy marker (409 `not_discardable`); retention / withdrawal own those objects.
+- **Cutover precondition (DEPENDENCY REQUEST A2 / A3, A0 to coordinate).** Today the consumers render legacy public URLs directly and never call sign-read for them: `workshopMediaDisplay.ts` (`isLegacy` → direct src; used by Cart / CartContext / admin / OrdersModal), `ProductDetail.tsx` (`isCanonicalWorkshopRef` gate), `WorkshopView.tsx` (non-canonical → direct). Before Phase G these consumers must route strict legacy refs through the resolver, so the bridge takes effect. Until then the bridge is inert for those surfaces (no regression).
+
+### Copy tool (`scripts/workshop-legacy-copy.ts` + `workshop-legacy-copy-core.ts`)
+
+- Modes: dry-run is the default (listing + DB scan + GCS metadata; `--verify-bytes` also reads and hashes). `--apply` requires `--confirm-production-copy=qifloweuwyhvukabgnoa` and always verifies bytes. Every run requires `--ack-readonly-production-inventory`. The payment-test project and unknown projects are refused. Conflicting or unknown flags are refused; `--concurrency` 1–8.
+- Guards: `WORKSHOP_GCS_BUCKET` must be the approved bucket and the endpoint regional. The ADC identity must be `workshop-legacy-copy@metalora-auth.iam.gserviceaccount.com`. No dotenv, no files written, output is one aggregate JSON (counters + gate) or a reason code.
+- Scope: only DB-referenced, strict-canonical source objects are copied. Unreferenced objects are counted, never copied (retention domain; deleted / withdrawn data is not resurrected). Orders are scanned with `image_purged_at IS NULL`; a purged order does not keep an object referenced. Referenced status is independent of object age (NEW4-6). Retained withdrawn-account order evidence stays referenced and bridgeable (NEW4-7).
+- Write: same canonical path; create-only (`ifGenerationMatch: 0`, single request, client `md5Hash` + `validation: 'md5'`); `Content-Type` from the extension, checked against magic bytes; `Cache-Control: private, no-store`; custom metadata `workshop_copy_state=written` + `workshop_source_sha256`. Then HEAD (size, MD5, SHA metadata, type, cache), target re-download + SHA-256 compare, then `setMetadata(state=verified)` with `ifMetagenerationMatch`. An interrupted `written` object is promoted only after the same checks. No public URL; signed URLs are never created or persisted.
+- Idempotency: existing verified identical → `target_matching`; any difference (bytes, size, type, cache, missing marker) → `target_conflict`, never overwritten.
+- Hash semantics: GCS `md5Hash` is the base64 MD5 of the stored bytes for non-composite single-request uploads (this tool's case); CRC32C is also stored by GCS but not used. Source integrity is SHA-256 over the downloaded bytes, stored as metadata and re-checked on the target bytes.
+- Bounds: 25 MiB originals / 5 MiB previews (listed size checked before download, actual size after), Supabase list pages of 1000 with offset paging, depth limit 6, DB keyset paging 1000 rows, bounded worker pool, 3 attempts with backoff for retryable errors.
+- No delete, move, bucket / policy / IAM / visibility change, no SQL writes (static-checked).
+
+### Classification (aggregate counters only)
+
+Source: A `canonical_bridgeable`, B `noncanonical_filename` (+ `noncanonical_referenced_source`), C `unexpected_prefix`, D `unsupported_extension`, E `malformed_path`, F `duplicate_target`, plus `oversize`, `placeholder_ignored`. Target: G `target_matching`, H `target_conflict`, I `target_missing`, plus `target_unverified`, `target_promoted`, `copied_verified`, `content_signature_mismatch`, `source_size_mismatch`, `copy_failed_*`. References: `referenced_legacy_total`, `legacy_ref_occurrences`, `canonical_refs`, `malformed_referenced` (legacy-host Workshop URL that is not strict canonical, e.g. non-UUID filename), `foreign_host_referenced`, `unrecognized_referenced`, `referenced_missing_source`, `referenced_legacy_resolvable_from_gcs`. A referenced unmappable object (non-UUID / malformed) is a **cutover blocker**.
+
+DB reference inventory (read-only, keyset): `user_progress.uploaded_image_url`, `cart_items.custom_image`, `cart_items.custom_config.original_image_url` / `preview_image_url`, `orders.ordered_items` (unpurged), `payment_intents.validated_snapshot`. No UIDs, order IDs, paths or URLs are output. **Must not be executed against production without owner approval.**
+
+### Machine cutover gate (`evaluateLegacyCutoverGate`)
+
+PASS only if all hold: byte-verified run (apply or `--verify-bytes`), inventory complete (no list / lookup errors, no absent table), no copy failures, `referenced_legacy_resolvable_from_gcs == referenced_legacy_total`, `target_conflict == 0`, `referenced_missing_source == 0`, `malformed_referenced == 0`, `unrecognized_referenced == 0`, `duplicate_target == 0`. Exceptions are never auto-adjudicated; each needs an explicit owner / A6 decision recorded here.
+
+### Execution architecture (recommended, not provisioned)
+
+**Cloud Run Job in asia-northeast3**, one task, keyless dedicated SA `workshop-legacy-copy@metalora-auth.iam.gserviceaccount.com`, job-specific image (the runtime Dockerfile has no `scripts/`). Bytes stay Seoul Supabase (ap-northeast-2) → Seoul job → Seoul bucket, never on an operator laptop. Rejected: local operator run (customer images transit a personal device + operator credentials); Storage Transfer Service (cannot authenticate to Supabase Storage); runtime-service endpoint (mixes the web SA with bulk copy).
+
+Minimal IAM for the job SA (owner approval required, none granted): bucket-level custom role with `storage.objects.create`, `storage.objects.get`, `storage.objects.list`, `storage.objects.update` (no delete, no bucket / IAM permissions); `roles/secretmanager.secretAccessor` on the one Supabase secret only. No signer TokenCreator (the job never signs). No keys.
+
+Supabase credential: `SUPABASE_SERVICE_ROLE_KEY` via a Secret Manager env reference (owner approval; it is broad). Supabase S3 access keys may be narrower but are unverified for this plan.
+
+### Source download
+
+supabase-js `storage.from('workshop').download(path)`: an authenticated Storage API object GET (`/storage/v1/object/workshop/<path>` with a service-role `Authorization` header), not the public `/object/public/` URL. It still traverses the Supabase API gateway / Cloudflare edge; avoiding the CDN entirely is **UNPROVEN**. The authenticated route is expected to be uncached, which is not verified.
+
+### Dual-store / delta flow
+
+1 dry-run (metadata) → 2 apply → 3 dry-run `--verify-bytes` → 4 soak (bridge live with fallback `true`, after the consumer switch) → 5 final delta dry-run → 6 final apply → 7 verify: gate PASS (zero unresolved). Then set the flag to `false` on a reviewed revision, then Phase G. Copy is not a purge: retention and withdrawal continue to delete in both stores.
+
+### Ops facts still required (owner read-only authorization; not inferred)
+
+`workshop` bucket `public` flag; `storage.objects` policies on `workshop`; aggregate object counts / bytes per class; malformed / non-UUID referenced counts (the tool's dry-run produces these once approved); Supabase plan (Free vs Pro); live `add_custom_cart_item` signature.
+
+### Verifier
+
+`npx tsx scripts/verify-new4-4d-9-legacy-copy.ts` (mocked; bridge A–K, copy args / classification / dry-run / apply / retry / delta / semantics / static safety).
 
 ### Supabase production state: OPS FACT REQUIRED
 
@@ -387,7 +448,8 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 - ~~A2 NEW4-4D-5: Workshop upload switch, resume, PDP workshop-single.~~ **DONE locally.** A4 targeted review of the WebGL texture expiry path recommended (no A4 code change required).
 - ~~A0: D-4 R-scope refresh.~~ **DONE locally (NEW4-4D-7A, then NEW4-4D-7C post-D-7B, 95/95).** ~~A6: D-3 application-state check refresh.~~ **DONE locally (NEW4-4D-8).**
 - ~~A2: `referrerPolicy="no-referrer"` on PDP Workshop-capable `<img>`.~~ **DONE locally (NEW4-4D-8A).**
-- A6: legacy copy script (NEW4-4D-9), deploy tooling for env-in-candidate, release execution (NEW4-4D-10).
+- ~~A6: legacy copy script and read bridge (NEW4-4D-9).~~ **DONE locally, not run.** A6: deploy tooling for env-in-candidate, release execution (NEW4-4D-10), owner-approved dry-run / copy execution.
+- A2 (`ProductDetail`, `WorkshopView`) / A3 (`workshopMediaDisplay` consumers): route strict legacy refs through the resolver (NEW4-4D-9 cutover precondition; A0 coordinates).
 - ~~A3 NEW4-4D-6: Cart, CartContext, admin consumers.~~ **DONE locally.**
 - ~~A3: `OrdersModal.tsx` after owner-approved protected-WIP handoff.~~ **DONE locally (NEW4-4D-7B)**; its seven pre-existing WIP hunks stay uncommitted for later Member/Account UX work.
 - A4: targeted review of expiring texture sources before final cutover (see D-6), plus no-referrer texture loading (see NEW4-4D-8A). Phase D QA; not a promotion blocker.
@@ -419,4 +481,4 @@ A6: GCS ops/IAM, adapter, server endpoints, migrations, NEW4-6/7 integration, le
 
 ## Relevant files
 
-`src/lib/workshopStorage.ts`, `src/lib/workshopMediaCore.ts`, `src/lib/workshopMedia.ts`, `src/lib/utils.ts`, `scripts/verify-new4-4d-4-workshop-media.ts`, `src/lib/customComposition/durableHandoff.ts`, `src/components/Workshop/WorkshopView.tsx`, `src/components/ProductDetail.tsx`, `scripts/verify-new4-4d-5-workshop-client.ts`, `src/lib/workshopMediaDisplay.ts`, `src/hooks/useWorkshopMediaDisplay.ts`, `src/context/CartContext.tsx`, `src/components/Cart.tsx`, `src/components/admin/adminOrders.ts`, `src/pages/AdminOrders.tsx`, `src/components/admin/adminBestSellers.ts`, `src/pages/AdminBestSellers.tsx`, `scripts/verify-new4-4d-6-cart-admin.ts`, `src/components/OrdersModal.tsx`, `scripts/verify-new4-4d-7b-ordersmodal.ts`, `src/components/pdp/ProductTheatreStage.tsx`, `src/components/pdp/ProductTheatreRoomPreview.tsx`, `src/components/pdp/ProductTruthSection.tsx`, `src/components/pdp/ProductMountIncluded.tsx`, `src/components/pdp/factualVisuals.tsx`, `src/components/pdp/story/PdpStorySection.tsx`, `src/components/pdp/story/PdpStoryStatic.tsx`, `src/components/pdp/story/PdpStoryMobile.tsx`, `scripts/verify-new4-4d-8a-pdp-referrer.ts`, `src/lib/workshopRetention.ts`, `src/lib/accountWithdrawal.ts`, `server.ts`, `supabase/migrations/20261007100000_new4_4d_path_validation.sql`, `scripts/verify-new4-4d-3-workshop-media.ts`, `scripts/verify-workshop-gcs-foundation.ts`, `.env.example`, `package.json`, `package-lock.json`, `docs/decisions/NEW4-4_privacy-processors.md`.
+`src/lib/workshopStorage.ts`, `src/lib/workshopMediaCore.ts`, `src/lib/workshopMedia.ts`, `src/lib/utils.ts`, `scripts/verify-new4-4d-4-workshop-media.ts`, `src/lib/customComposition/durableHandoff.ts`, `src/components/Workshop/WorkshopView.tsx`, `src/components/ProductDetail.tsx`, `scripts/verify-new4-4d-5-workshop-client.ts`, `src/lib/workshopMediaDisplay.ts`, `src/hooks/useWorkshopMediaDisplay.ts`, `src/context/CartContext.tsx`, `src/components/Cart.tsx`, `src/components/admin/adminOrders.ts`, `src/pages/AdminOrders.tsx`, `src/components/admin/adminBestSellers.ts`, `src/pages/AdminBestSellers.tsx`, `scripts/verify-new4-4d-6-cart-admin.ts`, `src/components/OrdersModal.tsx`, `scripts/verify-new4-4d-7b-ordersmodal.ts`, `src/components/pdp/ProductTheatreStage.tsx`, `src/components/pdp/ProductTheatreRoomPreview.tsx`, `src/components/pdp/ProductTruthSection.tsx`, `src/components/pdp/ProductMountIncluded.tsx`, `src/components/pdp/factualVisuals.tsx`, `src/components/pdp/story/PdpStorySection.tsx`, `src/components/pdp/story/PdpStoryStatic.tsx`, `src/components/pdp/story/PdpStoryMobile.tsx`, `scripts/verify-new4-4d-8a-pdp-referrer.ts`, `scripts/workshop-legacy-copy.ts`, `scripts/workshop-legacy-copy-core.ts`, `scripts/verify-new4-4d-9-legacy-copy.ts`, `src/lib/workshopRetention.ts`, `src/lib/accountWithdrawal.ts`, `server.ts`, `supabase/migrations/20261007100000_new4_4d_path_validation.sql`, `scripts/verify-new4-4d-3-workshop-media.ts`, `scripts/verify-workshop-gcs-foundation.ts`, `.env.example`, `package.json`, `package-lock.json`, `docs/decisions/NEW4-4_privacy-processors.md`.

@@ -54,6 +54,7 @@ import {
   isWorkshopMediaOrSignedValue,
   legacySupabaseHosts,
   readWorkshopGcsConfig,
+  readWorkshopLegacyFallback,
   workshopGcsStoreFor,
   workshopRefIdentity,
   type WorkshopMediaCaller,
@@ -154,6 +155,7 @@ const supabasePublic = (supabaseUrl && supabaseAnonKey)
 // Workshop media (NEW4-4D-3). GCS is enabled only by the exact approved WORKSHOP_GCS_* values;
 // partial/non-approved config fails closed. Live Workshop uploads stay on Supabase until cutover.
 const workshopGcsConfig = readWorkshopGcsConfig(process.env);
+const workshopLegacyFallback = readWorkshopLegacyFallback(process.env);
 const workshopLegacyHosts = legacySupabaseHosts(supabaseUrl);
 const workshopRefOptions = { legacyHosts: workshopLegacyHosts };
 
@@ -2110,6 +2112,9 @@ async function startServer() {
   if (workshopGcsConfig.state !== "ready") {
     console.log("[WORKSHOP_MEDIA]", { gcs_config: workshopGcsConfig.state });
   }
+  console.log("[WORKSHOP_MEDIA]", {
+    legacy_fallback: workshopLegacyFallback.state === "ready" ? workshopLegacyFallback.enabled : "invalid",
+  });
 
   const resolveWorkshopMediaCaller = async (
     authorizationHeader: string | undefined,
@@ -2153,11 +2158,15 @@ async function startServer() {
         if (workshopGcsConfig.state !== "ready") {
           return res.status(503).json({ error: "workshop_gcs_not_configured" });
         }
+        if (workshopLegacyFallback.state !== "ready") {
+          return res.status(503).json({ error: "workshop_legacy_mode_invalid" });
+        }
         const result = await handler(
           {
             gcs: workshopGcsStoreFor(workshopGcsConfig),
             references: createSupabaseWorkshopReferenceSource(supabaseAdmin!),
             legacyHosts: workshopLegacyHosts,
+            legacyFallback: workshopLegacyFallback.enabled,
           },
           auth.caller,
           req.body,

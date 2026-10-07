@@ -31,6 +31,21 @@ export const WORKSHOP_SIGN_READ_BATCH_MAX = 20;
 export const WORKSHOP_DISCARD_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const WORKSHOP_STORAGE_LIST_PAGE = 1000;
 
+/** GCS custom metadata written by the legacy copy tool (NEW4-4D-9). Values are fixed tokens or a hash. */
+export const WORKSHOP_LEGACY_COPY_METADATA = {
+  origin: 'workshop_origin',
+  state: 'workshop_copy_state',
+  sourceSha256: 'workshop_source_sha256',
+} as const;
+export const WORKSHOP_LEGACY_COPY_ORIGIN = 'supabase_legacy';
+export type WorkshopLegacyCopyState = 'written' | 'verified';
+
+/**
+ * Server-side legacy read mode. Absent = `true` (transition: uncopied legacy refs keep the
+ * Supabase response). `false` = post-cutover: legacy refs resolve from verified GCS copies only.
+ */
+export const WORKSHOP_LEGACY_FALLBACK_ENV = 'WORKSHOP_LEGACY_SUPABASE_FALLBACK_ENABLED';
+
 export const WORKSHOP_MEDIA_PATHS = {
   signUpload: '/api/workshop-media/sign-upload',
   signRead: '/api/workshop-media/sign-read',
@@ -263,7 +278,12 @@ function extensionForContentType(kind: WorkshopMediaKind, contentType: string): 
   return 'jpg';
 }
 
-function contentTypeForExtension(ext: string): string | null {
+/** Strict canonical object path (no URL forms). */
+export function parseCanonicalWorkshopPath(path: string): ParsedWorkshopRef | null {
+  return parseStrictCanonicalPath(path, 'canonical');
+}
+
+export function contentTypeForExtension(ext: string): string | null {
   if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
   if (ext === 'png') return 'image/png';
   if (ext === 'webp') return 'image/webp';
@@ -324,6 +344,18 @@ export function readWorkshopGcsConfig(env: Record<string, string | undefined>): 
   return { state: 'ready', config: { bucket, endpointHost, signerSa: signer } };
 }
 
+export type WorkshopLegacyFallbackResult =
+  | { state: 'ready'; enabled: boolean }
+  | { state: 'invalid' };
+
+/** `true` / absent → fallback on; `false` → off; anything else fails closed. */
+export function readWorkshopLegacyFallback(env: Record<string, string | undefined>): WorkshopLegacyFallbackResult {
+  const raw = (env[WORKSHOP_LEGACY_FALLBACK_ENV] ?? '').trim().toLowerCase();
+  if (raw === '' || raw === 'true') return { state: 'ready', enabled: true };
+  if (raw === 'false') return { state: 'ready', enabled: false };
+  return { state: 'invalid' };
+}
+
 export class WorkshopStorageConfigError extends Error {
   constructor(readonly reason: string) {
     super('workshop_gcs_config_invalid');
@@ -361,6 +393,8 @@ export type WorkshopObjectMetadata = {
   contentType: string | null;
   cacheControl: string | null;
   createdAtMs: number | null;
+  /** Set only on objects written by the legacy copy tool. */
+  legacyCopy?: WorkshopLegacyCopyState | null;
 };
 
 export type WorkshopSignedUpload = {
@@ -540,6 +574,14 @@ export function workshopUploadHeaders(contentType: string, maxBytes: number): Re
   };
 }
 
+/** Copy-tool state from GCS custom metadata; null unless the origin marker is exact. */
+export function legacyCopyStateOf(custom: unknown): WorkshopLegacyCopyState | null {
+  const rec = asRecord(custom);
+  if (!rec || rec[WORKSHOP_LEGACY_COPY_METADATA.origin] !== WORKSHOP_LEGACY_COPY_ORIGIN) return null;
+  const state = rec[WORKSHOP_LEGACY_COPY_METADATA.state];
+  return state === 'written' || state === 'verified' ? state : null;
+}
+
 function gcsErrorCode(error: unknown): number | null {
   const code = (error as { code?: unknown })?.code;
   return typeof code === 'number' ? code : null;
@@ -631,6 +673,7 @@ export function createGcsWorkshopStore(
           contentType: typeof meta.contentType === 'string' ? meta.contentType : null,
           cacheControl: typeof meta.cacheControl === 'string' ? meta.cacheControl : null,
           createdAtMs: Number.isFinite(created) ? created : null,
+          legacyCopy: legacyCopyStateOf(meta.metadata),
         };
       } catch (error) {
         if (gcsErrorCode(error) === 404) return null;
@@ -919,6 +962,8 @@ export type WorkshopMediaDeps = {
   gcs: WorkshopGcsObjectStore | null;
   references: WorkshopReferenceSource;
   legacyHosts: readonly string[];
+  /** Transition fallback for legacy refs without a verified GCS copy. Undefined = enabled. */
+  legacyFallback?: boolean;
   now?: () => number;
 };
 
@@ -988,7 +1033,50 @@ export async function handleSignUpload(
 type SignReadItem =
   | { ref: string; ok: true; store: 'gcs'; src: string; expiresAt: string }
   | { ref: string; ok: true; store: 'supabase_legacy' }
-  | { ref: string; ok: false; reason: 'invalid_ref' | 'not_authorized' };
+  | { ref: string; ok: false; reason: 'invalid_ref' | 'not_authorized' | 'unavailable' };
+
+/** A GCS object may stand in for a legacy ref only if the copy tool verified it and it is servable. */
+export function isBridgeableLegacyCopy(parsed: ParsedWorkshopRef, meta: WorkshopObjectMetadata | null): boolean {
+  if (!meta || meta.legacyCopy !== 'verified' || meta.path !== parsed.path) return false;
+  return validateCommitMetadata(parsed, meta).ok === true;
+}
+
+type LegacyBridgeOutcome =
+  | { kind: 'gcs'; src: string; expiresAt: string }
+  | { kind: 'legacy' }
+  | { kind: 'unavailable' }
+  | { kind: 'failure'; response: WorkshopMediaResponse };
+
+/**
+ * Authorized legacy ref → verified GCS copy at the same canonical path, else the transition
+ * fallback. Fallback off (post-cutover): absent/unverified → unavailable, GCS errors → 503.
+ */
+async function bridgeLegacyRead(
+  gcs: WorkshopGcsObjectStore,
+  parsed: ParsedWorkshopRef,
+  fallback: boolean,
+): Promise<LegacyBridgeOutcome> {
+  let meta: WorkshopObjectMetadata | null;
+  try {
+    meta = await gcs.head(parsed.path);
+  } catch (error) {
+    if (!fallback) return { kind: 'failure', response: storageFailure(error, 'sign_read_legacy') };
+    console.error('[WORKSHOP_MEDIA]', { op: 'sign_read_legacy', reason_class: 'legacy_fallback_gcs_error' });
+    return { kind: 'legacy' };
+  }
+  if (!isBridgeableLegacyCopy(parsed, meta)) {
+    if (meta) console.error('[WORKSHOP_MEDIA]', { op: 'sign_read_legacy', reason_class: 'legacy_copy_unverified' });
+    return fallback ? { kind: 'legacy' } : { kind: 'unavailable' };
+  }
+  try {
+    const signed = await gcs.signRead(parsed.path);
+    return { kind: 'gcs', src: signed.url, expiresAt: signed.expiresAt };
+  } catch (error) {
+    if (!fallback) return { kind: 'failure', response: storageFailure(error, 'sign_read_legacy') };
+    console.error('[WORKSHOP_MEDIA]', { op: 'sign_read_legacy', reason_class: 'legacy_fallback_sign_error' });
+    return { kind: 'legacy' };
+  }
+}
 
 export async function handleSignRead(
   deps: WorkshopMediaDeps,
@@ -1034,7 +1122,21 @@ export async function handleSignRead(
       continue;
     }
     if (store === 'supabase_legacy') {
-      items.push({ ref, ok: true, store });
+      const fallback = deps.legacyFallback !== false;
+      if (!deps.gcs) {
+        if (!fallback) return GCS_UNAVAILABLE;
+        items.push({ ref, ok: true, store });
+        continue;
+      }
+      const bridged = await bridgeLegacyRead(deps.gcs, p, fallback);
+      if (bridged.kind === 'failure') return bridged.response;
+      if (bridged.kind === 'gcs') {
+        items.push({ ref, ok: true, store: 'gcs', src: bridged.src, expiresAt: bridged.expiresAt });
+      } else if (bridged.kind === 'legacy') {
+        items.push({ ref, ok: true, store: 'supabase_legacy' });
+      } else {
+        items.push({ ref, ok: false, reason: 'unavailable' });
+      }
       continue;
     }
     if (!deps.gcs) return GCS_UNAVAILABLE;
@@ -1122,6 +1224,7 @@ export async function handleDiscard(
   try {
     const meta = await deps.gcs.head(path);
     if (!meta) return { status: 200, body: { path, discarded: false, already_absent: true } };
+    if (meta.legacyCopy) return { status: 409, body: { error: 'not_discardable' } };
     const now = deps.now ? deps.now() : Date.now();
     if (meta.createdAtMs == null || now - meta.createdAtMs > WORKSHOP_DISCARD_MAX_AGE_MS) {
       return { status: 409, body: { error: 'not_discardable' } };

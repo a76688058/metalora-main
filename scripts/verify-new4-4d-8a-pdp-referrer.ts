@@ -190,12 +190,18 @@ function main(): void {
   for (const rel of [
     'src/lib/workshopMedia.ts',
     'src/lib/workshopMediaCore.ts',
-    'src/lib/workshopStorage.ts',
     'src/lib/utils.ts',
     'src/lib/customComposition/durableHandoff.ts',
   ]) {
     assert(`${rel} identical to ${BASELINE}`, read(rel) === readBaseline(rel));
   }
+  // Server-side storage gained the NEW4-4D-9 legacy bridge (verified by verify-new4-4d-9); it must stay additive.
+  const exportsOf = (s: string) => s.split('\n').filter((l) => /^export /.test(l)).map((l) => l.trim());
+  const storageNow = read('src/lib/workshopStorage.ts');
+  assert(
+    'src/lib/workshopStorage.ts keeps every baseline export (additive only)',
+    exportsOf(readBaseline('src/lib/workshopStorage.ts')).every((l) => storageNow.includes(l)),
+  );
   const hookOf = (s: string) => s.slice(s.indexOf('function useWorkshopPreviewSrc'), s.indexOf('function PdpStatusScreen'));
   assert('ProductDetail useWorkshopPreviewSrc unchanged', hookOf(src.pdp) === hookOf(readBaseline(FILES.pdp)));
 
