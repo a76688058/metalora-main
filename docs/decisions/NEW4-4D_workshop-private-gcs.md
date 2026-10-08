@@ -1,6 +1,6 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated; production read-only inventory: rerun captured output but the DB reference scan failed, so the inventory is incomplete; Supabase `workshop` bucket VERIFIED public; scanner fix + rebuilt job image DONE (NEW4-4D-9D-3), BLOCKED pending one owner-approved execution (NEW4-4D-9D / 9D-1 / 9D-2 / 9D-3; all temporary bindings removed). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
+Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated; production read-only inventory: rerun captured output but the DB reference scan failed, so the inventory is incomplete; Supabase `workshop` bucket VERIFIED public; scanner fix + rebuilt job DONE and executed once (NEW4-4D-9D-3): references + source complete, critical three 0, 22 source objects all outside `originals/` / `previews/`, target GCS listing failed, so inventory INCOMPLETE; BLOCKED pending an owner decision on the target phase (NEW4-4D-9D / 9D-1 / 9D-2 / 9D-3; all temporary bindings removed). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
 Production cutover: RELEASE-GATED. Production still runs `b9664fb` on Supabase Storage. HEAD must not be deployed until the release-plan blockers are cleared with owner approval. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
@@ -480,7 +480,7 @@ Then re-run once under the same three temporary bindings.
 
 ## Inventory scanner fix + rebuild (NEW4-4D-9D-3, A6)
 
-Status: **BLOCKED — EXECUTION NOT RUN (owner skipped the execution approval, 2026-10-08).** Fix, image and job update are DONE; the critical counters are still **NOT MEASURED**.
+Status: **BLOCKED — TARGET LISTING FAILED (see "Execution").** Fix, image and job update are DONE. The first execution approval was skipped; the owner then approved one execution.
 
 - **Tooling fix (`fe1ee1b`, `fix(workshop): harden production inventory scan`):**
   - Each reference table is scanned independently and reports `reference_sources.<table>` = ok / absent / failed, plus `reference_failures.<table>` = a sanitized code (SQLSTATE / PostgREST code, `http_<status>`, `no_code` or `request_failed`). Messages are never output.
@@ -496,7 +496,37 @@ Status: **BLOCKED — EXECUTION NOT RUN (owner skipped the execution approval, 2
 - **Temporary IAM:** all three granted and verified exact, then removed when the execution was skipped. Verified **ABSENT** (0 bindings on project / secret / bucket), 0 SA keys.
 - **Execution:** **none.** Executions remain `tl929` and `6vwsj` only. No customer data read, no copy, no Supabase / GCS object mutation, `metalora-direct` untouched.
 
-Resume: with owner approval, grant the same three bindings, then run `gcloud run jobs execute workshop-metadata-inventory --region=asia-northeast3 --wait` once (no job update needed). Remove the bindings and verify ABSENT, leak-scan stdout, then record completeness, sanitized codes and the critical three.
+### Execution (owner-approved, 2026-10-08)
+
+Status: **BLOCKED — TARGET GCS LISTING FAILED (inventory incomplete).**
+
+- **Execution:** `workshop-metadata-inventory-wn9sh`, run exactly once.
+  - Cloud Run reports FAILED: the container called `exit(3)` because the inventory is incomplete. This is by design.
+  - No retry and no other execution. No rebuild or update; image `sha256:1be579a4…7031`.
+- **Temporary IAM:** the same three bindings were granted and verified exact, then removed in `finally`. Verified **ABSENT**; 0 SA keys.
+- **Log safety:** 94 stdout lines, 0 stderr, aggregate JSON only. The leak scan (UUID, URL, Supabase host, customer prefixes, JWT, Bearer, email, signed params, stack, long hex, order number, raw DB text, secret names) found **0 hits**.
+- **Phases:**
+  - `bucket_facts_complete = true`, `reference_scan_complete = true`, `source_inventory_complete = true`.
+  - `target_inventory_complete = false` (`target_list_errors = 1`).
+  - `reference_lookup_errors = 0`, `source_list_errors = 0`.
+- **References:**
+  - All four tables `ok`, no failures, `tables_absent = 0`.
+  - **`orders_purge_column_absent = true`.** Production predates NEW4-6, so the purge-column filter was the 9D-2 failure cause; the fallback scanned all orders.
+  - `reference_values_scanned = 0`: no non-null string value in any scanned Workshop field. Row counts are not instrumented.
+  - Every reference counter is 0 (`referenced_legacy_total`, `canonical_refs`, `malformed`, `non_uuid`, `unrecognized`, `foreign_host`).
+- **Source (Supabase `workshop`):**
+  - `source_objects_total = 22`, `source_bytes_total = 39808349`.
+  - `originals_total = 0`, `previews_total = 0`, **`unexpected_prefix = 22`**.
+  - `canonical_bridgeable = 0`, `noncanonical_filename = 0`, `malformed_path = 0`, `unsupported_extension = 0`, `oversize = 0`, `placeholder_ignored = 0`.
+  - Bucket: exists true, public true, size limit null, MIME null.
+- **Critical three (MEASURED: references + source complete):** `non_uuid_referenced = 0`, `malformed_referenced = 0`, `referenced_missing_source = 0`.
+  - Assessment stays **INVENTORY_INCOMPLETE** because the target phase is incomplete.
+- **Target:** not measured. The failure class of the target listing is not logged; the cause is UNEXPLAINED. A plausible but unconfirmed cause is bucket-IAM propagation within about 20 s of the grant.
+- `byte_read_attempts = 0`, `write_attempts = 0`. No customer bytes, no copy, no Supabase / GCS mutation, `metalora-direct` unchanged.
+
+Owner decisions:
+1. Whether to accept the target state measured by the operator in NEW4-4D-9D (1 object, 0 customer-prefix, 0 markers), or approve a sanitized target-error code plus one more rerun with a longer IAM-propagation wait.
+2. What to do with the 22 objects outside `originals/` / `previews/`, none of them DB-referenced. They are not copy candidates under the current tool. An aggregate-only prefix-shape classification would be needed before any decision.
 
 ### Supabase production state: OPS FACT REQUIRED
 
@@ -587,7 +617,7 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 - ~~A2 NEW4-4D-5: Workshop upload switch, resume, PDP workshop-single.~~ **DONE locally.** A4 targeted review of the WebGL texture expiry path recommended (no A4 code change required).
 - ~~A0: D-4 R-scope refresh.~~ **DONE locally (NEW4-4D-7A, then NEW4-4D-7C post-D-7B, 95/95).** ~~A6: D-3 application-state check refresh.~~ **DONE locally (NEW4-4D-8).**
 - ~~A2: `referrerPolicy="no-referrer"` on PDP Workshop-capable `<img>`.~~ **DONE locally (NEW4-4D-8A).**
-- ~~A6: legacy copy script and read bridge (NEW4-4D-9).~~ **DONE locally, not run.** A6: deploy tooling for env-in-candidate, release execution (NEW4-4D-10), owner-approved dry-run / copy execution. NEW4-4D-9D-1 / 9D-2 Seoul inventory job: second run captured, DB reference scan failed; tooling fix + image rebuild DONE (`fe1ee1b`, NEW4-4D-9D-3), **one owner-approved execution still required** (see "Inventory scanner fix + rebuild").
+- ~~A6: legacy copy script and read bridge (NEW4-4D-9).~~ **DONE locally, not run.** A6: deploy tooling for env-in-candidate, release execution (NEW4-4D-10), owner-approved dry-run / copy execution. NEW4-4D-9D-1 / 9D-2 Seoul inventory job: second run captured, DB reference scan failed; tooling fix + image rebuild DONE (`fe1ee1b`, NEW4-4D-9D-3), executed once (`wn9sh`): **target listing failed; owner decision on the target phase + the 22 unexpected-prefix objects required** (see "Inventory scanner fix + rebuild").
 - ~~A2 (`ProductDetail`, `WorkshopView`): route strict legacy refs through the resolver.~~ **DONE locally (NEW4-4D-9A).** ~~A3 (`workshopMediaDisplay` consumers: Cart / CartContext / admin / OrdersModal): same, NEW4-4D-9B.~~ **DONE locally (NEW4-4D-9B; D-9A aligned in NEW4-4D-9C).**
 - ~~A3 NEW4-4D-6: Cart, CartContext, admin consumers.~~ **DONE locally.**
 - ~~A3: `OrdersModal.tsx` after owner-approved protected-WIP handoff.~~ **DONE locally (NEW4-4D-7B)**; its seven pre-existing WIP hunks stay uncommitted for later Member/Account UX work.
