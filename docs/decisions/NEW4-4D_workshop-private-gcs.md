@@ -1,6 +1,6 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated; production read-only inventory: rerun captured output but the DB reference scan failed, so the inventory is incomplete; Supabase `workshop` bucket VERIFIED public; scanner fix + rebuilt job DONE and executed once (NEW4-4D-9D-3): references + source complete, critical three 0, 22 source objects all outside `originals/` / `previews/`, target GCS listing failed (owner accepted the 9D target baseline instead); aggregate source-structure classifier DONE locally, NOT RUN (NEW4-4D-9D-4, rebuild approval pending) (NEW4-4D-9D / 9D-1 / 9D-2 / 9D-3; all temporary bindings removed). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
+Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated; production read-only inventory: rerun captured output but the DB reference scan failed, so the inventory is incomplete; Supabase `workshop` bucket VERIFIED public; scanner fix + rebuilt job DONE and executed once (NEW4-4D-9D-3): references + source complete, critical three 0, 22 source objects all outside `originals/` / `previews/`, target GCS listing failed (owner accepted the 9D target baseline instead); source structure classified (NEW4-4D-9D-4A): all 22 are unreferenced root-level images, disposition = owner decision; with 0 DB references the legacy copy set is currently empty (NEW4-4D-9D / 9D-1 / 9D-2 / 9D-3; all temporary bindings removed). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
 Production cutover: RELEASE-GATED. Production still runs `b9664fb` on Supabase Storage. HEAD must not be deployed until the release-plan blockers are cleared with owner approval. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
@@ -530,7 +530,7 @@ Owner decisions:
 
 ## Legacy source structure classification (NEW4-4D-9D-4, A6)
 
-Status: **BLOCKED — NOT RUN (image rebuild not approved).** The classifier is DONE locally (`c3ce83a`, D-9 222/222). No IAM grant, no job update, no execution, no remote action.
+Status: **DONE — CLASSIFIED (NEW4-4D-9D-4A).** The 22 unexpected-prefix objects are classified, aggregate only. Their disposition is an **owner decision** (see "Result").
 
 - **Owner decision (2026-10-08):** the NEW4-4D-9D target state (1 object, 0 customer-prefix, 0 copy markers) is the accepted target **baseline**. No GCS object mutation has happened since. Target must be re-verified before any actual copy or final cutover.
 - **Classifier:** every metadata-only report now carries `source_structure`, which holds category counts only:
@@ -544,13 +544,39 @@ Status: **BLOCKED — NOT RUN (image rebuild not approved).** The classifier is 
   - DB-referenced vs unreferenced.
 
   Names are held in memory only for deduplication and are never output. Job arguments and entrypoint are unchanged.
-- **Blocker:** running it needs a rebuild of the inventory image from `c3ce83a` and an update of the existing job's image. Both are outside the 9D-4 approval as written, and the owner skipped that approval card.
+- The first rebuild attempt was outside the 9D-4 approval and was skipped. 9D-4A then approved the rebuild + job update.
 
-Resume (owner approval needed for the rebuild + job update):
-1. Build from a clean `git archive` of `c3ce83a` into the existing repository.
-2. Grant the Secret Accessor first (Cloud Run validates the secret reference at deploy time), then logWriter.
-3. Update the job image, then execute once. Do **not** grant the bucket role: the target phase will report incomplete and exit 3 by design, per the accepted baseline.
-4. Remove both grants and verify ABSENT, then leak-scan and record `source_structure`.
+### Execution (NEW4-4D-9D-4A, owner-approved)
+
+- **Image:** clean `git archive` of `c3ce83a` (no protected WIP, no `dist/`, no `.env`). Cloud Build `21928078`, existing repository, tag = full SHA, digest `sha256:dcec08eebc125305ec182b913f715898d3c6f0a0251b29c1a716741925144d54`. The job image was updated; SA, region, entrypoint, fixed arguments, maxRetries 0 and 1 task are unchanged.
+- **Temporary IAM:** Secret Accessor (that secret only) and project `roles/logging.logWriter` were granted for the update + run, then removed in `finally`. Verified **ABSENT**, 0 keys. The bucket role was **not granted**.
+- **Execution:** `workshop-metadata-inventory-nzrt7`, exactly once.
+  - It ended FAILED via `exit(3)`, as expected: the target phase was not permitted, so `target_list_errors = 1`.
+  - The owner declared this not a blocker; the accepted target baseline applies.
+- **Log safety:** 154 stdout lines, 0 stderr. Leak scan found 0 identifier / path / URL / secret / raw DB hits. The broad quoted-slash pattern matched 3 strings, and all 3 were fixed MIME allowlist keys.
+- **Phases:** bucket, references and source complete; target NOT_MEASURED (by design). Reference results are identical to `wn9sh`: all four tables ok, `orders_purge_column_absent = true`, `reference_values_scanned = 0`. Critical three are 0.
+- `byte_read_attempts = 0`, `write_attempts = 0`. No customer bytes, no copy, no Supabase / GCS mutation, `metalora-direct` unchanged.
+
+### Result (`source_structure`, 22 objects, 39 808 349 bytes)
+
+| Category | Counts |
+|---|---|
+| Location | All 22 are **root-level files** (no folder): 0 one-level, 0 multi-level, 0 under `originals/` / `previews/`; distinct prefixes 0 |
+| Filename shape | 22 other (0 UUID-like, 0 timestamp-like) |
+| Extension | jpeg 11, jpg 2, png 8, webp 1 |
+| MIME | image/jpeg 13, image/png 8, image/webp 1 (consistent with extensions) |
+| Size | min 18 096, max 4 861 887; <100 KB 3, <1 MB 9, <5 MB 10, ≥5 MB 0 |
+| Age | all 22 in the 90–365 days bucket |
+| DB references | 0 referenced, 22 unreferenced |
+
+Interpretation, limited to these facts: these are image files placed directly at the bucket root, not uploads under the canonical Workshop layout, and nothing in the DB points to them. **What they are is NOT determined.** It must not be inferred from these counts (for example, that they are samples or assets).
+
+**Owner decision required:**
+1. Keep them as-is in Supabase.
+2. Copy them to a separate non-customer location.
+3. Delete them.
+
+None of these is approved. Deletion or a copy needs its own ticket, and identifying the objects needs owner-side inspection, because the tool never outputs names. They do not affect the legacy copy, which only copies DB-referenced canonical objects. With 0 references, the copy set is currently **empty**.
 
 ### Supabase production state: OPS FACT REQUIRED
 
