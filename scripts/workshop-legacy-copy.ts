@@ -38,8 +38,11 @@ import {
   LegacyCopyError,
   formatLegacyCopyReport,
   legacyCopyWriteMetadata,
+  legacyInventoryExitCode,
   parseLegacyCopyArgs,
   runLegacyCopy,
+  sanitizeLegacyErrorCode,
+  type LegacyReferenceFailure,
   type LegacyReferenceField,
   type LegacyReferenceSource,
   type LegacyReferenceTable,
@@ -305,36 +308,73 @@ const TABLE_SCANS: {
   },
 ];
 
-function tableAbsent(error: { code?: string } | null): boolean {
+type DbError = { code?: unknown; message?: unknown } | null;
+
+function tableAbsent(error: DbError): boolean {
   return error?.code === '42P01' || error?.code === 'PGRST205';
 }
 
-/** Keyset-paged, read-only. */
+/** Undefined column (42703) naming `image_purged_at` only; the message is inspected here and never output. */
+function purgeColumnAbsent(error: DbError): boolean {
+  return error?.code === '42703' && typeof error.message === 'string' && /\bimage_purged_at\b/.test(error.message);
+}
+
+/** Printable class of a DB error: PostgREST / SQLSTATE code, else HTTP status, else `no_code`. */
+function dbErrorCode(error: DbError, status: unknown): string {
+  if (typeof error?.code === 'string' && error.code) return sanitizeLegacyErrorCode(error.code);
+  return typeof status === 'number' && Number.isInteger(status) && status > 0 ? `http_${status}` : 'no_code';
+}
+
+type TableOutcome = { kind: 'ok' } | { kind: 'absent' } | { kind: 'purge_column_absent' } | { kind: 'failed'; code: string };
+
+/**
+ * Keyset-paged, read-only. Every table is scanned independently; a failure is reported as table +
+ * sanitized code and the remaining tables still run. Orders: `image_purged_at IS NULL`; if (and only
+ * if) that column does not exist yet (pre-NEW4-6, nothing can be purged), all orders are scanned.
+ */
 export function createSupabaseLegacyReferenceSource(admin: SupabaseClient): LegacyReferenceSource {
+  const scanTable = async (
+    spec: (typeof TABLE_SCANS)[number],
+    purgedFilter: boolean,
+    onValue: (field: LegacyReferenceField, value: unknown) => void,
+  ): Promise<TableOutcome> => {
+    let last: unknown = null;
+    try {
+      while (true) {
+        let query = admin.from(spec.table).select(spec.columns).order(spec.key, { ascending: true }).limit(DB_PAGE);
+        if (purgedFilter) query = query.is('image_purged_at', null);
+        if (last !== null) query = query.gt(spec.key, last);
+        const { data, error, status } = await query;
+        if (error) {
+          if (last === null && tableAbsent(error)) return { kind: 'absent' };
+          if (last === null && purgedFilter && purgeColumnAbsent(error)) return { kind: 'purge_column_absent' };
+          return { kind: 'failed', code: dbErrorCode(error, status) };
+        }
+        const rows = (data ?? []) as unknown as Record<string, unknown>[];
+        for (const row of rows) for (const [field, value] of spec.fields(row)) onValue(field, value);
+        if (rows.length < DB_PAGE) return { kind: 'ok' };
+        last = rows[rows.length - 1][spec.key];
+      }
+    } catch {
+      return { kind: 'failed', code: 'request_failed' };
+    }
+  };
   return {
     async scan(onValue) {
       const tablesAbsent: LegacyReferenceTable[] = [];
+      const failures: LegacyReferenceFailure[] = [];
+      let ordersPurgeColumnAbsent = false;
       for (const spec of TABLE_SCANS) {
-        let last: unknown = null;
-        while (true) {
-          let query = admin.from(spec.table).select(spec.columns).order(spec.key, { ascending: true }).limit(DB_PAGE);
-          if (spec.purgedFilter) query = query.is('image_purged_at', null);
-          if (last !== null) query = query.gt(spec.key, last);
-          const { data, error } = await query;
-          if (error) {
-            if (last === null && tableAbsent(error)) {
-              tablesAbsent.push(spec.table);
-              break;
-            }
-            throw new LegacyCopyError('reference_scan', true);
-          }
-          const rows = (data ?? []) as unknown as Record<string, unknown>[];
-          for (const row of rows) for (const [field, value] of spec.fields(row)) onValue(field, value);
-          if (rows.length < DB_PAGE) break;
-          last = rows[rows.length - 1][spec.key];
+        let outcome = await scanTable(spec, spec.purgedFilter === true, onValue);
+        if (outcome.kind === 'purge_column_absent') {
+          ordersPurgeColumnAbsent = true;
+          outcome = await scanTable(spec, false, onValue);
+          if (outcome.kind === 'purge_column_absent') outcome = { kind: 'failed', code: '42703' };
         }
+        if (outcome.kind === 'absent') tablesAbsent.push(spec.table);
+        else if (outcome.kind === 'failed') failures.push({ table: spec.table, code: outcome.code });
       }
-      return { tablesAbsent };
+      return { tablesAbsent, failures, ordersPurgeColumnAbsent };
     },
   };
 }
@@ -414,7 +454,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     args: parsed.args,
   });
   console.log(formatLegacyCopyReport(report));
-  return 0;
+  return legacyInventoryExitCode(report);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

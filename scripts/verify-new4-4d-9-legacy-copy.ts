@@ -39,8 +39,10 @@ import {
   evaluateLegacyCutoverGate,
   evaluateLegacyPreCopyInventory,
   formatLegacyCopyReport,
+  legacyInventoryExitCode,
   parseLegacyCopyArgs,
   runLegacyCopy,
+  sanitizeLegacyErrorCode,
   type LegacyCopyArgs,
   type LegacyCopyReport,
   type LegacyReferenceField,
@@ -567,6 +569,8 @@ section('copy dry-run inventory: pagination + aggregate classes');
     Object.entries(parsedOut).every(([k, v]) => typeof v === 'number' || typeof v === 'boolean'
       || (k === 'mode' && typeof v === 'string') || (k === 'cutover_gate' && (v === 'PASS' || v === 'FAIL'))
       || (k === 'references_by_field' && Object.values(v as Record<string, unknown>).every((n) => typeof n === 'number'))
+      || (k === 'reference_sources' && Object.values(v as Record<string, unknown>).every((s) => ['ok', 'absent', 'failed', 'not_attempted'].includes(s as string)))
+      || (k === 'reference_failures' && Object.keys(v as object).length === 0)
       || (k === 'cutover_gate_failed' && Array.isArray(v))));
   const secrets = [UID, OTHER, OBJ(1), LEGACY_HOST, 'previews/', 'originals/', 'https://', '1696000000000'];
   assert('output contains no UID / path / URL / filename', secrets.every((s) => !printed.includes(s)));
@@ -861,7 +865,7 @@ section('metadata-only inventory (NEW4-4D-9D): no bytes, no writes, honest label
 
   const clean = new Map<string, SourceObject>([[PREVIEW(OTHER, 1), { bytes: JPEG(11), mime: 'image/jpeg' }]]);
   const cleanRun = await run(
-    { list: mockSource(clean).source.list, download: source.download },
+    { list: mockSource(clean).source.list, download: source.download, bucketInfo: source.bucketInfo },
     { ...target, head: async () => null },
     mockRefs([['cart_items.custom_image', legacyUrl(PREVIEW(OTHER, 1))]]),
     MO,
@@ -876,7 +880,8 @@ section('metadata-only inventory (NEW4-4D-9D): no bytes, no writes, honest label
     MO,
   );
   assert('missing target inventory -> inventory incomplete -> BLOCKED',
-    noInv.report.target_inventory_errors === 1 && evaluateLegacyPreCopyInventory(noInv.report).blockers.includes('inventory_complete'));
+    noInv.report.target_list_errors === 1 && !noInv.report.target_inventory_complete
+    && evaluateLegacyPreCopyInventory(noInv.report).blockers.includes('inventory_complete'));
   let refusedBadArgs = false;
   try {
     await runLegacyCopy({ source, target, references: mockRefs([]), legacyHosts: HOSTS, args: { ...MO, mode: 'apply' }, sleep: noSleep });
@@ -969,6 +974,215 @@ section('inventory job (NEW4-4D-9D-1): list-only GCS target, fixed arguments, cl
   assert('image copies only the inventory sources (no server, client, dist, .env)',
     (dockerCode.match(/^COPY /gm) ?? []).length === 3 && !/server\.ts|dist|\.env|src\/components|COPY \. /.test(dockerCode)
     && /npm ci --omit=dev --ignore-scripts/.test(dockerCode) && /USER node/.test(dockerCode));
+}
+
+// ---------------------------------------------------------------------------
+section('inventory hardening (NEW4-4D-9D-3): independent phases, sanitized codes, purge fallback, exit');
+{
+  const { createSupabaseLegacyReferenceSource } = await import('./workshop-legacy-copy');
+  type FakeResult = { data?: unknown[]; error?: { code?: string; message?: string }; status?: number; throws?: boolean };
+  type FakeQuery = { table: string; purgeFilter: boolean; after: unknown };
+  const RAW_SECRET_TEXT = `SELECT user_id FROM secret_detail ${UID} https://${LEGACY_HOST}/rest/v1/x`;
+  const fakeAdmin = (behave: (q: FakeQuery) => FakeResult) => {
+    const calls: FakeQuery[] = [];
+    const admin = {
+      from(table: string) {
+        const q: FakeQuery = { table, purgeFilter: false, after: null };
+        const builder = {
+          select: () => builder,
+          order: () => builder,
+          limit: () => builder,
+          is(column: string, value: unknown) {
+            if (column === 'image_purged_at' && value === null) q.purgeFilter = true;
+            return builder;
+          },
+          gt(_column: string, value: unknown) {
+            q.after = value;
+            return builder;
+          },
+          then(resolve: (r: unknown) => void, reject: (e: unknown) => void) {
+            calls.push({ ...q });
+            const r = behave(q);
+            if (r.throws) return reject(new Error(RAW_SECRET_TEXT));
+            return resolve({ data: r.error ? null : r.data ?? [], error: r.error ?? null, status: r.status ?? (r.error ? 400 : 200) });
+          },
+        };
+        return builder;
+      },
+    };
+    return { admin: admin as never, calls };
+  };
+  const rowsFor = (table: string, n: number) => {
+    if (table === 'user_progress') return [{ user_id: UID, uploaded_image_url: legacyUrl(PREVIEW(UID, n)) }];
+    if (table === 'cart_items') return [{ id: `${OBJ(n)}`, custom_image: legacyUrl(PREVIEW(UID, n)), custom_config: {} }];
+    if (table === 'orders') return [{ id: `${OBJ(n + 1)}`, ordered_items: [{ image: legacyUrl(PREVIEW(UID, n + 1)) }] }];
+    return [{ order_number: 'ORD-0001', validated_snapshot: {} }];
+  };
+  const collect = async (behave: (q: FakeQuery) => FakeResult) => {
+    const { admin, calls } = fakeAdmin(behave);
+    const values: [LegacyReferenceField, unknown][] = [];
+    const result = await createSupabaseLegacyReferenceSource(admin).scan((f, v) => values.push([f, v]));
+    return { result, calls, values };
+  };
+  const PURGE_MISSING = { code: '42703', message: 'column orders.image_purged_at does not exist' };
+  type FormattedInventory = Record<string, unknown> & {
+    measurement: Record<string, string>;
+    critical_counters: Record<string, number | null>;
+  };
+
+  // A/H/I/K: first table fails; later tables still attempted; purge column absent -> all-orders fallback.
+  const a = await collect((q) => {
+    if (q.table === 'user_progress') return { error: { code: '42703', message: RAW_SECRET_TEXT } };
+    if (q.table === 'orders' && q.purgeFilter) return { error: PURGE_MISSING };
+    return { data: rowsFor(q.table, 1) };
+  });
+  const attempted = [...new Set(a.calls.map((c) => c.table))];
+  assert('A first reference table fails -> every later table still attempted',
+    attempted.join(',') === 'user_progress,cart_items,orders,payment_intents');
+  assert('F failure reported as table + code only',
+    JSON.stringify(a.result.failures) === '[{"table":"user_progress","code":"42703"}]');
+  const ordersCalls = a.calls.filter((c) => c.table === 'orders');
+  assert('H missing image_purged_at -> orders retried without the purge filter',
+    ordersCalls.length === 2 && ordersCalls[0].purgeFilter && !ordersCalls[1].purgeFilter);
+  assert('I fallback sets ordersPurgeColumnAbsent', a.result.ordersPurgeColumnAbsent === true);
+  assert('K fallback success completes the orders phase (no orders failure, rows scanned)',
+    !a.result.failures!.some((f) => f.table === 'orders') && a.values.some(([f]) => f === 'orders.ordered_items'));
+
+  // J: unrelated orders errors never trigger the fallback.
+  const unrelated: [string, FakeResult][] = [
+    ['permission error', { error: { code: '42501', message: 'permission denied for table orders' } }],
+    ['other undefined column', { error: { code: '42703', message: 'column orders.ordered_items does not exist' } }],
+    ['auth error', { error: { code: 'PGRST301', message: 'JWT expired' }, status: 401 }],
+    ['unknown error without code', { error: { message: RAW_SECRET_TEXT }, status: 503 }],
+    ['network failure', { throws: true }],
+  ];
+  const jOutcomes: string[] = [];
+  let jOk = true;
+  for (const [, res] of unrelated) {
+    const j = await collect((q) => (q.table === 'orders' ? res : { data: [] }));
+    const oc = j.calls.filter((c) => c.table === 'orders');
+    const fail = j.result.failures!.find((f) => f.table === 'orders');
+    jOutcomes.push(fail?.code ?? 'none');
+    jOk &&= oc.length === 1 && oc[0].purgeFilter && j.result.ordersPurgeColumnAbsent === false && fail !== undefined;
+  }
+  assert('J unrelated orders errors (permission / other column / auth / unknown / network) do NOT trigger the fallback', jOk, jOutcomes.join(','));
+  assert('J codes are sanitized classes', jOutcomes.join(',') === '42501,42703,PGRST301,http_503,request_failed', jOutcomes.join(','));
+  const absentOrders = await collect((q) => (q.table === 'orders' ? { error: { code: '42P01', message: 'relation does not exist' } } : { data: [] }));
+  assert('J missing orders table -> absent, no fallback, not a purge flag',
+    absentOrders.result.tablesAbsent.includes('orders') && absentOrders.calls.filter((c) => c.table === 'orders').length === 1
+    && absentOrders.result.ordersPurgeColumnAbsent === false);
+  const fbFail = await collect((q) => (q.table === 'orders' ? (q.purgeFilter ? { error: PURGE_MISSING } : { error: { code: '57014', message: 'timeout' } }) : { data: [] }));
+  assert('fallback failure stays a reference failure (flag still recorded)',
+    fbFail.result.ordersPurgeColumnAbsent === true && JSON.stringify(fbFail.result.failures) === '[{"table":"orders","code":"57014"}]');
+  const midFail = await collect((q) => {
+    if (q.table !== 'cart_items') return { data: [] };
+    return q.after === null ? { data: Array.from({ length: 1000 }, (_, i) => ({ id: `id-${String(i).padStart(4, '0')}`, custom_image: null, custom_config: {} })) } : { error: { code: '57014' } };
+  });
+  assert('failure on a later page fails that table only',
+    JSON.stringify(midFail.result.failures) === '[{"table":"cart_items","code":"57014"}]' && midFail.calls.some((c) => c.table === 'payment_intents'));
+  assert('core sanitizes codes it did not produce', sanitizeLegacyErrorCode('42703 column x') === 'unknown'
+    && sanitizeLegacyErrorCode(undefined) === 'unknown' && sanitizeLegacyErrorCode('PGRST205') === 'PGRST205');
+
+  // B-G, L, N-P: run the core with the failing reference source; source + target listings still run.
+  const MO: LegacyCopyArgs = { mode: 'dry-run', verifyBytes: false, concurrency: 2, metadataOnly: true };
+  const objects = new Map<string, SourceObject>([
+    [PREVIEW(UID, 1), { bytes: JPEG(1), mime: 'image/jpeg' }],
+    [PREVIEW(UID, 2), { bytes: JPEG(2), mime: 'image/jpeg' }],
+    [ORIGINAL(UID, 3), { bytes: PNG(3), mime: 'image/png' }],
+  ]);
+  const trapped = { bytes: 0, writes: 0, inventory: 0, heads: 0 };
+  const mkSource = (o: Map<string, SourceObject>, failList = false): LegacySource => ({
+    list: failList ? async () => { throw new LegacyCopyError('source_list', false); } : mockSource(o).source.list,
+    async download() { trapped.bytes += 1; throw new Error('source body read reached the adapter'); },
+    async bucketInfo() { return { exists: true, public: true, fileSizeLimit: null, allowedMimeTypes: null }; },
+  });
+  const mkTarget = (failInventory = false): LegacyTarget => ({
+    async head() { trapped.heads += 1; return null; },
+    async createOnly() { trapped.writes += 1; throw new Error('write reached the adapter'); },
+    async download() { trapped.bytes += 1; throw new Error('target body read reached the adapter'); },
+    async markVerified() { trapped.writes += 1; throw new Error('metadata update reached the adapter'); },
+    async inventory() {
+      trapped.inventory += 1;
+      if (failInventory) throw new LegacyCopyError('target_list', false);
+      return { objects: 4, customerPrefix: 0, markerVerified: 0, markerWritten: 0 };
+    },
+  });
+  const failingRef = fakeAdmin((q) => (q.table === 'user_progress' ? { error: { code: '42703', message: RAW_SECRET_TEXT } } : q.table === 'orders' && q.purgeFilter ? { error: PURGE_MISSING } : { data: rowsFor(q.table, 1) }));
+  const inc = await run(mkSource(objects), mkTarget(), createSupabaseLegacyReferenceSource(failingRef.admin), MO);
+  const ir = inc.report;
+  assert('B reference_scan_complete=false with reference_lookup_errors > 0',
+    ir.reference_scan_complete === false && ir.reference_lookup_errors === 1 && ir.reference_sources.user_progress === 'failed'
+    && ir.reference_sources.cart_items === 'ok' && ir.reference_sources.orders === 'ok' && ir.reference_failures.user_progress === '42703');
+  assert('C source inventory still executes', ir.source_inventory_complete && ir.source_objects_total === 3 && ir.canonical_bridgeable === 3);
+  assert('D target inventory still executes', trapped.inventory === 1 && ir.target_inventory_listed && ir.target_inventory_complete && ir.target_objects_total === 4);
+  assert('orders_purge_column_absent carried to the report', ir.orders_purge_column_absent === true);
+  const incOut = JSON.parse(formatLegacyCopyReport(ir)) as FormattedInventory;
+  assert('E partial references are labelled PARTIAL; critical counters null, not 0',
+    incOut.measurement.references === 'PARTIAL' && incOut.measurement.critical_counters === 'NOT_MEASURED'
+    && Object.values(incOut.critical_counters).every((v) => v === null));
+  assert('assessment INVENTORY_INCOMPLETE; inventory_status INCOMPLETE; pre-copy BLOCKED',
+    incOut.data_shape_assessment === 'INVENTORY_INCOMPLETE' && incOut.inventory_status === 'INCOMPLETE' && incOut.pre_copy_inventory === 'BLOCKED'
+    && incOut.cutover_gate === 'NOT_EVALUATED');
+  const incPrinted = formatLegacyCopyReport(ir);
+  assert('G raw DB error text absent from output',
+    ['SELECT', 'secret_detail', 'does not exist', 'permission denied', '/rest/v1', 'JWT'].every((s) => !incPrinted.includes(s)) && inc.logs.trim() === '');
+  assert('P no customer identifiers / paths / URLs in output',
+    [UID, OBJ(1), OBJ(2), 'ORD-0001', LEGACY_HOST, 'previews/', 'originals/', 'https://'].every((s) => !incPrinted.includes(s)));
+  assert('L incomplete inventory -> non-zero exit code', legacyInventoryExitCode(ir) === 3);
+  assert('N/O byte_read_attempts = 0 and write_attempts = 0; no adapter reached',
+    ir.byte_read_attempts === 0 && ir.write_attempts === 0 && trapped.bytes === 0 && trapped.writes === 0);
+
+  // E: aborted references + failed source listing -> NOT_MEASURED, never measured zeros.
+  const aborted: LegacyReferenceSource = { async scan() { throw new Error(RAW_SECRET_TEXT); } };
+  const none = await run(mkSource(objects, true), mkTarget(), aborted, MO);
+  const noneOut = JSON.parse(formatLegacyCopyReport(none.report)) as FormattedInventory;
+  assert('E unexecuted phases are NOT_MEASURED with completion false (zeros are not measurements)',
+    none.report.source_objects_total === 0 && !none.report.source_inventory_complete && !none.report.reference_scan_complete
+    && none.report.source_list_errors === 1 && noneOut.measurement.source === 'NOT_MEASURED' && noneOut.measurement.references === 'NOT_MEASURED'
+    && Object.values(none.report.reference_sources).every((s) => s === 'failed') && none.report.reference_failures.reference_source === 'aborted'
+    && Object.values(noneOut.critical_counters).every((v) => v === null) && legacyInventoryExitCode(none.report) === 3);
+  assert('aborted reference source leaks no raw error text', !formatLegacyCopyReport(none.report).includes('secret_detail'));
+
+  // Target listing failure: target incomplete, no per-object head, source still measured.
+  const headsBefore = trapped.heads;
+  const tgtFail = await run(mkSource(objects), mkTarget(true), mockRefs([['cart_items.custom_image', legacyUrl(PREVIEW(UID, 1))]]), MO);
+  assert('target listing failure -> target_inventory_complete=false, no head attempted, source still complete',
+    !tgtFail.report.target_inventory_complete && tgtFail.report.target_list_errors === 1 && trapped.heads === headsBefore
+    && tgtFail.report.source_inventory_complete && tgtFail.report.reference_scan_complete && legacyInventoryExitCode(tgtFail.report) === 3);
+  const noBucket = await run({ list: mockSource(objects).source.list, download: mkSource(objects).download }, mkTarget(), mockRefs([]), MO);
+  assert('missing bucket facts -> bucket_facts_complete=false -> non-zero exit', !noBucket.report.bucket_facts_complete && legacyInventoryExitCode(noBucket.report) === 3);
+
+  // M + assessment: complete inventory.
+  const okRef = fakeAdmin((q) => (q.table === 'orders' && q.purgeFilter ? { error: PURGE_MISSING } : { data: rowsFor(q.table, 1) }));
+  const done = await run(mkSource(objects), mkTarget(), createSupabaseLegacyReferenceSource(okRef.admin), MO);
+  const doneOut = JSON.parse(formatLegacyCopyReport(done.report)) as FormattedInventory;
+  assert('M complete inventory -> exit 0, all four phases complete',
+    legacyInventoryExitCode(done.report) === 0 && done.report.bucket_facts_complete && done.report.reference_scan_complete
+    && done.report.source_inventory_complete && done.report.target_inventory_complete && doneOut.inventory_status === 'COMPLETE');
+  assert('complete + all critical counters 0 -> NO_DATA_SHAPE_BLOCKER (counters measured as numbers)',
+    doneOut.data_shape_assessment === 'NO_DATA_SHAPE_BLOCKER' && doneOut.measurement.critical_counters === 'MEASURED'
+    && doneOut.critical_counters.non_uuid_referenced === 0 && doneOut.critical_counters.referenced_missing_source === 0);
+  const blocked = await run(mkSource(objects), mkTarget(), mockRefs([['cart_items.custom_image', legacyUrl(PREVIEW(OTHER, 9))]]), MO);
+  assert('complete + any critical counter > 0 -> CUTOVER_DATA_BLOCKER',
+    JSON.parse(formatLegacyCopyReport(blocked.report)).data_shape_assessment === 'CUTOVER_DATA_BLOCKER' && blocked.report.referenced_missing_source === 1);
+
+  // Q: guards unchanged; copy modes still stop on a partial reference set.
+  const ack = '--ack-readonly-production-inventory';
+  assert('Q metadata-only still refuses --apply / --verify-bytes / confirmation',
+    [['--apply'], ['--verify-bytes'], [`--confirm-production-copy=${PRODUCTION_SUPABASE_PROJECT_REF}`]]
+      .every((extra) => parseLegacyCopyArgs([ack, '--metadata-only', ...extra], PRODUCTION_SUPABASE_PROJECT_REF).ok === false));
+  const copyPartial = await run(mkSource(objects), mkTarget(), createSupabaseLegacyReferenceSource(failingRef.admin), DRY);
+  assert('Q copy modes never act on a partial reference set (stop before listing)',
+    copyPartial.report.source_objects_total === 0 && !copyPartial.report.source_inventory_complete && legacyInventoryExitCode(copyPartial.report) === 3);
+
+  const cli = fs.readFileSync(path.join(root, 'scripts/workshop-legacy-copy.ts'), 'utf8');
+  assert('L CLI prints the report first, then returns the inventory exit code',
+    /console\.log\(formatLegacyCopyReport\(report\)\);\s*return legacyInventoryExitCode\(report\);/.test(cli) && !/return 0;/.test(cli));
+  const entry = fs.readFileSync(path.join(root, 'scripts/workshop-metadata-inventory-job.ts'), 'utf8');
+  assert('L job entrypoint propagates the exit code (no retry loop)', /\(code\) => process\.exit\(code\)/.test(entry) && !/while|retry/i.test(entry));
+  assert('purge fallback only on 42703 naming image_purged_at (message never output)',
+    /error\?\.code === '42703' && typeof error\.message === 'string' && \/\\bimage_purged_at\\b\/\.test\(error\.message\)/.test(cli)
+    && !/console\.[a-z]+\([^)]*message/.test(cli));
 }
 
 // ---------------------------------------------------------------------------

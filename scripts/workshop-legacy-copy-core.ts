@@ -113,11 +113,33 @@ export const LEGACY_REFERENCE_FIELDS = [
   'payment_intents.validated_snapshot',
 ] as const;
 export type LegacyReferenceField = (typeof LEGACY_REFERENCE_FIELDS)[number];
-export type LegacyReferenceTable = 'user_progress' | 'cart_items' | 'orders' | 'payment_intents';
+export const LEGACY_REFERENCE_TABLES = ['user_progress', 'cart_items', 'orders', 'payment_intents'] as const;
+export type LegacyReferenceTable = (typeof LEGACY_REFERENCE_TABLES)[number];
 
-/** Read-only DB scan. Orders: `image_purged_at IS NULL` only (NEW4-6: purged evidence holds no images). */
+/** Sanitized per-table failure: logical table + DB / PostgREST code only (never message, SQL or URL). */
+export type LegacyReferenceFailure = { table: LegacyReferenceTable; code: string };
+
+export type LegacyReferenceScanResult = {
+  tablesAbsent: LegacyReferenceTable[];
+  /** Tables whose scan failed; every other table was scanned independently. */
+  failures?: LegacyReferenceFailure[];
+  /** Pre-NEW4-6 schema: orders scanned without the purge filter (safe superset). */
+  ordersPurgeColumnAbsent?: boolean;
+};
+
+/**
+ * Read-only DB scan; each table is scanned independently. Orders: `image_purged_at IS NULL` only
+ * (NEW4-6: purged evidence holds no images); all orders if that column does not exist yet.
+ */
 export interface LegacyReferenceSource {
-  scan(onValue: (field: LegacyReferenceField, value: unknown) => void): Promise<{ tablesAbsent: LegacyReferenceTable[] }>;
+  scan(onValue: (field: LegacyReferenceField, value: unknown) => void): Promise<LegacyReferenceScanResult>;
+}
+
+const ERROR_CODE_RE = /^[A-Za-z0-9_]{1,16}$/;
+
+/** A code that is safe to print: a short token, otherwise `unknown`. */
+export function sanitizeLegacyErrorCode(code: unknown): string {
+  return typeof code === 'string' && ERROR_CODE_RE.test(code) ? code : 'unknown';
 }
 
 // ---------------------------------------------------------------------------
@@ -228,7 +250,17 @@ export type LegacyCopyReport = {
   /** Occurrences per `<table.column>:<class>` (Workshop-media values only). */
   references_by_field: Record<string, number>;
   target_inventory_listed: boolean;
-  target_inventory_errors: number;
+  target_list_errors: number;
+  // phase completeness (NEW4-4D-9D-3): a phase that is not complete has no measured zeros
+  bucket_facts_complete: boolean;
+  reference_scan_complete: boolean;
+  source_inventory_complete: boolean;
+  target_inventory_complete: boolean;
+  source_list_errors: number;
+  reference_sources: Record<string, 'ok' | 'absent' | 'failed' | 'not_attempted'>;
+  /** `<table>` → sanitized DB / PostgREST code. */
+  reference_failures: Record<string, string>;
+  orders_purge_column_absent: boolean;
   target_objects_total: number;
   target_customer_prefix_objects: number;
   target_marker_verified_total: number;
@@ -253,7 +285,15 @@ export function emptyLegacyCopyReport(mode: LegacyCopyMode, byteVerified: boolea
     non_uuid_referenced: 0,
     references_by_field: {},
     target_inventory_listed: false,
-    target_inventory_errors: 0,
+    target_list_errors: 0,
+    bucket_facts_complete: false,
+    reference_scan_complete: false,
+    source_inventory_complete: false,
+    target_inventory_complete: false,
+    source_list_errors: 0,
+    reference_sources: Object.fromEntries(LEGACY_REFERENCE_TABLES.map((t) => [t, 'not_attempted'])),
+    reference_failures: {},
+    orders_purge_column_absent: false,
     target_objects_total: 0,
     target_customer_prefix_objects: 0,
     target_marker_verified_total: 0,
@@ -305,7 +345,7 @@ export type LegacyCutoverGate = { pass: boolean; failed: string[] };
 export function evaluateLegacyCutoverGate(r: LegacyCopyReport): LegacyCutoverGate {
   const checks: [string, boolean][] = [
     ['byte_verified_run', r.byte_verified],
-    ['inventory_complete', r.list_errors === 0 && r.reference_lookup_errors === 0],
+    ['inventory_complete', r.list_errors === 0 && r.reference_lookup_errors === 0 && r.reference_scan_complete && r.source_inventory_complete],
     ['no_copy_failures', r.copy_failed_retryable === 0 && r.copy_failed_permanent === 0],
     ['referenced_all_resolvable_from_gcs', r.referenced_legacy_total === r.referenced_legacy_resolvable_from_gcs],
     ['no_target_conflict', r.target_conflict === 0],
@@ -325,8 +365,8 @@ export function evaluateLegacyCutoverGate(r: LegacyCopyReport): LegacyCutoverGat
 export function evaluateLegacyPreCopyInventory(r: LegacyCopyReport): { ready: boolean; blockers: string[] } {
   const checks: [string, boolean][] = [
     ['no_byte_or_write_attempt', r.byte_read_attempts === 0 && r.write_attempts === 0],
-    ['inventory_complete', r.list_errors === 0 && r.reference_lookup_errors === 0 && r.tables_absent === 0
-      && r.target_inventory_errors === 0 && r.copy_failed_retryable === 0 && r.copy_failed_permanent === 0],
+    ['inventory_complete', legacyInventoryComplete(r) && r.list_errors === 0 && r.reference_lookup_errors === 0
+      && r.tables_absent === 0 && r.target_list_errors === 0 && r.copy_failed_retryable === 0 && r.copy_failed_permanent === 0],
     ['no_malformed_referenced', r.malformed_referenced === 0],
     ['no_unrecognized_referenced', r.unrecognized_referenced === 0 && r.foreign_host_referenced === 0],
     ['no_referenced_missing_source', r.referenced_missing_source === 0],
@@ -337,12 +377,53 @@ export function evaluateLegacyPreCopyInventory(r: LegacyCopyReport): { ready: bo
   return { ready: blockers.length === 0, blockers };
 }
 
+/** Every phase the run requires finished: metadata-only needs all four, copy modes references + source. */
+export function legacyInventoryComplete(r: LegacyCopyReport): boolean {
+  if (!r.reference_scan_complete || !r.source_inventory_complete) return false;
+  return !r.metadata_only || (r.bucket_facts_complete && r.target_inventory_complete);
+}
+
+/** Process exit status: printed report first, then non-zero when the inventory is incomplete. */
+export function legacyInventoryExitCode(r: LegacyCopyReport): number {
+  return legacyInventoryComplete(r) ? 0 : 3;
+}
+
+type Measurement = 'MEASURED' | 'PARTIAL' | 'NOT_MEASURED';
+
+/** Phase labels for metadata-only output; the critical three are null unless measured. */
+function legacyMeasurement(r: LegacyCopyReport) {
+  const refsTouched = Object.values(r.reference_sources).some((s) => s === 'ok') || r.reference_values_scanned > 0;
+  const references: Measurement = r.reference_scan_complete ? 'MEASURED' : refsTouched ? 'PARTIAL' : 'NOT_MEASURED';
+  const source: Measurement = r.source_inventory_complete ? 'MEASURED' : r.source_objects_total > 0 ? 'PARTIAL' : 'NOT_MEASURED';
+  const criticalMeasured = r.reference_scan_complete && r.source_inventory_complete;
+  const critical = {
+    non_uuid_referenced: criticalMeasured ? r.non_uuid_referenced : null,
+    malformed_referenced: criticalMeasured ? r.malformed_referenced : null,
+    referenced_missing_source: criticalMeasured ? r.referenced_missing_source : null,
+  };
+  const complete = legacyInventoryComplete(r);
+  const blocker = r.non_uuid_referenced > 0 || r.malformed_referenced > 0 || r.referenced_missing_source > 0;
+  return {
+    inventory_status: complete ? 'COMPLETE' : 'INCOMPLETE',
+    measurement: {
+      bucket: r.bucket_facts_complete ? 'MEASURED' : 'NOT_MEASURED',
+      references,
+      source,
+      target: r.target_inventory_complete ? 'MEASURED' : 'NOT_MEASURED',
+      critical_counters: criticalMeasured ? 'MEASURED' : 'NOT_MEASURED',
+    },
+    critical_counters: critical,
+    data_shape_assessment: !complete ? 'INVENTORY_INCOMPLETE' : blocker ? 'CUTOVER_DATA_BLOCKER' : 'NO_DATA_SHAPE_BLOCKER',
+  };
+}
+
 /** Counters + gate only. Safe to print or store. */
 export function formatLegacyCopyReport(r: LegacyCopyReport): string {
   if (r.metadata_only) {
     const pre = evaluateLegacyPreCopyInventory(r);
     return JSON.stringify({
       ...r,
+      ...legacyMeasurement(r),
       cutover_gate: 'NOT_EVALUATED',
       cutover_gate_reason: 'metadata_only_no_byte_verification',
       pre_copy_inventory: pre.ready ? 'READY' : 'BLOCKED',
@@ -443,7 +524,15 @@ export async function buildLegacyReferenceIndex(
   const foreignRefs = new Set<string>();
   const canonicalRefs = new Set<string>();
   const nonUuidRefs = new Set<string>();
-  const { tablesAbsent } = await source.scan((field, value) => {
+  const finish = () => {
+    report.referenced_legacy_total = index.legacy.size;
+    report.canonical_refs = canonicalRefs.size;
+    report.malformed_referenced = malformedRefs.size;
+    report.non_uuid_referenced = nonUuidRefs.size;
+    report.foreign_host_referenced = foreignRefs.size;
+    report.unrecognized_referenced = unrecognizedRefs.size;
+  };
+  const onValue = (field: LegacyReferenceField, value: unknown) => {
     forEachString(value, (s) => {
       report.reference_values_scanned += 1;
       const c = classifyLegacyRefValue(s, legacyHosts);
@@ -468,14 +557,31 @@ export async function buildLegacyReferenceIndex(
         unrecognizedRefs.add(s.trim());
       }
     });
-  });
-  report.tables_absent = tablesAbsent.length;
-  report.referenced_legacy_total = index.legacy.size;
-  report.canonical_refs = canonicalRefs.size;
-  report.malformed_referenced = malformedRefs.size;
-  report.non_uuid_referenced = nonUuidRefs.size;
-  report.foreign_host_referenced = foreignRefs.size;
-  report.unrecognized_referenced = unrecognizedRefs.size;
+  };
+  let result: LegacyReferenceScanResult;
+  try {
+    result = await source.scan(onValue);
+  } catch {
+    // The source itself aborted: no table can be trusted as scanned.
+    report.reference_lookup_errors += 1;
+    report.reference_failures.reference_source = 'aborted';
+    for (const t of LEGACY_REFERENCE_TABLES) report.reference_sources[t] = 'failed';
+    finish();
+    return index;
+  }
+  const known = (t: string): t is LegacyReferenceTable => (LEGACY_REFERENCE_TABLES as readonly string[]).includes(t);
+  const absent = new Set(result.tablesAbsent.filter(known));
+  const failures = (result.failures ?? []).filter((f) => known(f.table));
+  for (const t of LEGACY_REFERENCE_TABLES) report.reference_sources[t] = absent.has(t) ? 'absent' : 'ok';
+  for (const f of failures) {
+    report.reference_sources[f.table] = 'failed';
+    report.reference_failures[f.table] = sanitizeLegacyErrorCode(f.code);
+  }
+  report.reference_lookup_errors += failures.length;
+  report.tables_absent = absent.size;
+  report.orders_purge_column_absent = result.ordersPurgeColumnAbsent === true;
+  report.reference_scan_complete = failures.length === 0 && absent.size === 0;
+  finish();
   return index;
 }
 
@@ -744,20 +850,40 @@ export async function runLegacyCopy(inputDeps: LegacyCopyDeps): Promise<LegacyCo
   if (metadataOnly && (inputDeps.args.mode !== 'dry-run' || inputDeps.args.verifyBytes)) {
     throw new LegacyCopyError('metadata_only_args', false);
   }
-  const deps = metadataOnly ? metadataOnlyPorts(inputDeps, report) : inputDeps;
+  let deps = metadataOnly ? metadataOnlyPorts(inputDeps, report) : inputDeps;
   if (metadataOnly && deps.source.bucketInfo) {
     try {
       report.source_bucket = await withRetry(deps, () => deps.source.bucketInfo!());
+      report.bucket_facts_complete = true;
     } catch {
       report.list_errors += 1;
     }
   }
-  let index: LegacyReferenceIndex;
-  try {
-    index = await buildLegacyReferenceIndex(deps.references, deps.legacyHosts, report);
-  } catch {
-    report.reference_lookup_errors += 1;
-    return report;
+  // Each phase runs on its own; a failed phase only marks itself incomplete.
+  const index = await buildLegacyReferenceIndex(deps.references, deps.legacyHosts, report);
+  // Copy modes never act on a partial reference set.
+  if (!metadataOnly && report.reference_lookup_errors > 0) return report;
+
+  if (metadataOnly) {
+    const target = deps.target;
+    if (target.inventory) {
+      try {
+        const inv = await withRetry(deps, () => target.inventory!());
+        report.target_inventory_listed = true;
+        report.target_objects_total = inv.objects;
+        report.target_customer_prefix_objects = inv.customerPrefix;
+        report.target_marker_verified_total = inv.markerVerified;
+        report.target_marker_written_total = inv.markerWritten;
+      } catch {
+        report.target_list_errors += 1;
+      }
+    } else {
+      report.target_list_errors += 1;
+    }
+    if (!report.target_inventory_listed) {
+      // No listing: target state is unknown, so no head is attempted (and no listing is retried per object).
+      deps = { ...deps, target: { ...target, head: async () => { throw new LegacyCopyError('target_unavailable', false); } } };
+    }
   }
 
   const seenTargets = new Set<string>();
@@ -817,6 +943,7 @@ export async function runLegacyCopy(inputDeps: LegacyCopyDeps): Promise<LegacyCo
   const countSubtree = async (prefix: string, depth: number, bucket: 'unexpected_prefix' | 'malformed_path') => {
     if (depth > LEGACY_COPY_MAX_DEPTH) {
       report.list_errors += 1;
+      report.source_list_errors += 1;
       return;
     }
     const folders: string[] = [];
@@ -890,7 +1017,9 @@ export async function runLegacyCopy(inputDeps: LegacyCopyDeps): Promise<LegacyCo
     }
   } catch {
     report.list_errors += 1;
+    report.source_list_errors += 1;
   }
+  report.source_inventory_complete = report.source_list_errors === 0;
 
   // Referenced paths with no source object: resolvable only if a verified copy already exists.
   for (const [path, ref] of index.legacy) {
@@ -918,20 +1047,8 @@ export async function runLegacyCopy(inputDeps: LegacyCopyDeps): Promise<LegacyCo
 
   if (metadataOnly) {
     report.target_existing = report.target_metadata_match_candidate + report.target_metadata_conflict_candidate + report.target_unverified;
-    if (deps.target.inventory) {
-      try {
-        const inv = await withRetry(deps, () => deps.target.inventory!());
-        report.target_inventory_listed = true;
-        report.target_objects_total = inv.objects;
-        report.target_customer_prefix_objects = inv.customerPrefix;
-        report.target_marker_verified_total = inv.markerVerified;
-        report.target_marker_written_total = inv.markerWritten;
-      } catch {
-        report.target_inventory_errors += 1;
-      }
-    } else {
-      report.target_inventory_errors += 1;
-    }
+    report.target_inventory_complete = report.target_inventory_listed && report.target_list_errors === 0
+      && report.copy_failed_retryable === 0 && report.copy_failed_permanent === 0;
   }
   return report;
 }
