@@ -37,6 +37,7 @@ import {
   classifyLegacyObjectPath,
   classifyLegacyRefValue,
   evaluateLegacyCutoverGate,
+  evaluateLegacyPreCopyInventory,
   formatLegacyCopyReport,
   parseLegacyCopyArgs,
   runLegacyCopy,
@@ -565,6 +566,7 @@ section('copy dry-run inventory: pagination + aggregate classes');
   assert('output: counters, mode and gate fields only',
     Object.entries(parsedOut).every(([k, v]) => typeof v === 'number' || typeof v === 'boolean'
       || (k === 'mode' && typeof v === 'string') || (k === 'cutover_gate' && (v === 'PASS' || v === 'FAIL'))
+      || (k === 'references_by_field' && Object.values(v as Record<string, unknown>).every((n) => typeof n === 'number'))
       || (k === 'cutover_gate_failed' && Array.isArray(v))));
   const secrets = [UID, OTHER, OBJ(1), LEGACY_HOST, 'previews/', 'originals/', 'https://', '1696000000000'];
   assert('output contains no UID / path / URL / filename', secrets.every((s) => !printed.includes(s)));
@@ -754,6 +756,154 @@ section('copy semantics: active orders, withdrawal, retention, bridge readiness'
 }
 
 // ---------------------------------------------------------------------------
+section('metadata-only inventory (NEW4-4D-9D): no bytes, no writes, honest labels');
+{
+  const ack = '--ack-readonly-production-inventory';
+  const p = (argv: string[]) => parseLegacyCopyArgs(argv, PRODUCTION_SUPABASE_PROJECT_REF);
+  const mo = p([ack, '--metadata-only']);
+  assert('--metadata-only accepted: dry-run, no byte verification',
+    mo.ok === true && mo.args.metadataOnly === true && mo.args.mode === 'dry-run' && mo.args.verifyBytes === false);
+  assert('--metadata-only refuses --apply / --verify-bytes / confirmation',
+    [[ack, '--metadata-only', '--apply', `--confirm-production-copy=${PRODUCTION_SUPABASE_PROJECT_REF}`], [ack, '--metadata-only', '--verify-bytes'],
+      [ack, '--metadata-only', `--confirm-production-copy=${PRODUCTION_SUPABASE_PROJECT_REF}`]]
+      .every((argv) => JSON.stringify(p(argv)) === '{"ok":false,"reason":"metadata_only_conflict"}'));
+  assert('--metadata-only still requires the read-only acknowledgement', p(['--metadata-only']).ok === false);
+  assert('--metadata-only refuses the payment-test project', parseLegacyCopyArgs([ack, '--metadata-only'], PAYMENT_TEST_SUPABASE_PROJECT_REF).ok === false);
+
+  const MO: LegacyCopyArgs = { mode: 'dry-run', verifyBytes: false, concurrency: 2, metadataOnly: true };
+  const match = PREVIEW(UID, 1);
+  const foreign = PREVIEW(UID, 2);
+  const written = PREVIEW(UID, 3);
+  const missing = PREVIEW(UID, 4);
+  const sizeDiff = ORIGINAL(UID, 5);
+  const goneSource = PREVIEW(UID, 6);
+  const objects = new Map<string, SourceObject>([
+    [match, { bytes: JPEG(1), mime: 'image/jpeg' }],
+    [foreign, { bytes: JPEG(2), mime: 'image/jpeg' }],
+    [written, { bytes: JPEG(3), mime: 'image/jpeg' }],
+    [missing, { bytes: JPEG(4), mime: 'image/jpeg' }],
+    [sizeDiff, { bytes: PNG(5), mime: 'image/png' }],
+    [PREVIEW(UID, 7), { bytes: JPEG(7), mime: 'image/jpeg' }],
+    [`originals/${UID}/1696000000000-ab12cd34.png`, { bytes: PNG(8), mime: 'image/png' }],
+    [`uploads/${UID}/${OBJ(9)}.jpg`, { bytes: JPEG(9), mime: 'image/jpeg' }],
+  ]);
+  const src = mockSource(objects);
+  const stored = (bytes: Uint8Array, contentType: string, custom: Record<string, string>): TargetStored =>
+    ({ bytes, contentType, cacheControl: WORKSHOP_MEDIA_CACHE_CONTROL, md5: md5(bytes), custom, metageneration: 2 });
+  const marker = (state: string, bytes: Uint8Array) => ({
+    [WORKSHOP_LEGACY_COPY_METADATA.origin]: WORKSHOP_LEGACY_COPY_ORIGIN,
+    [WORKSHOP_LEGACY_COPY_METADATA.state]: state,
+    [WORKSHOP_LEGACY_COPY_METADATA.sourceSha256]: sha(bytes),
+  });
+  const gcsObjects = new Map<string, TargetStored>([
+    [match, stored(JPEG(1), 'image/jpeg', marker('verified', JPEG(1)))],
+    [foreign, stored(JPEG(2), 'image/jpeg', {})],
+    [written, stored(JPEG(3), 'image/jpeg', marker('written', JPEG(3)))],
+    [sizeDiff, stored(new Uint8Array([...PNG(5), 0, 0]), 'image/png', marker('verified', PNG(5)))],
+    [goneSource, stored(JPEG(6), 'image/jpeg', marker('verified', JPEG(6)))],
+  ]);
+  const base = mockTarget(gcsObjects);
+  const trapped = { sourceDownload: 0, targetDownload: 0, create: 0, mark: 0, inventory: 0 };
+  const target: LegacyTarget = {
+    head: (path) => base.target.head(path),
+    async createOnly() { trapped.create += 1; throw new Error('write reached the adapter'); },
+    async download() { trapped.targetDownload += 1; throw new Error('target body read reached the adapter'); },
+    async markVerified() { trapped.mark += 1; throw new Error('metadata update reached the adapter'); },
+    async inventory() { trapped.inventory += 1; return { objects: gcsObjects.size, markerVerified: 3, markerWritten: 1 }; },
+  };
+  const source: LegacySource = {
+    list: (prefix, offset, limit) => src.source.list(prefix, offset, limit),
+    async download() { trapped.sourceDownload += 1; throw new Error('source body read reached the adapter'); },
+    async bucketInfo() { return { exists: true, public: true, fileSizeLimit: null, allowedMimeTypes: null }; },
+  };
+  const refs = mockRefs([
+    ['cart_items.custom_image', legacyUrl(match)],
+    ['orders.ordered_items', [{ image: legacyUrl(foreign) }, { image: legacyUrl(written) }]],
+    ['payment_intents.validated_snapshot', { ordered_items: [{ user_image_url: legacyUrl(missing) }] }],
+    ['user_progress.uploaded_image_url', legacyUrl(sizeDiff)],
+    ['cart_items.custom_config.preview_image_url', legacyUrl(goneSource)],
+    ['cart_items.custom_config.original_image_url', `${LEGACY_BASE}originals/${UID}/1696000000000-ab12cd34.png`],
+    ['orders.ordered_items', [{ image: ORIGINAL(UID, 40) }]],
+  ]);
+  const { report: r, logs } = await run(source, target, refs, MO);
+  assert('no source or target body read and no write reaches any adapter',
+    trapped.sourceDownload === 0 && trapped.targetDownload === 0 && trapped.create === 0 && trapped.mark === 0 && src.calls.download.length === 0);
+  assert('report records zero byte-read / write attempts', r.byte_read_attempts === 0 && r.write_attempts === 0);
+  assert('metadata_only flagged and never byte_verified', r.metadata_only === true && r.byte_verified === false);
+  assert('verified marker + consistent metadata -> metadata_match_candidate only (incl. source-absent copy)', r.target_metadata_match_candidate === 2, JSON.stringify(r));
+  assert('a candidate is never counted as resolvable from GCS', r.referenced_legacy_resolvable_from_gcs === 0 && r.target_matching === 0);
+  assert('unmarked object and size mismatch -> metadata_conflict_candidate', r.target_metadata_conflict_candidate === 2);
+  assert('written marker -> target_unverified', r.target_unverified === 1);
+  assert('absent target -> target_missing', r.target_missing === 1);
+  assert('target_existing = match + conflict + unverified', r.target_existing === 5);
+  assert('referenced object absent from source -> referenced_missing_source', r.referenced_missing_source === 1 && r.referenced_source === 5);
+  assert('originals / previews totals', r.originals_total === 2 && r.previews_total === 5 && r.unexpected_prefix === 1);
+  assert('non-UUID referenced counted (CUTOVER BLOCKER)', r.non_uuid_referenced === 1 && r.malformed_referenced === 1 && r.noncanonical_referenced_source === 1);
+  assert('references_by_field: aggregate occurrences per field and class',
+    r.references_by_field['orders.ordered_items:legacy'] === 2 && r.references_by_field['orders.ordered_items:canonical'] === 1
+    && r.references_by_field['cart_items.custom_config.original_image_url:malformed'] === 1
+    && Object.keys(r.references_by_field).every((k) => /^[a-z_.]+:[a-z_]+$/.test(k)));
+  assert('target bucket inventory from listing metadata',
+    trapped.inventory === 1 && r.target_inventory_listed && r.target_objects_total === 5 && r.target_marker_verified_total === 3 && r.target_marker_written_total === 1);
+  assert('source bucket facts carried', r.source_bucket?.exists === true && r.source_bucket.public === true);
+
+  const printed = formatLegacyCopyReport(r);
+  const out = JSON.parse(printed) as Record<string, unknown>;
+  assert('final cutover gate NOT_EVALUATED in metadata-only mode',
+    out.cutover_gate === 'NOT_EVALUATED' && out.cutover_gate_reason === 'metadata_only_no_byte_verification' && !('cutover_gate_failed' in out));
+  assert('pre-copy inventory BLOCKED with named blockers',
+    out.pre_copy_inventory === 'BLOCKED' && ['no_malformed_referenced', 'no_referenced_missing_source', 'no_target_metadata_conflict']
+      .every((b) => (out.pre_copy_blockers as string[]).includes(b)));
+  assert('metadata-only output contains no UID / path / URL / filename',
+    [UID, OBJ(1), LEGACY_HOST, 'previews/', 'originals/', 'https://', '1696000000000'].every((s) => !printed.includes(s)));
+  assert('no logs emitted during the metadata-only run', logs.trim() === '');
+
+  const clean = new Map<string, SourceObject>([[PREVIEW(OTHER, 1), { bytes: JPEG(11), mime: 'image/jpeg' }]]);
+  const cleanRun = await run(
+    { list: mockSource(clean).source.list, download: source.download },
+    { ...target, head: async () => null },
+    mockRefs([['cart_items.custom_image', legacyUrl(PREVIEW(OTHER, 1))]]),
+    MO,
+  );
+  assert('clean metadata inventory -> pre-copy READY (gate still NOT_EVALUATED)',
+    evaluateLegacyPreCopyInventory(cleanRun.report).ready && JSON.parse(formatLegacyCopyReport(cleanRun.report)).cutover_gate === 'NOT_EVALUATED'
+    && cleanRun.report.target_missing === 1);
+  const noInv = await run(
+    { list: mockSource(clean).source.list, download: source.download },
+    { head: async () => null, createOnly: target.createOnly, download: target.download, markVerified: target.markVerified },
+    mockRefs([]),
+    MO,
+  );
+  assert('missing target inventory -> inventory incomplete -> BLOCKED',
+    noInv.report.target_inventory_errors === 1 && evaluateLegacyPreCopyInventory(noInv.report).blockers.includes('inventory_complete'));
+  let refusedBadArgs = false;
+  try {
+    await runLegacyCopy({ source, target, references: mockRefs([]), legacyHosts: HOSTS, args: { ...MO, mode: 'apply' }, sleep: noSleep });
+  } catch {
+    refusedBadArgs = true;
+  }
+  assert('core refuses metadataOnly combined with apply', refusedBadArgs && trapped.create === 0);
+
+  const cli = fs.readFileSync(path.join(root, 'scripts/workshop-legacy-copy.ts'), 'utf8');
+  const bodyOf = (name: string) => {
+    const start = cli.indexOf(`export function ${name}`);
+    const end = cli.indexOf('\nexport function ', start + 1);
+    return cli.slice(start, end < 0 ? undefined : end);
+  };
+  const metaAdapters = bodyOf('createSupabaseLegacyMetadataSource') + bodyOf('createGcsLegacyMetadataTarget');
+  assert('metadata-only adapters have no body-read / write / delete call',
+    metaAdapters.length > 200 && !/\.(download|save|upload|setMetadata|remove|delete|copy|move|createWriteStream|createReadStream)\(/.test(metaAdapters));
+  assert('metadata-only adapters route body / write ports to the refusal',
+    (metaAdapters.match(/metadataOnlyRefusal/g) ?? []).length === 4);
+  assert('CLI routes --metadata-only to the metadata adapters with a read-only GCS scope',
+    /metadataOnly \? createSupabaseLegacyMetadataSource\(admin\)/.test(cli) && /createGcsLegacyMetadataTarget\(storage/.test(cli)
+    && /devstorage\.read_only/.test(cli));
+  assert('gcloud token stays in memory (stdout captured, stderr discarded, never printed)',
+    /execSync\('gcloud auth print-access-token', \{ encoding: 'utf8', stdio: \['ignore', 'pipe', 'ignore'\] \}\)/.test(cli)
+    && !/console\.[a-z]+\([^)]*token/i.test(cli));
+}
+
+// ---------------------------------------------------------------------------
 section('copy tool static safety');
 {
   const core = fs.readFileSync(path.join(root, 'scripts/workshop-legacy-copy-core.ts'), 'utf8');
@@ -773,7 +923,7 @@ section('copy tool static safety');
   assert('GCS identity pinned to the copy job SA', /credentials\.client_email !== LEGACY_COPY_JOB_SA/.test(cli) && LEGACY_COPY_JOB_SA.startsWith('workshop-legacy-copy@'));
   assert('GCS target pinned to approved bucket + Seoul regional endpoint', /WORKSHOP_GCS_APPROVED_BUCKET/.test(cli) && /resolveRegionalEndpointHost/.test(cli));
   assert('CLI prints only the aggregate report or reason codes',
-    (cli.match(/console\.(log|error)\(/g) ?? []).length === 6 && /console\.log\(formatLegacyCopyReport\(report\)\)/.test(cli));
+    (cli.match(/console\.(log|error)\(/g) ?? []).length === 7 && /console\.log\(formatLegacyCopyReport\(report\)\)/.test(cli));
   assert('orders scan excludes purged orders', /purgedFilter: true/.test(cli) && /is\('image_purged_at', null\)/.test(cli));
   assert('reference scan uses keyset paging', /\.gt\(spec\.key, last\)/.test(cli));
   const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');

@@ -41,6 +41,7 @@ export const LEGACY_COPY_FLAGS = {
   verifyBytes: '--verify-bytes',
   ackReadOnly: '--ack-readonly-production-inventory',
   concurrency: '--concurrency',
+  metadataOnly: '--metadata-only',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -64,11 +65,21 @@ export type LegacySourceEntry = {
   mimeType: string | null;
 };
 
+export type LegacySourceBucketInfo = {
+  exists: boolean;
+  public: boolean | null;
+  fileSizeLimit: number | null;
+  allowedMimeTypes: string[] | null;
+};
+
 /** Read-only view of the Supabase `workshop` bucket. No write/delete/policy methods by design. */
 export interface LegacySource {
   list(prefix: string, offset: number, limit: number): Promise<LegacySourceEntry[]>;
   download(path: string, maxBytes: number): Promise<Uint8Array>;
+  bucketInfo?(): Promise<LegacySourceBucketInfo>;
 }
+
+export type LegacyTargetInventory = { objects: number; markerVerified: number; markerWritten: number };
 
 export type LegacyTargetObject = {
   sizeBytes: number;
@@ -89,6 +100,8 @@ export interface LegacyTarget {
   createOnly(path: string, bytes: Uint8Array, write: LegacyTargetWrite): Promise<'created' | 'exists'>;
   download(path: string, maxBytes: number): Promise<Uint8Array>;
   markVerified(path: string, metageneration: string | null): Promise<void>;
+  /** Bucket-wide object count + copy-marker counts from listing metadata (no object bodies). */
+  inventory?(): Promise<LegacyTargetInventory>;
 }
 
 export const LEGACY_REFERENCE_FIELDS = [
@@ -112,7 +125,11 @@ export interface LegacyReferenceSource {
 // ---------------------------------------------------------------------------
 
 export type LegacyCopyMode = 'dry-run' | 'apply';
-export type LegacyCopyArgs = { mode: LegacyCopyMode; verifyBytes: boolean; concurrency: number };
+/**
+ * `metadataOnly`: listing / DB / GCS metadata only. The run swaps every byte-read and write port for
+ * a guard that throws, so no object body is fetched and nothing is written even if a branch tried.
+ */
+export type LegacyCopyArgs = { mode: LegacyCopyMode; verifyBytes: boolean; concurrency: number; metadataOnly?: boolean };
 
 export function parseLegacyCopyArgs(
   argv: readonly string[],
@@ -124,8 +141,10 @@ export function parseLegacyCopyArgs(
   let ack = false;
   let confirm: string | null = null;
   let concurrency = 4;
+  let metadataOnly = false;
   for (const arg of argv) {
     if (arg === LEGACY_COPY_FLAGS.dryRun) dryRun = true;
+    else if (arg === LEGACY_COPY_FLAGS.metadataOnly) metadataOnly = true;
     else if (arg === LEGACY_COPY_FLAGS.apply) apply = true;
     else if (arg === LEGACY_COPY_FLAGS.verifyBytes) verifyBytes = true;
     else if (arg === LEGACY_COPY_FLAGS.ackReadOnly) ack = true;
@@ -140,6 +159,10 @@ export function parseLegacyCopyArgs(
   if (sourceProjectRef === PAYMENT_TEST_SUPABASE_PROJECT_REF) return { ok: false, reason: 'payment_test_project_refused' };
   if (sourceProjectRef !== PRODUCTION_SUPABASE_PROJECT_REF) return { ok: false, reason: 'unexpected_source_project' };
   if (apply && dryRun) return { ok: false, reason: 'conflicting_modes' };
+  if (metadataOnly) {
+    if (apply || verifyBytes || confirm !== null) return { ok: false, reason: 'metadata_only_conflict' };
+    return { ok: true, args: { mode: 'dry-run', verifyBytes: false, concurrency, metadataOnly: true } };
+  }
   if (!apply) {
     if (confirm !== null) return { ok: false, reason: 'confirm_without_apply' };
     return { ok: true, args: { mode: 'dry-run', verifyBytes, concurrency } };
@@ -195,12 +218,47 @@ export type LegacyCopyReport = {
   // errors
   list_errors: number;
   reference_lookup_errors: number;
+  // metadata-only inventory (NEW4-4D-9D)
+  metadata_only: boolean;
+  byte_read_attempts: number;
+  write_attempts: number;
+  originals_total: number;
+  previews_total: number;
+  non_uuid_referenced: number;
+  /** Occurrences per `<table.column>:<class>` (Workshop-media values only). */
+  references_by_field: Record<string, number>;
+  target_inventory_listed: boolean;
+  target_inventory_errors: number;
+  target_objects_total: number;
+  target_marker_verified_total: number;
+  target_marker_written_total: number;
+  target_existing: number;
+  /** Verified marker + metadata consistent. NOT byte-verified; never counted as resolvable. */
+  target_metadata_match_candidate: number;
+  target_metadata_conflict_candidate: number;
+  /** Bucket facts from the Storage API (metadata-only runs). */
+  source_bucket?: LegacySourceBucketInfo;
 };
 
-export function emptyLegacyCopyReport(mode: LegacyCopyMode, byteVerified: boolean): LegacyCopyReport {
+export function emptyLegacyCopyReport(mode: LegacyCopyMode, byteVerified: boolean, metadataOnly = false): LegacyCopyReport {
   return {
     mode,
     byte_verified: byteVerified,
+    metadata_only: metadataOnly,
+    byte_read_attempts: 0,
+    write_attempts: 0,
+    originals_total: 0,
+    previews_total: 0,
+    non_uuid_referenced: 0,
+    references_by_field: {},
+    target_inventory_listed: false,
+    target_inventory_errors: 0,
+    target_objects_total: 0,
+    target_marker_verified_total: 0,
+    target_marker_written_total: 0,
+    target_existing: 0,
+    target_metadata_match_candidate: 0,
+    target_metadata_conflict_candidate: 0,
     reference_values_scanned: 0,
     canonical_refs: 0,
     referenced_legacy_total: 0,
@@ -258,8 +316,37 @@ export function evaluateLegacyCutoverGate(r: LegacyCopyReport): LegacyCutoverGat
   return { pass: failed.length === 0, failed };
 }
 
+/**
+ * Pre-copy readiness from a metadata-only run. Never a cutover PASS: without byte verification the
+ * final gate is not evaluated.
+ */
+export function evaluateLegacyPreCopyInventory(r: LegacyCopyReport): { ready: boolean; blockers: string[] } {
+  const checks: [string, boolean][] = [
+    ['no_byte_or_write_attempt', r.byte_read_attempts === 0 && r.write_attempts === 0],
+    ['inventory_complete', r.list_errors === 0 && r.reference_lookup_errors === 0 && r.tables_absent === 0
+      && r.target_inventory_errors === 0 && r.copy_failed_retryable === 0 && r.copy_failed_permanent === 0],
+    ['no_malformed_referenced', r.malformed_referenced === 0],
+    ['no_unrecognized_referenced', r.unrecognized_referenced === 0 && r.foreign_host_referenced === 0],
+    ['no_referenced_missing_source', r.referenced_missing_source === 0],
+    ['no_target_metadata_conflict', r.target_metadata_conflict_candidate === 0 && r.target_unverified === 0],
+    ['no_duplicate_target', r.duplicate_target === 0],
+  ];
+  const blockers = checks.filter(([, ok]) => !ok).map(([name]) => name);
+  return { ready: blockers.length === 0, blockers };
+}
+
 /** Counters + gate only. Safe to print or store. */
 export function formatLegacyCopyReport(r: LegacyCopyReport): string {
+  if (r.metadata_only) {
+    const pre = evaluateLegacyPreCopyInventory(r);
+    return JSON.stringify({
+      ...r,
+      cutover_gate: 'NOT_EVALUATED',
+      cutover_gate_reason: 'metadata_only_no_byte_verification',
+      pre_copy_inventory: pre.ready ? 'READY' : 'BLOCKED',
+      pre_copy_blockers: pre.blockers,
+    }, null, 2);
+  }
   const gate = evaluateLegacyCutoverGate(r);
   return JSON.stringify({ ...r, cutover_gate: gate.pass ? 'PASS' : 'FAIL', cutover_gate_failed: gate.failed }, null, 2);
 }
@@ -353,10 +440,15 @@ export async function buildLegacyReferenceIndex(
   const unrecognizedRefs = new Set<string>();
   const foreignRefs = new Set<string>();
   const canonicalRefs = new Set<string>();
-  const { tablesAbsent } = await source.scan((_field, value) => {
+  const nonUuidRefs = new Set<string>();
+  const { tablesAbsent } = await source.scan((field, value) => {
     forEachString(value, (s) => {
       report.reference_values_scanned += 1;
       const c = classifyLegacyRefValue(s, legacyHosts);
+      if (c.kind !== 'other') {
+        const key = `${field}:${c.kind}`;
+        report.references_by_field[key] = (report.references_by_field[key] ?? 0) + 1;
+      }
       if (c.kind === 'legacy') {
         report.legacy_ref_occurrences += 1;
         if (!index.legacy.has(c.path)) index.legacy.set(c.path, { seenSource: false, resolvable: false });
@@ -364,7 +456,10 @@ export async function buildLegacyReferenceIndex(
         canonicalRefs.add(s.trim());
       } else if (c.kind === 'malformed') {
         malformedRefs.add(s.trim());
-        if (c.permissivePath) index.malformed.add(c.permissivePath);
+        if (c.permissivePath) {
+          index.malformed.add(c.permissivePath);
+          if (classifyLegacyObjectPath(c.permissivePath).kind === 'noncanonical_filename') nonUuidRefs.add(s.trim());
+        }
       } else if (c.kind === 'foreign_host') {
         foreignRefs.add(s.trim());
       } else if (c.kind === 'unrecognized') {
@@ -376,6 +471,7 @@ export async function buildLegacyReferenceIndex(
   report.referenced_legacy_total = index.legacy.size;
   report.canonical_refs = canonicalRefs.size;
   report.malformed_referenced = malformedRefs.size;
+  report.non_uuid_referenced = nonUuidRefs.size;
   report.foreign_host_referenced = foreignRefs.size;
   report.unrecognized_referenced = unrecognizedRefs.size;
   return index;
@@ -431,7 +527,9 @@ type ObjectOutcome =
   | 'unverified'
   | 'oversize'
   | 'signature_mismatch'
-  | 'size_mismatch';
+  | 'size_mismatch'
+  | 'metadata_match_candidate'
+  | 'metadata_conflict_candidate';
 
 async function withRetry<T>(deps: LegacyCopyDeps, fn: () => Promise<T>): Promise<T> {
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
@@ -495,6 +593,16 @@ async function verifyAndPromote(
   return bridgeReady(parsed, await withRetry(deps, () => deps.target.head(parsed.path)));
 }
 
+/** Metadata-only target classification. A match is a candidate, never proof of identical bytes. */
+function metadataTargetOutcome(parsed: ParsedWorkshopRef, head: LegacyTargetObject | null, listedSize: number | null): ObjectOutcome {
+  if (!head) return 'missing';
+  if (head.copyState === 'written') return 'unverified';
+  if (head.copyState === 'verified' && (listedSize == null || head.sizeBytes === listedSize) && bridgeReady(parsed, head)) {
+    return 'metadata_match_candidate';
+  }
+  return 'metadata_conflict_candidate';
+}
+
 async function processReferencedObject(
   deps: LegacyCopyDeps,
   parsed: ParsedWorkshopRef,
@@ -505,6 +613,7 @@ async function processReferencedObject(
   if (listedSize != null && listedSize > cap) return 'oversize';
   const contentType = contentTypeForExtension(parsed.ext)!;
   const head = await withRetry(deps, () => deps.target.head(parsed.path));
+  if (deps.args.metadataOnly) return metadataTargetOutcome(parsed, head, listedSize);
   const needBytes = deps.args.mode === 'apply' || deps.args.verifyBytes;
 
   if (head) {
@@ -564,7 +673,37 @@ function recordOutcome(report: LegacyCopyReport, outcome: ObjectOutcome): boolea
     case 'size_mismatch':
       report.source_size_mismatch += 1;
       return false;
+    case 'metadata_match_candidate':
+      report.target_metadata_match_candidate += 1;
+      return false;
+    case 'metadata_conflict_candidate':
+      report.target_metadata_conflict_candidate += 1;
+      return false;
   }
+}
+
+/** Every byte-read and write port throws (and is counted); only list / head / inventory remain. */
+function metadataOnlyPorts(deps: LegacyCopyDeps, report: LegacyCopyReport): LegacyCopyDeps {
+  const refuse = (counter: 'byte_read_attempts' | 'write_attempts') => async (): Promise<never> => {
+    report[counter] += 1;
+    throw new LegacyCopyError('metadata_only_violation', false);
+  };
+  const { source, target } = deps;
+  return {
+    ...deps,
+    source: {
+      list: (prefix, offset, limit) => source.list(prefix, offset, limit),
+      download: refuse('byte_read_attempts'),
+      bucketInfo: source.bucketInfo ? () => source.bucketInfo!() : undefined,
+    },
+    target: {
+      head: (path) => target.head(path),
+      inventory: target.inventory ? () => target.inventory!() : undefined,
+      createOnly: refuse('write_attempts'),
+      download: refuse('byte_read_attempts'),
+      markVerified: refuse('write_attempts'),
+    },
+  };
 }
 
 async function runPool<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>): Promise<void> {
@@ -593,8 +732,24 @@ async function listAll(deps: LegacyCopyDeps, prefix: string, onPage: (entries: L
   }
 }
 
-export async function runLegacyCopy(deps: LegacyCopyDeps): Promise<LegacyCopyReport> {
-  const report = emptyLegacyCopyReport(deps.args.mode, deps.args.mode === 'apply' || deps.args.verifyBytes);
+export async function runLegacyCopy(inputDeps: LegacyCopyDeps): Promise<LegacyCopyReport> {
+  const metadataOnly = inputDeps.args.metadataOnly === true;
+  const report = emptyLegacyCopyReport(
+    inputDeps.args.mode,
+    !metadataOnly && (inputDeps.args.mode === 'apply' || inputDeps.args.verifyBytes),
+    metadataOnly,
+  );
+  if (metadataOnly && (inputDeps.args.mode !== 'dry-run' || inputDeps.args.verifyBytes)) {
+    throw new LegacyCopyError('metadata_only_args', false);
+  }
+  const deps = metadataOnly ? metadataOnlyPorts(inputDeps, report) : inputDeps;
+  if (metadataOnly && deps.source.bucketInfo) {
+    try {
+      report.source_bucket = await withRetry(deps, () => deps.source.bucketInfo!());
+    } catch {
+      report.list_errors += 1;
+    }
+  }
   let index: LegacyReferenceIndex;
   try {
     index = await buildLegacyReferenceIndex(deps.references, deps.legacyHosts, report);
@@ -606,13 +761,16 @@ export async function runLegacyCopy(deps: LegacyCopyDeps): Promise<LegacyCopyRep
   const seenTargets = new Set<string>();
   const seenIdentities = new Set<string>();
 
-  const countObject = (entry: LegacySourceEntry) => {
+  const countObject = (entry: LegacySourceEntry, root: string | null) => {
     report.source_objects_total += 1;
     if (typeof entry.sizeBytes === 'number' && entry.sizeBytes > 0) report.source_bytes_total += entry.sizeBytes;
+    if (root === 'originals') report.originals_total += 1;
+    else if (root === 'previews') report.previews_total += 1;
   };
+  const rootOf = (prefix: string) => prefix.split('/')[0];
 
   const processFile = async (path: string, entry: LegacySourceEntry, work: WorkItem[]) => {
-    countObject(entry);
+    countObject(entry, rootOf(path));
     const c = classifyLegacyObjectPath(path);
     if (c.kind !== 'canonical') {
       if (c.kind === 'noncanonical_filename') {
@@ -668,7 +826,7 @@ export async function runLegacyCopy(deps: LegacyCopyDeps): Promise<LegacyCopyRep
         }
         if (entry.isFolder) folders.push(`${prefix}/${entry.name}`);
         else {
-          countObject(entry);
+          countObject(entry, rootOf(prefix));
           report[bucket] += 1;
         }
       }
@@ -685,7 +843,7 @@ export async function runLegacyCopy(deps: LegacyCopyDeps): Promise<LegacyCopyRep
           continue;
         }
         if (!entry.isFolder) {
-          countObject(entry);
+          countObject(entry, null);
           report.unexpected_prefix += 1;
         } else rootFolders.push(entry.name);
       }
@@ -705,7 +863,7 @@ export async function runLegacyCopy(deps: LegacyCopyDeps): Promise<LegacyCopyRep
           }
           if (entry.isFolder) uidFolders.push(entry.name);
           else {
-            countObject(entry);
+            countObject(entry, root);
             report.malformed_path += 1;
           }
         }
@@ -738,6 +896,11 @@ export async function runLegacyCopy(deps: LegacyCopyDeps): Promise<LegacyCopyRep
     const parsed = parseCanonicalWorkshopPath(path)!;
     try {
       const head = await withRetry(deps, () => deps.target.head(path));
+      if (metadataOnly) {
+        if (head) recordOutcome(report, metadataTargetOutcome(parsed, head, null));
+        report.referenced_missing_source += 1;
+        continue;
+      }
       if (bridgeReady(parsed, head)) {
         ref.resolvable = true;
         continue;
@@ -750,6 +913,23 @@ export async function runLegacyCopy(deps: LegacyCopyDeps): Promise<LegacyCopyRep
   }
 
   for (const ref of index.legacy.values()) if (ref.resolvable) report.referenced_legacy_resolvable_from_gcs += 1;
+
+  if (metadataOnly) {
+    report.target_existing = report.target_metadata_match_candidate + report.target_metadata_conflict_candidate + report.target_unverified;
+    if (deps.target.inventory) {
+      try {
+        const inv = await withRetry(deps, () => deps.target.inventory!());
+        report.target_inventory_listed = true;
+        report.target_objects_total = inv.objects;
+        report.target_marker_verified_total = inv.markerVerified;
+        report.target_marker_written_total = inv.markerWritten;
+      } catch {
+        report.target_inventory_errors += 1;
+      }
+    } else {
+      report.target_inventory_errors += 1;
+    }
+  }
   return report;
 }
 

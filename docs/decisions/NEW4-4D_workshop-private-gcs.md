@@ -1,6 +1,6 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated. BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
+Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated; production read-only inventory BLOCKED — CREDENTIAL ACCESS REQUIRED (NEW4-4D-9D; metadata-only tooling ready). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
 Production cutover: RELEASE-GATED. Production still runs `b9664fb` on Supabase Storage. HEAD must not be deployed until the release-plan blockers are cleared with owner approval. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
@@ -389,7 +389,37 @@ supabase-js `storage.from('workshop').download(path)`: an authenticated Storage 
 
 ### Verifier
 
-`npx tsx scripts/verify-new4-4d-9-legacy-copy.ts` (mocked; bridge A–K, copy args / classification / dry-run / apply / retry / delta / semantics / static safety).
+`npx tsx scripts/verify-new4-4d-9-legacy-copy.ts` (mocked; bridge A–K, copy args / classification / dry-run / apply / retry / delta / semantics / metadata-only / static safety).
+
+## Production read-only inventory (NEW4-4D-9D, A6)
+
+Status: **BLOCKED — CREDENTIAL ACCESS REQUIRED.** The owner approved read-only ops facts and a metadata / DB-reference / aggregate-only dry-run (no byte download, no apply, no mutation). The tool is ready (`--metadata-only`). The Supabase part was **not executed**: no production Supabase credential is available locally without retrieving a raw secret, and the ticket forbids that. Baseline HEAD `7da9340`.
+
+- **Credential state (names only).** No local production `.env`. The only Supabase env files present are payment-test (`.env.payment-test*`, forbidden). No Supabase CLI login token, no `SUPABASE_ACCESS_TOKEN`, no gcloud ADC file. The production `SUPABASE_SERVICE_ROLE_KEY` exists only in the production Cloud Run / Secret Manager configuration; reading it out was not done.
+- **Metadata-only mode (added, verified).** `--metadata-only` (requires `--ack-readonly-production-inventory`; refuses `--apply`, `--verify-bytes`, `--confirm-production-copy`). It needs no copy-job SA.
+  - Structural guarantee: dedicated adapters (`createSupabaseLegacyMetadataSource`, `createGcsLegacyMetadataTarget`) have no object-body or write implementation; their download / create / mark ports throw.
+  - Second layer: the core swaps those ports for counted refusals again (`byte_read_attempts`, `write_attempts`, a pre-copy blocker if > 0).
+  - Credentials: GCS uses ADC with `devstorage.read_only`, else the operator's `gcloud auth print-access-token`. That token stays in memory and is not scope-narrowed; on that path the adapters are the guarantee.
+  - Labels: a verified marker with consistent metadata is a `target_metadata_match_candidate`, never counted as resolvable. The output carries `cutover_gate: NOT_EVALUATED` and `pre_copy_inventory: READY | BLOCKED` with named blockers.
+  - New aggregates: `originals_total`, `previews_total`, `non_uuid_referenced`, `references_by_field` (`<table.column>:<class>` occurrence counts), target bucket totals and marker counts, Supabase bucket facts (`exists`, `public`, `file_size_limit`, `allowed_mime_types`).
+  - D-9 verifier 166/166 (30 metadata-only checks: trap adapters prove zero body reads and zero writes).
+- **Executed (read-only, aggregate).** Target bucket metadata listing on the Seoul regional endpoint with the operator gcloud login: `target_objects_total = 1`; under `originals/` 0, under `previews/` 0; legacy copy markers `verified` 0, `written` 0. The single object lies outside the customer prefixes and was not further classified (a follow-up prefix read was not pursued). No object body read, no write.
+- **Not executed (credential):** Supabase `workshop` bucket facts, storage policies, the plan, `add_custom_cart_item`, migration state, source inventory, DB reference inventory. All remain **UNVERIFIED**. Historical (not re-verified): public bucket, Free plan.
+- **No customer byte access:** source bodies 0, target bodies 0, hash verification NOT RUN, image decoding NOT RUN.
+- This is **not** a copy gate. Pre-copy inventory: **NOT RUN**.
+
+Resume condition: the owner authorizes one secure credential path, without exposing the value to the operator console:
+- (a) a Cloud Run Job (Seoul) running the metadata-only command with `SUPABASE_SERVICE_ROLE_KEY` as a Secret Manager env reference and a read-only GCS identity; or
+- (b) an operator-held Supabase Management API token (or a read-only DB role) injected into the process env for ops facts; or
+- (c) an explicit owner instruction to inject the service-role key into the local process env without printing it.
+
+Ops facts (policies, plan, function signature, migration list) additionally need SQL / Management API access: the service role cannot read `pg_policies` / `pg_proc` / `supabase_migrations` through PostgREST.
+
+Resume procedure:
+1. `npx tsx scripts/workshop-legacy-copy.ts --ack-readonly-production-inventory --metadata-only` with `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `WORKSHOP_GCS_BUCKET` and `WORKSHOP_GCS_ENDPOINT` injected.
+2. Read-only SQL for policies / function / migrations.
+3. Record the aggregates here.
+4. If `non_uuid_referenced` or `malformed_referenced` > 0: CUTOVER BLOCKER, owner disposition required.
 
 ### Supabase production state: OPS FACT REQUIRED
 
@@ -480,7 +510,7 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 - ~~A2 NEW4-4D-5: Workshop upload switch, resume, PDP workshop-single.~~ **DONE locally.** A4 targeted review of the WebGL texture expiry path recommended (no A4 code change required).
 - ~~A0: D-4 R-scope refresh.~~ **DONE locally (NEW4-4D-7A, then NEW4-4D-7C post-D-7B, 95/95).** ~~A6: D-3 application-state check refresh.~~ **DONE locally (NEW4-4D-8).**
 - ~~A2: `referrerPolicy="no-referrer"` on PDP Workshop-capable `<img>`.~~ **DONE locally (NEW4-4D-8A).**
-- ~~A6: legacy copy script and read bridge (NEW4-4D-9).~~ **DONE locally, not run.** A6: deploy tooling for env-in-candidate, release execution (NEW4-4D-10), owner-approved dry-run / copy execution.
+- ~~A6: legacy copy script and read bridge (NEW4-4D-9).~~ **DONE locally, not run.** A6: deploy tooling for env-in-candidate, release execution (NEW4-4D-10), owner-approved dry-run / copy execution. NEW4-4D-9D metadata-only inventory: tooling ready, **blocked on an owner-authorized credential path** (see that section).
 - ~~A2 (`ProductDetail`, `WorkshopView`): route strict legacy refs through the resolver.~~ **DONE locally (NEW4-4D-9A).** ~~A3 (`workshopMediaDisplay` consumers: Cart / CartContext / admin / OrdersModal): same, NEW4-4D-9B.~~ **DONE locally (NEW4-4D-9B; D-9A aligned in NEW4-4D-9C).**
 - ~~A3 NEW4-4D-6: Cart, CartContext, admin consumers.~~ **DONE locally.**
 - ~~A3: `OrdersModal.tsx` after owner-approved protected-WIP handoff.~~ **DONE locally (NEW4-4D-7B)**; its seven pre-existing WIP hunks stay uncommitted for later Member/Account UX work.

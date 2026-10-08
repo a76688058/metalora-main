@@ -1,10 +1,14 @@
 /**
  * NEW4-4D-9 — legacy Workshop copy CLI (A6). Not run by NEW4-4D-9.
  *
+ *   npx tsx scripts/workshop-legacy-copy.ts --ack-readonly-production-inventory --metadata-only
  *   npx tsx scripts/workshop-legacy-copy.ts --ack-readonly-production-inventory [--dry-run] [--verify-bytes]
  *   npx tsx scripts/workshop-legacy-copy.ts --ack-readonly-production-inventory --apply \
  *     --confirm-production-copy=<supabase project ref>
  *
+ * `--metadata-only`: listing, bucket settings, DB scan, GCS object metadata and listing counts; the
+ * adapters have no object-body or write implementation (ADC also requests a read-only scope). Any
+ * authorized GCS identity (ADC or the operator's gcloud login); no copy-job SA needed.
  * Dry run is the default (listing + DB scan + GCS metadata only; `--verify-bytes` also reads and
  * hashes source bytes). Apply needs the exact production project ref. Runs only with env injected by
  * the approved job (no `.env` loading): VITE_SUPABASE_URL or SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
@@ -12,10 +16,11 @@
  *
  * Output: aggregate counters + cutover gate only. Never prints paths, UIDs, URLs or secrets.
  */
+import { execSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { Storage, type File } from '@google-cloud/storage';
-import { GoogleAuth } from 'google-auth-library';
+import { GoogleAuth, OAuth2Client } from 'google-auth-library';
 import {
   WORKSHOP_BUCKET,
   WORKSHOP_GCS_APPROVED_BUCKET,
@@ -40,6 +45,7 @@ import {
   type LegacyReferenceTable,
   type LegacySource,
   type LegacyTarget,
+  type LegacyTargetObject,
 } from './workshop-legacy-copy-core';
 
 const DB_PAGE = 1000;
@@ -62,22 +68,110 @@ function retryableStatus(status: number | null): boolean {
   return status == null || status === 408 || status === 429 || status >= 500;
 }
 
+async function listSourceEntries(admin: SupabaseClient, prefix: string, offset: number, limit: number) {
+  const { data, error } = await admin.storage
+    .from(WORKSHOP_BUCKET)
+    .list(prefix, { limit, offset, sortBy: { column: 'name', order: 'asc' } });
+  if (error) throw new LegacyCopyError('source_list', true);
+  return (data ?? []).map((entry) => {
+    const meta = (entry.metadata ?? null) as { size?: unknown; mimetype?: unknown } | null;
+    return {
+      name: entry.name,
+      isFolder: entry.id == null,
+      sizeBytes: typeof meta?.size === 'number' ? meta.size : null,
+      mimeType: typeof meta?.mimetype === 'string' ? meta.mimetype : null,
+    };
+  });
+}
+
+async function headTargetObject(storage: Storage, bucketName: string, path: string): Promise<LegacyTargetObject | null> {
+  try {
+    const [meta] = await storage.bucket(bucketName).file(path).getMetadata();
+    const custom = (meta.metadata ?? {}) as Record<string, unknown>;
+    const sha = custom[WORKSHOP_LEGACY_COPY_METADATA.sourceSha256];
+    return {
+      sizeBytes: Number(meta.size),
+      contentType: typeof meta.contentType === 'string' ? meta.contentType : null,
+      cacheControl: typeof meta.cacheControl === 'string' ? meta.cacheControl : null,
+      md5Base64: typeof meta.md5Hash === 'string' ? meta.md5Hash : null,
+      copyState: legacyCopyStateOf(custom),
+      sourceSha256: typeof sha === 'string' ? sha : null,
+      metageneration: meta.metageneration != null ? String(meta.metageneration) : null,
+    };
+  } catch (error) {
+    const status = httpStatus(error);
+    if (status === 404) return null;
+    throw new LegacyCopyError('target_head', retryableStatus(status));
+  }
+}
+
+const metadataOnlyRefusal = async (): Promise<never> => {
+  throw new LegacyCopyError('metadata_only_violation', false);
+};
+
+/** METADATA-ONLY source: listing + bucket settings. Has no object-body or write implementation. */
+export function createSupabaseLegacyMetadataSource(admin: SupabaseClient): LegacySource {
+  return {
+    list: (prefix, offset, limit) => listSourceEntries(admin, prefix, offset, limit),
+    download: metadataOnlyRefusal,
+    async bucketInfo() {
+      const { data, error } = await admin.storage.getBucket(WORKSHOP_BUCKET);
+      if (error || !data) {
+        if (httpStatus(error) === 404 || /not.?found/i.test(String((error as { message?: unknown } | null)?.message ?? ''))) {
+          return { exists: false, public: null, fileSizeLimit: null, allowedMimeTypes: null };
+        }
+        throw new LegacyCopyError('source_bucket', true);
+      }
+      const limit = (data as { file_size_limit?: unknown }).file_size_limit;
+      const mimes = (data as { allowed_mime_types?: unknown }).allowed_mime_types;
+      return {
+        exists: true,
+        public: typeof data.public === 'boolean' ? data.public : null,
+        fileSizeLimit: typeof limit === 'number' ? limit : null,
+        allowedMimeTypes: Array.isArray(mimes) ? mimes.filter((m): m is string => typeof m === 'string') : null,
+      };
+    },
+  };
+}
+
+/** METADATA-ONLY target: object metadata + listing counts. Has no object-body or write implementation. */
+export function createGcsLegacyMetadataTarget(storage: Storage, bucketName: string): LegacyTarget {
+  return {
+    head: (path) => headTargetObject(storage, bucketName, path),
+    createOnly: metadataOnlyRefusal,
+    download: metadataOnlyRefusal,
+    markVerified: metadataOnlyRefusal,
+    async inventory() {
+      const result = { objects: 0, markerVerified: 0, markerWritten: 0 };
+      let pageToken: string | undefined;
+      do {
+        let files: File[];
+        let next: { pageToken?: string } | null;
+        try {
+          [files, next] = (await storage.bucket(bucketName).getFiles({ autoPaginate: false, maxResults: 1000, pageToken })) as unknown as [
+            File[],
+            { pageToken?: string } | null,
+          ];
+        } catch (error) {
+          throw new LegacyCopyError('target_list', retryableStatus(httpStatus(error)));
+        }
+        for (const f of files) {
+          result.objects += 1;
+          const state = legacyCopyStateOf((f.metadata?.metadata ?? {}) as Record<string, unknown>);
+          if (state === 'verified') result.markerVerified += 1;
+          else if (state === 'written') result.markerWritten += 1;
+        }
+        pageToken = next?.pageToken;
+      } while (pageToken);
+      return result;
+    },
+  };
+}
+
 export function createSupabaseLegacySource(admin: SupabaseClient): LegacySource {
   const bucket = admin.storage.from(WORKSHOP_BUCKET);
   return {
-    async list(prefix, offset, limit) {
-      const { data, error } = await bucket.list(prefix, { limit, offset, sortBy: { column: 'name', order: 'asc' } });
-      if (error) throw new LegacyCopyError('source_list', true);
-      return (data ?? []).map((entry) => {
-        const meta = (entry.metadata ?? null) as { size?: unknown; mimetype?: unknown } | null;
-        return {
-          name: entry.name,
-          isFolder: entry.id == null,
-          sizeBytes: typeof meta?.size === 'number' ? meta.size : null,
-          mimeType: typeof meta?.mimetype === 'string' ? meta.mimetype : null,
-        };
-      });
-    },
+    list: (prefix, offset, limit) => listSourceEntries(admin, prefix, offset, limit),
     async download(path, maxBytes) {
       // Authenticated Storage API object read (service role), not the public URL.
       const { data, error } = await bucket.download(path);
@@ -94,26 +188,7 @@ export function createSupabaseLegacySource(admin: SupabaseClient): LegacySource 
 export function createGcsLegacyTarget(storage: Storage, bucketName: string): LegacyTarget {
   const file = (path: string): File => storage.bucket(bucketName).file(path);
   return {
-    async head(path) {
-      try {
-        const [meta] = await file(path).getMetadata();
-        const custom = (meta.metadata ?? {}) as Record<string, unknown>;
-        const sha = custom[WORKSHOP_LEGACY_COPY_METADATA.sourceSha256];
-        return {
-          sizeBytes: Number(meta.size),
-          contentType: typeof meta.contentType === 'string' ? meta.contentType : null,
-          cacheControl: typeof meta.cacheControl === 'string' ? meta.cacheControl : null,
-          md5Base64: typeof meta.md5Hash === 'string' ? meta.md5Hash : null,
-          copyState: legacyCopyStateOf(custom),
-          sourceSha256: typeof sha === 'string' ? sha : null,
-          metageneration: meta.metageneration != null ? String(meta.metageneration) : null,
-        };
-      } catch (error) {
-        const status = httpStatus(error);
-        if (status === 404) return null;
-        throw new LegacyCopyError('target_head', retryableStatus(status));
-      }
-    },
+    head: (path) => headTargetObject(storage, bucketName, path),
     async createOnly(path, bytes, write) {
       try {
         await file(path).save(Buffer.from(bytes), {
@@ -234,6 +309,26 @@ export function createSupabaseLegacyReferenceSource(admin: SupabaseClient): Lega
   };
 }
 
+const READ_ONLY_SCOPE = 'https://www.googleapis.com/auth/devstorage.read_only';
+
+async function metadataOnlyGcsAuthClient(): Promise<unknown | null> {
+  try {
+    return await new GoogleAuth({ scopes: [READ_ONLY_SCOPE] }).getClient();
+  } catch {
+    // No ADC: operator gcloud login, token kept in memory only. That token is not scope-narrowed; the
+    // metadata-only adapters (no body / write methods) are what keep this path read-only.
+  }
+  try {
+    const token = execSync('gcloud auth print-access-token', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    if (!token) return null;
+    const oauth = new OAuth2Client();
+    oauth.setCredentials({ access_token: token });
+    return oauth;
+  } catch {
+    return null;
+  }
+}
+
 async function main(): Promise<number> {
   const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
   const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
@@ -254,12 +349,23 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/devstorage.read_write'] });
-  const client = await auth.getClient();
-  const credentials = await auth.getCredentials();
-  if (credentials.client_email !== LEGACY_COPY_JOB_SA) {
-    console.error(JSON.stringify({ status: 'refused', reason: 'unexpected_gcs_identity' }));
-    return 2;
+  const metadataOnly = parsed.args.metadataOnly === true;
+  let client: unknown;
+  if (metadataOnly) {
+    // Metadata-only: read-only scope, any authorized identity (ADC, else the operator's gcloud login).
+    client = await metadataOnlyGcsAuthClient();
+    if (!client) {
+      console.error(JSON.stringify({ status: 'refused', reason: 'gcs_auth_unavailable' }));
+      return 2;
+    }
+  } else {
+    const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/devstorage.read_write'] });
+    client = await auth.getClient();
+    const credentials = await auth.getCredentials();
+    if (credentials.client_email !== LEGACY_COPY_JOB_SA) {
+      console.error(JSON.stringify({ status: 'refused', reason: 'unexpected_gcs_identity' }));
+      return 2;
+    }
   }
   const storage = new Storage({
     projectId: WORKSHOP_GCS_PROJECT,
@@ -269,8 +375,10 @@ async function main(): Promise<number> {
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
   const report = await runLegacyCopy({
-    source: createSupabaseLegacySource(admin),
-    target: createGcsLegacyTarget(storage, WORKSHOP_GCS_APPROVED_BUCKET),
+    source: metadataOnly ? createSupabaseLegacyMetadataSource(admin) : createSupabaseLegacySource(admin),
+    target: metadataOnly
+      ? createGcsLegacyMetadataTarget(storage, WORKSHOP_GCS_APPROVED_BUCKET)
+      : createGcsLegacyTarget(storage, WORKSHOP_GCS_APPROVED_BUCKET),
     references: createSupabaseLegacyReferenceSource(admin),
     legacyHosts: legacySupabaseHosts(supabaseUrl),
     args: parsed.args,
