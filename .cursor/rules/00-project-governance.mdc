@@ -1,11 +1,22 @@
 ---
-description: METALORA governance — WIP, git, write gates, decisions, no secrets.
+description: METALORA governance — rule priority, scope, WIP, evidence, verification, reporting, decisions.
 alwaysApply: true
 ---
 
 # Project governance
 
 Operating model: Parallel Audit → Directed Decision → Controlled Write → Independent Verification.
+
+## Rule priority
+1. Owner's current explicit instruction
+2. Production / legal / security safety gates (`04-approval-qa-release`)
+3. Protected WIP and agent ownership (`01-ownership-write-scope`)
+4. Current ticket scope and acceptance criteria
+5. Existing project architecture / contracts (`02`, `03`)
+6. General code discipline (`05-code-discipline`)
+7. Generic framework best practices
+
+Generic best practices never override project contracts.
 
 ## MASTER PIPELINE v3 — PRE-STAGE REPORT GATE
 
@@ -17,15 +28,47 @@ For every **MASTER PIPELINE v3** numbered stage (NEW 1–9) and every **NEW 2 su
 
 This gate **extends** the operating model above. It does **not** replace Controlled Write, visual approval, A5, or A6 RED boundaries. A0 owns the report. Do not paste the full report template into Rules.
 
-## Working state
-- Preserve dirty WIP. Never reset / checkout / stash / clean user work to make a task easier.
+## Working state / protected WIP
+- Preserve dirty WIP. Never clean, reset, checkout, restore, stash, stage, overwrite, format, or "fix" unrelated dirty files merely to obtain a clean tree. `dist/` is not touched unless a ticket says so.
+- Never fold pre-existing user WIP into the current ticket's commit. Commit by explicit path.
+- Touching a file that contains unrelated WIP: inspect its diff first, change only the approved hunk/scope, then prove the unrelated hunks are unchanged.
 - No git commit / push / reset / checkout / stash unless the user explicitly requests it.
 
+## Scope discipline
+- Change only what the ticket/request requires; prefer the smallest correct implementation.
+- No unrelated edits, speculative cleanup, or whole-file rewrites for small changes.
+- No new abstraction without an immediate concrete need.
+- No new dependency when existing project code can solve it. A new runtime dependency needs a concrete reason and owner/ticket approval; `package.json` / lockfile are RED (`01`).
+- Nearby problems found along the way are reported, not silently absorbed.
+- Preserve approved behavior outside the ticket's scope.
+- Before delivery, confirm every changed file is inside the approved WRITE SET.
+
+Routine local edits inside an approved scope need no extra approval.
+
 ## Write discipline
-- Minimize WRITE SET. One file = one active writer. Max 2 concurrent write agents.
+- Minimize WRITE SET. Concurrency limits: `01-ownership-write-scope`.
 - Before source writes report: baseline, WRITE SET, collision PASS/FAIL, exact plan, dependency needed YES/NO.
-- Do not install or add dependencies unless necessary and reported in the ticket.
-- Preserve approved behavior outside the ticket’s explicit scope. Do not refactor unrelated code to solve a local issue.
+
+## Evidence before claims
+- DONE means the required validation actually ran and passed — not that code was written.
+- Distinguish: implemented · compiled · locally verified · remotely verified · production verified. Typecheck success is not runtime proof.
+- Unknown library/API/schema/runtime/cloud/migration facts are verified from the repo, installed version, actual schema, or runtime evidence. Never invent APIs, signatures, parameters, env vars, columns, resource state, or migration state. If it cannot be verified, mark it **UNVERIFIED**.
+- Never convert an assumption into a fact.
+
+## Risk-proportional verification
+| Change | Minimum verification |
+|---|---|
+| Trivial text / style | Focused inspection |
+| Logic | Typecheck + lint + targeted behavior check |
+| State / auth / storage / database | Targeted verifier + failure-path review |
+| Migration / IAM / deploy / payment | Explicit owner gate + preflight + postflight evidence |
+
+After source writes: run the smallest relevant verification for the changed scope and `npm run lint` unless it cannot reasonably run; report exactly what ran and its result. If verification cannot run, say why — never imply PASS. Production-changing work is never complete without post-change verification.
+
+## Status reports
+Final reports separate: implemented · verified · not verified · production mutation performed / NOT performed · remaining blockers · exact next approval required.
+
+Never hide failed verification, skipped checks, partial execution, or approval-scope deviations. Any out-of-scope production action is reported explicitly.
 
 ## Decisions vs Rules
 - Stable decisions live in `docs/decisions/<TASK-ID>_<SHORT_TOPIC>.md`. Prefer updating an existing note over a duplicate.
@@ -42,5 +85,4 @@ Keep notes concise. Do not paste full agent reports. Never store secrets, tokens
 
 When a task completes, is superseded, unblocks, or is deferred again, update Status on the existing note.
 
-## Secrets
-No secrets in source, Rules, decision docs, or reports.
+Secrets handling: `04-approval-qa-release` § Security.

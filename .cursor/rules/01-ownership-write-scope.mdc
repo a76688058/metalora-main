@@ -57,9 +57,9 @@ A6 owns production-release verification for policy/legal risk; product/content w
 - Forbidden: Home composition, `App.tsx`, page-local 3D forks of shared artwork3d/Hero defaults.
 
 ## A5 — UX QA / Accessibility / Performance
-- STRICT READ ONLY. Default WRITE SET **NONE**.
+- STRICT READ ONLY. Default WRITE SET **NONE**. Never edits files while acting as QA.
 - Independent QA only. Do not silently fix source during QA.
-- Visible UI QA only after **USER VISUAL APPROVAL** (see `04-approval-qa-release`).
+- Visible UI QA only after **USER VISUAL APPROVAL**. Review dimensions, finding format and verdicts: `04-approval-qa-release` § A5 review.
 
 ## A6 — Production Guard
 - `server.ts` production SEO / payment / auth / security semantics.
@@ -73,7 +73,7 @@ A6 owns production-release verification for policy/legal risk; product/content w
 - **Payment:** A3 UX, A6 authority. Payment-adjacent A3 work requires A6 verification.
 - **Mounted WebGL:** A4. A2/A3 own the journey around it.
 - Unmounted orphan components require an **A0 disposition ticket**. Do not delete them incidentally.
-- Production deploy / promote: **A6 + explicit user approval**. Never automatic.
+- Production deploy / promote: **A6 + explicit user approval**. Never automatic. All production mutations: `04-approval-qa-release` § Production mutation.
 
 ## Permanent single-writer files
 | File | Owner | Notes |

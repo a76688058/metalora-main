@@ -1,5 +1,5 @@
 ---
-description: METALORA physical product scale and PDP/Hero spatial WebGL contracts.
+description: METALORA physical product scale, PDP/Hero spatial WebGL, and user-facing image / Workshop media contracts.
 alwaysApply: true
 ---
 
@@ -37,3 +37,16 @@ Do **not** invent unmeasured magnet/sticker thickness, magnet material, magnetic
 
 ## Local vs shared
 Do not change global `artwork3d` / Hero defaults for PDP-local visual needs.
+
+## User-facing images (Home, PDP, Workshop, account, admin)
+- No placeholder image services and no hotlinked third-party images; use committed / project-approved assets. Report existing placeholder fallbacks; replace them only when the ticket scope covers them.
+- Imagery shows the actual product/state and never fabricates product features (`03-product-truth-claims`).
+- Keep an intentional aspect ratio; reserve space (dimensions / `aspect-ratio`) to prevent layout shift.
+- Informative images get useful `alt`; decorative images get `alt=""`. Essential information never lives only inside an image.
+- Broken / loading / empty states show a designed fallback, never broken-image UI.
+- Verify mobile and desktop.
+- Do not add a generic image-optimization framework because of this section.
+
+## Workshop media
+- Canonical Workshop refs are never converted into public URLs or used directly as `src`; display goes through the shared Workshop media resolver/display layer.
+- Signed URLs are transient display values: never persisted (DB, local/session storage, URL, analytics) and never logged; use `referrerPolicy="no-referrer"` where a signed URL is rendered.

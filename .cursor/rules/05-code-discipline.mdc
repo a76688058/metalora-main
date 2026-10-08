@@ -1,0 +1,27 @@
+---
+description: METALORA code discipline — verified third-party APIs, invariant-preserving refactors, comments, async/data access, excluded generic mandates.
+globs: src/**,scripts/**,supabase/**,server.ts,vite.config.ts
+alwaysApply: false
+---
+
+# Code discipline
+
+Scope, dependency policy and verification levels: `00-project-governance`. Existing METALORA architecture wins over generic framework advice.
+
+## Third-party APIs
+Before using a third-party symbol, check the installed package version (`package.json` / lockfile / `node_modules`), that the symbol exists in that version, and its actual signature when correctness depends on it. Never write a plausible-looking API from memory.
+
+## Refactors / invariants
+Before a non-trivial refactor, name the observable behavior that must not change and the existing tests / verifiers covering it; keep them passing. Do not force a new architecture, state library, component convention, folder layout, React pattern, or abstraction because it is a generic best practice.
+
+## Comments
+Explain WHY (constraints the code cannot show), not obvious WHAT. No comments referring to the ticket, review, or an AI/agent.
+
+## Async / data access
+- Independent network/DB reads may run concurrently when semantics permit; never parallelize work with ordering or dependency requirements.
+- Avoid N+1 calls when batching exists or is simple.
+- Select only needed fields when practical.
+- No new cache without a concrete measured or architectural need. No mandated state manager or caching library.
+
+## Not adopted
+These generic directives are **not** project rules: always `React.FC`, always `React.lazy`, a test for every branch, try/catch in every async function, function length limits, comments on all code, fixed folder structures, blanket DRY/SOLID refactors, mandatory interfaces/abstractions, mandatory new security infrastructure.

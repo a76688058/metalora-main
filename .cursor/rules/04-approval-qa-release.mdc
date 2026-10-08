@@ -1,9 +1,9 @@
 ---
-description: METALORA visual-approval gate, A5 QA scope, polish vs blocking, production final.
+description: METALORA visual-approval gate, security, production-mutation authorization, approval cards, A5 review, polish vs blocking, production final.
 alwaysApply: true
 ---
 
-# Approval / QA / release
+# Approval / security / QA / release
 
 ## Visible UI gate
 Implementation → implementation report → assistant/design review → **USER VISUAL APPROVAL** → targeted A5 QA → close.
@@ -12,17 +12,37 @@ Never send a visible UI task to A5 before explicit user visual approval. Never s
 
 Exception: a non-visual stability/integrity patch after approved visuals may get targeted verification without reopening design, but must preserve the approved output.
 
-## A5
-- Default READ ONLY (see `01-ownership-write-scope`).
-- Test only plausibly affected surfaces. Do not recertify unrelated historic contracts.
-- Verify actual runtime where feasible. Report PASS / FAIL / risks. Lint/typecheck as appropriate.
+## Security
+**Secrets.** No secrets in source, Rules, decision docs, reports, commits, or command output. Never hardcode credentials, commit `.env` files or tokens, or put service-role keys / signing credentials in client code. Prefer secret references and PRESENT / ABSENT checks over retrieving secret values.
 
-## Source-write verification
-After source writes:
-- run the smallest relevant runtime/static verification for the changed scope
-- run `npm run lint` unless the task cannot reasonably do so
-- report the exact verification performed and its result
-- if verification cannot run, report why; never imply PASS without verification
+**Least privilege.** IAM / database / storage permissions are the minimum required. Never broaden permissions to make a command succeed. Temporary grants need a cleanup step, and after cleanup the binding is verified absent.
+
+**Logs / personal data.** Keep identifiers and sensitive values out of operational logs; prefer aggregate or sanitized diagnostics. Do not read customer media bytes when metadata is enough.
+
+Do not import generic security infrastructure (WAF, RASP, DAST, SAST platforms, enterprise compliance frameworks) unless a ticket requires it.
+
+## Production mutation
+Requires explicit scope authorization for that exact mutation: production database, Supabase policy / bucket, migration, IAM, Secret Manager bindings, Cloud Run service / job, traffic, DNS, payment, production GCS objects. Deploy / promote also needs A6 (`01`).
+
+Authorization is never inferred from a related earlier approval. Payment stays frozen until a ticket explicitly reopens it.
+
+## Approval cards
+When a command needs approval, **RUN** only if all hold:
+- inside the currently approved ticket scope
+- prerequisites already satisfied
+- target resource matches the approved target
+- the mutation type was explicitly approved
+
+**SKIP** if it is premature, expands scope, has an incomplete prerequisite, creates unapproved infrastructure, retrieves secret values, or mutates a different resource. "Related to the task" is not "authorized".
+
+## A5 review
+Read only (`01`). Test plausibly affected surfaces; do not recertify unrelated historic contracts. Verify actual runtime where feasible.
+
+Evaluate every relevant dimension: correctness / regression, security, architecture / ownership drift, performance where relevant, test / verifier quality (review the assertions, not just that tests exist), accessibility / UI behavior where relevant.
+
+Each substantive finding states: severity (**BLOCKER / IMPORTANT / NIT**), exact path, line or smallest code region, concrete failure mode, why it matters, minimal fix. No vague "might be risky" findings; when evidence is lacking, say **INSUFFICIENT EVIDENCE**.
+
+Verdict: **PASS** · **PASS WITH NON-BLOCKING FINDINGS** · **BLOCKED**.
 
 ## Blocking vs polish
 Structural/blocking issues must **not** be deferred as polish.
