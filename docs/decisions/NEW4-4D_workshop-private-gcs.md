@@ -1,6 +1,6 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated; production read-only inventory BLOCKED — CREDENTIAL ACCESS REQUIRED (NEW4-4D-9D; metadata-only tooling ready). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
+Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated; production read-only inventory: Seoul job ran once but output not captured, BLOCKED pending owner logWriter decision (NEW4-4D-9D / 9D-1; access bindings removed). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
 Production cutover: RELEASE-GATED. Production still runs `b9664fb` on Supabase Storage. HEAD must not be deployed until the release-plan blockers are cleared with owner approval. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
@@ -421,6 +421,34 @@ Resume procedure:
 3. Record the aggregates here.
 4. If `non_uuid_referenced` or `malformed_referenced` > 0: CUTOVER BLOCKER, owner disposition required.
 
+## Seoul metadata inventory job (NEW4-4D-9D-1, A6)
+
+Status: **BLOCKED — OUTPUT NOT CAPTURED.** The job executed once and succeeded, but its aggregate report never reached Cloud Logging. The job SA has no `roles/logging.logWriter`, and Cloud Run writes container stdout as the job identity. The owner declined the extra logWriter grant (2026-10-08), so there was no rerun. **No inventory counters exist.** Source commit `266e1be`.
+
+- **Job:** Cloud Run Job `workshop-metadata-inventory`, asia-northeast3, project `metalora-auth`.
+  - 1 task, max retries 0, timeout 1800 s, no schedule, no HTTP endpoint.
+  - Execution `workshop-metadata-inventory-6vwsj`: 1 succeeded, 0 failed.
+- **Image:** `us-west1-docker.pkg.dev/metalora-auth/cloud-run-source-deploy/workshop-metadata-inventory`, tag = the full source SHA of `266e1be`, digest `sha256:eadd299f4303…c91b2b`.
+  - Built by Cloud Build from a `git archive` of 7 tracked paths of `266e1be` (blob-verified; no WIP, `dist/` or `.env`).
+  - `Dockerfile.workshop-inventory`: `npm ci --omit=dev --ignore-scripts`, `USER node`, no ARG / ENV secrets.
+- **Fixed command:** `scripts/workshop-metadata-inventory-job.ts` hard-codes `--ack-readonly-production-inventory --metadata-only` and refuses any runtime argument.
+- **List-only GCS target:** the metadata-only target answers `head` from one paged bucket listing, so it needs only `storage.objects.list` and never issues a per-object GET.
+- **Identity:** `workshop-metadata-inventory@metalora-auth.iam.gserviceaccount.com`. Keyless (0 user-managed keys), no project roles.
+- **Temporary bindings, granted only for the run** (granted → job created → executed → removed in a `finally` block):
+  - `roles/secretmanager.secretAccessor` on `metalora-direct-supabase-service-role` only. The job env referenced version `1`, as the web service does. The secret value was never accessed or printed by the operator.
+  - `roles/storage.legacyBucketReader` on `gs://metalora-workshop-apne3` only: `storage.objects.list` + bucket / folder metadata, **no `storage.objects.get`**, so no object-body read.
+  - Post-run verification: both bindings **ABSENT**; the SA has no project roles and no keys.
+- **Non-secret env:** `SUPABASE_URL` (production project URL), `WORKSHOP_GCS_BUCKET`, `WORKSHOP_GCS_ENDPOINT`. The fallback flag was not bound anywhere. `metalora-direct` and its traffic were unchanged.
+- **Output and safety:**
+  - Logs hold audit system events only; 0 application lines, so 0 leaked identifiers (leak scan on 0 lines).
+  - `byte_read_attempts` / `write_attempts`: not observable (report lost). Structurally, the image cannot read bodies (refusing ports; list-only IAM without `objects.get`) or write (refusing ports; no write role).
+  - No copy, no hash verification, final D-9 gate NOT EVALUATED.
+- **Ops facts:** still UNVERIFIED (bucket facts were in the lost report). Policies, `add_custom_cart_item`, migration state and plan still need read-only SQL / Management access.
+
+Resume condition: the owner approves a temporary `roles/logging.logWriter` for the job SA (project-level; write-only to logs), or another approved output channel. Then: re-grant the two temporary bindings, `gcloud run jobs execute workshop-metadata-inventory --region asia-northeast3 --wait` once, remove all three bindings and verify ABSENT, leak-scan the logs, record the aggregates here.
+
+Do not: reuse the job for copy; add `--apply` / `--verify-bytes`; grant `objectViewer` / `objectUser`; leave bindings in place.
+
 ### Supabase production state: OPS FACT REQUIRED
 
 Not queried in this ticket. Needed read-only before Phase E: `workshop` bucket exists, `public` flag, `storage.objects` policies on `workshop`, aggregate object counts / bytes per prefix (no names, no UIDs, no bytes read), Supabase plan (Free vs Pro). Historical: public bucket, uploads with `cacheControl` 3600, project `qifloweuwyhvukabgnoa` (ap-northeast-2, Free).
@@ -510,7 +538,7 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 - ~~A2 NEW4-4D-5: Workshop upload switch, resume, PDP workshop-single.~~ **DONE locally.** A4 targeted review of the WebGL texture expiry path recommended (no A4 code change required).
 - ~~A0: D-4 R-scope refresh.~~ **DONE locally (NEW4-4D-7A, then NEW4-4D-7C post-D-7B, 95/95).** ~~A6: D-3 application-state check refresh.~~ **DONE locally (NEW4-4D-8).**
 - ~~A2: `referrerPolicy="no-referrer"` on PDP Workshop-capable `<img>`.~~ **DONE locally (NEW4-4D-8A).**
-- ~~A6: legacy copy script and read bridge (NEW4-4D-9).~~ **DONE locally, not run.** A6: deploy tooling for env-in-candidate, release execution (NEW4-4D-10), owner-approved dry-run / copy execution. NEW4-4D-9D metadata-only inventory: tooling ready, **blocked on an owner-authorized credential path** (see that section).
+- ~~A6: legacy copy script and read bridge (NEW4-4D-9).~~ **DONE locally, not run.** A6: deploy tooling for env-in-candidate, release execution (NEW4-4D-10), owner-approved dry-run / copy execution. NEW4-4D-9D-1 Seoul inventory job: created and run once, **output lost; blocked on an owner decision for a temporary `logging.logWriter`** (see that section).
 - ~~A2 (`ProductDetail`, `WorkshopView`): route strict legacy refs through the resolver.~~ **DONE locally (NEW4-4D-9A).** ~~A3 (`workshopMediaDisplay` consumers: Cart / CartContext / admin / OrdersModal): same, NEW4-4D-9B.~~ **DONE locally (NEW4-4D-9B; D-9A aligned in NEW4-4D-9C).**
 - ~~A3 NEW4-4D-6: Cart, CartContext, admin consumers.~~ **DONE locally.**
 - ~~A3: `OrdersModal.tsx` after owner-approved protected-WIP handoff.~~ **DONE locally (NEW4-4D-7B)**; its seven pre-existing WIP hunks stay uncommitted for later Member/Account UX work.
@@ -543,4 +571,4 @@ A6: GCS ops/IAM, adapter, server endpoints, migrations, NEW4-6/7 integration, le
 
 ## Relevant files
 
-`src/lib/workshopStorage.ts`, `src/lib/workshopMediaCore.ts`, `src/lib/workshopMedia.ts`, `src/lib/utils.ts`, `scripts/verify-new4-4d-4-workshop-media.ts`, `src/lib/customComposition/durableHandoff.ts`, `src/components/Workshop/WorkshopView.tsx`, `src/components/ProductDetail.tsx`, `scripts/verify-new4-4d-5-workshop-client.ts`, `src/lib/workshopMediaDisplay.ts`, `src/hooks/useWorkshopMediaDisplay.ts`, `src/context/CartContext.tsx`, `src/components/Cart.tsx`, `src/components/admin/adminOrders.ts`, `src/pages/AdminOrders.tsx`, `src/components/admin/adminBestSellers.ts`, `src/pages/AdminBestSellers.tsx`, `scripts/verify-new4-4d-6-cart-admin.ts`, `src/components/OrdersModal.tsx`, `scripts/verify-new4-4d-7b-ordersmodal.ts`, `src/components/pdp/ProductTheatreStage.tsx`, `src/components/pdp/ProductTheatreRoomPreview.tsx`, `src/components/pdp/ProductTruthSection.tsx`, `src/components/pdp/ProductMountIncluded.tsx`, `src/components/pdp/factualVisuals.tsx`, `src/components/pdp/story/PdpStorySection.tsx`, `src/components/pdp/story/PdpStoryStatic.tsx`, `src/components/pdp/story/PdpStoryMobile.tsx`, `scripts/verify-new4-4d-8a-pdp-referrer.ts`, `src/components/pdp/workshopPreviewSource.ts`, `scripts/verify-new4-4d-9a-legacy-a2.ts`, `scripts/workshop-legacy-copy.ts`, `scripts/workshop-legacy-copy-core.ts`, `scripts/verify-new4-4d-9-legacy-copy.ts`, `src/lib/workshopRetention.ts`, `src/lib/accountWithdrawal.ts`, `server.ts`, `supabase/migrations/20261007100000_new4_4d_path_validation.sql`, `scripts/verify-new4-4d-3-workshop-media.ts`, `scripts/verify-workshop-gcs-foundation.ts`, `.env.example`, `package.json`, `package-lock.json`, `docs/decisions/NEW4-4_privacy-processors.md`.
+`src/lib/workshopStorage.ts`, `src/lib/workshopMediaCore.ts`, `src/lib/workshopMedia.ts`, `src/lib/utils.ts`, `scripts/verify-new4-4d-4-workshop-media.ts`, `src/lib/customComposition/durableHandoff.ts`, `src/components/Workshop/WorkshopView.tsx`, `src/components/ProductDetail.tsx`, `scripts/verify-new4-4d-5-workshop-client.ts`, `src/lib/workshopMediaDisplay.ts`, `src/hooks/useWorkshopMediaDisplay.ts`, `src/context/CartContext.tsx`, `src/components/Cart.tsx`, `src/components/admin/adminOrders.ts`, `src/pages/AdminOrders.tsx`, `src/components/admin/adminBestSellers.ts`, `src/pages/AdminBestSellers.tsx`, `scripts/verify-new4-4d-6-cart-admin.ts`, `src/components/OrdersModal.tsx`, `scripts/verify-new4-4d-7b-ordersmodal.ts`, `src/components/pdp/ProductTheatreStage.tsx`, `src/components/pdp/ProductTheatreRoomPreview.tsx`, `src/components/pdp/ProductTruthSection.tsx`, `src/components/pdp/ProductMountIncluded.tsx`, `src/components/pdp/factualVisuals.tsx`, `src/components/pdp/story/PdpStorySection.tsx`, `src/components/pdp/story/PdpStoryStatic.tsx`, `src/components/pdp/story/PdpStoryMobile.tsx`, `scripts/verify-new4-4d-8a-pdp-referrer.ts`, `src/components/pdp/workshopPreviewSource.ts`, `scripts/verify-new4-4d-9a-legacy-a2.ts`, `scripts/workshop-legacy-copy.ts`, `scripts/workshop-legacy-copy-core.ts`, `scripts/verify-new4-4d-9-legacy-copy.ts`, `scripts/workshop-metadata-inventory-job.ts`, `Dockerfile.workshop-inventory`, `src/lib/workshopRetention.ts`, `src/lib/accountWithdrawal.ts`, `server.ts`, `supabase/migrations/20261007100000_new4_4d_path_validation.sql`, `scripts/verify-new4-4d-3-workshop-media.ts`, `scripts/verify-workshop-gcs-foundation.ts`, `.env.example`, `package.json`, `package-lock.json`, `docs/decisions/NEW4-4_privacy-processors.md`.
