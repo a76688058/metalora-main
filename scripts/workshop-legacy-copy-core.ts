@@ -63,6 +63,8 @@ export type LegacySourceEntry = {
   isFolder: boolean;
   sizeBytes: number | null;
   mimeType: string | null;
+  /** Listing `created_at` (ISO), for aggregate age buckets only. */
+  createdAt?: string | null;
 };
 
 export type LegacySourceBucketInfo = {
@@ -271,7 +273,143 @@ export type LegacyCopyReport = {
   target_metadata_conflict_candidate: number;
   /** Bucket facts from the Storage API (metadata-only runs). */
   source_bucket?: LegacySourceBucketInfo;
+  /** Structural category counts of every listed source object (NEW4-4D-9D-4). No names. */
+  source_structure: LegacySourceStructure;
 };
+
+// ---------------------------------------------------------------------------
+// Source structure (aggregate categories only; no prefix, path or filename is ever kept in output)
+// ---------------------------------------------------------------------------
+
+/** Printable extension / MIME classes; anything else is counted as `other` so no free text leaves. */
+const STRUCTURE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif', 'avif', 'bmp', 'tif', 'tiff', 'svg', 'pdf', 'json', 'txt'] as const;
+const STRUCTURE_MIMES = [
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif', 'image/avif', 'image/bmp', 'image/tiff',
+  'image/svg+xml', 'application/pdf', 'application/json', 'application/octet-stream', 'text/plain',
+] as const;
+const UUID_LIKE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const TIMESTAMP_LIKE_RE = /^\d{10,13}(?:[-_.]|$)/;
+const DAY_MS = 86_400_000;
+
+export type LegacySourceStructure = {
+  objects: number;
+  depth: { root_file: number; one_level: number; two_level: number; deeper: number };
+  root: { canonical_root: number; other_root: number; root_file: number };
+  /** Distinct folder counts by name shape (names themselves are discarded). */
+  top_prefixes: { distinct: number; uuid_like: number; non_uuid_like: number };
+  second_level_prefixes: { distinct: number; uuid_like: number; non_uuid_like: number };
+  filename: { uuid_like: number; timestamp_like: number; other: number };
+  extension: Record<string, number>;
+  mime: Record<string, number>;
+  size: {
+    total: number; min: number | null; max: number | null; unknown: number;
+    lt_100kb: number; lt_1mb: number; lt_5mb: number; lt_20mb: number; gte_20mb: number;
+  };
+  age: { lt_30d: number; d30_90: number; d90_365: number; gt_365d: number; unknown: number };
+  db_referenced: number;
+  db_unreferenced: number;
+};
+
+export function emptyLegacySourceStructure(): LegacySourceStructure {
+  return {
+    objects: 0,
+    depth: { root_file: 0, one_level: 0, two_level: 0, deeper: 0 },
+    root: { canonical_root: 0, other_root: 0, root_file: 0 },
+    top_prefixes: { distinct: 0, uuid_like: 0, non_uuid_like: 0 },
+    second_level_prefixes: { distinct: 0, uuid_like: 0, non_uuid_like: 0 },
+    filename: { uuid_like: 0, timestamp_like: 0, other: 0 },
+    extension: {},
+    mime: {},
+    size: { total: 0, min: null, max: null, unknown: 0, lt_100kb: 0, lt_1mb: 0, lt_5mb: 0, lt_20mb: 0, gte_20mb: 0 },
+    age: { lt_30d: 0, d30_90: 0, d90_365: 0, gt_365d: 0, unknown: 0 },
+    db_referenced: 0,
+    db_unreferenced: 0,
+  };
+}
+
+function bump(map: Record<string, number>, key: string): void {
+  map[key] = (map[key] ?? 0) + 1;
+}
+
+function extensionClass(file: string): string {
+  const dot = file.lastIndexOf('.');
+  if (dot <= 0 || dot === file.length - 1) return 'none';
+  const ext = file.slice(dot + 1).toLowerCase();
+  return (STRUCTURE_EXTENSIONS as readonly string[]).includes(ext) ? ext : 'other';
+}
+
+function mimeClass(mime: string | null): string {
+  if (!mime) return 'unknown';
+  const m = mime.toLowerCase().split(';')[0].trim();
+  return (STRUCTURE_MIMES as readonly string[]).includes(m) ? m : 'other';
+}
+
+/** Distinct-folder tracker: names are held in memory only to dedupe, never output. */
+export type LegacyStructureTracker = { top: Set<string>; second: Set<string> };
+
+export function recordLegacySourceStructure(
+  s: LegacySourceStructure,
+  tracker: LegacyStructureTracker,
+  path: string,
+  entry: LegacySourceEntry,
+  referenced: boolean,
+  nowMs: number,
+): void {
+  const segments = path.split('/');
+  const file = segments[segments.length - 1];
+  s.objects += 1;
+  if (segments.length === 1) s.depth.root_file += 1;
+  else if (segments.length === 2) s.depth.one_level += 1;
+  else if (segments.length === 3) s.depth.two_level += 1;
+  else s.depth.deeper += 1;
+  if (segments.length === 1) s.root.root_file += 1;
+  else if ((LEGACY_COPY_ROOTS as readonly string[]).includes(segments[0])) s.root.canonical_root += 1;
+  else s.root.other_root += 1;
+  if (segments.length >= 2 && !tracker.top.has(segments[0])) {
+    tracker.top.add(segments[0]);
+    s.top_prefixes.distinct += 1;
+    if (UUID_LIKE_RE.test(segments[0])) s.top_prefixes.uuid_like += 1;
+    else s.top_prefixes.non_uuid_like += 1;
+  }
+  if (segments.length >= 3) {
+    const key = `${segments[0]}/${segments[1]}`;
+    if (!tracker.second.has(key)) {
+      tracker.second.add(key);
+      s.second_level_prefixes.distinct += 1;
+      if (UUID_LIKE_RE.test(segments[1])) s.second_level_prefixes.uuid_like += 1;
+      else s.second_level_prefixes.non_uuid_like += 1;
+    }
+  }
+  const stem = file.includes('.') ? file.slice(0, file.lastIndexOf('.')) : file;
+  if (UUID_LIKE_RE.test(stem)) s.filename.uuid_like += 1;
+  else if (TIMESTAMP_LIKE_RE.test(file)) s.filename.timestamp_like += 1;
+  else s.filename.other += 1;
+  bump(s.extension, extensionClass(file));
+  bump(s.mime, mimeClass(entry.mimeType));
+  const size = entry.sizeBytes;
+  if (typeof size !== 'number' || size < 0) s.size.unknown += 1;
+  else {
+    s.size.total += size;
+    s.size.min = s.size.min === null ? size : Math.min(s.size.min, size);
+    s.size.max = s.size.max === null ? size : Math.max(s.size.max, size);
+    if (size < 100 * 1024) s.size.lt_100kb += 1;
+    else if (size < 1024 * 1024) s.size.lt_1mb += 1;
+    else if (size < 5 * 1024 * 1024) s.size.lt_5mb += 1;
+    else if (size < 20 * 1024 * 1024) s.size.lt_20mb += 1;
+    else s.size.gte_20mb += 1;
+  }
+  const created = entry.createdAt ? Date.parse(entry.createdAt) : Number.NaN;
+  if (!Number.isFinite(created)) s.age.unknown += 1;
+  else {
+    const days = (nowMs - created) / DAY_MS;
+    if (days < 30) s.age.lt_30d += 1;
+    else if (days < 90) s.age.d30_90 += 1;
+    else if (days < 365) s.age.d90_365 += 1;
+    else s.age.gt_365d += 1;
+  }
+  if (referenced) s.db_referenced += 1;
+  else s.db_unreferenced += 1;
+}
 
 export function emptyLegacyCopyReport(mode: LegacyCopyMode, byteVerified: boolean, metadataOnly = false): LegacyCopyReport {
   return {
@@ -294,6 +432,7 @@ export function emptyLegacyCopyReport(mode: LegacyCopyMode, byteVerified: boolea
     reference_sources: Object.fromEntries(LEGACY_REFERENCE_TABLES.map((t) => [t, 'not_attempted'])),
     reference_failures: {},
     orders_purge_column_absent: false,
+    source_structure: emptyLegacySourceStructure(),
     target_objects_total: 0,
     target_customer_prefix_objects: 0,
     target_marker_verified_total: 0,
@@ -624,6 +763,7 @@ export type LegacyCopyDeps = {
   args: LegacyCopyArgs;
   pageSize?: number;
   sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
 };
 
 type ObjectOutcome =
@@ -889,16 +1029,20 @@ export async function runLegacyCopy(inputDeps: LegacyCopyDeps): Promise<LegacyCo
   const seenTargets = new Set<string>();
   const seenIdentities = new Set<string>();
 
-  const countObject = (entry: LegacySourceEntry, root: string | null) => {
+  const tracker: LegacyStructureTracker = { top: new Set(), second: new Set() };
+  const nowMs = (deps.now ?? Date.now)();
+  const countObject = (entry: LegacySourceEntry, path: string) => {
     report.source_objects_total += 1;
     if (typeof entry.sizeBytes === 'number' && entry.sizeBytes > 0) report.source_bytes_total += entry.sizeBytes;
+    const root = path.includes('/') ? path.split('/')[0] : null;
     if (root === 'originals') report.originals_total += 1;
     else if (root === 'previews') report.previews_total += 1;
+    const referenced = index.legacy.has(path) || index.malformed.has(path);
+    recordLegacySourceStructure(report.source_structure, tracker, path, entry, referenced, nowMs);
   };
-  const rootOf = (prefix: string) => prefix.split('/')[0];
 
   const processFile = async (path: string, entry: LegacySourceEntry, work: WorkItem[]) => {
-    countObject(entry, rootOf(path));
+    countObject(entry, path);
     const c = classifyLegacyObjectPath(path);
     if (c.kind !== 'canonical') {
       if (c.kind === 'noncanonical_filename') {
@@ -955,7 +1099,7 @@ export async function runLegacyCopy(inputDeps: LegacyCopyDeps): Promise<LegacyCo
         }
         if (entry.isFolder) folders.push(`${prefix}/${entry.name}`);
         else {
-          countObject(entry, rootOf(prefix));
+          countObject(entry, `${prefix}/${entry.name}`);
           report[bucket] += 1;
         }
       }
@@ -972,7 +1116,7 @@ export async function runLegacyCopy(inputDeps: LegacyCopyDeps): Promise<LegacyCo
           continue;
         }
         if (!entry.isFolder) {
-          countObject(entry, null);
+          countObject(entry, entry.name);
           report.unexpected_prefix += 1;
         } else rootFolders.push(entry.name);
       }
@@ -992,7 +1136,7 @@ export async function runLegacyCopy(inputDeps: LegacyCopyDeps): Promise<LegacyCo
           }
           if (entry.isFolder) uidFolders.push(entry.name);
           else {
-            countObject(entry, root);
+            countObject(entry, `${root}/${entry.name}`);
             report.malformed_path += 1;
           }
         }

@@ -78,11 +78,13 @@ async function listSourceEntries(admin: SupabaseClient, prefix: string, offset: 
   if (error) throw new LegacyCopyError('source_list', true);
   return (data ?? []).map((entry) => {
     const meta = (entry.metadata ?? null) as { size?: unknown; mimetype?: unknown } | null;
+    const createdAt = (entry as { created_at?: unknown }).created_at;
     return {
       name: entry.name,
       isFolder: entry.id == null,
       sizeBytes: typeof meta?.size === 'number' ? meta.size : null,
       mimeType: typeof meta?.mimetype === 'string' ? meta.mimetype : null,
+      createdAt: typeof createdAt === 'string' ? createdAt : null,
     };
   });
 }

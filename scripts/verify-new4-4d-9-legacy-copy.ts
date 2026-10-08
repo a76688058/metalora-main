@@ -571,6 +571,7 @@ section('copy dry-run inventory: pagination + aggregate classes');
       || (k === 'references_by_field' && Object.values(v as Record<string, unknown>).every((n) => typeof n === 'number'))
       || (k === 'reference_sources' && Object.values(v as Record<string, unknown>).every((s) => ['ok', 'absent', 'failed', 'not_attempted'].includes(s as string)))
       || (k === 'reference_failures' && Object.keys(v as object).length === 0)
+      || (k === 'source_structure' && typeof v === 'object')
       || (k === 'cutover_gate_failed' && Array.isArray(v))));
   const secrets = [UID, OTHER, OBJ(1), LEGACY_HOST, 'previews/', 'originals/', 'https://', '1696000000000'];
   assert('output contains no UID / path / URL / filename', secrets.every((s) => !printed.includes(s)));
@@ -1183,6 +1184,72 @@ section('inventory hardening (NEW4-4D-9D-3): independent phases, sanitized codes
   assert('purge fallback only on 42703 naming image_purged_at (message never output)',
     /error\?\.code === '42703' && typeof error\.message === 'string' && \/\\bimage_purged_at\\b\/\.test\(error\.message\)/.test(cli)
     && !/console\.[a-z]+\([^)]*message/.test(cli));
+}
+
+// ---------------------------------------------------------------------------
+section('source structure classification (NEW4-4D-9D-4): aggregate categories only');
+{
+  const NOW = Date.parse('2026-10-08T00:00:00Z');
+  const daysAgo = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
+  const SECRET_PREFIX = 'zz-private-folder';
+  const SECRET_FILE = 'customer-name-photo';
+  const entries: [string, SourceObject & { createdAt?: string | null }][] = [
+    [`${SECRET_FILE}.jpg`, { bytes: JPEG(1), mime: 'image/jpeg', listedSize: 50 * 1024 }],
+    [`${SECRET_PREFIX}/${OBJ(2)}.png`, { bytes: PNG(2), mime: 'image/png', listedSize: 2 * 1024 * 1024 }],
+    [`${SECRET_PREFIX}/1696000000000-ab12cd34.heic`, { bytes: PNG(3), mime: 'image/heic', listedSize: 30 * 1024 * 1024 }],
+    [`${UID}/${SECRET_FILE}.webp`, { bytes: JPEG(4), mime: 'image/webp', listedSize: 500 * 1024 }],
+    [`${SECRET_PREFIX}/${UID}/${OBJ(5)}.jpg`, { bytes: JPEG(5), mime: 'image/jpeg;charset=x', listedSize: 3 * 1024 * 1024 }],
+    [`${SECRET_PREFIX}/subdir-q/nest-q/${SECRET_FILE}.weird-ext`, { bytes: JPEG(6), mime: 'x-secret/type', listedSize: null }],
+    [PREVIEW(UID, 7), { bytes: JPEG(7), mime: 'image/jpeg', listedSize: 10 * 1024 }],
+    [`${SECRET_PREFIX}/noext`, { bytes: JPEG(8), mime: null, listedSize: 100 }],
+  ];
+  const ages = [5, 40, 100, 400, 10, undefined, 2, 800];
+  const objects = new Map<string, SourceObject>(entries.map(([p, o]) => [p, o]));
+  const base = mockSource(objects);
+  const createdBy = new Map(entries.map(([p], i) => [p, ages[i] === undefined ? null : daysAgo(ages[i]!)]));
+  const source: LegacySource = {
+    async list(prefix, offset, limit) {
+      const page = await base.source.list(prefix, offset, limit);
+      return page.map((e) => ({ ...e, createdAt: e.isFolder ? null : createdBy.get(prefix ? `${prefix}/${e.name}` : e.name) ?? null }));
+    },
+    download: base.source.download,
+    async bucketInfo() { return { exists: true, public: true, fileSizeLimit: null, allowedMimeTypes: null }; },
+  };
+  const refs = mockRefs([['cart_items.custom_image', legacyUrl(PREVIEW(UID, 7))]]);
+  const MO: LegacyCopyArgs = { mode: 'dry-run', verifyBytes: false, concurrency: 2, metadataOnly: true };
+  const { value: r, logs } = await captureLogs(() => runLegacyCopy({
+    source, target: mockTarget(new Map()).target, references: refs, legacyHosts: HOSTS, args: MO, pageSize: 3, sleep: noSleep, now: () => NOW,
+  }));
+  const s = r.source_structure;
+  assert('every listed object classified once', s.objects === entries.length && s.objects === r.source_objects_total, JSON.stringify(s));
+  assert('depth: root file / one-level / two-level / deeper',
+    s.depth.root_file === 1 && s.depth.one_level === 4 && s.depth.two_level === 2 && s.depth.deeper === 1, JSON.stringify(s.depth));
+  assert('root: canonical originals/previews vs other prefix vs root file',
+    s.root.canonical_root === 1 && s.root.other_root === 6 && s.root.root_file === 1);
+  assert('distinct top-level prefixes by shape (UUID-like / not)',
+    s.top_prefixes.distinct === 3 && s.top_prefixes.uuid_like === 1 && s.top_prefixes.non_uuid_like === 2, JSON.stringify(s.top_prefixes));
+  assert('distinct second-level prefixes by shape',
+    s.second_level_prefixes.distinct === 3 && s.second_level_prefixes.uuid_like === 2 && s.second_level_prefixes.non_uuid_like === 1, JSON.stringify(s.second_level_prefixes));
+  assert('filename shape: UUID-like / timestamp-like / other',
+    s.filename.uuid_like === 3 && s.filename.timestamp_like === 1 && s.filename.other === 4, JSON.stringify(s.filename));
+  assert('extension classes from an allowlist; unknown -> other, missing -> none',
+    s.extension.jpg === 3 && s.extension.png === 1 && s.extension.heic === 1 && s.extension.webp === 1 && s.extension.other === 1 && s.extension.none === 1
+    && !('weird-ext' in s.extension), JSON.stringify(s.extension));
+  assert('MIME classes from an allowlist (parameters stripped); unknown types -> other',
+    s.mime['image/jpeg'] === 3 && s.mime['image/heic'] === 1 && s.mime.other === 1 && s.mime.unknown === 1 && !('x-secret/type' in s.mime), JSON.stringify(s.mime));
+  assert('size aggregate: total / min / max / buckets / unknown',
+    s.size.unknown === 1 && s.size.min === 100 && s.size.max === 30 * 1024 * 1024 && s.size.lt_100kb === 3 && s.size.lt_1mb === 1
+    && s.size.lt_5mb === 2 && s.size.gte_20mb === 1 && s.size.total === r.source_bytes_total, JSON.stringify(s.size));
+  assert('age buckets from listing created_at',
+    s.age.lt_30d === 3 && s.age.d30_90 === 1 && s.age.d90_365 === 1 && s.age.gt_365d === 2 && s.age.unknown === 1, JSON.stringify(s.age));
+  assert('DB-referenced cross-check is aggregate', s.db_referenced === 1 && s.db_unreferenced === entries.length - 1);
+  const printed = formatLegacyCopyReport(r);
+  assert('no prefix / path / filename / UUID / free-text MIME or extension in output',
+    [SECRET_PREFIX, SECRET_FILE, UID, OBJ(2), OBJ(5), '1696000000000', 'weird-ext', 'x-secret', 'noext', 'subdir-q', 'nest-q', 'previews/', 'https://']
+      .every((x) => !printed.includes(x)) && logs.trim() === '');
+  assert('structure keys are fixed category names only',
+    [...Object.keys(s.extension), ...Object.keys(s.mime)].every((k) => /^(none|other|unknown|[a-z]{3,5}|[a-z]+\/[a-z0-9.+-]+)$/.test(k)));
+  assert('no byte read / write during classification', r.byte_read_attempts === 0 && r.write_attempts === 0 && base.calls.download.length === 0);
 }
 
 // ---------------------------------------------------------------------------
