@@ -542,7 +542,7 @@ Status: **BLOCKED — NOT RUN (image rebuild not approved).** The classifier is 
   - size (total / min / max / five buckets / unknown);
   - age from listing `created_at` (<30 d / 30–90 / 90–365 / >365 / unknown);
   - DB-referenced vs unreferenced.
-  
+
   Names are held in memory only for deduplication and are never output. Job arguments and entrypoint are unchanged.
 - **Blocker:** running it needs a rebuild of the inventory image from `c3ce83a` and an update of the existing job's image. Both are outside the 9D-4 approval as written, and the owner skipped that approval card.
 
