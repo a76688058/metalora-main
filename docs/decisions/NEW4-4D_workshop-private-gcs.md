@@ -1,6 +1,6 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated; production read-only inventory: rerun captured output but the DB reference scan failed, so the inventory is incomplete; Supabase `workshop` bucket VERIFIED public; scanner fix + rebuilt job DONE and executed once (NEW4-4D-9D-3): references + source complete, critical three 0, 22 source objects all outside `originals/` / `previews/`, target GCS listing failed, so inventory INCOMPLETE; BLOCKED pending an owner decision on the target phase (NEW4-4D-9D / 9D-1 / 9D-2 / 9D-3; all temporary bindings removed). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
+Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated; production read-only inventory: rerun captured output but the DB reference scan failed, so the inventory is incomplete; Supabase `workshop` bucket VERIFIED public; scanner fix + rebuilt job DONE and executed once (NEW4-4D-9D-3): references + source complete, critical three 0, 22 source objects all outside `originals/` / `previews/`, target GCS listing failed (owner accepted the 9D target baseline instead); aggregate source-structure classifier DONE locally, NOT RUN (NEW4-4D-9D-4, rebuild approval pending) (NEW4-4D-9D / 9D-1 / 9D-2 / 9D-3; all temporary bindings removed). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
 Production cutover: RELEASE-GATED. Production still runs `b9664fb` on Supabase Storage. HEAD must not be deployed until the release-plan blockers are cleared with owner approval. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
@@ -527,6 +527,30 @@ Status: **BLOCKED — TARGET GCS LISTING FAILED (inventory incomplete).**
 Owner decisions:
 1. Whether to accept the target state measured by the operator in NEW4-4D-9D (1 object, 0 customer-prefix, 0 markers), or approve a sanitized target-error code plus one more rerun with a longer IAM-propagation wait.
 2. What to do with the 22 objects outside `originals/` / `previews/`, none of them DB-referenced. They are not copy candidates under the current tool. An aggregate-only prefix-shape classification would be needed before any decision.
+
+## Legacy source structure classification (NEW4-4D-9D-4, A6)
+
+Status: **BLOCKED — NOT RUN (image rebuild not approved).** The classifier is DONE locally (`c3ce83a`, D-9 222/222). No IAM grant, no job update, no execution, no remote action.
+
+- **Owner decision (2026-10-08):** the NEW4-4D-9D target state (1 object, 0 customer-prefix, 0 copy markers) is the accepted target **baseline**. No GCS object mutation has happened since. Target must be re-verified before any actual copy or final cutover.
+- **Classifier:** every metadata-only report now carries `source_structure`, which holds category counts only:
+  - depth (root file / one-level / two-level / deeper);
+  - root (canonical originals/previews / other / root file);
+  - distinct top- and second-level prefixes by UUID-like shape;
+  - filename shape (UUID-like / timestamp-like / other);
+  - extension and MIME, each from a fixed allowlist (else `other` / `none` / `unknown`);
+  - size (total / min / max / five buckets / unknown);
+  - age from listing `created_at` (<30 d / 30–90 / 90–365 / >365 / unknown);
+  - DB-referenced vs unreferenced.
+  
+  Names are held in memory only for deduplication and are never output. Job arguments and entrypoint are unchanged.
+- **Blocker:** running it needs a rebuild of the inventory image from `c3ce83a` and an update of the existing job's image. Both are outside the 9D-4 approval as written, and the owner skipped that approval card.
+
+Resume (owner approval needed for the rebuild + job update):
+1. Build from a clean `git archive` of `c3ce83a` into the existing repository.
+2. Grant the Secret Accessor first (Cloud Run validates the secret reference at deploy time), then logWriter.
+3. Update the job image, then execute once. Do **not** grant the bucket role: the target phase will report incomplete and exit 3 by design, per the accepted baseline.
+4. Remove both grants and verify ABSENT, then leak-scan and record `source_structure`.
 
 ### Supabase production state: OPS FACT REQUIRED
 
