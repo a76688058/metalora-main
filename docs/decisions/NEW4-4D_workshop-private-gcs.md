@@ -1,6 +1,6 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated; production read-only inventory: Seoul job ran once but output not captured, BLOCKED pending owner logWriter decision (NEW4-4D-9D / 9D-1; access bindings removed). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
+Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated; production read-only inventory: rerun captured output but the DB reference scan failed, so the inventory is incomplete; Supabase `workshop` bucket VERIFIED public; BLOCKED pending a tooling fix + rerun approval (NEW4-4D-9D / 9D-1 / 9D-2; all temporary bindings removed). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
 Production cutover: RELEASE-GATED. Production still runs `b9664fb` on Supabase Storage. HEAD must not be deployed until the release-plan blockers are cleared with owner approval. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
@@ -449,6 +449,35 @@ Resume condition: the owner approves a temporary `roles/logging.logWriter` for t
 
 Do not: reuse the job for copy; add `--apply` / `--verify-bytes`; grant `objectViewer` / `objectUser`; leave bindings in place.
 
+## Inventory rerun (NEW4-4D-9D-2, A6)
+
+Status: **BLOCKED — DB REFERENCE SCAN FAILED (inventory incomplete).** The owner approved a temporary project-level `roles/logging.logWriter` plus a re-grant of the two bindings and exactly one execution. Execution `workshop-metadata-inventory-tl929`: SUCCEEDED (1/0); no other execution this ticket. Same job, same image digest (`266e1be`), no rebuild.
+
+- **Temporary IAM:**
+  - `roles/logging.logWriter` (project), `roles/secretmanager.secretAccessor` (`metalora-direct-supabase-service-role` only), `roles/storage.legacyBucketReader` (`gs://metalora-workshop-apne3` only).
+  - All three were verified PRESENT and exact before execution, then removed in a `finally` block. All three verified **ABSENT** afterwards; the SA has no project roles and 0 keys.
+- **Log safety:** stdout captured (134 lines, 0 stderr), aggregate JSON only. The leak scan (UUID, URL, Supabase host, customer prefixes, JWT, Bearer, email, signed params, stack, long hex, order-number shapes) found **0 hits**.
+- **Captured aggregates:**
+  - `byte_read_attempts = 0`, `write_attempts = 0`, `metadata_only = true`, `byte_verified = false`.
+  - Supabase `workshop` bucket: exists **true**, public **true**, `file_size_limit` **null**, `allowed_mime_types` **null** (VERIFIED via the Storage API).
+  - `reference_lookup_errors = 1`, `reference_values_scanned = 0`. By design the core stops after a failed reference scan, so the **source listing and the target listing did not run**: every source / reference / target counter is 0 because nothing was counted (`target_inventory_listed = false`), **not** because the data is empty.
+  - `pre_copy_inventory = BLOCKED` (`inventory_complete`); cutover gate NOT_EVALUATED.
+- **Cause: UNEXPLAINED (error class not logged by the tool).**
+  - Leading hypothesis: the `orders` scan filters on `image_purged_at`, a column added only by NEW4-6 migration `20261007070000`, which is not applied in production. PostgREST would return an undefined-column error that the tool does not treat as an absent table.
+  - Equally consistent with `reference_values_scanned = 0`: a failure on the first table (`user_progress`).
+  - Not retried.
+- **Critical counters** (`non_uuid_referenced`, `malformed_referenced`, `referenced_missing_source`): **NOT MEASURED**. Data-shape blocker: UNKNOWN.
+- **Target GCS:** not listed by the job. From NEW4-4D-9D (operator, count-only): 1 object, 0 under customer prefixes, 0 copy markers.
+- No customer copy, no byte / hash verification, no Supabase / GCS object mutation, `metalora-direct` and its traffic unchanged.
+- **Still requires read-only SQL / Management:** storage policies, `add_custom_cart_item`, migration state. Supabase plan UNVERIFIED.
+
+Required fix before the next run (A6 tooling ticket + image rebuild + owner approval):
+1. Report a sanitized reference-scan failure class: table name + PostgREST / Postgres error code only.
+2. Treat a missing `image_purged_at` column as "no order purged yet" and scan all orders (a conservative superset), reported as `orders_purge_column_absent`.
+3. Continue the source and target listings when the reference scan fails, so source aggregates are still produced (the pre-copy gate stays BLOCKED).
+
+Then re-run once under the same three temporary bindings.
+
 ### Supabase production state: OPS FACT REQUIRED
 
 Not queried in this ticket. Needed read-only before Phase E: `workshop` bucket exists, `public` flag, `storage.objects` policies on `workshop`, aggregate object counts / bytes per prefix (no names, no UIDs, no bytes read), Supabase plan (Free vs Pro). Historical: public bucket, uploads with `cacheControl` 3600, project `qifloweuwyhvukabgnoa` (ap-northeast-2, Free).
@@ -538,7 +567,7 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 - ~~A2 NEW4-4D-5: Workshop upload switch, resume, PDP workshop-single.~~ **DONE locally.** A4 targeted review of the WebGL texture expiry path recommended (no A4 code change required).
 - ~~A0: D-4 R-scope refresh.~~ **DONE locally (NEW4-4D-7A, then NEW4-4D-7C post-D-7B, 95/95).** ~~A6: D-3 application-state check refresh.~~ **DONE locally (NEW4-4D-8).**
 - ~~A2: `referrerPolicy="no-referrer"` on PDP Workshop-capable `<img>`.~~ **DONE locally (NEW4-4D-8A).**
-- ~~A6: legacy copy script and read bridge (NEW4-4D-9).~~ **DONE locally, not run.** A6: deploy tooling for env-in-candidate, release execution (NEW4-4D-10), owner-approved dry-run / copy execution. NEW4-4D-9D-1 Seoul inventory job: created and run once, **output lost; blocked on an owner decision for a temporary `logging.logWriter`** (see that section).
+- ~~A6: legacy copy script and read bridge (NEW4-4D-9).~~ **DONE locally, not run.** A6: deploy tooling for env-in-candidate, release execution (NEW4-4D-10), owner-approved dry-run / copy execution. NEW4-4D-9D-1 / 9D-2 Seoul inventory job: second run captured, **DB reference scan failed; tooling fix (sanitized failure class, `image_purged_at`-absent handling, listing continues) + owner-approved rerun required** (see "Inventory rerun").
 - ~~A2 (`ProductDetail`, `WorkshopView`): route strict legacy refs through the resolver.~~ **DONE locally (NEW4-4D-9A).** ~~A3 (`workshopMediaDisplay` consumers: Cart / CartContext / admin / OrdersModal): same, NEW4-4D-9B.~~ **DONE locally (NEW4-4D-9B; D-9A aligned in NEW4-4D-9C).**
 - ~~A3 NEW4-4D-6: Cart, CartContext, admin consumers.~~ **DONE locally.**
 - ~~A3: `OrdersModal.tsx` after owner-approved protected-WIP handoff.~~ **DONE locally (NEW4-4D-7B)**; its seven pre-existing WIP hunks stay uncommitted for later Member/Account UX work.
