@@ -29,6 +29,11 @@ import {
   type WorkshopPreviewDeps,
   type WorkshopPreviewState,
 } from '../src/components/pdp/workshopPreviewSource';
+import {
+  createWorkshopMediaDisplay,
+  workshopDisplayRef,
+  type WorkshopDisplayApi,
+} from '../src/lib/workshopMediaDisplay';
 import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../src/lib/publicPaymentFreeze';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -475,8 +480,6 @@ async function main(): Promise<void> {
     'src/lib/workshopMedia.ts',
     'src/lib/workshopMediaCore.ts',
     'src/lib/workshopStorage.ts',
-    'src/lib/workshopMediaDisplay.ts',
-    'src/hooks/useWorkshopMediaDisplay.ts',
     'src/components/Cart.tsx',
     'src/context/CartContext.tsx',
     'src/components/artwork3d/MetaloraArtwork3D.tsx',
@@ -484,6 +487,103 @@ async function main(): Promise<void> {
     'server.ts',
   ]) {
     assert(`${rel} identical to baseline`, read(rel) === readBaseline(rel));
+  }
+
+  // NEW4-4D-9C: the shared display layer changed intentionally in NEW4-4D-9B; its byte freeze was
+  // replaced by the forward contract below (real controller ↔ real resolver ↔ real sign-read bridge).
+  section('W post-D-9B shared display (workshopMediaDisplay / useWorkshopMediaDisplay)');
+  {
+    const displaySrc = read('src/lib/workshopMediaDisplay.ts');
+    const hookSrc = read('src/hooks/useWorkshopMediaDisplay.ts');
+    const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+    const displayHarness = (world: World) => {
+      const resolver = makeResolver(world);
+      const timers: Timer[] = [];
+      const api: WorkshopDisplayApi = {
+        isCanonical: (v) => resolver.isCanonical(v),
+        isLegacy: (v) => resolver.isLegacy(v),
+        normalize: (v) => resolver.normalize(v),
+        resolve: (refs, options) => resolver.resolve(refs, options),
+        retryAfterLoadError: (ref, failedSrc, options) => resolver.retryAfterLoadError(ref, failedSrc, options),
+        now: () => world.clock.t,
+        setTimer: (fn, ms) => {
+          const t: Timer = { fn, ms, cleared: false };
+          timers.push(t);
+          return t;
+        },
+        clearTimer: (handle) => {
+          (handle as Timer).cleared = true;
+        },
+      };
+      return { resolver, timers, display: createWorkshopMediaDisplay(api, 'customer', () => undefined) };
+    };
+
+    const canonical = PREVIEW(20);
+    const bridgedPath = PREVIEW(21);
+    const bridged = legacyUrl(bridgedPath);
+    const transitional = legacyUrl(PREVIEW(22));
+    const world = makeWorld({ cart: [{ custom_image: canonical }, { custom_image: bridged }, { custom_image: transitional }] });
+    verifiedCopy(world, canonical, null);
+    verifiedCopy(world, bridgedPath, 'verified');
+    const rowsBefore = JSON.stringify(world.rows);
+    const values = [canonical, bridged, transitional];
+    const valuesBefore = JSON.stringify(values);
+    const h = displayHarness(world);
+    await h.display.setRefs(values);
+    const sent = world.signReads.flat();
+    assert('A canonical ref sent to sign-read', sent.includes(canonical));
+    assert('A canonical ref → ready signed src', h.display.get(canonical).src?.startsWith(`https://${WORKSHOP_GCS_REGIONAL_HOST}/`) === true);
+    assert('B strict legacy refs sent to sign-read too (one batch)', world.signReads.length === 1 && sent.includes(bridged) && sent.includes(transitional));
+    assert('D legacy with verified copy → temporary signed GCS src', /X-Goog-Signature=synthetic\d+$/.test(h.display.get(bridged).src ?? '') && h.display.get(bridged).src !== bridged);
+    assert('E transition (no copy) → server-approved legacy src only after sign-read', h.display.get(transitional).src === transitional && sent.includes(transitional));
+    assert('G expiring results schedule one shared refresh', h.timers.length === 1 && !h.timers[0].cleared);
+
+    const firstSrc = h.display.get(bridged).src!;
+    await h.display.onLoadError(bridged, firstSrc);
+    assert('G load error on bridged legacy → one re-sign via the shared resolver', world.signReads.length === 2 && h.display.get(bridged).src !== firstSrc && h.display.get(bridged).status === 'ready');
+    const secondSrc = h.display.get(bridged).src!;
+    await h.display.onLoadError(bridged, secondSrc);
+    assert('G second load error → placeholder, no further re-sign, never the raw ref', world.signReads.length === 2 && h.display.get(bridged).status === 'failed' && h.display.get(bridged).src === null);
+    await h.display.onLoadError(transitional, transitional);
+    assert('G transitional legacy load error → placeholder (no re-sign of a non-expiring src)', world.signReads.length === 2 && h.display.get(transitional).src === null);
+
+    assert('J durable values not rewritten', JSON.stringify(values) === valuesBefore);
+    assert('J reference rows not rewritten', JSON.stringify(world.rows) === rowsBefore);
+    h.display.dispose();
+    assert('dispose drops temporary srcs and the refresh timer', h.display.get(canonical).src === null && h.timers[0].cleared);
+
+    const cut = makeWorld({ orders: [{ ordered_items: [{ image: legacyUrl(PREVIEW(23)) }] }] }, false);
+    const hc = displayHarness(cut);
+    const missed = legacyUrl(PREVIEW(23));
+    await hc.display.setRefs([missed]);
+    assert('F post-cutover miss → failed, no src', cut.signReads.length === 1 && hc.display.get(missed).status === 'failed' && hc.display.get(missed).src === null);
+    const down = makeWorld({});
+    const hd = displayHarness(down);
+    const unauth = legacyUrl(PREVIEW(24));
+    await hd.display.setRefs([unauth]);
+    assert('F unauthorized legacy ref → failed, never the raw input', down.signReads.length === 1 && hd.display.get(unauth).src === null);
+
+    const inv = makeWorld({});
+    const hi = displayHarness(inv);
+    const invalid = [
+      'https://example.com/a.jpg',
+      `https://${LEGACY_HOST}/storage/v1/object/public/products/${OBJ(25)}.jpg`,
+      signedUrl(PREVIEW(25), 1),
+      'blob:https://metalora.art/x',
+      'data:image/png;base64,AAAA',
+      `https://evil.supabase.co/storage/v1/object/public/workshop/${PREVIEW(25)}`,
+      `https://${LEGACY_HOST}/storage/v1/object/public/workshop/previews/${UID}/not-a-uuid.jpg`,
+    ];
+    await hi.display.setRefs(invalid);
+    assert('I invalid / non-UUID / foreign refs → none, no sign-read', inv.signReads.length === 0 && invalid.every((v) => hi.display.get(v).src === null && workshopDisplayRef(v, { isCanonical: hi.resolver.isCanonical, isLegacy: hi.resolver.isLegacy, resolve: hi.resolver.resolve, retryAfterLoadError: hi.resolver.retryAfterLoadError }).kind === 'none'));
+
+    assert('C shared layer returns only resolver-issued srcs', /const src = srcs\.get\(display\.ref\);/.test(displaySrc) && !/src: (display\.ref|trimmed|value|ref)\b/.test(code(displaySrc)) && !/kind: '(direct|legacy)'/.test(displaySrc));
+    assert('C srcs map is written only from resolver results', (code(displaySrc).match(/srcs\.set\(/g) ?? []).length === 2 && /srcs\.set\(ref, media\.src\)/.test(displaySrc) && /srcs\.set\(display\.ref, media\.src\)/.test(displaySrc));
+    assert('G hook binds the shared D-4 resolver (resolve + retry)', /resolve: resolveWorkshopMedia,/.test(hookSrc) && /retryAfterLoadError: retryWorkshopMediaAfterLoadError,/.test(hookSrc) && /from '\.\.\/lib\/workshopMedia'/.test(hookSrc));
+    assert('H no second cache / TTL / sign-read in the shared layer', !/WORKSHOP_MEDIA_SIGNED_TTL|300_000|validUntil|refreshAt|fetch\(|sign-read|localStorage|sessionStorage/.test(code(displaySrc)) && /^import type \{[^}]*\} from '\.\/workshopMediaCore';/m.test(displaySrc) && !/^import \{[^}]*\} from '\.\/workshopMediaCore'/m.test(displaySrc));
+    assert('I shared strict parser is the only acceptance authority', /isCanonical: isCanonicalWorkshopRef,/.test(hookSrc) && /isLegacy: isLegacyWorkshopRef,/.test(hookSrc) && /normalize: normalizeWorkshopMediaRef,/.test(hookSrc) && !/supabase\.co|\/storage\/v1|https?:\/\//.test(code(displaySrc)));
+    assert('T shared layer never logs', !/console\./.test(displaySrc + hookSrc));
   }
 
   const failed = results.filter((r) => !r.pass);

@@ -1,6 +1,6 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing PENDING (NEW4-4D-9B). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
+Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated. BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
 Production cutover: RELEASE-GATED. Production still runs `b9664fb` on Supabase Storage. HEAD must not be deployed until the release-plan blockers are cleared with owner approval. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
@@ -337,6 +337,15 @@ Status: **DONE locally.** No deploy, push, env, migration, customer data access 
 - **Verifiers.** `npx tsx scripts/verify-new4-4d-9b-legacy-a3.ts` (real resolver core ↔ real `handleSignRead` with the D-9 bridge, mocked GCS head / sign and DB refs, network off). D-6 sections B / H / K / R and D-7B section C moved to the resolver-mediated legacy state; totals unchanged (138 / 47).
 - **Payment-test note (carried forward).** `scripts/verify-2f-b2-payment-gate.ts` (not a ticket verifier) previously created and deleted synthetic users in the PAYMENT-TEST Supabase project; production not touched; OTP / auth log entries may remain there. Not rerun, no cleanup or inspection done; do not run it in no-remote-mutation tickets.
 
+### Client cutover state + D-9A verifier alignment (NEW4-4D-9C, A2, test-only)
+
+Status: **DONE locally.** No product code changed. No production read, inventory, copy, deploy, env, Supabase / GCS / IAM mutation, migration or payment-test run.
+
+- **State.** Every client Workshop display consumer is resolver-mediated for canonical paths and strict legacy Supabase Workshop URLs: ProductDetail and Workshop resume (D-9A), plus Cart, CartContext, AdminOrders, AdminBestSellers and OrdersModal through `workshopMediaDisplay` (D-9B). No client raw-legacy display shortcut remains. The server's `WORKSHOP_LEGACY_SUPABASE_FALLBACK_ENABLED` alone decides between signed GCS and the approved legacy URL; resolver failure → placeholder, never the input. No durable ref is rewritten.
+- **Verifier.** D-9A's two byte freezes on `workshopMediaDisplay.ts` / `useWorkshopMediaDisplay.ts` (stale after D-9B) were replaced by 21 forward-state checks (section W): the real display controller ↔ real resolver ↔ real `handleSignRead` bridge (canonical and legacy sent to sign-read; GCS bridge and server-approved legacy srcs; post-cutover miss and unauthorized → placeholder; one shared re-sign; no second cache / TTL; shared parser as the only acceptance authority; no rewrite; no logging). D-9A is now 121/121. No other A2 check was changed.
+- **Open (cutover).** Non-UUID / malformed historical legacy refs are not accepted by the strict parser and show the placeholder. They are a production-inventory concern (`malformed_referenced`, cutover blocker) and need an owner / A6 disposition after the dry-run.
+- **Next.** Owner-approved read-only production ops facts and legacy-copy dry-run (A6). Nothing in this ticket touched production.
+
 ### Copy tool (`scripts/workshop-legacy-copy.ts` + `workshop-legacy-copy-core.ts`)
 
 - Modes: dry-run is the default (listing + DB scan + GCS metadata; `--verify-bytes` also reads and hashes). `--apply` requires `--confirm-production-copy=qifloweuwyhvukabgnoa` and always verifies bytes. Every run requires `--ack-readonly-production-inventory`. The payment-test project and unknown projects are refused. Conflicting or unknown flags are refused; `--concurrency` 1–8.
@@ -472,7 +481,7 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 - ~~A0: D-4 R-scope refresh.~~ **DONE locally (NEW4-4D-7A, then NEW4-4D-7C post-D-7B, 95/95).** ~~A6: D-3 application-state check refresh.~~ **DONE locally (NEW4-4D-8).**
 - ~~A2: `referrerPolicy="no-referrer"` on PDP Workshop-capable `<img>`.~~ **DONE locally (NEW4-4D-8A).**
 - ~~A6: legacy copy script and read bridge (NEW4-4D-9).~~ **DONE locally, not run.** A6: deploy tooling for env-in-candidate, release execution (NEW4-4D-10), owner-approved dry-run / copy execution.
-- ~~A2 (`ProductDetail`, `WorkshopView`): route strict legacy refs through the resolver.~~ **DONE locally (NEW4-4D-9A).** A3 (`workshopMediaDisplay` consumers: Cart / CartContext / admin / OrdersModal): same, NEW4-4D-9B (NEW4-4D-9 cutover precondition; A0 coordinates).
+- ~~A2 (`ProductDetail`, `WorkshopView`): route strict legacy refs through the resolver.~~ **DONE locally (NEW4-4D-9A).** ~~A3 (`workshopMediaDisplay` consumers: Cart / CartContext / admin / OrdersModal): same, NEW4-4D-9B.~~ **DONE locally (NEW4-4D-9B; D-9A aligned in NEW4-4D-9C).**
 - ~~A3 NEW4-4D-6: Cart, CartContext, admin consumers.~~ **DONE locally.**
 - ~~A3: `OrdersModal.tsx` after owner-approved protected-WIP handoff.~~ **DONE locally (NEW4-4D-7B)**; its seven pre-existing WIP hunks stay uncommitted for later Member/Account UX work.
 - A4: targeted review of expiring texture sources before final cutover (see D-6), plus no-referrer texture loading (see NEW4-4D-8A). Phase D QA; not a promotion blocker.
