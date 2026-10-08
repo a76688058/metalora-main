@@ -608,6 +608,64 @@ Status: **DONE.** The production Supabase `workshop` bucket is now **empty** (0 
 
 Consequence: the legacy copy set is **empty** (no DB references, no source objects). The NEW4-4D-9 copy tool does not need to run for existing data. What remains before cutover: the read-only SQL ops facts (storage policies, `add_custom_cart_item`, migration state) and a final target GCS recheck.
 
+## Pre-release storage facts (NEW4-4D-9F, A6, read-only)
+
+Status: **BLOCKED — READ-ONLY SQL CREDENTIAL APPROVAL REQUIRED.** The target GCS recheck **PASSED**. Legacy copy is formally **SKIPPED**. No remote mutation, no job, no build, no IAM change, no secret access.
+
+- **SQL access discovery (metadata only):** there is no usable existing path.
+  - Not available: Supabase CLI, project link, CLI access token, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `DATABASE_URL`, `psql`, or any Supabase tool in the agent.
+  - Secret Manager holds the service-role key (name only seen), but reading it is forbidden. PostgREST does not expose `pg_policies` / `pg_proc` / migration history anyway.
+  - So storage policies, `add_custom_cart_item`, migration state and plan stay **UNVERIFIED**.
+- **Indirect facts (already proven by the 9D-3 / 9D-4A jobs):**
+  - `orders.image_purged_at` is absent, so **NEW4-6 is NOT APPLIED** (at least its column marker; other markers are unverified).
+  - The production bucket has `allowed_mime_types = null`, unlike the repo's payment-test contract `20260921130000_2b5c_workshop_storage_contract.sql` (jpeg/png/webp; header "NOT applied to production"). So the production policy names / semantics must not be assumed from that file.
+- **Target GCS recheck** (operator account, list metadata only, names never printed): `target_objects_total = 1`, customer-prefix (`originals/` + `previews/`) **0**, objects with custom metadata 0 (`workshop_origin` 0, `workshop_copy_state` verified 0 / written 0). 0 body reads, 0 writes. Unchanged from the 9D baseline.
+- **Legacy:** Supabase `workshop` objects 0 (22 test uploads deleted in 9E), DB Workshop refs 0. **Legacy copy: SKIPPED — NO REFERENCED LEGACY DATA.** The copy tool stays as historical / future safety tooling only.
+- **NEW4-5 window:** still required. HEAD/local code shows production `b9664fb` writes Workshop consent by direct `insert` into `user_agreements`, and NEW4-5 drops `"Users can insert own agreements"` and revokes INSERT from `authenticated`. Whether that policy exists in production is unverified, but the coupling holds regardless: apply 1–5, then promote promptly.
+- **Migration order (unchanged, all six still required):** NEW4-5 → NEW4-5A → NEW4-6 → NEW4-7 → NEW4-4 → (candidate smoke) → NEW4-4D. Final confirmation that none is partially applied waits on the SQL facts.
+- **Future Supabase retirement (do not perform now):**
+  1. Set the `workshop` bucket `public = false`. Verified needed: it is currently true.
+  2. Drop every `storage.objects` policy granting SELECT on `bucket_id = 'workshop'` to `public` / `anon`.
+  3. Drop every INSERT / UPDATE / DELETE policy for `authenticated` on that bucket.
+
+  Exact policy names come from the SQL read. With 0 objects, no CDN purge of object bodies is needed, but the CDN-marker / public-URL 4xx proof is still part of Phase K.
+
+### Owner-run read-only SQL (Supabase Dashboard → SQL editor, production)
+
+Catalog-only, no customer rows. Run each statement and return the result grid; no credential leaves the owner's session.
+
+```sql
+BEGIN; SET TRANSACTION READ ONLY;
+SELECT id, public, file_size_limit, allowed_mime_types FROM storage.buckets WHERE id = 'workshop';
+SELECT policyname, cmd, roles, left(coalesce(qual,''),200) AS using_expr, left(coalesce(with_check,''),200) AS check_expr
+  FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' ORDER BY cmd, policyname;
+SELECT p.oid::regprocedure AS signature, pg_get_function_result(p.oid) AS returns, p.prosecdef AS security_definer,
+       pg_get_userbyid(p.proowner) AS owner, p.proacl, md5(p.prosrc) AS body_md5
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public' AND p.proname IN ('add_custom_cart_item', 'record_policy_consent', 'orders_workshop_retention_clock',
+    'profiles_guard_privileged_fields', 'reject_withdrawn_subject_write', 'workshop_ref_is_own_canonical',
+    'workshop_ref_is_own_legacy_supabase', 'workshop_ref_is_accepted', 'workshop_ref_guard_changed',
+    'cart_items_workshop_ref_guard', 'user_progress_workshop_ref_guard');
+SELECT version, name FROM supabase_migrations.schema_migrations WHERE version >= '20260901000000' ORDER BY version;
+SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND (
+  (table_name = 'user_agreements' AND column_name IN ('policy_type','source','order_number')) OR
+  (table_name = 'orders' AND column_name IN ('completed_at','image_purged_at')) OR
+  (table_name = 'profiles' AND column_name = 'withdrawn_at'));
+SELECT to_regclass('public.account_withdrawals') AS account_withdrawals;
+SELECT tgrelid::regclass AS tbl, tgname FROM pg_trigger WHERE NOT tgisinternal AND tgname IN (
+  'trg_orders_workshop_retention_clock','trg_cart_items_reject_withdrawn','trg_user_progress_reject_withdrawn',
+  'trg_cs_inquiries_reject_withdrawn','trg_user_agreements_reject_withdrawn','trg_cart_items_workshop_ref_guard',
+  'trg_user_progress_workshop_ref_guard');
+SELECT policyname, cmd, roles FROM pg_policies WHERE schemaname = 'public' AND tablename = 'user_agreements';
+SELECT grantee, privilege_type FROM information_schema.role_table_grants
+  WHERE table_schema = 'public' AND table_name = 'user_agreements' AND grantee IN ('anon','authenticated');
+ROLLBACK;
+```
+
+Alternative: an owner-approved read-only Supabase CLI / Management access path. Plan (Free / Pro): Dashboard → Billing, owner-read. The historical fact (Free) is not re-verified.
+
+Resume: when the results are in, classify each migration as APPLIED / NOT APPLIED / PARTIAL, confirm the `add_custom_cart_item(integer,text,text,text,jsonb)` 2B-5A signature, record the exact policy names for retirement, then mark the storage release gate.
+
 ### Supabase production state: OPS FACT REQUIRED
 
 Not queried in this ticket. Needed read-only before Phase E: `workshop` bucket exists, `public` flag, `storage.objects` policies on `workshop`, aggregate object counts / bytes per prefix (no names, no UIDs, no bytes read), Supabase plan (Free vs Pro). Historical: public bucket, uploads with `cacheControl` 3600, project `qifloweuwyhvukabgnoa` (ap-northeast-2, Free).
