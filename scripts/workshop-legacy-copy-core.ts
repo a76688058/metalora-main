@@ -79,7 +79,7 @@ export interface LegacySource {
   bucketInfo?(): Promise<LegacySourceBucketInfo>;
 }
 
-export type LegacyTargetInventory = { objects: number; markerVerified: number; markerWritten: number };
+export type LegacyTargetInventory = { objects: number; customerPrefix: number; markerVerified: number; markerWritten: number };
 
 export type LegacyTargetObject = {
   sizeBytes: number;
@@ -230,6 +230,7 @@ export type LegacyCopyReport = {
   target_inventory_listed: boolean;
   target_inventory_errors: number;
   target_objects_total: number;
+  target_customer_prefix_objects: number;
   target_marker_verified_total: number;
   target_marker_written_total: number;
   target_existing: number;
@@ -254,6 +255,7 @@ export function emptyLegacyCopyReport(mode: LegacyCopyMode, byteVerified: boolea
     target_inventory_listed: false,
     target_inventory_errors: 0,
     target_objects_total: 0,
+    target_customer_prefix_objects: 0,
     target_marker_verified_total: 0,
     target_marker_written_total: 0,
     target_existing: 0,
@@ -921,6 +923,7 @@ export async function runLegacyCopy(inputDeps: LegacyCopyDeps): Promise<LegacyCo
         const inv = await withRetry(deps, () => deps.target.inventory!());
         report.target_inventory_listed = true;
         report.target_objects_total = inv.objects;
+        report.target_customer_prefix_objects = inv.customerPrefix;
         report.target_marker_verified_total = inv.markerVerified;
         report.target_marker_written_total = inv.markerWritten;
       } catch {

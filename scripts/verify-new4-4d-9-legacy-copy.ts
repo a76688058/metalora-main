@@ -809,7 +809,7 @@ section('metadata-only inventory (NEW4-4D-9D): no bytes, no writes, honest label
     async createOnly() { trapped.create += 1; throw new Error('write reached the adapter'); },
     async download() { trapped.targetDownload += 1; throw new Error('target body read reached the adapter'); },
     async markVerified() { trapped.mark += 1; throw new Error('metadata update reached the adapter'); },
-    async inventory() { trapped.inventory += 1; return { objects: gcsObjects.size, markerVerified: 3, markerWritten: 1 }; },
+    async inventory() { trapped.inventory += 1; return { objects: gcsObjects.size, customerPrefix: gcsObjects.size, markerVerified: 3, markerWritten: 1 }; },
   };
   const source: LegacySource = {
     list: (prefix, offset, limit) => src.source.list(prefix, offset, limit),
@@ -844,7 +844,8 @@ section('metadata-only inventory (NEW4-4D-9D): no bytes, no writes, honest label
     && r.references_by_field['cart_items.custom_config.original_image_url:malformed'] === 1
     && Object.keys(r.references_by_field).every((k) => /^[a-z_.]+:[a-z_]+$/.test(k)));
   assert('target bucket inventory from listing metadata',
-    trapped.inventory === 1 && r.target_inventory_listed && r.target_objects_total === 5 && r.target_marker_verified_total === 3 && r.target_marker_written_total === 1);
+    trapped.inventory === 1 && r.target_inventory_listed && r.target_objects_total === 5 && r.target_customer_prefix_objects === 5
+    && r.target_marker_verified_total === 3 && r.target_marker_written_total === 1);
   assert('source bucket facts carried', r.source_bucket?.exists === true && r.source_bucket.public === true);
 
   const printed = formatLegacyCopyReport(r);
@@ -891,8 +892,9 @@ section('metadata-only inventory (NEW4-4D-9D): no bytes, no writes, honest label
     return cli.slice(start, end < 0 ? undefined : end);
   };
   const metaAdapters = bodyOf('createSupabaseLegacyMetadataSource') + bodyOf('createGcsLegacyMetadataTarget');
-  assert('metadata-only adapters have no body-read / write / delete call',
-    metaAdapters.length > 200 && !/\.(download|save|upload|setMetadata|remove|delete|copy|move|createWriteStream|createReadStream)\(/.test(metaAdapters));
+  assert('metadata-only adapters have no body-read / write / delete / per-object GET call',
+    metaAdapters.length > 200 && !/\.(download|save|upload|setMetadata|getMetadata|remove|delete|copy|move|createWriteStream|createReadStream)\(/.test(metaAdapters)
+    && !/headTargetObject/.test(metaAdapters));
   assert('metadata-only adapters route body / write ports to the refusal',
     (metaAdapters.match(/metadataOnlyRefusal/g) ?? []).length === 4);
   assert('CLI routes --metadata-only to the metadata adapters with a read-only GCS scope',
@@ -901,6 +903,72 @@ section('metadata-only inventory (NEW4-4D-9D): no bytes, no writes, honest label
   assert('gcloud token stays in memory (stdout captured, stderr discarded, never printed)',
     /execSync\('gcloud auth print-access-token', \{ encoding: 'utf8', stdio: \['ignore', 'pipe', 'ignore'\] \}\)/.test(cli)
     && !/console\.[a-z]+\([^)]*token/i.test(cli));
+}
+
+// ---------------------------------------------------------------------------
+section('inventory job (NEW4-4D-9D-1): list-only GCS target, fixed arguments, clean image');
+{
+  const { createGcsLegacyMetadataTarget } = await import('./workshop-legacy-copy');
+  const pathA = PREVIEW(UID, 1);
+  const pathB = ORIGINAL(UID, 2);
+  const calls = { getFiles: 0, file: 0, tokens: [] as (string | undefined)[] };
+  const page = (name: string, custom: Record<string, string>) => ({
+    name,
+    metadata: { size: '9', contentType: 'image/jpeg', cacheControl: WORKSHOP_MEDIA_CACHE_CONTROL, md5Hash: 'x', metageneration: '2', metadata: custom },
+  });
+  const fakeStorage = {
+    bucket: (name: string) => {
+      if (name !== WORKSHOP_GCS_APPROVED_BUCKET) throw new Error('wrong bucket');
+      return {
+        async getFiles(opts: { pageToken?: string }) {
+          calls.getFiles += 1;
+          calls.tokens.push(opts.pageToken);
+          if (!opts.pageToken) {
+            return [[page(pathA, { [WORKSHOP_LEGACY_COPY_METADATA.origin]: WORKSHOP_LEGACY_COPY_ORIGIN, [WORKSHOP_LEGACY_COPY_METADATA.state]: 'verified' })], { pageToken: 'p2' }];
+          }
+          return [[page(pathB, {}), page('_ops/x', {})], null];
+        },
+        file: () => {
+          calls.file += 1;
+          throw new Error('per-object access attempted');
+        },
+      };
+    },
+  };
+  const t = createGcsLegacyMetadataTarget(fakeStorage as never, WORKSHOP_GCS_APPROVED_BUCKET);
+  const a = await t.head(pathA);
+  const b = await t.head(pathB);
+  const none = await t.head(PREVIEW(UID, 3));
+  const inv = await t.inventory!();
+  assert('head is answered from the paged listing (no per-object GET)', calls.file === 0 && a?.copyState === 'verified' && b?.copyState === null && none === null);
+  assert('listing is paged and fetched once for all heads + inventory', calls.getFiles === 2 && calls.tokens[0] === undefined && calls.tokens[1] === 'p2');
+  assert('inventory counts objects, customer-prefix objects and markers',
+    inv.objects === 3 && inv.customerPrefix === 2 && inv.markerVerified === 1 && inv.markerWritten === 0);
+  let bodyRefused = 0;
+  for (const op of [() => t.download(pathA, 10), () => t.createOnly(pathA, new Uint8Array([1]), { contentType: 'image/jpeg', md5Base64: 'x', sha256Hex: 'y' }), () => t.markVerified(pathA, '2')]) {
+    try {
+      await op();
+    } catch (error) {
+      if (error instanceof LegacyCopyError && error.op === 'metadata_only_violation') bodyRefused += 1;
+    }
+  }
+  assert('real metadata target refuses body read / create / metadata update', bodyRefused === 3 && calls.file === 0);
+
+  const entry = fs.readFileSync(path.join(root, 'scripts/workshop-metadata-inventory-job.ts'), 'utf8');
+  assert('job entrypoint hard-codes --ack-readonly-production-inventory --metadata-only',
+    /INVENTORY_JOB_ARGS = \['--ack-readonly-production-inventory', '--metadata-only'\] as const/.test(entry)
+    && /main\(INVENTORY_JOB_ARGS\)/.test(entry));
+  assert('job entrypoint refuses any runtime argument and never mentions apply / verify-bytes / confirm',
+    /process\.argv\.length > 2/.test(entry)
+    && !/--apply|--verify-bytes|--confirm-production-copy|process\.env/.test(entry.replace(/\/\*[\s\S]*?\*\//g, '')));
+  const docker = fs.readFileSync(path.join(root, 'Dockerfile.workshop-inventory'), 'utf8');
+  const dockerCode = docker.split('\n').filter((l) => !l.trim().startsWith('#')).join('\n');
+  assert('image entrypoint is the fixed metadata-only job', /ENTRYPOINT \["\.\/node_modules\/\.bin\/tsx", "scripts\/workshop-metadata-inventory-job\.ts"\]/.test(dockerCode) && !/^CMD /m.test(dockerCode));
+  assert('image has no build-time secrets or env credentials',
+    !/^ARG /m.test(dockerCode) && !/SUPABASE|SERVICE_ROLE|KEY|TOKEN|SECRET|GOOGLE_APPLICATION_CREDENTIALS/i.test(dockerCode));
+  assert('image copies only the inventory sources (no server, client, dist, .env)',
+    (dockerCode.match(/^COPY /gm) ?? []).length === 3 && !/server\.ts|dist|\.env|src\/components|COPY \. /.test(dockerCode)
+    && /npm ci --omit=dev --ignore-scripts/.test(dockerCode) && /USER node/.test(dockerCode));
 }
 
 // ---------------------------------------------------------------------------

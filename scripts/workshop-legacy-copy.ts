@@ -84,20 +84,33 @@ async function listSourceEntries(admin: SupabaseClient, prefix: string, offset: 
   });
 }
 
+type GcsObjectMeta = {
+  size?: unknown;
+  contentType?: unknown;
+  cacheControl?: unknown;
+  md5Hash?: unknown;
+  metageneration?: unknown;
+  metadata?: unknown;
+};
+
+function toTargetObject(meta: GcsObjectMeta): LegacyTargetObject {
+  const custom = (meta.metadata ?? {}) as Record<string, unknown>;
+  const sha = custom[WORKSHOP_LEGACY_COPY_METADATA.sourceSha256];
+  return {
+    sizeBytes: Number(meta.size),
+    contentType: typeof meta.contentType === 'string' ? meta.contentType : null,
+    cacheControl: typeof meta.cacheControl === 'string' ? meta.cacheControl : null,
+    md5Base64: typeof meta.md5Hash === 'string' ? meta.md5Hash : null,
+    copyState: legacyCopyStateOf(custom),
+    sourceSha256: typeof sha === 'string' ? sha : null,
+    metageneration: meta.metageneration != null ? String(meta.metageneration) : null,
+  };
+}
+
 async function headTargetObject(storage: Storage, bucketName: string, path: string): Promise<LegacyTargetObject | null> {
   try {
     const [meta] = await storage.bucket(bucketName).file(path).getMetadata();
-    const custom = (meta.metadata ?? {}) as Record<string, unknown>;
-    const sha = custom[WORKSHOP_LEGACY_COPY_METADATA.sourceSha256];
-    return {
-      sizeBytes: Number(meta.size),
-      contentType: typeof meta.contentType === 'string' ? meta.contentType : null,
-      cacheControl: typeof meta.cacheControl === 'string' ? meta.cacheControl : null,
-      md5Base64: typeof meta.md5Hash === 'string' ? meta.md5Hash : null,
-      copyState: legacyCopyStateOf(custom),
-      sourceSha256: typeof sha === 'string' ? sha : null,
-      metageneration: meta.metageneration != null ? String(meta.metageneration) : null,
-    };
+    return toTargetObject(meta as GcsObjectMeta);
   } catch (error) {
     const status = httpStatus(error);
     if (status === 404) return null;
@@ -134,35 +147,52 @@ export function createSupabaseLegacyMetadataSource(admin: SupabaseClient): Legac
   };
 }
 
-/** METADATA-ONLY target: object metadata + listing counts. Has no object-body or write implementation. */
+/**
+ * METADATA-ONLY target: one paged bucket listing (`storage.objects.list` only, which grants no body
+ * read); `head` answers from that listing, so no per-object GET is ever issued. Listing metadata
+ * stays in memory and is never printed. Has no object-body or write implementation.
+ */
 export function createGcsLegacyMetadataTarget(storage: Storage, bucketName: string): LegacyTarget {
+  let listing: Promise<Map<string, LegacyTargetObject>> | null = null;
+  const loadListing = async (): Promise<Map<string, LegacyTargetObject>> => {
+    const objects = new Map<string, LegacyTargetObject>();
+    let pageToken: string | undefined;
+    do {
+      let files: File[];
+      let next: { pageToken?: string } | null;
+      try {
+        [files, next] = (await storage.bucket(bucketName).getFiles({ autoPaginate: false, maxResults: 1000, pageToken })) as unknown as [
+          File[],
+          { pageToken?: string } | null,
+        ];
+      } catch (error) {
+        throw new LegacyCopyError('target_list', retryableStatus(httpStatus(error)));
+      }
+      for (const f of files) objects.set(f.name, toTargetObject((f.metadata ?? {}) as GcsObjectMeta));
+      pageToken = next?.pageToken;
+    } while (pageToken);
+    return objects;
+  };
+  const listed = () => {
+    listing ??= loadListing().catch((error) => {
+      listing = null;
+      throw error;
+    });
+    return listing;
+  };
   return {
-    head: (path) => headTargetObject(storage, bucketName, path),
+    head: async (path) => (await listed()).get(path) ?? null,
     createOnly: metadataOnlyRefusal,
     download: metadataOnlyRefusal,
     markVerified: metadataOnlyRefusal,
     async inventory() {
-      const result = { objects: 0, markerVerified: 0, markerWritten: 0 };
-      let pageToken: string | undefined;
-      do {
-        let files: File[];
-        let next: { pageToken?: string } | null;
-        try {
-          [files, next] = (await storage.bucket(bucketName).getFiles({ autoPaginate: false, maxResults: 1000, pageToken })) as unknown as [
-            File[],
-            { pageToken?: string } | null,
-          ];
-        } catch (error) {
-          throw new LegacyCopyError('target_list', retryableStatus(httpStatus(error)));
-        }
-        for (const f of files) {
-          result.objects += 1;
-          const state = legacyCopyStateOf((f.metadata?.metadata ?? {}) as Record<string, unknown>);
-          if (state === 'verified') result.markerVerified += 1;
-          else if (state === 'written') result.markerWritten += 1;
-        }
-        pageToken = next?.pageToken;
-      } while (pageToken);
+      const result = { objects: 0, customerPrefix: 0, markerVerified: 0, markerWritten: 0 };
+      for (const [name, obj] of await listed()) {
+        result.objects += 1;
+        if (name.startsWith('originals/') || name.startsWith('previews/')) result.customerPrefix += 1;
+        if (obj.copyState === 'verified') result.markerVerified += 1;
+        else if (obj.copyState === 'written') result.markerWritten += 1;
+      }
       return result;
     },
   };
@@ -329,10 +359,10 @@ async function metadataOnlyGcsAuthClient(): Promise<unknown | null> {
   }
 }
 
-async function main(): Promise<number> {
+export async function main(argv: readonly string[]): Promise<number> {
   const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
   const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
-  const parsed = parseLegacyCopyArgs(process.argv.slice(2), projectRefOf(supabaseUrl));
+  const parsed = parseLegacyCopyArgs(argv, projectRefOf(supabaseUrl));
   if (parsed.ok === false) {
     console.error(JSON.stringify({ status: 'refused', reason: parsed.reason }));
     return 2;
@@ -388,7 +418,7 @@ async function main(): Promise<number> {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().then(
+  main(process.argv.slice(2)).then(
     (code) => process.exit(code),
     () => {
       console.error(JSON.stringify({ status: 'error', reason_class: 'unhandled' }));
