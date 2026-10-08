@@ -1,6 +1,6 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated; production read-only inventory: rerun captured output but the DB reference scan failed, so the inventory is incomplete; Supabase `workshop` bucket VERIFIED public; scanner fix + rebuilt job DONE and executed once (NEW4-4D-9D-3): references + source complete, critical three 0, 22 source objects all outside `originals/` / `previews/`, target GCS listing failed (owner accepted the 9D target baseline instead); source structure classified (NEW4-4D-9D-4A): all 22 are unreferenced root-level images, disposition = owner decision; with 0 DB references the legacy copy set is currently empty (NEW4-4D-9D / 9D-1 / 9D-2 / 9D-3; all temporary bindings removed). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
+Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated; production read-only inventory: rerun captured output but the DB reference scan failed, so the inventory is incomplete; Supabase `workshop` bucket VERIFIED public; scanner fix + rebuilt job DONE and executed once (NEW4-4D-9D-3): references + source complete, critical three 0, 22 source objects all outside `originals/` / `previews/`, target GCS listing failed (owner accepted the 9D target baseline instead); source structure classified (NEW4-4D-9D-4A): 22 unreferenced root-level test uploads, deleted by owner decision (NEW4-4D-9E); Supabase `workshop` bucket now 0 objects, 0 DB references, so the legacy copy set is empty; next: read-only SQL ops facts + target GCS final recheck (NEW4-4D-9D / 9D-1 / 9D-2 / 9D-3; all temporary bindings removed). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
 Production cutover: RELEASE-GATED. Production still runs `b9664fb` on Supabase Storage. HEAD must not be deployed until the release-plan blockers are cleared with owner approval. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
 
 ## Decision
@@ -578,6 +578,36 @@ Interpretation, limited to these facts: these are image files placed directly at
 
 None of these is approved. Deletion or a copy needs its own ticket, and identifying the objects needs owner-side inspection, because the tool never outputs names. They do not affect the legacy copy, which only copies DB-referenced canonical objects. With 0 references, the copy set is currently **empty**.
 
+**Resolved by NEW4-4D-9E (below): deleted.**
+
+## Legacy test object cleanup (NEW4-4D-9E, A6, owner-approved production deletion)
+
+Status: **DONE.** The production Supabase `workshop` bucket is now **empty** (0 objects). DB references remain 0. No GCS copy is required.
+
+- **Owner decision (2026-10-08):** the 22 unreferenced root-level objects are historical Workshop test uploads from earlier website development and are no longer needed. Delete only that set; do not copy it to GCS (legacy-copy requirement for them: NONE).
+- **Tool (`c2e3821`):** `scripts/workshop-legacy-test-cleanup.ts`, verifier `scripts/verify-new4-4d-9e-test-cleanup.ts` 30/30, image `Dockerfile.workshop-test-cleanup`. The tool runs in one process:
+  1. metadata-only pre-check (listing + DB reference scan, no GCS);
+  2. the root-level file names are captured from that same listing;
+  3. the expected fingerprint (22 objects, 39 808 349 bytes, jpeg 11 / jpg 2 / png 8 / webp 1, image/jpeg 13 / png 8 / webp 1, all 90–365 d, all root-level, no prefix, 0 references) is pinned in code and checked against both the inventory and the captured set;
+  4. one exact-name Storage `remove` of the captured names only;
+  5. metadata-only post-check.
+
+  Any mismatch means nothing is deleted. The tool takes no arguments and is pinned to the production project.
+- **Execution:** one-shot Cloud Run Job `workshop-legacy-test-cleanup` (asia-northeast3), image `sha256:be0097a7fab0a3f53652e77ae40342aaedaaeb6a4839fabdbeaf204924198337` built from a clean `git archive`.
+  - It used the existing keyless SA `workshop-metadata-inventory@`, with the secret as a reference only, maxRetries 0 and 1 task.
+  - Execution `workshop-legacy-test-cleanup-6ks7h`: SUCCEEDED, exactly once.
+  - The job was **deleted** afterwards, so no deletion-capable job remains.
+- **Result (aggregate only):**
+  - Pre-check: all conditions + fingerprint **PASS** (`precheck_failed = []`), approved set 22.
+  - **Deleted 22**; nothing else deleted.
+  - Post-check: `source_objects_total = 0`; `referenced_legacy_total`, `referenced_canonical_total` and `referenced_missing_source` all 0; inventory complete.
+  - `byte_read_attempts = 0`: no customer image bytes read.
+- **Temporary IAM:** Secret Accessor (that secret only) and project `roles/logging.logWriter` were removed in `finally`. Verified **ABSENT**, 0 keys. No GCS bucket role was granted.
+- **Log safety:** 12 stdout lines, 0 stderr. Leak scan found 0 hits, including slashes and image extensions.
+- No GCS mutation, no bucket public/private or policy change, no migration, `metalora-direct` and its traffic unchanged, no payment change. No identifiers or paths recorded.
+
+Consequence: the legacy copy set is **empty** (no DB references, no source objects). The NEW4-4D-9 copy tool does not need to run for existing data. What remains before cutover: the read-only SQL ops facts (storage policies, `add_custom_cart_item`, migration state) and a final target GCS recheck.
+
 ### Supabase production state: OPS FACT REQUIRED
 
 Not queried in this ticket. Needed read-only before Phase E: `workshop` bucket exists, `public` flag, `storage.objects` policies on `workshop`, aggregate object counts / bytes per prefix (no names, no UIDs, no bytes read), Supabase plan (Free vs Pro). Historical: public bucket, uploads with `cacheControl` 3600, project `qifloweuwyhvukabgnoa` (ap-northeast-2, Free).
@@ -667,7 +697,7 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 - ~~A2 NEW4-4D-5: Workshop upload switch, resume, PDP workshop-single.~~ **DONE locally.** A4 targeted review of the WebGL texture expiry path recommended (no A4 code change required).
 - ~~A0: D-4 R-scope refresh.~~ **DONE locally (NEW4-4D-7A, then NEW4-4D-7C post-D-7B, 95/95).** ~~A6: D-3 application-state check refresh.~~ **DONE locally (NEW4-4D-8).**
 - ~~A2: `referrerPolicy="no-referrer"` on PDP Workshop-capable `<img>`.~~ **DONE locally (NEW4-4D-8A).**
-- ~~A6: legacy copy script and read bridge (NEW4-4D-9).~~ **DONE locally, not run.** A6: deploy tooling for env-in-candidate, release execution (NEW4-4D-10), owner-approved dry-run / copy execution. NEW4-4D-9D-1 / 9D-2 Seoul inventory job: second run captured, DB reference scan failed; tooling fix + image rebuild DONE (`fe1ee1b`, NEW4-4D-9D-3), executed once (`wn9sh`): **target listing failed; owner decision on the target phase + the 22 unexpected-prefix objects required** (see "Inventory scanner fix + rebuild").
+- ~~A6: legacy copy script and read bridge (NEW4-4D-9).~~ **DONE locally, not run.** A6: deploy tooling for env-in-candidate, release execution (NEW4-4D-10), owner-approved dry-run / copy execution. NEW4-4D-9D-1 / 9D-2 Seoul inventory job: second run captured, DB reference scan failed; tooling fix + image rebuild DONE (`fe1ee1b`, NEW4-4D-9D-3), executed (`wn9sh`, `nzrt7`); 22 test uploads deleted (NEW4-4D-9E), so the legacy copy set is empty. **Next: read-only SQL ops facts + target GCS final recheck.**
 - ~~A2 (`ProductDetail`, `WorkshopView`): route strict legacy refs through the resolver.~~ **DONE locally (NEW4-4D-9A).** ~~A3 (`workshopMediaDisplay` consumers: Cart / CartContext / admin / OrdersModal): same, NEW4-4D-9B.~~ **DONE locally (NEW4-4D-9B; D-9A aligned in NEW4-4D-9C).**
 - ~~A3 NEW4-4D-6: Cart, CartContext, admin consumers.~~ **DONE locally.**
 - ~~A3: `OrdersModal.tsx` after owner-approved protected-WIP handoff.~~ **DONE locally (NEW4-4D-7B)**; its seven pre-existing WIP hunks stay uncommitted for later Member/Account UX work.
