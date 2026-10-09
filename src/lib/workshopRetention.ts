@@ -23,7 +23,14 @@ export const WORKSHOP_RETENTION_JOB_ENV = 'WORKSHOP_RETENTION_JOB_SECRET';
 export const WORKSHOP_RETENTION_PURGE_PATH = '/api/internal/workshop-retention/purge';
 export const WORKSHOP_RETENTION_MIN_SECRET_LENGTH = 32;
 export const COMPLETED_PURGE_BATCH = 25;
+/** Bounded candidate page while skipping non-Workshop COMPLETED rows (keyset, not offset). */
+export const COMPLETED_CANDIDATE_PAGE = 100;
 export const STORAGE_LIST_PAGE = WORKSHOP_STORAGE_LIST_PAGE;
+
+export type CompletedOrderCursor = {
+  completed_at: string;
+  id: string;
+};
 export const CUSTOM_SHADER_TYPE = '커스텀 제작';
 export const WORKSHOP_PRODUCT_ID = 'workshop-single';
 
@@ -101,6 +108,59 @@ export function isEligibleCompletedWorkshopOrder(row: OrderRetentionRow, now: Da
   if (!Number.isFinite(completedMs)) return false;
   if (completedMs > now.getTime() - WORKSHOP_RETENTION_DAYS * 24 * 60 * 60 * 1000) return false;
   return isWorkshopOrderPayload(row.ordered_items);
+}
+
+export function completedOrderCursorOf(
+  row: Pick<OrderRetentionRow, 'id' | 'completed_at'>,
+): CompletedOrderCursor | null {
+  if (!row.completed_at) return null;
+  return { completed_at: row.completed_at, id: row.id };
+}
+
+/** Strict keyset: (completed_at ASC, id ASC). Cursor row itself is excluded. */
+export function isAfterCompletedOrderCursor(
+  row: Pick<OrderRetentionRow, 'id' | 'completed_at'>,
+  cursor: CompletedOrderCursor | null,
+): boolean {
+  if (!cursor) return true;
+  if (!row.completed_at) return false;
+  if (row.completed_at > cursor.completed_at) return true;
+  if (row.completed_at < cursor.completed_at) return false;
+  return row.id > cursor.id;
+}
+
+function quotePostgrestFilterValue(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * Walk COMPLETED candidates oldest-first, skipping catalog rows, until `limit` Workshop
+ * orders are collected or pages are exhausted. Each fetch is bounded; cursor is keyset
+ * so skipped catalog rows cannot occupy a permanent LIMIT 25 window.
+ */
+export async function loadEligibleCompletedWorkshopOrders(
+  fetchPage: (cursor: CompletedOrderCursor | null) => Promise<OrderRetentionRow[]>,
+  now: Date,
+  limit = COMPLETED_PURGE_BATCH,
+  pageSize = COMPLETED_CANDIDATE_PAGE,
+): Promise<OrderRetentionRow[]> {
+  const eligible: OrderRetentionRow[] = [];
+  let cursor: CompletedOrderCursor | null = null;
+  for (;;) {
+    const page = await fetchPage(cursor);
+    if (page.length === 0) break;
+    for (const row of page) {
+      if (!isEligibleCompletedWorkshopOrder(row, now)) continue;
+      eligible.push(row);
+      if (eligible.length >= limit) return eligible;
+    }
+    if (page.length < pageSize) break;
+    const next = completedOrderCursorOf(page[page.length - 1]!);
+    if (!next) break;
+    if (cursor && next.completed_at === cursor.completed_at && next.id === cursor.id) break;
+    cursor = next;
+  }
+  return eligible;
 }
 
 export function isConfiguredRetentionSecret(secret: string | undefined): boolean {
@@ -364,13 +424,12 @@ async function markOrderPurged(admin: SupabaseClient, order: OrderRetentionRow):
   return true;
 }
 
-async function purgeCompletedOrders(
+async function fetchCompletedCandidatePage(
   admin: SupabaseClient,
-  adapter: WorkshopStorageAdapter,
-  now: Date,
-): Promise<Pick<RetentionJobSummary, 'completed_orders_scanned' | 'completed_orders_purged' | 'completed_orders_failed'>> {
-  const cutoffIso = retentionCutoffIso(now);
-  const { data, error } = await admin
+  cutoffIso: string,
+  cursor: CompletedOrderCursor | null,
+): Promise<OrderRetentionRow[]> {
+  let query = admin
     .from('orders')
     .select('id, order_number, status, completed_at, image_purged_at, ordered_items')
     .eq('status', 'COMPLETED')
@@ -378,15 +437,32 @@ async function purgeCompletedOrders(
     .not('completed_at', 'is', null)
     .lte('completed_at', cutoffIso)
     .order('completed_at', { ascending: true })
-    .limit(COMPLETED_PURGE_BATCH);
+    .order('id', { ascending: true })
+    .limit(COMPLETED_CANDIDATE_PAGE);
 
+  if (cursor) {
+    query = query.or(
+      `completed_at.gt.${quotePostgrestFilterValue(cursor.completed_at)},and(completed_at.eq.${quotePostgrestFilterValue(cursor.completed_at)},id.gt.${cursor.id})`,
+    );
+  }
+
+  const { data, error } = await query;
   if (error) {
     console.error('[WORKSHOP_RETENTION] completed_lookup_failed', { reason_class: 'db_error' });
     throw new Error('completed_lookup_failed');
   }
+  return (data ?? []) as OrderRetentionRow[];
+}
 
-  const scannedRows = ((data ?? []) as OrderRetentionRow[]).filter((row) =>
-    isEligibleCompletedWorkshopOrder(row, now),
+async function purgeCompletedOrders(
+  admin: SupabaseClient,
+  adapter: WorkshopStorageAdapter,
+  now: Date,
+): Promise<Pick<RetentionJobSummary, 'completed_orders_scanned' | 'completed_orders_purged' | 'completed_orders_failed'>> {
+  const cutoffIso = retentionCutoffIso(now);
+  const scannedRows = await loadEligibleCompletedWorkshopOrders(
+    (cursor) => fetchCompletedCandidatePage(admin, cutoffIso, cursor),
+    now,
   );
   let purged = 0;
   let failed = 0;

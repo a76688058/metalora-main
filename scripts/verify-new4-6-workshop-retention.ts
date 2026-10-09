@@ -7,12 +7,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   collectWorkshopPaths,
+  completedOrderCursorOf,
+  isAfterCompletedOrderCursor,
   isCanonicalWorkshopObjectPath,
   isEligibleCompletedWorkshopOrder,
   isWorkshopOrderPayload,
+  loadEligibleCompletedWorkshopOrders,
   retentionJobAuthorized,
   stripWorkshopImageRefs,
   workshopStoragePathFromUrl,
+  type CompletedOrderCursor,
+  type OrderRetentionRow,
+  COMPLETED_PURGE_BATCH,
   WORKSHOP_RETENTION_MIN_SECRET_LENGTH,
 } from '../src/lib/workshopRetention';
 
@@ -115,6 +121,110 @@ assert(
 assert(
   'workshop markers remain after strip',
   isWorkshopOrderPayload(stripped) === true,
+);
+
+function catalogCompleted(id: string, completedAt: string): OrderRetentionRow {
+  return {
+    id,
+    order_number: `CAT-${id}`,
+    status: 'COMPLETED',
+    completed_at: completedAt,
+    image_purged_at: null,
+    ordered_items: [{ product_id: 'catalog', image: catalogUrl, quantity: 1, price: 1 }],
+  };
+}
+
+function workshopCompleted(id: string, completedAt: string): OrderRetentionRow {
+  return {
+    id,
+    order_number: `WS-${id}`,
+    status: 'COMPLETED',
+    completed_at: completedAt,
+    image_purged_at: null,
+    ordered_items: orderedItems,
+  };
+}
+
+function memoryCompletedPage(rows: OrderRetentionRow[], pageSize: number) {
+  const sorted = [...rows].sort((a, b) => {
+    const at = a.completed_at ?? '';
+    const bt = b.completed_at ?? '';
+    if (at !== bt) return at < bt ? -1 : 1;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+  return async (cursor: CompletedOrderCursor | null) =>
+    sorted.filter((row) => isAfterCompletedOrderCursor(row, cursor)).slice(0, pageSize);
+}
+
+const starvationNow = new Date('2026-10-07T00:00:00.000Z');
+const oldTs = (index: number) => new Date(Date.parse('2026-09-01T00:00:00.000Z') + index * 1000).toISOString();
+const catalog30 = Array.from({ length: 30 }, (_, i) => catalogCompleted(`c-${String(i).padStart(2, '0')}`, oldTs(i)));
+const workshopAfterCatalog = workshopCompleted('w-late', oldTs(30));
+const naiveFirstPage = [...catalog30, workshopAfterCatalog]
+  .sort((a, b) => (a.completed_at ?? '').localeCompare(b.completed_at ?? '') || a.id.localeCompare(b.id))
+  .slice(0, COMPLETED_PURGE_BATCH)
+  .filter((row) => isEligibleCompletedWorkshopOrder(row, starvationNow));
+assert('legacy LIMIT 25 first page would miss Workshop behind catalog', naiveFirstPage.length === 0);
+
+const caseA = await loadEligibleCompletedWorkshopOrders(
+  memoryCompletedPage([...catalog30, workshopAfterCatalog], COMPLETED_PURGE_BATCH),
+  starvationNow,
+  COMPLETED_PURGE_BATCH,
+  COMPLETED_PURGE_BATCH,
+);
+assert('CASE A: Workshop behind 30 catalog rows is reached', caseA.map((row) => row.id).join() === 'w-late');
+assert('CASE A: catalog rows are not selected', caseA.every((row) => row.id.startsWith('w-')));
+
+const workshop30 = Array.from({ length: 30 }, (_, i) => workshopCompleted(`w-${String(i).padStart(2, '0')}`, oldTs(i)));
+const caseB = await loadEligibleCompletedWorkshopOrders(
+  memoryCompletedPage(workshop30, COMPLETED_PURGE_BATCH),
+  starvationNow,
+  COMPLETED_PURGE_BATCH,
+  COMPLETED_PURGE_BATCH,
+);
+assert('CASE B: one run processes at most 25 Workshop rows', caseB.length === COMPLETED_PURGE_BATCH);
+assert(
+  'CASE B: oldest 25 Workshop ids',
+  caseB.map((row) => row.id).join('|') === workshop30.slice(0, 25).map((row) => row.id).join('|'),
+);
+
+const mixed = [
+  catalogCompleted('c-a', oldTs(0)),
+  workshopCompleted('w-old', oldTs(1)),
+  catalogCompleted('c-b', oldTs(2)),
+  workshopCompleted('w-new', oldTs(3)),
+  catalogCompleted('c-c', oldTs(4)),
+];
+const caseC = await loadEligibleCompletedWorkshopOrders(
+  memoryCompletedPage(mixed, 2),
+  starvationNow,
+  COMPLETED_PURGE_BATCH,
+  2,
+);
+assert('CASE C: oldest eligible Workshop first', caseC.map((row) => row.id).join('|') === 'w-old|w-new');
+
+const caseD = await loadEligibleCompletedWorkshopOrders(
+  memoryCompletedPage(catalog30, COMPLETED_PURGE_BATCH),
+  starvationNow,
+  COMPLETED_PURGE_BATCH,
+  COMPLETED_PURGE_BATCH,
+);
+assert('CASE D: catalog-only completed set is a no-op', caseD.length === 0);
+
+assert(
+  'CASE E: catalog completed rows are never treated as purge targets',
+  catalog30.every((row) => isEligibleCompletedWorkshopOrder(row, starvationNow) === false),
+);
+assert(
+  'keyset cursor excludes the current page tail',
+  isAfterCompletedOrderCursor(catalog30[0]!, completedOrderCursorOf(catalog30[0])!) === false,
+);
+assert(
+  'keyset cursor includes a later id at the same completed_at',
+  isAfterCompletedOrderCursor(
+    { id: 'z', completed_at: catalog30[0]!.completed_at },
+    completedOrderCursorOf(catalog30[0]!)!,
+  ) === true,
 );
 
 const secret = 'a'.repeat(WORKSHOP_RETENTION_MIN_SECRET_LENGTH);

@@ -119,7 +119,9 @@ Missing object: treated as success for that path.
 
 DB reference cleanup failure after object deletion: do not stamp `image_purged_at`; retry cleanup (Storage remove of already-gone objects is success; workshop markers remain after URL strip so eligibility is not wedged).
 
-Batch: up to 25 completed Workshop orders per run.
+Batch: up to 25 **eligible Workshop** completed orders per run. Candidates are loaded with keyset pagination `(completed_at ASC, id ASC)` in pages of 100, skipping non-Workshop COMPLETED rows in application code. Catalog/non-Workshop completed orders are **never** stamped `image_purged_at` to skip them. Offset pagination is not used.
+
+Abandoned pass: if Storage delete succeeds and DB ref cleanup fails, objects may be absent from later listings so leftover refs are not automatically retried. **Follow-up (non-blocking):** do not reorder to cleanup-before-delete (that can stamp a Workshop order whose `collectWorkshopPaths` became empty while files remain). No schema/queue in this patch.
 
 Logs: order number, attempted/deleted counts, reason class. No raw image URLs, signed tokens, secrets, or customer PII.
 
