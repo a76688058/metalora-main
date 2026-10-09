@@ -216,6 +216,12 @@ try {
 }
 assert('Impersonated chain reports workshop-media-signer as effective identity (offline)', signerOk);
 assert('storage apiEndpoint is the regional host', signerStorage.apiEndpoint === `https://${WORKSHOP_GCS_REGIONAL_HOST}`);
+const regionalAuth = signerStorage as unknown as {
+  customEndpoint?: boolean;
+  useAuthWithCustomEndpoint?: boolean;
+};
+assert('regional apiEndpoint is treated as a custom endpoint', regionalAuth.customEndpoint === true);
+assert('custom regional endpoint keeps OAuth (useAuthWithCustomEndpoint=true)', regionalAuth.useAuthWithCustomEndpoint === true);
 let wrongSignerThrew = false;
 try {
   createSignerStorage({ ...readyConfig, signerSa: '807497260135-compute@developer.gserviceaccount.com' }, offlineSource);
@@ -223,6 +229,29 @@ try {
   wrongSignerThrew = true;
 }
 assert('runtime SA as signer refused at construction', wrongSignerThrew);
+{
+  const storageSrc = fs.readFileSync(path.join(root, 'src/lib/workshopStorage.ts'), 'utf8');
+  const signerFn = storageSrc.slice(
+    storageSrc.indexOf('export function createSignerStorage'),
+    storageSrc.indexOf('export async function assertEffectiveSigner'),
+  );
+  const storeFn = storageSrc.slice(
+    storageSrc.indexOf('export function createGcsWorkshopStore'),
+    storageSrc.indexOf('export type WorkshopRemoveOutcome'),
+  );
+  assert('createSignerStorage sets useAuthWithCustomEndpoint true', /useAuthWithCustomEndpoint:\s*true/.test(signerFn));
+  assert('createSignerStorage keeps the Seoul regional apiEndpoint', signerFn.includes('WORKSHOP_GCS_REGIONAL_HOST'));
+  assert('createSignerStorage impersonates config.signerSa only', /new Impersonated\(/.test(signerFn) && /targetPrincipal:\s*config\.signerSa/.test(signerFn));
+  assert('createSignerStorage does not use the runtime SA as Storage identity', !/807497260135-compute@developer\.gserviceaccount\.com/.test(signerFn));
+  assert('createSignerStorage does not grant runtime-SA object roles', !/roles\/storage\./.test(signerFn));
+  assert('GCS head/remove/list share the impersonated Storage factory',
+    /return createSignerStorage\(config, sourceClient\)/.test(storeFn)
+    && (storeFn.match(/await bucket\(\)/g)?.length ?? 0) >= 3
+    && /async head\(path\)/.test(storeFn)
+    && /async remove\(path\)/.test(storeFn)
+    && /async listObjects\(/.test(storeFn)
+    && !/new Storage\(/.test(storeFn));
+}
 
 function fakeStorage(clientEmail: string, signedUrl: (p: string) => string): Storage {
   const file = (p: string) => ({ getSignedUrl: async () => [signedUrl(p)] });

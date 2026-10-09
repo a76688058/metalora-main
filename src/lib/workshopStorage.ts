@@ -535,6 +535,7 @@ export function createSignerStorage(config: WorkshopGcsConfig, sourceClient: Aut
   return new Storage({
     projectId: WORKSHOP_GCS_PROJECT,
     apiEndpoint: `https://${WORKSHOP_GCS_REGIONAL_HOST}`,
+    useAuthWithCustomEndpoint: true,
     authClient,
   });
 }
