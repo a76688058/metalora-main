@@ -15,8 +15,8 @@ export type PolicyType = (typeof POLICY_TYPES)[keyof typeof POLICY_TYPES];
 /** Current Terms text: Metalora Terms v26.10.06 */
 export const TERMS_POLICY_VERSION = 'terms_v26.10.06';
 
-/** Current Privacy text: Metalora Legal v26.10.07 (NEW4-4 rewrite) */
-export const PRIVACY_POLICY_VERSION = 'privacy_v26.10.07';
+/** Current Privacy text: Metalora Legal v26.10.10 (NEW4 canonical storage / logging disclosure) */
+export const PRIVACY_POLICY_VERSION = 'privacy_v26.10.10';
 
 /** Current Workshop agreement text: Metalora Consent v26.10.06 */
 export const WORKSHOP_CUSTOM_POLICY_VERSION = 'workshop_custom_v26.10.06';

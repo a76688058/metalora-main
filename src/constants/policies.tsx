@@ -252,7 +252,7 @@ export const policies = {
     )
   },
   privacy: {
-    title: '개인정보 처리방침 (Metalora Legal v26.10.07)',
+    title: '개인정보 처리방침 (Metalora Legal v26.10.10)',
     content: (
       <div className="font-sans pb-8">
         <div className="bg-white dark:bg-zinc-900/40 p-6 rounded-2xl mb-10 border border-zinc-200 dark:border-white/5 shadow-sm">
@@ -345,7 +345,7 @@ export const policies = {
           <p>WORKSHOP 주문에 사용된 원본 및 미리보기 이미지는 관리자가 주문 상태를 배송완료로 처리한 후 3일이 지나면 순차 삭제합니다.</p>
           <p>주문으로 이어지지 않은 WORKSHOP 업로드 이미지는 마지막 관련 활동 후 3일이 지나면 순차 삭제합니다. 진행 중인 주문, 장바구니, 제작 과정에 묶여 있는 이미지는 그 보호 대상에서 빼지 않습니다.</p>
           <p>이미 결제가 되었거나 제작·배송이 진행 중인 WORKSHOP 주문은, 회원이 탈퇴하더라도 주문을 마치기 위해 필요한 동안 이미지가 남을 수 있습니다. 이후 관리자가 배송완료로 처리하고 3일이 지나면 제1항에 따라 삭제됩니다.</p>
-          <p>위 삭제는 원본 저장소를 기준으로 합니다. 이미지 전송을 위한 임시 캐시(전송망·브라우저)는 원본 저장소에서 삭제된 뒤에도 설정된 캐시 유효기간(현재 약 1시간) 또는 제공자의 무효화 처리까지 일시적으로 남을 수 있습니다.</p>
+          <p>위 삭제는 원본 파일이 있는 비공개 저장소를 기준으로 합니다. 파일이 삭제된 뒤에도 주문·장바구니 기록에 파일 위치가 잠시 남을 수 있으나, 그 위치만으로는 이미지를 다시 열 수 없습니다. 이용자 기기에 남은 화면 사본은 브라우저 설정에 따라 잠시 남을 수 있습니다.</p>
           <p>이미지가 삭제된 뒤에는 같은 그림으로 다시 만들거나 재인쇄하려면 이미지를 다시 올려 주셔야 합니다.</p>
         </div>
         <Divider />
@@ -372,7 +372,10 @@ export const policies = {
           <p>회사는 서비스 운영을 위해 아래와 같이 처리를 맡깁니다. 고객 개인정보를 제3자에게 판매하지 않습니다.</p>
           <ul className="list-disc pl-5 space-y-3">
             <li>
-              <span className="text-zinc-950 dark:text-white font-bold">Supabase:</span> 회원 인증, 데이터베이스 보관, WORKSHOP 이미지 저장. 계정·주문·문의·동의 기록과 업로드 이미지가 이 목적 범위에서 처리됩니다. 보관 위치는 대한민국(서울)입니다. WORKSHOP 이미지를 불러올 때는 Supabase가 사용하는 전송망(CDN)에 임시 사본이 캐시될 수 있습니다(제9조).
+              <span className="text-zinc-950 dark:text-white font-bold">Supabase:</span> 회원 인증과 데이터베이스 보관. 계정·주문·문의·동의 기록이 이 목적 범위에서 처리됩니다. 보관 위치는 대한민국(서울)입니다. WORKSHOP 이미지 파일은 여기에 저장하지 않습니다.
+            </li>
+            <li>
+              <span className="text-zinc-950 dark:text-white font-bold">Google Cloud Storage:</span> WORKSHOP 원본·미리보기 이미지의 비공개 보관. 보관 위치는 대한민국(서울)입니다. 누구나 열 수 있는 주소로 두지 않으며, 권한 있는 이용과 제작 처리에 필요한 동안만 제한된 방식으로 불러옵니다. 보관 기간은 제5조의 WORKSHOP 이미지 보관 기준을 따릅니다.
             </li>
             <li>
               <span className="text-zinc-950 dark:text-white font-bold">Google Cloud (Cloud Run):</span> 웹사이트·서버 요청 처리. 요청에 계정·주문·문의·인증 정보가 포함되면 그 요청 처리 과정에서 함께 다뤄질 수 있습니다. 주문·계정 원장은 Cloud Run에 따로 쌓아 두지 않습니다.
@@ -401,31 +404,22 @@ export const policies = {
             <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> 이용자가 보낸 요청에 포함된 계정·인증, 주문·배송, 문의, 보안 관련 정보</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">이용 목적:</span> 회사 웹사이트 제공과 API 요청 처리 등 서비스 인프라 운영</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">이전 시기·방법:</span> 이용자가 웹사이트를 이용할 때마다 암호화된 통신(HTTPS)으로 전송</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 요청을 처리하는 동안. 계정·주문 원장은 이 인프라에 따로 저장하지 않으며, 대한민국(서울)에 있는 Supabase에 보관됩니다(제8조). 서버 운영 기록은 아래 2번 항목에 따릅니다.</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 요청을 처리하는 동안. 계정·주문 원장은 이 인프라에 따로 저장하지 않으며, 대한민국(서울)의 데이터베이스에 보관됩니다(제8조). WORKSHOP 이미지 파일은 대한민국(서울)의 비공개 저장소에 보관됩니다(제8조). 서버 운영 기록은 아래 2번 항목에 따릅니다.</li>
           </ul>
 
           <p className="text-zinc-950 dark:text-white font-bold">2. Google Cloud Logging (서버 운영 기록 보관)</p>
           <ul className="list-disc pl-5 space-y-3">
             <li><span className="text-zinc-950 dark:text-white font-bold">이전받는 자·연락처:</span> 1번 항목과 같습니다.</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 국가:</span> [공개 전 확인 필요: Cloud Logging 로그 보관 국가]</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">이전 국가:</span> 미국 (오리건, Google Cloud us-west1 리전). 이 국가는 웹사이트·서버의 애플리케이션·서비스 운영 기록에 해당합니다.</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> 웹사이트 요청 기록(접속 IP, 브라우저 정보(User-Agent), 요청 주소, 응답 상태, 처리 시간)과 회사 서버가 남기는 운영 기록(요청 식별자, 처리 단계와 결과, 오류 분류, 결제 처리 시의 주문번호와 내부 회원 식별값)</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">이용 목적:</span> 장애 대응, 보안 점검, 부정이용 방지</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">이전 시기·방법:</span> 서버가 요청을 처리할 때 Google Cloud 내부에서 자동 기록</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> [공개 전 확인 필요: Cloud Logging 로그 보관 기간]</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 애플리케이션·서비스 운영 기록은 30일</li>
           </ul>
+          <p>Google이 요구하는 감사·시스템 기록은 global 위치로 관리되어 특정 단일 리전에 한정되지 않으며 약 400일 보관됩니다. 이 기록은 위의 애플리케이션·서비스 운영 기록과 다릅니다.</p>
+          <p>과거 애플리케이션 기록의 일부는 예전에 쓰이던 기본 보관 공간에 남아 있을 수 있으며, 해당 기록은 종전 30일 보관이 끝나면 만료됩니다. 지금은 새로운 애플리케이션·서비스 기록이 그 공간으로 쌓이지 않습니다.</p>
 
-          <p className="text-zinc-950 dark:text-white font-bold">3. Supabase 저장소 전송망(CDN) 캐시</p>
-          <ul className="list-disc pl-5 space-y-3">
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전받는 자:</span> Supabase, Inc. (재위탁: Cloudflare, Inc. — Supabase 공식 하위 처리자 목록 기준)</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">연락처:</span> privacy@supabase.com</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 국가:</span> [공개 전 확인 필요: CDN 캐시 국가]</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> WORKSHOP 업로드 원본·미리보기 이미지의 임시 사본</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이용 목적:</span> 이미지 전송</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">이전 시기·방법:</span> 이미지를 불러올 때 전송망 서버에 임시로 캐시</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 설정된 캐시 유효기간(현재 약 1시간) 또는 제공자의 무효화 처리까지</li>
-          </ul>
-
-          <p className="text-zinc-950 dark:text-white font-bold">4. Discord (내부 주문·결제 운영 알림)</p>
+          <p className="text-zinc-950 dark:text-white font-bold">3. Discord (내부 주문·결제 운영 알림)</p>
           <ul className="list-disc pl-5 space-y-3">
             <li><span className="text-zinc-950 dark:text-white font-bold">이전받는 자:</span> Discord Inc.</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">연락처:</span> privacy@discord.com / 444 De Haro Street #200, San Francisco, CA 94107, USA</li>
@@ -522,7 +516,7 @@ export const policies = {
 
         <h3 className="text-[17px] font-semibold text-zinc-950 dark:text-white mt-10 mb-4">부칙</h3>
         <div className="text-[15px] leading-relaxed text-zinc-950 dark:text-zinc-200 font-normal space-y-3">
-          <p>본 방침은 2026년 10월 7일부터 시행합니다.</p>
+          <p>본 방침은 2026년 10월 10일부터 시행합니다.</p>
         </div>
       </div>
     )
