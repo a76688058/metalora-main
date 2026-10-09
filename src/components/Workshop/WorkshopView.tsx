@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, Image as ImageIcon, ChevronLeft, X, Loader2, ShoppingBag, Box } from 'lucide-react';
-import LoadingScreen from '../LoadingScreen';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
@@ -151,6 +150,8 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isClearingRef = useRef(false);
   const resumeEvaluatedRef = useRef(false);
+  const resumeAttemptRef = useRef(0);
+  const resumeTimeoutRef = useRef<number | null>(null);
   const roomPreviewEntryRef = useRef<HTMLButtonElement>(null);
   const loadedSourceUrlRef = useRef<string | null>(null);
   const uploadedImageRef = useRef<string | null>(null);
@@ -224,27 +225,44 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
     void loadSourceFromUrl(uploadedImage, true);
   }, [uploadedImage, clearSource, loadSourceFromUrl]);
 
-  useEffect(() => {
-    return () => {
-      revokePreviewUrl(uploadedImageRef.current);
-    };
+  const invalidateResumeAttempt = useCallback(() => {
+    resumeAttemptRef.current += 1;
+    if (resumeTimeoutRef.current !== null) {
+      window.clearTimeout(resumeTimeoutRef.current);
+      resumeTimeoutRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
+    return () => {
+      invalidateResumeAttempt();
+      revokePreviewUrl(uploadedImageRef.current);
+    };
+  }, [invalidateResumeAttempt]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const settle = () => {
+      if (!cancelled) {
+        setIsRestoring(false);
+      }
+    };
+    const timeoutId = window.setTimeout(settle, 12_000);
+
     const fetchProgress = async () => {
       if (resumeEvaluatedRef.current) {
-        setIsRestoring(false);
+        settle();
         return;
       }
 
       if (!user) {
-        setIsRestoring(false);
+        settle();
         return;
       }
 
       if (allowResumeCheck && !allowResumeCheck()) {
         resumeEvaluatedRef.current = true;
-        setIsRestoring(false);
+        settle();
         return;
       }
 
@@ -257,13 +275,15 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
           .eq('user_id', user.id)
           .single();
 
+        if (cancelled) return;
+
         if (error) {
           if (error.code !== 'PGRST116') {
             console.error('Fetch failed:', error);
           }
           localStorage.removeItem('force_new_start');
           sessionStorage.removeItem('workshop_just_finished');
-          setIsRestoring(false);
+          settle();
           return;
         }
 
@@ -285,29 +305,37 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
               uploaded_image_url: null,
               updated_at: new Date().toISOString()
             }, { onConflict: 'user_id' });
+            if (cancelled) return;
             localStorage.removeItem('force_new_start');
             sessionStorage.removeItem('workshop_just_finished');
-            setIsRestoring(false);
+            settle();
           } else {
             setPendingProgress(data);
             setShowResumeModal(true);
-            setIsRestoring(false);
+            settle();
           }
         } else {
           localStorage.removeItem('force_new_start');
           sessionStorage.removeItem('workshop_just_finished');
-          setIsRestoring(false);
+          settle();
         }
       } catch (err) {
         console.error('Failed to fetch progress:', err);
-        setIsRestoring(false);
+        settle();
       }
     };
 
-    fetchProgress();
+    void fetchProgress();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+      setIsRestoring(false);
+    };
   }, [user?.id, allowResumeCheck]);
 
   const handleStartNew = async () => {
+    invalidateResumeAttempt();
+    setIsRestoring(false);
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
@@ -358,9 +386,19 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       setCurrentStep(1);
       return;
     }
+    invalidateResumeAttempt();
+    const attempt = resumeAttemptRef.current;
+    const isCurrent = () => attempt === resumeAttemptRef.current;
     setIsRestoring(true);
+    resumeTimeoutRef.current = window.setTimeout(() => {
+      if (!isCurrent()) return;
+      resumeAttemptRef.current += 1;
+      resumeTimeoutRef.current = null;
+      setIsRestoring(false);
+    }, 12_000);
     try {
       const objectUrl = normalizeWorkshopMediaRef(ref) ? await loadResumedWorkshopOriginal(ref) : null;
+      if (!isCurrent()) return;
       if (!objectUrl) {
         setCurrentStep(1);
         showToast('이전 이미지를 불러오지 못했습니다. 사진을 다시 업로드해 주세요.', 'error');
@@ -371,7 +409,11 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       replaceUploadedImage(objectUrl);
       setCurrentStep(normalizeWorkshopStep(progress.current_step));
     } finally {
-      setIsRestoring(false);
+      if (resumeTimeoutRef.current !== null && isCurrent()) {
+        window.clearTimeout(resumeTimeoutRef.current);
+        resumeTimeoutRef.current = null;
+      }
+      if (isCurrent()) setIsRestoring(false);
     }
   };
 
@@ -459,6 +501,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
   }, [currentStep]);
 
   const leaveWorkshop = () => {
+    invalidateResumeAttempt();
     setShowExitConfirm(false);
     if (onBack) {
       onBack();
@@ -642,6 +685,8 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
     const file = input.files?.[0];
     input.value = '';
     if (!file) return;
+    invalidateResumeAttempt();
+    setIsRestoring(false);
 
     if (file.size > WORKSHOP_UPLOAD_LIMITS.original) {
       showToast('25MB 이하의 사진을 선택해 주세요.', 'error');
@@ -672,11 +717,8 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
     (currentStep === 1 && (!uploadedImage || !source))
     || (currentStep === 2 && (customPriceStatus !== 'ready' || customPrice === null))
     || isUploading
-    || isPreparingPreview;
-
-  if (isRestoring) {
-    return <LoadingScreen />;
-  }
+    || isPreparingPreview
+    || isRestoring;
 
   const isPreviewSubViewOpen = viewerOpen || roomPreviewOpen;
 
@@ -822,7 +864,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
 
   return (
     <div
-      className={`flex w-full flex-col overflow-x-hidden font-sans pointer-events-auto ${
+      className={`relative flex w-full flex-col overflow-x-hidden font-sans pointer-events-auto ${
       hideHeader ? 'h-full' : 'min-h-screen'
     } ${theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'}`}
       data-custom-preview-ready={previewUrl ? 'true' : 'false'}
@@ -939,6 +981,17 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
           </motion.div>
         )}
       </AnimatePresence>
+
+      {isRestoring ? (
+        <div
+          className="absolute inset-x-0 bottom-0 top-16 z-20 flex flex-col items-center justify-center gap-3 bg-canvas/80"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="h-8 w-8 animate-spin text-text-secondary" aria-hidden />
+          <p className="type-supporting text-text-secondary">이전 작업을 불러오는 중</p>
+        </div>
+      ) : null}
 
       <div
         ref={scrollContainerRef}

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, Check, Loader2 } from 'lucide-react';
+import { CheckCircle2, Check } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -21,37 +21,6 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
   const { showToast } = useToast();
   const [hasReadAndAgreed, setHasReadAndAgreed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
-
-  useEffect(() => {
-    const checkInitialAgreement = async () => {
-      if (!user) {
-        setIsChecking(false);
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase
-          .from('user_agreements')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('policy_type', POLICY_TYPES.workshopCustom)
-          .eq('agreement_version', POLICY_VERSIONS.workshop_custom)
-          .limit(1)
-          .maybeSingle();
-
-        if (data && !error) {
-          onAgree();
-        }
-      } catch (err) {
-        console.error('Error checking initial agreement:', err);
-      } finally {
-        setIsChecking(false);
-      }
-    };
-
-    checkInitialAgreement();
-  }, [user, onAgree]);
 
   const handleAgree = async () => {
     if (!hasReadAndAgreed || !user) return;
@@ -77,16 +46,10 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
     }
   };
 
-  if (isChecking) {
-    return (
-      <div className={`min-h-screen flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
-        <Loader2 className="w-8 h-8 animate-spin text-text-secondary" />
-      </div>
-    );
-  }
-
   return (
-    <div className={`flex flex-col h-full overflow-hidden ${hideHeader ? '' : 'min-h-screen'} ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
+    <div
+      className={`flex flex-col h-full overflow-hidden ${hideHeader ? '' : 'min-h-screen'} ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}
+    >
       {!hideHeader && <Header />}
 
       <div className={`flex-none px-6 ${hideHeader ? 'pt-16 pb-6' : 'pt-24 pb-6'}`}>
@@ -125,7 +88,7 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
 
           <div className="pb-20 pt-8">
             <label
-              className={`mb-6 flex cursor-pointer gap-4 rounded-xl border p-5 transition-colors ${
+              className={`relative mb-6 flex cursor-pointer gap-4 rounded-xl border p-5 transition-colors ${
                 hasReadAndAgreed
                   ? 'border-text-primary/30 bg-surface'
                   : 'border-border-subtle hover:border-border-subtle'
@@ -135,7 +98,7 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
                 type="checkbox"
                 checked={hasReadAndAgreed}
                 onChange={(event) => setHasReadAndAgreed(event.target.checked)}
-                className="sr-only"
+                className="sr-only left-0 top-0"
               />
               <div
                 className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${
@@ -161,7 +124,9 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
                 >
                   <button
                     type="button"
-                    onClick={handleAgree}
+                    onClick={() => {
+                      void handleAgree();
+                    }}
                     disabled={isSubmitting}
                     className="focus-ring flex w-full min-h-12 items-center justify-center gap-2 rounded-xl bg-text-primary type-label text-text-inverse transition-opacity disabled:opacity-50"
                   >

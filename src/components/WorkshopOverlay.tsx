@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -19,11 +19,23 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
   const [view, setView] = useState<'copyright' | 'workshop'>('copyright');
   const [isCheckingAgreement, setIsCheckingAgreement] = useState(true);
   const resumeCheckConsumedRef = useRef(false);
+  const checkGenRef = useRef(0);
+  const acceptedForUserIdRef = useRef<string | null>(null);
+  const userId = user?.id ?? null;
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
 
   const consumeResumeCheck = useCallback(() => {
     if (resumeCheckConsumedRef.current) return false;
     resumeCheckConsumedRef.current = true;
     return true;
+  }, []);
+
+  const handleAgree = useCallback(() => {
+    acceptedForUserIdRef.current = userIdRef.current;
+    checkGenRef.current += 1;
+    setIsCheckingAgreement(false);
+    setView('workshop');
   }, []);
 
   useEffect(() => {
@@ -37,6 +49,8 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
       // Reset only on true overlay close. Do not reset on open — that races
       // WorkshopView's first effect and lets the resume prompt fire again.
       resumeCheckConsumedRef.current = false;
+      acceptedForUserIdRef.current = null;
+      checkGenRef.current += 1;
     }
     return () => {
       document.body.style.overflow = '';
@@ -45,9 +59,29 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
   }, [isOpen]);
 
   useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const acceptedFor = acceptedForUserIdRef.current;
+    if (acceptedFor !== null && acceptedFor === userId) {
+      return;
+    }
+
+    const gen = ++checkGenRef.current;
+    let cancelled = false;
+    const isCurrent = () => {
+      if (cancelled || gen !== checkGenRef.current) return false;
+      const accepted = acceptedForUserIdRef.current;
+      if (accepted !== null && accepted === userId) return false;
+      return true;
+    };
+
     const checkAgreement = async () => {
-      if (!user) {
-        setIsCheckingAgreement(false);
+      if (!userId) {
+        if (isCurrent()) {
+          setIsCheckingAgreement(false);
+        }
         return;
       }
 
@@ -55,11 +89,15 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
         const { data, error } = await supabase
           .from('user_agreements')
           .select('id')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('policy_type', POLICY_TYPES.workshopCustom)
           .eq('agreement_version', POLICY_VERSIONS.workshop_custom)
           .limit(1)
           .maybeSingle();
+
+        if (!isCurrent()) {
+          return;
+        }
 
         if (data && !error) {
           setView('workshop');
@@ -68,16 +106,22 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
         }
       } catch (err) {
         console.error('Error checking agreement:', err);
+        if (!isCurrent()) {
+          return;
+        }
         setView('copyright');
       } finally {
-        setIsCheckingAgreement(false);
+        if (isCurrent()) {
+          setIsCheckingAgreement(false);
+        }
       }
     };
 
-    if (isOpen) {
-      checkAgreement();
-    }
-  }, [isOpen, user]);
+    void checkAgreement();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, userId]);
 
   if (!isOpen) return null;
 
@@ -112,62 +156,43 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
           theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'
         }`}
       >
-        <AnimatePresence mode="wait">
-          {isCheckingAgreement ? (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex-1 flex items-center justify-center"
-            >
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-text-secondary border-t-transparent" />
-            </motion.div>
-          ) : view === 'copyright' ? (
-            <motion.div
-              key="copyright"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex-1 flex flex-col h-full overflow-hidden"
-            >
-              <div className="absolute top-6 left-6 z-[101]">
-                <button
-                  type="button"
-                  onClick={handleExit}
-                  className={`focus-ring rounded-full p-2 ${
-                    theme === 'dark'
-                      ? 'bg-zinc-800/50 text-zinc-400 hover:bg-zinc-800 hover:text-white'
-                      : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-black'
-                  }`}
-                  aria-label="닫기"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-              </div>
-              <CopyrightPage
-                onAgree={() => setView('workshop')}
-                hideHeader={true}
-              />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="workshop"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex-1 flex flex-col h-full overflow-hidden"
-            >
-              <WorkshopView
-                onClose={handleExit}
-                onBack={handleExit}
-                onComplete={onClose}
-                hideHeader={true}
-                allowResumeCheck={consumeResumeCheck}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {isCheckingAgreement ? (
+          <div className="flex-1 flex items-center justify-center" role="status" aria-live="polite">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-text-secondary border-t-transparent" />
+            <span className="sr-only">동의 상태를 확인하는 중</span>
+          </div>
+        ) : view === 'copyright' ? (
+          <div className="relative flex-1 flex flex-col h-full overflow-hidden">
+            <div className="absolute top-6 left-6 z-[101]">
+              <button
+                type="button"
+                onClick={handleExit}
+                className={`focus-ring rounded-full p-2 ${
+                  theme === 'dark'
+                    ? 'bg-zinc-800/50 text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-black'
+                }`}
+                aria-label="닫기"
+              >
+                <ChevronLeft size={20} />
+              </button>
+            </div>
+            <CopyrightPage
+              onAgree={handleAgree}
+              hideHeader={true}
+            />
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col h-full overflow-hidden">
+            <WorkshopView
+              onClose={handleExit}
+              onBack={handleExit}
+              onComplete={onClose}
+              hideHeader={true}
+              allowResumeCheck={consumeResumeCheck}
+            />
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );
