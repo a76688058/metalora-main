@@ -39,6 +39,10 @@ const freeze = fs.readFileSync(path.join(root, 'src/lib/publicPaymentFreeze.ts')
 const notice = fs.readFileSync(path.join(root, 'src/components/pdp/ProductInformationNotice.tsx'), 'utf8');
 const handoff = fs.readFileSync(path.join(root, 'src/lib/customComposition/durableHandoff.ts'), 'utf8');
 const storage = fs.readFileSync(path.join(root, 'src/lib/workshopStorage.ts'), 'utf8');
+const priorPrivacySql = fs.readFileSync(
+  path.join(root, 'supabase/migrations/20261007090000_new4_4_privacy_version.sql'),
+  'utf8',
+);
 
 const canonicalBody = canonicalSql.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--.*$/gm, '');
 assert('canonical migration replaces workshop_ref_is_accepted', /CREATE OR REPLACE FUNCTION public\.workshop_ref_is_accepted\(/.test(canonicalSql));
@@ -61,13 +65,42 @@ assert('new uploads persist canonical path from sign-upload', /buildCanonicalWor
 assert('handoff stores server path refs, not public workshop URLs',
   /persistWorkshopCartMedia/.test(handoff) && !/storage\/v1\/object\/public\/workshop/.test(handoff));
 
-assert('privacy version id matches displayed text family', PRIVACY_POLICY_VERSION === 'privacy_v26.10.10');
-assert('privacy allowlist SQL matches source version', privacySql.includes("'privacy' THEN 'privacy_v26.10.10'"));
-assert('privacy SQL does not rewrite user_agreements rows',
+assert('A application Privacy version is privacy_v26.10.10', PRIVACY_POLICY_VERSION === 'privacy_v26.10.10');
+assert('B rollout SQL accepts exactly privacy_v26.10.07 and privacy_v26.10.10',
+  /p_policy_version IS DISTINCT FROM 'privacy_v26\.10\.07'/.test(privacySql)
+  && /p_policy_version IS DISTINCT FROM 'privacy_v26\.10\.10'/.test(privacySql)
+  && /TEMPORARY rollout window/.test(privacySql));
+assert('C stale privacy versions are not listed as accepted',
+  !/'privacy_v26\.10\.06'/.test(privacySql)
+  && !/privacy_v25/.test(privacySql)
+  && !/WHEN 'privacy' THEN/.test(privacySql));
+assert('D/E consent rows are not rewritten',
   /ON CONFLICT \(user_id, policy_type, agreement_version\) DO NOTHING/.test(privacySql)
-  && !/UPDATE\s+public\.user_agreements/i.test(privacySql));
+  && !/UPDATE\s+public\.user_agreements/i.test(privacySql)
+  && !/DELETE\s+FROM\s+public\.user_agreements/i.test(privacySql));
+assert('F unrelated policy versions unchanged',
+  /WHEN 'terms' THEN 'terms_v26\.10\.06'/.test(privacySql)
+  && /WHEN 'workshop_custom' THEN 'workshop_custom_v26\.10\.06'/.test(privacySql)
+  && /WHEN 'checkout_return_refund' THEN 'checkout_return_refund_v26\.10\.06'/.test(privacySql));
+assert('G dual acceptance is marked TEMPORARY', /TEMPORARY rollout/.test(privacySql));
+assert('H future forward migration must drop privacy_v26.10.07',
+  /later forward-only migration must remove privacy_v26\.10\.07/.test(privacySql)
+  && !fs.existsSync(path.join(root, 'supabase/migrations/20261010092000_new4_privacy_drop_v26_10_07.sql')));
 assert('privacy SQL keeps NEW4-5A workshop-only authenticated path',
   /p_policy_type IS DISTINCT FROM 'workshop_custom'/.test(privacySql));
+
+const oldAppVersion = 'privacy_v26.10.07';
+const newAppVersion = PRIVACY_POLICY_VERSION;
+const oldDbAccepts = (version: string) =>
+  version === 'privacy_v26.10.07' && /WHEN 'privacy' THEN 'privacy_v26\.10\.07'/.test(priorPrivacySql);
+const dualAccepts = (version: string) => version === 'privacy_v26.10.07' || version === 'privacy_v26.10.10';
+assert('STATE A old app + old DB', oldDbAccepts(oldAppVersion) && !oldDbAccepts(newAppVersion));
+assert('STATE B old app + dual DB', dualAccepts(oldAppVersion));
+assert('STATE C new app + dual DB', newAppVersion === 'privacy_v26.10.10' && dualAccepts(newAppVersion));
+assert('STATE D rollback to old app while dual DB remains', dualAccepts(oldAppVersion));
+assert('canonical migration does not touch consent RPC', !/record_policy_consent/.test(canonicalSql));
+assert('live app already writes canonical paths so canonical-only DB stays compatible',
+  /buildCanonicalWorkshopPath/.test(storage));
 
 assert('policy title bumped', /개인정보 처리방침 \(Metalora Legal v26\.10\.10\)/.test(policies));
 assert('cookie policy version unchanged', /쿠키 정책 \(Metalora Cookie Policy v26\.10\.07\)/.test(policies));
