@@ -1,11 +1,13 @@
 # NEW4-4D — Workshop private Seoul GCS media storage
 
-Status: **ACCEPTED — ALL LOCAL SOURCE DONE (NEW4-4D-3 … 7C, 8A); D-3 VERIFIER REFRESHED + RELEASE PLAN WRITTEN (NEW4-4D-8); PDP referrer blocker CLOSED locally (NEW4-4D-8A); legacy read bridge + copy tooling DONE locally, NOT RUN (NEW4-4D-9); A2 legacy-ref resolver routing DONE locally (NEW4-4D-9A), A3 shared-display routing DONE locally (NEW4-4D-9B, 116/116), D-9A verifier aligned (NEW4-4D-9C): all client Workshop display consumers resolver-mediated; production read-only inventory: rerun captured output but the DB reference scan failed, so the inventory is incomplete; Supabase `workshop` bucket VERIFIED public; scanner fix + rebuilt job DONE and executed once (NEW4-4D-9D-3): references + source complete, critical three 0, 22 source objects all outside `originals/` / `previews/`, target GCS listing failed (owner accepted the 9D target baseline instead); source structure classified (NEW4-4D-9D-4A): 22 unreferenced root-level test uploads, deleted by owner decision (NEW4-4D-9E); Supabase `workshop` bucket now 0 objects, 0 DB references, so the legacy copy set is empty; next: read-only SQL ops facts + target GCS final recheck (NEW4-4D-9D / 9D-1 / 9D-2 / 9D-3; all temporary bindings removed). BLOCKED for release** on the remaining items in "Release plan (NEW4-4D-8)". Signed regional delivery proven in NEW4-4D-2A.
-Production cutover: RELEASE-GATED. Production still runs `b9664fb` on Supabase Storage. HEAD must not be deployed until the release-plan blockers are cleared with owner approval. No deploy, no Cloud Run env binding, no migration applied, no cutover, no Supabase mutation. Three IAM hardening follow-ups remain open (see "Open items").
+Status: **PASS — EVIDENCE-ALIGNED**. CDN blocker resolved. Supabase Workshop CDN path terminated. Private Seoul GCS is active. Storage evidence is complete: URL references 0; bucket `public=false`; objects 0; legacy public Workshop URL 4xx; no workshop public storage policy. Signed regional delivery was proven in NEW4-4D-2A. Earlier inventory notes below are historical and are not the current storage state.
+Workshop storage disclosure: **EVIDENCE-ALIGNED** (2026-10-11). Owner-confirmed facts only: Workshop bucket `public=false`; Workshop objects `0`; Supabase Workshop URL references `0`; legacy public Workshop URL `4xx`; no `storage.objects` workshop public policy. The legacy public path is terminated. The active Workshop storage path is private Seoul GCS. This note does not add evidence beyond that list. Published Cloud Logging text is application logs in 미국 (오리건, us-west1) for 30일, and Google-required audit/system logs at global for about 400일 (`src/constants/policies.tsx` 제9조 2항).
 
 ## Decision
 
-Workshop customer images (originals and previews) will move from the public Supabase `workshop` bucket (Cloudflare global CDN) to a private Google Cloud Storage bucket in Seoul. The browser reads and writes them directly with short-lived V4 signed URLs on the Seoul regional endpoint. The DB stores canonical object paths only, never URLs or signed URLs.
+Workshop customer images (originals and previews) moved off the public Supabase `workshop` bucket (Cloudflare global CDN) to a private Google Cloud Storage bucket in Seoul. That private Seoul GCS path is the active Workshop storage path. The browser reads and writes them directly with short-lived V4 signed URLs on the Seoul regional endpoint. The DB stores canonical object paths only, never URLs or signed URLs.
+
+2026-10-11 evidence that the previous CDN path has ended: Supabase Workshop URL references 0; Workshop bucket `public=false`; Workshop objects 0; legacy public Workshop URL 4xx; no `storage.objects` workshop public policy. Public privacy text in `src/constants/policies.tsx` names private Google Cloud Storage and Seoul. The CDN blocker is resolved.
 
 Owner approval (2026-10-07): bucket name, caps, bucket security, CORS, signer-SA model, IAM bindings, IAM Credentials API, env names, `@google-cloud/storage` direct dependency, and the migration direction.
 
@@ -155,7 +157,7 @@ Code: `src/lib/workshopMediaDisplay.ts` (display controller, no Supabase import;
 9. Supabase `workshop` bucket private cutover (drop insert / public select).
 10. Wait at least the CDN cache TTL.
 11. Runtime proof that no page emits a public Supabase Workshop URL.
-12. Privacy finalization (CDN entry and markers removed; until then the CDN Privacy marker stays).
+12. Privacy disclosure alignment: CDN blocker resolved. Public CDN-country marker removed. Cloud Logging published values are us-west1 / 30일 for application and service records, and global / about 400일 for Google-required audit and system records.
 13. A5 final QA.
 
 ## OrdersModal protected-WIP handoff plan (NEW4-4D-7A, plan only)
@@ -686,7 +688,7 @@ None blocks promotion or Phase G. `run.builder` direct read (runtime SA can read
 
 ### Privacy, logging, payment
 
-Privacy CDN marker stays until Phase L (`NEW4-4_privacy-processors.md`); public Privacy copy unchanged. Cloud Logging `_Default` global bucket: OPEN → separate A6 logging-regionalization ticket (before Privacy finalization). Discord: NEW7 blocker. Payment frozen; no Toss; payment-test project `bvihpoorwriejybixmoc` is never used.
+Privacy disclosure alignment (2026-10-11): the previous public Supabase Workshop CDN path is ended. The active Workshop storage path is private Seoul GCS. Public Privacy `privacy_v26.10.10` discloses that path and does not contain the CDN cache-country marker. Evidence: Supabase Workshop URL references 0; Workshop bucket `public=false`; Workshop objects 0; legacy public Workshop URL 4xx; no `storage.objects` workshop public policy. Recorded in `docs/decisions/NEW4-4_privacy-processors.md`. This does not close NEW4-4. Cloud Logging `_Default` global bucket: OPEN → separate A6 logging-regionalization ticket (before Privacy finalization). Discord: NEW7 blocker. Payment frozen; no Toss; payment-test project `bvihpoorwriejybixmoc` is never used.
 
 ### Source control and rollback
 
@@ -780,7 +782,7 @@ No IAM mutation in NEW4-4D-3. No IAM Deny policies added.
 5. ~~`OrdersModal.tsx` protected-WIP handoff and migration (A3).~~ **DONE locally (NEW4-4D-7B).**
 6. A6: apply the dual-format path-validation migration (see ordering above); A2 switches uploads to GCS.
 7. Dual-store QA, legacy copy with verification, Supabase cutover (drop insert policy, make private, drop public select, delete legacy objects, wait at least the cache TTL), then the canonical-only tightening migration.
-8. Privacy finalization (remove CDN entry and markers), then A5 QA.
+8. Privacy disclosure alignment: CDN blocker resolved. Public Workshop CDN entry and the CDN cache-country marker are removed. Cloud Logging published values match 제9조 2항.
 
 ## Ownership
 

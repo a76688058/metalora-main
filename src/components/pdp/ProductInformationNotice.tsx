@@ -8,15 +8,14 @@ import { FACTUAL_SHELL } from './factualVisuals';
 
 /**
  * Catalog product-information notice (기타 재화).
- * Origin remains development-hold until NEW4-8.
- * `심의 예정` is not a legal conclusion and is not equivalent to `해당없음`.
+ * NEW4-8 published origin: 제조국 대한민국, 원산지 중국.
  */
-export const NOTICE_REVIEW_PENDING = '심의 예정';
-
 const HEADING = '상품정보 제공고시';
 const CATEGORY_VALUE = '기타 재화';
 const MODEL_NAME = 'METALORA M';
 const MANUFACTURER = '메탈로라(METALORA)';
+const COUNTRY_OF_MANUFACTURE = '대한민국';
+const COUNTRY_OF_ORIGIN = '중국';
 const CERTIFICATION_VALUE = '해당 없음';
 const IMPORTER_VALUE = '해당 없음';
 const AS_OWNER = '메탈로라';
@@ -57,8 +56,12 @@ export function ProductInformationNotice({ productTitle }: { productTitle: strin
     {
       key: 'origin',
       label: '제조국 또는 원산지',
-      hold: 'origin',
-      value: <NoticeValue>{NOTICE_REVIEW_PENDING}</NoticeValue>,
+      value: (
+        <NoticeValue>
+          <p>제조국: {COUNTRY_OF_MANUFACTURE}</p>
+          <p className="mt-1">원산지: {COUNTRY_OF_ORIGIN}</p>
+        </NoticeValue>
+      ),
     },
     {
       key: 'maker-importer',

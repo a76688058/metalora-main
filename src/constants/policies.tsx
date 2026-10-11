@@ -375,7 +375,7 @@ export const policies = {
               <span className="text-zinc-950 dark:text-white font-bold">Supabase:</span> 회원 인증과 데이터베이스 보관. 계정·주문·문의·동의 기록이 이 목적 범위에서 처리됩니다. 보관 위치는 대한민국(서울)입니다. WORKSHOP 이미지 파일은 여기에 저장하지 않습니다.
             </li>
             <li>
-              <span className="text-zinc-950 dark:text-white font-bold">Google Cloud Storage:</span> WORKSHOP 원본·미리보기 이미지의 비공개 보관. 보관 위치는 대한민국(서울)입니다. 누구나 열 수 있는 주소로 두지 않으며, 권한 있는 이용과 제작 처리에 필요한 동안만 제한된 방식으로 불러옵니다. 보관 기간은 제5조의 WORKSHOP 이미지 보관 기준을 따릅니다.
+              <span className="text-zinc-950 dark:text-white font-bold">Google Cloud Storage:</span> WORKSHOP 원본·미리보기 이미지의 비공개 보관. 이 파일은 private Google Cloud Storage에 둡니다. 보관 위치는 대한민국(서울, Seoul)입니다. 누구나 열 수 있는 주소로 두지 않으며, 권한 있는 이용과 제작 처리에 필요한 동안만 제한된 방식으로 불러옵니다. 보관 기간은 제5조의 WORKSHOP 이미지 보관 기준을 따릅니다.
             </li>
             <li>
               <span className="text-zinc-950 dark:text-white font-bold">Google Cloud (Cloud Run):</span> 웹사이트·서버 요청 처리. 요청에 계정·주문·문의·인증 정보가 포함되면 그 요청 처리 과정에서 함께 다뤄질 수 있습니다. 주문·계정 원장은 Cloud Run에 따로 쌓아 두지 않습니다.
@@ -404,7 +404,7 @@ export const policies = {
             <li><span className="text-zinc-950 dark:text-white font-bold">이전 항목:</span> 이용자가 보낸 요청에 포함된 계정·인증, 주문·배송, 문의, 보안 관련 정보</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">이용 목적:</span> 회사 웹사이트 제공과 API 요청 처리 등 서비스 인프라 운영</li>
             <li><span className="text-zinc-950 dark:text-white font-bold">이전 시기·방법:</span> 이용자가 웹사이트를 이용할 때마다 암호화된 통신(HTTPS)으로 전송</li>
-            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 요청을 처리하는 동안. 계정·주문 원장은 이 인프라에 따로 저장하지 않으며, 대한민국(서울)의 데이터베이스에 보관됩니다(제8조). WORKSHOP 이미지 파일은 대한민국(서울)의 비공개 저장소에 보관됩니다(제8조). 서버 운영 기록은 아래 2번 항목에 따릅니다.</li>
+            <li><span className="text-zinc-950 dark:text-white font-bold">보유·이용 기간:</span> 요청을 처리하는 동안. 계정·주문 원장은 이 인프라에 따로 저장하지 않으며, 대한민국(서울)의 데이터베이스에 보관됩니다(제8조). WORKSHOP 이미지 파일은 대한민국(서울, Seoul)의 private Google Cloud Storage에 보관됩니다(제8조). 서버 운영 기록은 아래 2번 항목에 따릅니다.</li>
           </ul>
 
           <p className="text-zinc-950 dark:text-white font-bold">2. Google Cloud Logging (서버 운영 기록 보관)</p>

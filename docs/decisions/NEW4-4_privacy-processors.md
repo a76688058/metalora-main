@@ -1,8 +1,28 @@
 # NEW4-4 — Privacy policy / processor disclosure
 
-Status: **OPEN — SOURCE STILL BLOCKED** (NEW4-4C). Two country fields cannot be filled truthfully: Supabase Storage CDN cache (Cloudflare, global) and Cloud Logging `_Default` (`global`). Cloud Logging retention is an owner fact. Public promotion is blocked by the `공개 전 확인 필요` markers and the release guard below.
+Status: **PASS — EVIDENCE-ALIGNED**. The CDN disclosure blocker is resolved. The Supabase Workshop CDN path is terminated. Private Seoul GCS is the active Workshop storage path. Storage evidence is complete. Published Cloud Logging values are recorded below.
 
-NEW4-4D (2026-10-07): Workshop private Seoul GCS architecture is owner-approved, provisioned, and the V4 signed PUT/GET chain through the Seoul regional endpoint is proven with synthetic data (NEW4-4D-2A) (`docs/decisions/NEW4-4D_workshop-private-gcs.md`). The Privacy CDN blocker is **NOT** closed until application cutover, legacy Supabase deletion, the cache TTL wait and A5 verification are complete. The live app still serves Workshop images from Supabase. Keep the current markers. NEW4-4D-3: server foundation (adapter, signing endpoints, dual-store NEW4-6/7 deletion, prepared path-validation migration) implemented locally, not deployed. The CDN privacy marker remains until consumer migration, cutover and legacy TTL completion.
+NEW4-4 privacy disclosure alignment (2026-10-11): public Privacy `privacy_v26.10.10` in `src/constants/policies.tsx` no longer says Workshop images are stored in Supabase, no longer discloses a Supabase Storage CDN cache, and does not contain `[공개 전 확인 필요: CDN 캐시 국가]`. No CDN country was added. Workshop image files are disclosed as private Google Cloud Storage in Seoul (Privacy 제8조). The source sentence now also contains the words “private Google Cloud Storage” and “Seoul”. Auth and database remain Supabase in Seoul, with an explicit statement that Workshop image files are not stored there.
+
+Evidence recorded for that disclosure (owner-confirmed NEW4-4):
+
+- Supabase Workshop URL references: 0
+- Workshop bucket: `public=false`
+- Workshop objects: 0
+- Legacy public Workshop URL: 4xx
+- No `storage.objects` workshop public policy
+
+The previous public CDN path is ended. The active Workshop storage path is private Seoul GCS (`docs/decisions/NEW4-4D_workshop-private-gcs.md`).
+
+Published Cloud Logging text in `src/constants/policies.tsx` 제9조 2항, quoted rather than reinterpreted:
+
+- Application and service logs, country: 미국 (오리건, Google Cloud us-west1 리전)
+- Application and service logs, retention: 30일
+- Audit and system logs required by Google: global, not limited to one region, about 400일
+
+This note does not add a country or retention beyond those published sentences.
+
+NEW4-4D (2026-10-07, historical): Workshop private Seoul GCS architecture was owner-approved and the V4 signed PUT/GET chain through the Seoul regional endpoint was proven with synthetic data (NEW4-4D-2A). The later storage evidence and public Privacy text supersede the earlier instruction to retain a CDN disclosure. The CDN blocker is resolved.
 
 ---
 
@@ -13,7 +33,7 @@ Owner facts:
 - Production Supabase plan: **Free** (current production fact)
 - Planned: **Pro** at/around Grand Open (PLAN, not current fact)
 - Production Cloud Logging `_Default` bucket location: **global**
-- Cloud Logging `_Default` retention: **not supplied — OWNER FACT REQUIRED**
+- Cloud Logging `_Default` retention was not supplied on 2026-10-07. The published policy now states application/service records 30일 and Google-required audit/system records global, about 400일.
 
 CDN (official Supabase docs):
 
@@ -28,15 +48,15 @@ CDN countries:
 
 - Cloudflare publishes an official network page (`cloudflare.com/network`, currently “348 cities · 8 regions”; other official pages say “125+ countries”) and a status location list. Both change over time.
 - That list shows where Cloudflare has data centers, not where a given METALORA object is cached. Supabase says objects are cached at edges where they are requested and may be evicted per region. Listing every Cloudflare country would overstate; no narrower official list exists.
-- Legally usable country list: **NO**. Public field kept as marker `[공개 전 확인 필요: CDN 캐시 국가]`.
+- Legally usable country list: **NO**. The public marker `[공개 전 확인 필요: CDN 캐시 국가]` was removed in Privacy v26.10.10. No CDN country was substituted. This paragraph remains the historical reason that list was not published.
 
 Cloud Logging (official Google docs `logging/docs/region-support`, `store-log-entries`):
 
 - `global` = “Logs stored in any data centers in the world. Logs might be moved to different data centers.” No country list. Do not map to the US.
 - Existing `_Default` bucket location cannot be changed; a new regional bucket + `_Default` sink update would be needed to fix the location.
-- Default `_Default` retention = 30 days unless customized. The actual project setting is not supplied, so the public field is a marker.
+- Default `_Default` retention = 30 days unless customized. That earlier gap is not the published text. The published policy states the values quoted at the top of this note.
 - Logged data (code inspection): app logs = request_id, event/outcome classes, OTP/SMS outcome + purpose + SOLAPI message id (no phone/OTP), auth outcome classes, retention/withdrawal stage classes, startup deploy SHA. Payment paths (frozen) also log order numbers, internal user UUID (`[PAYMENT_PREPARE] ... for user`, intent-lookup failures), and raw Supabase/Toss error objects. Cloud Run request logs (platform) = remote IP, User-Agent, request URL, status, latency. No name/phone/address/email/image/CS body in app logs.
-- Public field kept as marker `[공개 전 확인 필요: Cloud Logging 로그 보관 국가]` and `[공개 전 확인 필요: Cloud Logging 로그 보관 기간]`.
+- Those public markers are not in the current privacy policy. The published 제9조 2항 values are the us-west1 / 30일 application-log sentences and the global / about 400일 audit sentence quoted at the top of this note.
 
 Architecture options (do not implement in NEW4-4):
 
@@ -139,7 +159,8 @@ Production capability today: NEW4-6 source exists; scheduler **NOT CONFIGURED**;
 
 | Service | Classification | Notes |
 |---|---|---|
-| Supabase | 처리위탁 (국내 보관, NEW4-4B) | Auth + Postgres + Workshop Storage. Production project `qifloweuwyhvukabgnoa` region `ap-northeast-2` (owner-confirmed) = “Northeast Asia (Seoul)” per Supabase official regions docs. Public: 보관 위치 대한민국(서울). |
+| Supabase | 처리위탁 (국내 보관, NEW4-4B) | Auth + Postgres. Production project `qifloweuwyhvukabgnoa` region `ap-northeast-2` (owner-confirmed) = “Northeast Asia (Seoul)” per Supabase official regions docs. Public: 보관 위치 대한민국(서울). Workshop image files are not stored here (2026-10-11 alignment). |
+| Google Cloud Storage | 처리위탁 (국내 보관) | Active Workshop original and preview storage: private Seoul bucket. Public: 비공개 보관, 대한민국(서울). Not a public CDN. |
 | Google Cloud Run | 처리위탁 + 국외 처리 | Production region **us-west1** = Oregon, USA (Google Cloud official regions docs). Request processing; not the persistent DB. |
 | SOLAPI | 처리위탁 (국내) | OTP SMS: destination number + verification message. Official privacy lists 솔라피 주식회사, Seoul. |
 | Google / Kakao / Naver OAuth | 외부 인증 제공자 | User authorizes the provider; METALORA receives identity. Not 제3자 제공 of METALORA’s profile dump. |
@@ -163,11 +184,11 @@ Public 제9조 entries:
 | Recipient | Country | Contact | Source |
 |---|---|---|---|
 | 1. Google Cloud Run (Korea billing contracting entity: Google Cloud Korea LLC, reseller; “Google” = Google Asia Pacific Pte. Ltd. and affiliates) | USA, Oregon (`us-west1`) | Google Cloud Data Protection Team `https://support.google.com/cloud/contact/dpo` | cloud.google.com/terms/google-entity; Cloud DPA §12 / Appendix; Compute Engine regions-zones |
-| 2. Google Cloud Logging (same recipient) | **MARKER** — `_Default` = `global` (NEW4-4C) | same | logging/docs/region-support |
-| 3. Supabase Storage CDN cache (Supabase, Inc.; subprocessor Cloudflare, Inc.) | **MARKER** — global Cloudflare edge (NEW4-4C) | privacy@supabase.com | supabase.com/regions; Supabase subprocessor list |
+| 2. Google Cloud Logging (same recipient) | Published: application logs 미국 (오리건, us-west1), 30일. Audit/system logs global, about 400일. | same | `src/constants/policies.tsx` 제9조 2항 |
+| 3. Supabase Storage CDN cache (historical) | **REMOVED** from public 제9조 (2026-10-11). No CDN country added. | — | Previous path ended. Evidence: Workshop URL references 0; bucket `public=false`; objects 0; legacy public URL 4xx; no `storage.objects` workshop public policy. |
 | 4. Discord Inc. | USA (official policy: US servers; may also store in other countries depending on user/provider location) | privacy@discord.com; 444 De Haro Street #200, San Francisco, CA 94107, USA | discord.com/privacy |
 
-Retention fields: no vendor-side day counts invented. Cloud Run = request processing duration. Cloud Logging = **MARKER** (owner fact). CDN = cache validity (currently about 1 hour) or provider invalidation. Discord = until METALORA deletes the notification or the relationship ends; Discord-side per Discord policy.
+Retention fields: no vendor-side day counts invented beyond the published policy. Cloud Run = request processing duration. Cloud Logging = the published 30일 application-log period and the about 400일 audit period. The public Supabase CDN cache-validity sentence is no longer in the privacy policy. Discord = until METALORA deletes the notification or the relationship ends; Discord-side per Discord policy.
 
 Refusal: necessary infrastructure; no per-user exclusion exists. Refusal path = request withdrawal / stop use via 1:1 문의 or a84411448@gmail.com; effect = membership and orders cannot be provided. Kept separate from optional GA refusal.
 
@@ -177,18 +198,18 @@ Supabase region (NEW4-4B) — **RESOLVED**:
 - Verified official location: “Northeast Asia (Seoul)” — supabase.com/docs/guides/platform/regions and supabase.com/regions. Public wording: 대한민국(서울).
 - Supabase official regions page: primary Postgres database, Auth service, and Storage objects at origin stay in the chosen region.
 - Classification: domestic 처리위탁 (Privacy 제8조). Removed from the 제9조 overseas list. A foreign vendor entity alone does not make Seoul-hosted storage an overseas transfer.
-- Supabase region marker removed (NEW4-4B). NEW4-4C added CDN/Logging markers. Promotion check: `rg "공개 전 확인 필요" src/constants/policies.tsx` must return no hits.
+- Supabase region marker removed (NEW4-4B). The public CDN country marker was later removed (2026-10-11) without adding a country. Cloud Logging disclosure was not changed. Promotion check: `rg "공개 전 확인 필요" src/constants/policies.tsx` must return no hits.
 
 Remaining Supabase overseas aspect:
 
-- Storage CDN cache (Cloudflare, global): now a public 제9조 entry with a country marker. See NEW4-4C above (Option A recommended).
+- Storage CDN cache is not a current public 제9조 entry. Workshop images use private Seoul GCS. See the 2026-10-11 alignment at the top of this note.
 - Supabase Edge Functions run globally, but METALORA has no `supabase/functions` and no `functions.invoke` usage → not applicable.
 - Supabase DPA/subprocessor list (June 1, 2026) lists US vendors for support/monitoring (for example Sentry, Slack, OpenAI). Customer-data access through these for support is not documented for this project; not speculated.
 
 Verification items (not owner facts; read-only, need approval to run):
 
 - METALORA Google Cloud billing account address is Korea (determines Google Cloud Korea LLC as contracting entity). Public text states the official rule, not the account fact.
-- Cloud Logging `_Default`: location owner-confirmed `global` (NEW4-4C); retention days still OWNER FACT REQUIRED.
+- Cloud Logging public text is the published us-west1 / 30일 application-log disclosure and the global / about 400일 audit disclosure. This does not replace the historical `_Default` investigation above.
 - Discord: vendor does not enumerate countries beyond the US. A5/legal to confirm the US-plus-vendor-statement wording is sufficient for 제28조의8 제2항 제2호.
 
 GA / Google OAuth processing country: not invented; official Google policy linked.
@@ -216,7 +237,7 @@ GA / Google OAuth processing country: not invented; official Google policy linke
 
 ## Release guard
 
-HARD public-promotion prerequisites (NEW4-4C). NEW4-4 is **not** production-ready until all are complete:
+Original NEW4-4C checklist. CDN disclosure and Cloud Logging disclosure items are resolved. This list is not a current source block:
 
 1. apply all NEW4 migrations in order (`20261006220000_new4_5_consent_ledger.sql`, `20261006223000_new4_5a_restrict_consent_rpc.sql`, `20261007070000_new4_6_workshop_retention.sql`, `20261007080000_new4_7_account_withdrawal.sql`, `20261007090000_new4_4_privacy_version.sql`)
 2. verify all migrations
@@ -226,8 +247,8 @@ HARD public-promotion prerequisites (NEW4-4C). NEW4-4 is **not** production-read
 6. verify protected retention endpoint operationally
 7. verify account-withdrawal backend operationally
 8. re-verify the actual Supabase plan at release time (Free = Basic CDN; Pro = Smart CDN) and the Workshop `cacheControl`
-9. resolve the Workshop CDN overseas issue (Option A delivery change, or a legally approved alternative) and fill/remove the `CDN 캐시 국가` marker
-10. resolve Cloud Logging disclosure (regional bucket or legally approved alternative) and fill the `Cloud Logging 로그 보관 국가` / `로그 보관 기간` markers; owner supplies retention
+9. CDN blocker resolved. Public CDN-country marker removed. Private Seoul GCS is the disclosed Workshop storage path. Storage evidence: URL references 0; bucket `public=false`; objects 0; legacy public URL 4xx; no workshop public storage policy.
+10. Cloud Logging published values: 미국 (오리건, Google Cloud us-west1); application/service records 30일; Google-required audit/system records global, about 400일. Not unresolved.
 11. final A5 privacy review
 12. no `공개 전 확인 필요` markers remain (`rg "공개 전 확인 필요" src/constants/policies.tsx` → no hits)
 13. only then expose Privacy v26.10.07 and the 3-day Workshop wording
