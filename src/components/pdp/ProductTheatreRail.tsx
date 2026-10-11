@@ -285,8 +285,8 @@ export function ProductTheatreRail({
                 <span className="text-text-primary">출고 안내.</span> 주문 후 2~3영업일 이내 출고됩니다.
               </p>
               <p>
-                <span className="text-text-primary">배송 안내.</span> 현재 무료배송입니다. 제주·도서산간 추가
-                배송비는 없습니다.
+                <span className="text-text-primary">배송 안내.</span> 현재 무료배송입니다. 제주·도서산간은 추가
+                배송비가 발생합니다.
               </p>
               <p>
                 <span className="text-text-primary">반품 안내.</span> 단순 변심에 의한 반품은 수령 후 7일 이내

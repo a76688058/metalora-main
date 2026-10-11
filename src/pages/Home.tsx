@@ -164,7 +164,7 @@ export default function Home() {
   const skeletonTone = theme === 'dark' ? 'bg-zinc-900' : 'bg-zinc-100';
 
   return (
-    <div className="isolate">
+    <div>
       <HeroSpatial />
 
       <motion.div

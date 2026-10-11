@@ -104,7 +104,7 @@ export function ProductOrderConfidence() {
             <ConfidenceCell
               index="02"
               label="배송"
-              detail="제주·도서산간을 포함한 고객 추가 배송비는 없습니다."
+              detail="제주·도서산간은 추가 배송비가 발생합니다."
               invert={invert}
               className="border-b border-border-subtle"
             >
