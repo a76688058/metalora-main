@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import Header from '../Header';
+import { workshopSurfaceStyle } from './WorkshopView';
 import { recordPolicyConsent } from '../../lib/consentLedger';
 import { POLICY_TYPES, POLICY_VERSIONS } from '../../lib/policyVersions';
 import { policies } from '../../constants/policies';
@@ -48,7 +49,8 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
 
   return (
     <div
-      className={`flex flex-col h-full overflow-hidden ${hideHeader ? '' : 'min-h-screen'} ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}
+      className={`flex h-full flex-col overflow-hidden ${hideHeader ? '' : 'min-h-screen'}`}
+      style={workshopSurfaceStyle(theme)}
     >
       {!hideHeader && <Header />}
 
@@ -88,11 +90,7 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
 
           <div className="pb-20 pt-8">
             <label
-              className={`relative mb-6 flex cursor-pointer gap-4 rounded-xl border p-5 transition-colors ${
-                hasReadAndAgreed
-                  ? 'border-text-primary/30 bg-surface'
-                  : 'border-border-subtle hover:border-border-subtle'
-              }`}
+              className="relative mb-6 flex cursor-pointer gap-4 border-b border-border-subtle py-5"
             >
               <input
                 type="checkbox"
@@ -101,7 +99,7 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
                 className="sr-only left-0 top-0"
               />
               <div
-                className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[2px] border transition-colors ${
                   hasReadAndAgreed
                     ? 'border-text-primary bg-text-primary text-text-inverse'
                     : 'border-border-subtle bg-transparent'
@@ -118,9 +116,9 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
             <AnimatePresence>
               {hasReadAndAgreed && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
                 >
                   <button
                     type="button"
@@ -128,13 +126,11 @@ export default function CopyrightPage({ onAgree, hideHeader = false }: Copyright
                       void handleAgree();
                     }}
                     disabled={isSubmitting}
-                    className="focus-ring flex w-full min-h-12 items-center justify-center gap-2 rounded-xl bg-text-primary type-label text-text-inverse transition-opacity disabled:opacity-50"
+                    className="focus-ring flex min-h-12 w-full items-center justify-center gap-2 rounded-[2px] bg-text-primary type-label text-text-inverse disabled:opacity-50"
                   >
                     {isSubmitting ? (
-                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-text-inverse/30 border-t-text-inverse" />
-                    ) : (
-                      <CheckCircle2 size={18} />
-                    )}
+                      <span className="h-4 w-4 animate-spin rounded-full border border-text-inverse/30 border-t-text-inverse" />
+                    ) : null}
                     <span>{isSubmitting ? '기록 중...' : '동의하고 계속하기'}</span>
                   </button>
                 </motion.div>

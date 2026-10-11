@@ -1,31 +1,45 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
-import { 
+import {
   Loader2, X, ChevronLeft
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import { cn } from '../lib/cn';
+import { zClass } from '../constants/overlays';
 
 interface ProfileEditModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const inputClass = (theme: string, disabled = false) =>
+  cn(
+    'w-full h-12 rounded-[2px] border px-4 text-base focus:outline-none focus-ring',
+    disabled
+      ? (theme === 'dark' ? 'border-white/10 bg-transparent text-[#8d887e] cursor-not-allowed' : 'border-black/10 bg-transparent text-[#6b675f] cursor-not-allowed')
+      : (theme === 'dark'
+        ? 'border-white/20 bg-transparent text-[#f3f1ec] placeholder:text-[#8d887e]'
+        : 'border-black/15 bg-transparent text-[#16150f] placeholder:text-[#6b675f]'),
+  );
+
 export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
   const { user, profile, refreshProfile, openProfile } = useAuth();
   const { theme } = useTheme();
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  
-  const handleBack = () => {
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const returnToHub = useCallback(() => {
     onClose();
     setTimeout(() => {
       openProfile();
     }, 100);
-  };
-  
+  }, [onClose, openProfile]);
+
   const [formData, setFormData] = useState({
     user_custom_id: '',
     full_name: '',
@@ -34,7 +48,7 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
     address: '',
     address_detail: '',
   });
-  
+
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
   const [isPostcodeOpen, setIsPostcodeOpen] = useState(false);
   const detailAddressRef = useRef<HTMLInputElement>(null);
@@ -54,6 +68,21 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
       document.body.style.paddingRight = '';
     };
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      if (isPostcodeOpen) {
+        setIsPostcodeOpen(false);
+        return;
+      }
+      returnToHub();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, isPostcodeOpen, returnToHub]);
 
   useEffect(() => {
     const scriptId = 'daum-postcode-script';
@@ -108,6 +137,13 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
   };
 
   useEffect(() => {
+    if (!isOpen) {
+      setErrorMsg('');
+      setSuccessMsg('');
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
     if (profile && isOpen) {
       setFormData({
         user_custom_id: profile.user_custom_id || '',
@@ -123,9 +159,11 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    
+
     try {
       setIsLoading(true);
+      setErrorMsg('');
+      setSuccessMsg('');
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -139,208 +177,219 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
         .eq('id', user.id);
 
       if (error) throw error;
-      
+
       await refreshProfile();
-      // onClose(); // Removed to keep the modal open after saving
+      setSuccessMsg('저장되었습니다.');
+      showToast('프로필이 저장되었습니다.', 'success');
     } catch (error: any) {
-      // Error handling without toast
+      const message = error?.message || '저장에 실패했습니다. 다시 시도해 주세요.';
+      setErrorMsg(message);
+      showToast(message, 'error');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const labelClass = `block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`;
+
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[25000] flex justify-end pointer-events-auto"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profile-edit-title"
+          className={cn('fixed inset-0 flex justify-end pointer-events-auto', zClass('sheet'))}
         >
-          {/* Backdrop */}
-          <div 
-            onClick={onClose}
+          <button
+            type="button"
+            aria-label="내 정보로 돌아가기"
+            onClick={returnToHub}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto touch-none"
           />
 
-          {/* Modal Panel */}
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ opacity: 0 }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className={`relative w-full md:w-[50%] h-full flex flex-col shadow-2xl overflow-hidden border-l pointer-events-auto transition-colors duration-500 will-change-transform transform-gpu ${
-              theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'
+            className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden pointer-events-auto transition-colors duration-500 will-change-transform transform-gpu ${
+              theme === 'dark' ? 'bg-[#101114] text-[#f3f1ec]' : 'bg-[#f6f4ef] text-[#16150f]'
             }`}
           >
-            {/* Header */}
-            <div className={`flex items-center justify-between px-6 py-5 border-b sticky top-0 backdrop-blur-xl z-20 transition-colors duration-500 ${
-              theme === 'dark' ? 'border-white/5 bg-[#0F0F11]/80' : 'border-black/5 bg-white/80'
+            <div className={`flex items-center justify-between px-6 py-5 border-b ${
+              theme === 'dark' ? 'border-white/5' : 'border-black/5'
             }`}>
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={handleBack}
-                  className={`p-2 rounded-full transition-all ${
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  type="button"
+                  onClick={returnToHub}
+                  aria-label="내 정보로 돌아가기"
+                  className={`p-2 rounded-full transition-all focus-ring ${
                     theme === 'dark' ? 'bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-black'
                   }`}
                 >
                   <ChevronLeft size={20} />
                 </button>
-                <h2 className={`text-2xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>프로필 수정</h2>
+                <h2 id="profile-edit-title" className="text-[1.75rem] font-medium tracking-[-0.02em]">프로필 수정</h2>
               </div>
             </div>
 
-            {/* Content */}
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar overscroll-contain touch-pan-y">
               <form onSubmit={handleUpdateProfile} className="space-y-8">
-                {/* Basic Info Section */}
-                <section className="space-y-6">
-                  <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-5 bg-cyan-500 rounded-full" />
-                    <h3 className={`text-[15px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-200' : 'text-zinc-800'}`}>기본 정보</h3>
-                  </div>
-                  
+                <section className="space-y-5">
+                  <h3 className={`text-sm font-semibold tracking-tight ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>기본 정보</h3>
+
                   <div className="space-y-4">
                     {profile?.password_login_enabled === true && (
-                    <div className="space-y-2">
-                      <label className={`text-[14px] font-bold ml-1 uppercase tracking-tighter ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>아이디</label>
-                      <input
-                        type="text"
-                        readOnly
-                        disabled
-                        value={formData.user_custom_id}
-                        className={`w-full h-16 border rounded-2xl px-6 text-base font-medium cursor-not-allowed ${
-                          theme === 'dark' ? 'bg-zinc-900/30 border-white/5 text-zinc-500' : 'bg-zinc-50 border-black/5 text-zinc-400'
-                        }`}
-                      />
-                    </div>
+                      <div className="space-y-2">
+                        <label htmlFor="profile-username" className={labelClass}>아이디</label>
+                        <input
+                          id="profile-username"
+                          type="text"
+                          readOnly
+                          disabled
+                          value={formData.user_custom_id}
+                          className={inputClass(theme, true)}
+                        />
+                      </div>
                     )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label className={`text-[14px] font-bold ml-1 uppercase tracking-tighter ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>이름</label>
+                        <label htmlFor="profile-full-name" className={labelClass}>이름</label>
                         <input
+                          id="profile-full-name"
                           type="text"
                           required
+                          autoComplete="name"
                           value={formData.full_name}
                           onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                           placeholder="이름을 입력하세요"
-                          className={`w-full h-16 border rounded-2xl px-6 text-base focus:outline-none focus:ring-1 transition-all font-medium ${
-                            theme === 'dark' 
-                              ? 'bg-zinc-900/50 border-white/10 text-white focus:border-cyan-500/50 focus:ring-cyan-500/20 placeholder:text-zinc-700' 
-                              : 'bg-zinc-50 border-black/10 text-black focus:border-cyan-500/50 focus:ring-cyan-500/20 placeholder:text-zinc-300'
-                          }`}
+                          className={inputClass(theme)}
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className={`text-[14px] font-bold ml-1 uppercase tracking-tighter ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-800'}`}>연락처</label>
+                        <label htmlFor="profile-phone" className={labelClass}>연락처</label>
                         <input
+                          id="profile-phone"
                           type="tel"
                           required
+                          autoComplete="tel"
                           value={formData.phone_number}
                           onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
                           placeholder="010-0000-0000"
-                          className={`w-full h-16 border rounded-2xl px-6 text-base focus:outline-none focus:ring-1 transition-all font-medium ${
-                            theme === 'dark' 
-                              ? 'bg-zinc-900/50 border-white/10 text-white focus:border-cyan-500/50 focus:ring-cyan-500/20 placeholder:text-zinc-700' 
-                              : 'bg-zinc-50 border-black/10 text-black focus:border-cyan-500/50 focus:ring-cyan-500/20 placeholder:text-zinc-300'
-                          }`}
+                          className={inputClass(theme)}
                         />
                       </div>
                     </div>
                   </div>
                 </section>
 
-                {/* Shipping Info Section */}
-                <section className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-5 bg-emerald-500 rounded-full" />
-                      <h3 className={`text-[15px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-zinc-200' : 'text-zinc-800'}`}>배송지 정보</h3>
-                    </div>
+                <section className="space-y-5">
+                  <div className="flex justify-between items-center gap-3">
+                    <h3 className={`text-sm font-semibold tracking-tight ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>배송지 정보</h3>
                     <button
                       type="button"
                       onClick={handleOpenPostcode}
-                      className={`text-[14px] font-bold px-5 py-2.5 rounded-xl transition-all active:scale-95 ${
-                        theme === 'dark' ? 'text-emerald-300 bg-emerald-500/20 hover:bg-emerald-500/30' : 'text-emerald-700 bg-emerald-100 hover:bg-emerald-200'
+                      className={`text-sm font-medium h-10 px-4 rounded-[2px] border focus-ring ${
+                        theme === 'dark' ? 'border-white/20 text-[#f3f1ec] hover:bg-white/5' : 'border-black/15 text-[#16150f] hover:bg-black/5'
                       }`}
                     >
                       주소 찾기
                     </button>
                   </div>
 
-                  <div className="space-y-4">
-                    <input
-                      type="text"
-                      readOnly
-                      value={formData.zip_code}
-                      placeholder="우편번호"
-                      className={`w-full h-16 border rounded-2xl px-6 text-base font-medium cursor-default ${
-                        theme === 'dark' ? 'bg-zinc-900/30 border-white/5 text-zinc-500' : 'bg-zinc-50 border-black/5 text-zinc-400'
-                      }`}
-                    />
-                    <input
-                      type="text"
-                      readOnly
-                      value={formData.address}
-                      placeholder="기본 주소"
-                      className={`w-full h-16 border rounded-2xl px-6 text-base font-medium cursor-default ${
-                        theme === 'dark' ? 'bg-zinc-900/30 border-white/5 text-zinc-500' : 'bg-zinc-50 border-black/5 text-zinc-400'
-                      }`}
-                    />
-                    <input
-                      type="text"
-                      ref={detailAddressRef}
-                      value={formData.address_detail}
-                      onChange={(e) => setFormData({ ...formData, address_detail: e.target.value })}
-                      placeholder="상세 주소를 입력하세요"
-                      className={`w-full h-16 border rounded-2xl px-6 text-base focus:outline-none focus:ring-1 transition-all font-medium ${
-                        theme === 'dark' 
-                          ? 'bg-zinc-900/50 border-white/10 text-white focus:border-emerald-500/50 focus:ring-emerald-500/20 placeholder:text-zinc-700' 
-                          : 'bg-zinc-50 border-black/10 text-black focus:border-emerald-500/50 focus:ring-emerald-500/20 placeholder:text-zinc-300'
-                      }`}
-                    />
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <label htmlFor="profile-zip" className={labelClass}>우편번호</label>
+                      <input
+                        id="profile-zip"
+                        type="text"
+                        readOnly
+                        autoComplete="postal-code"
+                        value={formData.zip_code}
+                        placeholder="우편번호"
+                        className={inputClass(theme, true)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="profile-address" className={labelClass}>기본 주소</label>
+                      <input
+                        id="profile-address"
+                        type="text"
+                        readOnly
+                        autoComplete="street-address"
+                        value={formData.address}
+                        placeholder="기본 주소"
+                        className={inputClass(theme, true)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="profile-address-detail" className={labelClass}>상세 주소</label>
+                      <input
+                        id="profile-address-detail"
+                        type="text"
+                        ref={detailAddressRef}
+                        autoComplete="address-line2"
+                        value={formData.address_detail}
+                        onChange={(e) => setFormData({ ...formData, address_detail: e.target.value })}
+                        placeholder="상세 주소를 입력하세요"
+                        className={inputClass(theme)}
+                      />
+                    </div>
                   </div>
                 </section>
 
-                {/* Save Button */}
-                <div className="pt-4 pb-8">
+                {errorMsg && (
+                  <div role="alert" className="text-red-500 text-sm font-medium text-center">{errorMsg}</div>
+                )}
+                {successMsg && (
+                  <div role="status" className="text-emerald-600 text-sm font-medium text-center">{successMsg}</div>
+                )}
+
+                <div className="pt-2 pb-[max(2rem,env(safe-area-inset-bottom))]">
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className={`w-full h-20 font-bold text-lg rounded-2xl transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50 ${
-                      theme === 'dark' 
-                        ? 'bg-white text-black hover:bg-zinc-200 shadow-[0_10px_30px_rgba(255,255,255,0.1)]' 
-                        : 'bg-black text-white hover:bg-zinc-800 shadow-[0_10px_30px_rgba(0,0,0,0.1)]'
+                    className={`w-full h-12 font-medium tracking-[-0.02em] rounded-[2px] flex items-center justify-center gap-2 disabled:opacity-50 focus-ring ${
+                      theme === 'dark'
+                        ? 'bg-[#f2f0ea] text-[#16150f]'
+                        : 'bg-[#1a1914] text-[#f4f1eb]'
                     }`}
                   >
                     {isLoading ? (
-                      <Loader2 className="animate-spin" size={24} />
+                      <>
+                        <Loader2 className="animate-spin" size={20} />
+                        저장 중...
+                      </>
                     ) : (
-                      "변경사항 저장하기"
+                      '변경사항 저장하기'
                     )}
                   </button>
                 </div>
               </form>
             </div>
 
-            {/* Postcode Overlay */}
             {isPostcodeOpen && (
-              <div className={`absolute inset-0 z-[13000] flex flex-col p-6 overflow-y-auto ${theme === 'dark' ? 'bg-black' : 'bg-zinc-100'}`}>
+              <div className={`absolute inset-0 z-10 flex flex-col p-6 overflow-y-auto ${theme === 'dark' ? 'bg-[#0F0F11]' : 'bg-white'}`}>
                 <div className="flex justify-between items-center mb-6 w-full">
                   <h2 className={`text-xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>주소 검색</h2>
-                  <button 
-                    type="button" 
-                    onClick={() => setIsPostcodeOpen(false)} 
-                    className={`p-2 rounded-full transition-all active:scale-90 ${
+                  <button
+                    type="button"
+                    onClick={() => setIsPostcodeOpen(false)}
+                    aria-label="주소 검색 닫기"
+                    className={`p-2 rounded-full transition-all focus-ring ${
                       theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white' : 'bg-black/5 hover:bg-black/10 text-zinc-500 hover:text-black'
                     }`}
                   >
                     <X size={24} />
                   </button>
                 </div>
-                <div ref={postcodeContainerRef} className="flex-1 w-full rounded-2xl overflow-hidden bg-white shadow-2xl min-h-[400px]"></div>
+                <div ref={postcodeContainerRef} className="min-h-[400px] w-full flex-1 overflow-hidden bg-white"></div>
               </div>
             )}
           </motion.div>

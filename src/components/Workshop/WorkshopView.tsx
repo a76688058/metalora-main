@@ -1,17 +1,20 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Image as ImageIcon, ChevronLeft, X, Loader2, ShoppingBag, Box } from 'lucide-react';
+import { Box, ChevronLeft, Image as ImageIcon, Loader2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
+import { safeInternalPath } from '../../lib/authIntegrity';
+import LoginModal from '../LoginModal';
 import { useTheme } from '../../context/ThemeContext';
 import type { Product } from '../../data/products';
 import { ProductTheatreStage } from '../pdp/ProductTheatreStage';
 import { ProductTheatreRoomPreview } from '../pdp/ProductTheatreRoomPreview';
 import { CATALOG_M_DIMENSION, CATALOG_M_NAME } from '../pdp/catalogSizeLabel';
 import { track } from '../../lib/analytics';
-import { compositionIsTightCrop } from '../../lib/customComposition/math';
+import { clampComposition, compositionIsTightCrop } from '../../lib/customComposition/math';
 import { SUPPORTED_IMAGE_ACCEPT, validateCustomImageFile } from '../../lib/customComposition/imageValidation';
 import { revokePreviewUrl } from '../../lib/customComposition/rasterize';
 import { useCustomComposition } from '../../lib/customComposition/useCustomComposition';
@@ -34,6 +37,14 @@ import {
   retryWorkshopMediaAfterLoadError,
 } from '../../lib/workshopMedia';
 import CustomImageEditor, { CustomCompositionControls, CustomPreviewPanel } from './CustomImageEditor';
+import {
+  claimWorkshopPendingAdd,
+  discardWorkshopPendingAddSync,
+  hasWorkshopPendingAdd,
+  saveWorkshopPendingAdd,
+  takeResumeDelivery,
+  type WorkshopPendingAdd,
+} from './pendingCartAuth';
 
 const workshopMediaApi: WorkshopMediaApi = {
   fetch: (input, init) => fetch(input, init),
@@ -65,8 +76,26 @@ const STEPS = [
 const PRODUCT_LINE = '메탈 프린트 · M';
 const PRODUCT_SIZE = '200 × 283 mm';
 
-const CUSTOM_MEDIA_PILL_CLASS =
-  'pointer-events-auto focus-ring inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-zinc-950/15 bg-white px-3.5 text-zinc-950 shadow-[0_2px_14px_rgba(0,0,0,0.22)] type-metadata hover:bg-zinc-100 hover:shadow-[0_3px_16px_rgba(0,0,0,0.26)] active:bg-zinc-200 active:scale-[0.98]';
+const WORKSHOP_RAIL_CLASS =
+  'flex w-full shrink-0 flex-col border-t border-border-subtle px-6 max-[1099px]:px-5 max-[1099px]:pb-6 max-[1099px]:pt-4 min-[1100px]:w-96 min-[1100px]:overflow-y-auto min-[1100px]:border-l min-[1100px]:border-t-0 min-[1100px]:px-6';
+
+const RAIL_LABEL_CLASS = 'text-[0.6875rem] tracking-[0.16em] text-text-tertiary';
+
+export function workshopSurfaceStyle(theme: string): React.CSSProperties {
+  const dark = theme === 'dark';
+  return {
+    backgroundColor: dark ? '#101114' : '#f6f4ef',
+    color: dark ? '#f3f1ec' : '#16150f',
+    ['--color-canvas' as string]: dark ? '#101114' : '#f6f4ef',
+    ['--color-surface' as string]: dark ? '#101114' : '#f6f4ef',
+    ['--color-surface-elevated' as string]: dark ? '#181a1e' : '#f6f4ef',
+    ['--color-text-primary' as string]: dark ? '#f3f1ec' : '#16150f',
+    ['--color-text-secondary' as string]: dark ? '#c9c4b8' : '#3f3c36',
+    ['--color-text-tertiary' as string]: dark ? '#8d887e' : '#6a655c',
+    ['--color-text-inverse' as string]: dark ? '#16150f' : '#f4f1eb',
+    ['--color-border-subtle' as string]: dark ? 'rgb(255 255 255 / 0.1)' : 'rgb(0 0 0 / 0.1)',
+  };
+}
 
 /** Progress / cart snapshot only. Not shown to customers. */
 type SizeType = 'A4' | 'Custom';
@@ -101,7 +130,7 @@ function EmptyProductFrame({
     <div className="flex h-full flex-col items-center justify-center gap-4 px-6">
       <div
         aria-hidden
-        className={`overflow-hidden rounded-xl border border-border-subtle bg-surface ${
+        className={`overflow-hidden border border-border-subtle bg-surface ${
           portrait ? 'h-[11.5rem] w-[8.1rem]' : 'h-[8.1rem] w-[11.5rem]'
         }`}
       />
@@ -120,11 +149,12 @@ interface WorkshopViewProps {
 
 export default function WorkshopView({ onBack, onClose, onComplete, hideHeader = false, allowResumeCheck }: WorkshopViewProps) {
   const { user } = useAuth();
+  const location = useLocation();
   const { theme } = useTheme();
   const { showToast } = useToast();
   const { refreshCart, openCart } = useCart();
   const [currentStep, setCurrentStep] = useState<WorkshopStep>(1);
-  const [direction, setDirection] = useState(1);
+  const [, setDirection] = useState(1);
   const totalSteps = STEPS.length;
 
   const [materialType, setMaterialType] = useState<'aluminum'>('aluminum');
@@ -156,6 +186,14 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
   const loadedSourceUrlRef = useRef<string | null>(null);
   const uploadedImageRef = useRef<string | null>(null);
   const cartSubmitLockRef = useRef(false);
+  const continueAddAfterLoginRef = useRef(false);
+  const userRef = useRef(user);
+  userRef.current = user;
+  const seenUserIdRef = useRef<string | null>(user?.id ?? null);
+  const suppressServerResumeRef = useRef(hasWorkshopPendingAdd());
+  const resumeJobRef = useRef<{ phase: 'apply' | 'fire'; pending: WorkshopPendingAdd } | null>(null);
+  const [resumeTick, setResumeTick] = useState(0);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   const {
     source,
@@ -166,6 +204,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
     setOrientation,
     setZoom,
     panByPointer,
+    reset,
     ensureCurrentPreview,
   } = useCustomComposition();
 
@@ -256,6 +295,12 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       }
 
       if (!user) {
+        settle();
+        return;
+      }
+
+      if (suppressServerResumeRef.current) {
+        resumeEvaluatedRef.current = true;
         settle();
         return;
       }
@@ -502,6 +547,8 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
 
   const leaveWorkshop = () => {
     invalidateResumeAttempt();
+    discardWorkshopPendingAddSync();
+    resumeJobRef.current = null;
     setShowExitConfirm(false);
     if (onBack) {
       onBack();
@@ -572,7 +619,26 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
 
       if (userError || !currentUser) {
-        showToast('로그인이 필요합니다.', 'error');
+        if (!user) {
+          const pending: WorkshopPendingAdd = {
+            v: 1,
+            step: currentStep,
+            orientation,
+            zoom: composition.zoom,
+            offsetX: composition.offsetX,
+            offsetY: composition.offsetY,
+          };
+          const persisted = uploadedFile
+            ? await saveWorkshopPendingAdd(pending, uploadedFile)
+            : false;
+          if (!persisted) {
+            showToast('사진을 다시 선택해 주세요.', 'error');
+          }
+          continueAddAfterLoginRef.current = true;
+          setIsLoginOpen(true);
+        } else {
+          showToast('로그인이 필요합니다.', 'error');
+        }
         return;
       }
 
@@ -659,6 +725,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       setUploadedFile(null);
       setDurableOriginalRef(null);
       setPendingProgress(null);
+      discardWorkshopPendingAddSync();
       localStorage.removeItem('temp_image_url');
       localStorage.removeItem('workshop_draft');
       sessionStorage.removeItem('temp_image_url');
@@ -679,6 +746,94 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       setIsUploading(false);
     }
   };
+
+  const handleActionClickRef = useRef(handleActionClick);
+  handleActionClickRef.current = handleActionClick;
+
+  useEffect(() => {
+    if (isLoginOpen || !continueAddAfterLoginRef.current || !user) return;
+    continueAddAfterLoginRef.current = false;
+    discardWorkshopPendingAddSync();
+    resumeJobRef.current = null;
+    void handleActionClickRef.current();
+  }, [isLoginOpen, user]);
+
+  useEffect(() => {
+    const id = user?.id ?? null;
+    if (seenUserIdRef.current && !id) {
+      discardWorkshopPendingAddSync();
+      resumeJobRef.current = null;
+    }
+    seenUserIdRef.current = id;
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user || continueAddAfterLoginRef.current) return;
+    let cancelled = false;
+    void (async () => {
+      const claimed = await claimWorkshopPendingAdd();
+      if (cancelled || continueAddAfterLoginRef.current) return;
+      if (claimed.status === 'reselect') {
+        showToast('사진을 다시 선택해 주세요.', 'error');
+        return;
+      }
+      if (claimed.status !== 'ready') return;
+      const validated = await validateCustomImageFile(claimed.file);
+      if (cancelled || continueAddAfterLoginRef.current) return;
+      if (validated.ok === false) {
+        discardWorkshopPendingAddSync();
+        showToast('사진을 다시 선택해 주세요.', 'error');
+        return;
+      }
+      if (!takeResumeDelivery()) return;
+      setUploadedFile(claimed.file);
+      setDurableOriginalRef(null);
+      loadedSourceUrlRef.current = validated.objectUrl;
+      replaceUploadedImage(validated.objectUrl);
+      await loadSourceFromUrl(validated.objectUrl, false);
+      if (cancelled) return;
+      resumeJobRef.current = { phase: 'apply', pending: claimed.pending };
+      setResumeTick((tick) => tick + 1);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, loadSourceFromUrl, replaceUploadedImage, showToast]);
+
+  useEffect(() => {
+    const job = resumeJobRef.current;
+    if (!job || job.phase !== 'apply' || !source) return;
+    setOrientation(job.pending.orientation);
+    reset();
+    setZoom(job.pending.zoom);
+    panByPointer(job.pending.offsetX, job.pending.offsetY, 1, 1);
+    setCurrentStep(2);
+    resumeJobRef.current = { phase: 'fire', pending: job.pending };
+  }, [source, resumeTick, setOrientation, reset, setZoom, panByPointer]);
+
+  useEffect(() => {
+    const job = resumeJobRef.current;
+    if (!job || job.phase !== 'fire' || !source || currentStep !== 2) return;
+    if (customPriceStatus === 'loading') return;
+    if (customPriceStatus === 'unavailable') {
+      resumeJobRef.current = null;
+      void handleActionClickRef.current();
+      return;
+    }
+    const expected = clampComposition(source, {
+      version: 1,
+      orientation: job.pending.orientation,
+      zoom: job.pending.zoom,
+      offsetX: job.pending.offsetX,
+      offsetY: job.pending.offsetY,
+    });
+    if (composition.orientation !== expected.orientation) return;
+    if (Math.abs(composition.zoom - expected.zoom) > 1e-3) return;
+    if (Math.abs(composition.offsetX - expected.offsetX) > 1e-3) return;
+    if (Math.abs(composition.offsetY - expected.offsetY) > 1e-3) return;
+    resumeJobRef.current = null;
+    void handleActionClickRef.current();
+  }, [source, composition, currentStep, customPriceStatus]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.currentTarget;
@@ -727,67 +882,68 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       type="button"
       onClick={handleActionClick}
       disabled={isButtonDisabled}
-      className={`focus-ring min-h-12 w-full items-center justify-center gap-2 rounded-xl type-label ${
+      className={`focus-ring min-h-12 w-full items-center justify-center rounded-[2px] text-[0.9375rem] font-medium ${
         placement === 'panel'
-          ? 'hidden md:flex'
+          ? 'hidden min-[1100px]:flex'
           : 'flex'
       } ${
         isButtonDisabled
-          ? 'cursor-not-allowed bg-surface text-text-tertiary'
-          : 'bg-text-primary text-text-inverse'
+          ? 'cursor-not-allowed border border-[#8b9197]/70 bg-transparent text-text-secondary dark:border-[#d5d8dc]/45'
+          : 'border border-transparent bg-text-primary text-text-inverse'
       }`}
     >
-      {isUploading || isPreparingPreview ? (
-        <Loader2 className="animate-spin" size={18} />
-      ) : currentStep === 2 ? (
-        <ShoppingBag size={18} />
-      ) : null}
       <span>{primaryLabel}</span>
     </button>
   );
 
   const productInfo = (
-    <div className="text-center md:text-left">
-      <p className="type-label text-text-primary">{PRODUCT_LINE}</p>
-      <p className="type-supporting mt-1 text-text-secondary">{PRODUCT_SIZE}</p>
+    <div>
+      <h2 className="text-[1.5rem] font-semibold leading-[1.15] tracking-[-0.02em] text-text-primary">{PRODUCT_LINE}</h2>
       {customPriceStatus === 'loading' ? null : customPriceStatus === 'ready' && customPrice !== null ? (
-        <p className="type-label mt-2 text-text-primary">{formatCustomMPrice(customPrice)}</p>
+        <p className="mt-4 text-[1.25rem] font-medium leading-none text-text-primary">{formatCustomMPrice(customPrice)}</p>
       ) : (
-        <p className="type-supporting mt-2 text-text-secondary">{PRICE_UNAVAILABLE_MESSAGE}</p>
+        <p className="mt-4 text-[0.875rem] leading-snug text-text-secondary">{PRICE_UNAVAILABLE_MESSAGE}</p>
       )}
     </div>
   );
 
   const orientationControls = (
     <div>
-      <h3 className="type-supporting mb-3 text-text-secondary">방향</h3>
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => setOrientation('portrait')}
-          className={`focus-ring flex min-h-11 flex-col items-center justify-center gap-2 rounded-lg border py-3 type-label ${
-            orientation === 'portrait'
-              ? 'border-text-primary bg-surface text-text-primary'
-              : 'border-border-subtle text-text-secondary hover:text-text-primary'
-          }`}
-          aria-pressed={orientation === 'portrait'}
-        >
-          <span aria-hidden className="h-7 w-5 rounded-[2px] border border-current" />
-          세로
-        </button>
-        <button
-          type="button"
-          onClick={() => setOrientation('landscape')}
-          className={`focus-ring flex min-h-11 flex-col items-center justify-center gap-2 rounded-lg border py-3 type-label ${
-            orientation === 'landscape'
-              ? 'border-text-primary bg-surface text-text-primary'
-              : 'border-border-subtle text-text-secondary hover:text-text-primary'
-          }`}
-          aria-pressed={orientation === 'landscape'}
-        >
-          <span aria-hidden className="h-5 w-7 rounded-[2px] border border-current" />
-          가로
-        </button>
+      <h3 className={RAIL_LABEL_CLASS}>방향</h3>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        {([
+          ['portrait', '세로', 'h-12 w-8'],
+          ['landscape', '가로', 'h-8 w-12'],
+        ] as const).map(([value, label, ratio]) => {
+          const active = orientation === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setOrientation(value)}
+              aria-pressed={active}
+              className={`group focus-ring flex flex-col items-center gap-2.5 rounded-[2px] border bg-transparent px-3 pb-2.5 pt-3.5 transition-colors duration-300 max-[1099px]:gap-2 max-[1099px]:px-2 max-[1099px]:pb-2 max-[1099px]:pt-2.5 ${
+                active
+                  ? 'border-[#a89068] text-text-primary dark:border-[#b7bcc2]'
+                  : 'border-border-subtle text-text-secondary hover:border-[#c4b08a] hover:text-text-primary dark:hover:border-[#9aa0a6]'
+              }`}
+            >
+              <span
+                aria-hidden
+                className={`border transition-[border-color,opacity] duration-300 ${ratio} ${
+                  active
+                    ? 'border-[#a89068] opacity-100 dark:border-[#b7bcc2]'
+                    : 'border-current opacity-40 group-hover:border-[#a89068] group-hover:opacity-70 dark:group-hover:border-[#b7bcc2]'
+                }`}
+              />
+              <span className="text-[0.8125rem] leading-none">{label}</span>
+              <span
+                aria-hidden
+                className={`h-px w-8 ${active ? 'bg-[#a89068] dark:bg-[#b7bcc2]' : 'bg-transparent'}`}
+              />
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -796,9 +952,11 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
     <CustomImageEditor
       source={source}
       composition={composition}
-      emptyLabel="사진을 업로드 하세요"
+      emptyLabel="사진 업로드"
       onPanByPointer={panByPointer}
       onZoom={setZoom}
+      onRequestUpload={source ? undefined : () => fileInputRef.current?.click()}
+      uploadDisabled={isUploading}
     />
   );
 
@@ -807,71 +965,106 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       source={source}
       composition={composition}
       emptyLabel="사진을 업로드 하세요"
-      overlay={
-        isPreviewSubViewOpen ? undefined : (
-        <div className="absolute right-3 bottom-3 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center justify-end gap-1.5">
-          <button
-            ref={roomPreviewEntryRef}
-            id="pdp-room-preview-entry"
-            type="button"
-            aria-haspopup="dialog"
-            aria-label="내 공간에 걸어보기"
-            className={CUSTOM_MEDIA_PILL_CLASS}
-            onClick={() => setRoomPreviewOpen(true)}
-          >
-            <ImageIcon size={14} strokeWidth={1.7} aria-hidden />
-            내 공간에 걸어보기
-          </button>
-          {customProduct ? (
-          <button
-            type="button"
-            aria-label="3D로 보기"
-            className={CUSTOM_MEDIA_PILL_CLASS}
-            onClick={() => setViewerOpen(true)}
-          >
-            <Box size={14} strokeWidth={1.7} aria-hidden />
-            3D로 보기
-          </button>
-          ) : null}
-        </div>
-        )
-      }
     />
   );
 
+  const sizeBlock = (
+    <div>
+      <h3 className={RAIL_LABEL_CLASS}>크기</h3>
+      <p className="mt-2 text-[0.9375rem] leading-snug text-text-primary">{PRODUCT_SIZE}</p>
+    </div>
+  );
+
   const step2Facts = (
-    <div className="flex flex-col gap-5">
-      {productInfo}
-      <dl className="space-y-3">
-        <div className="flex justify-between gap-4">
-          <dt className="type-supporting text-text-secondary">방향</dt>
-          <dd className="type-label text-text-primary">{orientation === 'landscape' ? '가로' : '세로'}</dd>
+    <div className="flex flex-col">
+      <h2 className="text-[1.5rem] font-semibold leading-[1.15] tracking-[-0.02em] text-text-primary">{PRODUCT_LINE}</h2>
+      {customPriceStatus === 'loading' ? null : customPriceStatus === 'ready' && customPrice !== null ? (
+        <p className="mt-4 text-[1.25rem] font-medium leading-none text-text-primary">{formatCustomMPrice(customPrice)}</p>
+      ) : (
+        <p className="mt-4 text-[0.875rem] leading-snug text-text-secondary">{PRICE_UNAVAILABLE_MESSAGE}</p>
+      )}
+
+      <div className="mt-6 border-t border-border-subtle pt-3">
+        <h3 className={RAIL_LABEL_CLASS}>크기</h3>
+        <p className="mt-2 text-[0.9375rem] leading-snug text-text-primary">M</p>
+        <p className="mt-1 text-[0.75rem] leading-snug text-text-tertiary">{PRODUCT_SIZE}</p>
+      </div>
+
+      <div className="mt-5 border-t border-border-subtle pt-3">
+        <h3 className={RAIL_LABEL_CLASS}>방향</h3>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="flex flex-col items-center gap-2.5 rounded-[2px] border border-[#a89068] bg-transparent px-3 pb-2.5 pt-3.5 text-text-primary dark:border-[#b7bcc2]">
+            <span
+              aria-hidden
+              className={`border border-[#a89068] opacity-100 dark:border-[#b7bcc2] ${orientation === 'portrait' ? 'h-12 w-8' : 'h-8 w-12'}`}
+            />
+            <span className="text-[0.8125rem] leading-none">{orientation === 'portrait' ? '세로' : '가로'}</span>
+            <span aria-hidden className="h-px w-8 bg-[#a89068] dark:bg-[#b7bcc2]" />
+          </div>
         </div>
-        <div className="flex justify-between gap-4">
-          <dt className="type-supporting text-text-secondary">출고</dt>
-          <dd className="type-label text-text-primary">승인 후 3–5영업일</dd>
+      </div>
+
+      {isPreviewSubViewOpen ? null : (
+        <div className="mt-5 border-t border-border-subtle pt-3">
+          <h3 className={RAIL_LABEL_CLASS}>미리보기</h3>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <button
+              ref={roomPreviewEntryRef}
+              id="pdp-room-preview-entry"
+              type="button"
+              aria-haspopup="dialog"
+              aria-label="내 공간에 걸어보기"
+              className="focus-ring flex min-h-[4.5rem] flex-col items-start justify-between rounded-[2px] border border-border-subtle bg-transparent px-3 py-3 text-left text-[0.8125rem] leading-snug text-text-primary transition-colors duration-300 hover:border-[#c4b08a] dark:hover:border-[#9aa0a6]"
+              onClick={() => setRoomPreviewOpen(true)}
+            >
+              <ImageIcon size={16} strokeWidth={1.5} aria-hidden />
+              내 공간에 배치
+            </button>
+            <button
+              type="button"
+              aria-label="3D로 보기"
+              className="focus-ring flex min-h-[4.5rem] flex-col items-start justify-between rounded-[2px] border border-border-subtle bg-transparent px-3 py-3 text-left text-[0.8125rem] leading-snug text-text-primary transition-colors duration-300 hover:border-[#c4b08a] disabled:text-text-tertiary dark:hover:border-[#9aa0a6]"
+              disabled={!customProduct}
+              onClick={() => setViewerOpen(true)}
+            >
+              <Box size={16} strokeWidth={1.5} aria-hidden />
+              3D로 보기
+            </button>
+          </div>
         </div>
-        <div className="flex justify-between gap-4">
-          <dt className="type-supporting text-text-secondary">배송</dt>
-          <dd className="type-label text-right text-text-primary">현재 무료배송</dd>
+      )}
+
+      <dl className="mt-5 border-t border-border-subtle">
+        <div className="flex items-baseline justify-between gap-4 border-b border-border-subtle py-3">
+          <dt className={RAIL_LABEL_CLASS}>제작</dt>
+          <dd className="text-[0.875rem] leading-snug text-text-primary">승인 후 3–5영업일</dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-4 border-b border-border-subtle py-3">
+          <dt className={RAIL_LABEL_CLASS}>배송</dt>
+          <dd className="text-right text-[0.875rem] leading-snug text-text-primary">현재 무료배송</dd>
         </div>
       </dl>
-      <p className="type-body text-text-secondary">
-        WORKSHOP은 고객이 제공한 이미지를 바탕으로 개별 제작됩니다. 이미지 검수 및 제작 승인 전에는 취소할 수 있으며, 제작 승인 이후에는 사전 안내 및 동의한 범위에서 단순변심에 의한 청약철회가 제한될 수 있습니다. 최종 시안을 다시 한번 확인해 주세요.
-      </p>
     </div>
+  );
+
+  const workshopNotice = (
+    <p className="text-[0.75rem] leading-snug text-text-tertiary">
+      WORKSHOP은 고객이 제공한 이미지를 바탕으로 개별 제작됩니다. 이미지 검수 및 제작 승인 전에는 취소할 수 있으며, 제작 승인 이후에는 사전 안내 및 동의한 범위에서 단순변심에 의한 청약철회가 제한될 수 있습니다. 최종 시안을 다시 한번 확인해 주세요.
+    </p>
   );
 
   return (
     <div
       className={`relative flex w-full flex-col overflow-x-hidden font-sans pointer-events-auto ${
-      hideHeader ? 'h-full' : 'min-h-screen'
-    } ${theme === 'dark' ? 'bg-black text-white' : 'bg-white text-black'}`}
+        hideHeader ? 'h-full' : 'min-h-screen'
+      }`}
+      style={workshopSurfaceStyle(theme)}
       data-custom-preview-ready={previewUrl ? 'true' : 'false'}
     >
-      <header className={`${hideHeader ? 'relative' : 'fixed top-0 left-0'} z-[100] h-16 w-full items-center border-b border-border-subtle px-4 backdrop-blur-md ${
+      <header className={`${hideHeader ? 'relative' : 'fixed top-0 left-0'} z-[100] h-16 w-full items-center border-b border-border-subtle bg-canvas px-4 max-[1099px]:h-auto max-[1099px]:px-0 max-[1099px]:pt-[env(safe-area-inset-top)] ${
         isPreviewSubViewOpen ? 'hidden' : 'flex'
-      } ${theme === 'dark' ? 'bg-black/80' : 'bg-white/80'}`}>
+      }`}>
+        <div className="flex h-full w-full items-center max-[1099px]:relative max-[1099px]:h-14 max-[1099px]:px-3">
         <div className="flex flex-1 justify-start">
           <button
             type="button"
@@ -883,13 +1076,20 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
           </button>
         </div>
 
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-          <div className="type-metadata text-text-tertiary">
-            {currentStep} / {totalSteps}
-          </div>
-          <h1 className="type-label text-text-primary">
+        <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5">
+          <h1 className="text-[0.8125rem] leading-none text-text-secondary max-[1099px]:whitespace-nowrap">
+            <span className="text-text-tertiary">{currentStep} / {totalSteps}</span>
+            <span className="mx-2 text-text-tertiary" aria-hidden>·</span>
             {STEPS[currentStep - 1].title}
           </h1>
+          <div className="h-px w-16 overflow-hidden bg-border-subtle" aria-hidden>
+            <motion.div
+              initial={false}
+              animate={{ width: `${(currentStep / totalSteps) * 100}%` }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              className="h-full bg-[#8b9197] dark:bg-[#d5d8dc]"
+            />
+          </div>
         </div>
 
         <div className="flex flex-1 items-center justify-end">
@@ -901,6 +1101,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
           >
             <X size={20} />
           </button>
+        </div>
         </div>
       </header>
 
@@ -916,9 +1117,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
               initial={{ scale: 0.98, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.98, opacity: 0 }}
-              className={`w-full max-w-sm rounded-xl border border-border-subtle p-6 text-center ${
-                theme === 'dark' ? 'bg-zinc-900' : 'bg-white'
-              }`}
+              className="w-full max-w-sm border border-border-subtle bg-canvas p-6 text-center"
             >
               <h3 className="type-section-title text-text-primary [word-break:keep-all]">이전에 작업한 이미지가 있습니다.</h3>
               <p className="type-supporting mt-2 text-text-secondary">불러오시겠습니까?</p>
@@ -926,14 +1125,14 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
                 <button
                   type="button"
                   onClick={handleStartNew}
-                  className="focus-ring min-h-11 flex-1 rounded-lg border border-border-subtle type-label text-text-secondary"
+                  className="focus-ring min-h-11 flex-1 rounded-[2px] border border-border-subtle type-label text-text-secondary"
                 >
                   새로 시작
                 </button>
                 <button
                   type="button"
                   onClick={handleResume}
-                  className="focus-ring min-h-11 flex-1 rounded-lg bg-text-primary type-label text-text-inverse"
+                  className="focus-ring min-h-11 flex-1 rounded-[2px] bg-text-primary type-label text-text-inverse"
                 >
                   불러오기
                 </button>
@@ -955,9 +1154,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
               initial={{ scale: 0.98, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.98, opacity: 0 }}
-              className={`w-full max-w-sm rounded-xl border border-border-subtle p-6 text-center ${
-                theme === 'dark' ? 'bg-zinc-900' : 'bg-white'
-              }`}
+              className="w-full max-w-sm border border-border-subtle bg-canvas p-6 text-center"
             >
               <h3 className="type-section-title text-text-primary [word-break:keep-all]">제작을 종료할까요?</h3>
               <p className="type-supporting mt-2 text-text-secondary [word-break:keep-all]">업로드한 이미지가 있습니다.</p>
@@ -965,14 +1162,14 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
                 <button
                   type="button"
                   onClick={() => setShowExitConfirm(false)}
-                  className="focus-ring min-h-11 flex-1 rounded-lg border border-border-subtle type-label text-text-secondary"
+                  className="focus-ring min-h-11 flex-1 rounded-[2px] border border-border-subtle type-label text-text-secondary"
                 >
                   계속 제작
                 </button>
                 <button
                   type="button"
                   onClick={leaveWorkshop}
-                  className="focus-ring min-h-11 flex-1 rounded-lg bg-text-primary type-label text-text-inverse"
+                  className="focus-ring min-h-11 flex-1 rounded-[2px] bg-text-primary type-label text-text-inverse"
                 >
                   종료
                 </button>
@@ -984,7 +1181,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
 
       {isRestoring ? (
         <div
-          className="absolute inset-x-0 bottom-0 top-16 z-20 flex flex-col items-center justify-center gap-3 bg-canvas/80"
+          className="absolute inset-x-0 bottom-0 top-16 z-20 flex flex-col items-center justify-center gap-3 bg-canvas/80 max-[1099px]:top-[calc(3.5rem+env(safe-area-inset-top))]"
           role="status"
           aria-live="polite"
         >
@@ -993,95 +1190,107 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
         </div>
       ) : null}
 
-      <div
-        ref={scrollContainerRef}
-        className="relative z-10 flex flex-1 flex-col overflow-y-auto overscroll-contain touch-pan-y pb-8 pt-6"
-      >
-        <div className="mx-auto mb-6 w-full max-w-xl px-5 md:max-w-7xl">
-          <div className={`h-px w-full overflow-hidden ${theme === 'dark' ? 'bg-white/10' : 'bg-black/5'}`}>
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${(currentStep / totalSteps) * 100}%` }}
-              transition={{ duration: 0.4 }}
-              className="h-full bg-text-primary"
-            />
-          </div>
-        </div>
-
-        <div className="relative mx-auto w-full max-w-xl flex-1 px-5 md:max-w-7xl">
-          <AnimatePresence mode="wait" custom={direction}>
-            <motion.div
-              key={currentStep}
-              custom={direction}
-              initial={{ opacity: 0, x: direction > 0 ? 16 : -16 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: direction > 0 ? -16 : 16 }}
-              transition={{ duration: 0.3 }}
-              className="h-full w-full"
-            >
-              {currentStep === 1 && (
-                <div className="flex flex-col gap-8 md:flex-row md:items-start md:gap-12">
-                  <div className={`order-1 w-full flex-1 ${isPreparingPreview ? 'pointer-events-none' : ''}`}>
-                    {editPreview}
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentStep}
+            ref={scrollContainerRef}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto overscroll-contain touch-pan-y min-[1100px]:flex-row min-[1100px]:overflow-hidden"
+          >
+            {currentStep === 1 && (
+              <>
+                <div className={`relative flex min-h-0 min-w-0 flex-1 flex-col min-[1100px]:overflow-hidden max-[1099px]:flex-none max-[1099px]:shrink-0 ${isPreparingPreview ? 'pointer-events-none' : ''}`}>
+                  {editPreview}
+                </div>
+                <aside className={`${WORKSHOP_RAIL_CLASS} py-5 min-[1100px]:py-5`}>
+                  {productInfo}
+                  <div className="mt-6 border-t border-border-subtle pt-3">
+                    {sizeBlock}
                   </div>
-                  <div className="order-2 flex w-full flex-col gap-6 md:w-[22rem]">
-                    {productInfo}
+                  <div className="mt-5 border-t border-border-subtle pt-3">
                     {orientationControls}
-                    <div>
-                      <h3 className="type-supporting mb-3 text-text-secondary">사진 업로드</h3>
+                  </div>
+                  <div className="mt-5 border-t border-border-subtle pt-3">
+                    <h3 className={RAIL_LABEL_CLASS}>이미지</h3>
+                    {uploadedImage ? (
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isUploading}
-                        className="focus-ring flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-border-subtle type-label text-text-primary disabled:opacity-50"
+                        className="focus-ring mt-2 text-[0.9375rem] leading-snug text-text-primary underline-offset-[5px] hover:underline disabled:opacity-50"
                       >
-                        {isUploading ? <Loader2 className="animate-spin" size={18} /> : uploadedImage ? <ImageIcon size={18} /> : <Upload size={18} />}
-                        {isUploading ? '업로드 중...' : uploadedImage ? '사진 변경' : '사진 업로드'}
+                        {isUploading ? '업로드 중...' : '사진 변경'}
                       </button>
-                      <p className="type-supporting mt-2 text-text-secondary">
-                        타인의 저작권을 침해하는 이미지는 사용할 수 없습니다.
-                      </p>
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleImageUpload}
-                        accept={SUPPORTED_IMAGE_ACCEPT}
-                        className="hidden"
-                      />
-                    </div>
-                    {uploadedImage ? (
-                      <CustomCompositionControls
-                        source={source}
-                        composition={composition}
-                        onZoom={setZoom}
-                        qualityWarning={qualityWarning}
-                      />
                     ) : null}
+                    <p className="mt-1.5 text-[0.75rem] leading-snug text-text-tertiary">
+                      저작권 문제가 있는 이미지는 사용할 수 없습니다.
+                    </p>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleImageUpload}
+                      accept={SUPPORTED_IMAGE_ACCEPT}
+                      className="sr-only"
+                    />
+                  </div>
+                  {uploadedImage ? (
+                    <>
+                      <div className="mt-5 border-t border-border-subtle pt-3">
+                        <h3 className={RAIL_LABEL_CLASS}>조정</h3>
+                        <p className="mt-2 text-[0.9375rem] leading-snug text-text-primary">확대 / 축소</p>
+                        <div className="mt-2">
+                          <CustomCompositionControls
+                            source={source}
+                            composition={composition}
+                            onZoom={setZoom}
+                            qualityWarning={qualityWarning}
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-5 border-t border-border-subtle pt-3">
+                        <h3 className={RAIL_LABEL_CLASS}>품질 보정</h3>
+                        <p className="mt-2 text-[0.9375rem] leading-snug text-text-primary">AI 업스케일</p>
+                        <p className="mt-1 text-[0.75rem] leading-snug text-text-tertiary">
+                          제작 전 이미지 품질을 자동 보정합니다.
+                        </p>
+                      </div>
+                    </>
+                  ) : null}
+                  <div className="mt-5">
                     {renderPrimaryCta('panel')}
                   </div>
-                </div>
-              )}
+                </aside>
+              </>
+            )}
 
-              {currentStep === 2 && (
-                <div className="flex flex-col gap-8 md:flex-row md:items-start md:gap-12">
-                  <div className="order-1 w-full flex-1">
-                    {step2Canvas}
+            {currentStep === 2 && (
+              <>
+                <div className="relative flex min-h-0 min-w-0 flex-1 flex-col min-[1100px]:overflow-hidden max-[1099px]:flex-none max-[1099px]:shrink-0">
+                  {step2Canvas}
+                </div>
+                <aside className={isPreviewSubViewOpen ? 'hidden' : `${WORKSHOP_RAIL_CLASS} py-5 min-[1100px]:py-5`}>
+                  {step2Facts}
+                  <div className="mt-5 border-t border-border-subtle pt-3">
+                    {workshopNotice}
                   </div>
-                  <div className={`${isPreviewSubViewOpen ? 'hidden' : 'flex'} order-2 w-full flex-col gap-6 md:w-[22rem]`}>
-                    {step2Facts}
+                  <div className="mt-5">
                     {renderPrimaryCta('panel')}
                   </div>
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </div>
+                </aside>
+              </>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       <div
-        className={`z-20 shrink-0 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 ${
-          isPreviewSubViewOpen ? 'hidden' : 'md:hidden'
-        } ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}
+        className={`z-20 shrink-0 border-t border-border-subtle bg-canvas px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 max-[1099px]:pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
+          isPreviewSubViewOpen ? 'hidden' : 'min-[1100px]:hidden'
+        }`}
       >
         {renderPrimaryCta('mobile')}
       </div>
@@ -1092,7 +1301,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="pointer-events-none fixed inset-0 z-[10002] bg-white"
+            className={`pointer-events-none fixed inset-0 z-[10002] ${theme === 'dark' ? 'bg-[#101114]' : 'bg-[#f6f4ef]'}`}
           />
         )}
       </AnimatePresence>
@@ -1119,6 +1328,15 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
           />
         </div>
       ) : null}
+      <LoginModal
+        isOpen={isLoginOpen}
+        redirectUrl={safeInternalPath(`${location.pathname}${location.search}`)}
+        onClose={() => {
+          setIsLoginOpen(false);
+          if (!userRef.current) continueAddAfterLoginRef.current = false;
+        }}
+        onSuccess={() => setIsLoginOpen(false)}
+      />
     </div>
   );
 }

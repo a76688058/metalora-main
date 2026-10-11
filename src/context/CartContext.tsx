@@ -54,6 +54,9 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+/** Set while cart login is open so a full-page social return reopens the cart. */
+export const CART_AUTH_RETURN_KEY = 'metalora-cart-auth-return';
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -167,6 +170,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void refreshCart();
   }, [activeUserId, refreshCart]);
+
+  useEffect(() => {
+    if (!activeUserId) return;
+    try {
+      if (sessionStorage.getItem(CART_AUTH_RETURN_KEY) !== '1') return;
+      sessionStorage.removeItem(CART_AUTH_RETURN_KEY);
+    } catch {
+      return;
+    }
+    setIsCartOpen(true);
+  }, [activeUserId]);
 
   const addToCart = async (
     productId: string, 

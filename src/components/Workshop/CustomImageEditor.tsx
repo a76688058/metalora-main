@@ -8,6 +8,8 @@ interface CustomImageEditorProps {
   emptyLabel: string;
   onPanByPointer: (dxPx: number, dyPx: number, frameWidth: number, frameHeight: number) => void;
   onZoom: (zoom: number) => void;
+  onRequestUpload?: () => void;
+  uploadDisabled?: boolean;
 }
 
 export function CustomCompositionControls({
@@ -25,33 +27,23 @@ export function CustomCompositionControls({
   const sliderMin = minZoom(source, composition.orientation);
 
   return (
-    <div className="flex flex-col gap-3">
-      <p className="type-supporting text-text-secondary">
-        가장자리 일부는 제작 과정에서 잘릴 수 있습니다.
+    <div className="flex flex-col gap-2">
+      <input
+        id="custom-zoom"
+        type="range"
+        min={sliderMin}
+        max={MAX_ZOOM}
+        step={0.01}
+        value={composition.zoom}
+        onChange={(event) => onZoom(Number(event.target.value))}
+        className="h-6 w-full accent-[#a89068] dark:accent-[#b7bcc2]"
+        aria-label="확대 / 축소"
+      />
+      <p className="text-[0.75rem] leading-snug text-text-tertiary">
+        일부 가장자리는 제작 과정에서 조정될 수 있습니다.
       </p>
-      <div>
-        <label htmlFor="custom-zoom" className="type-supporting mb-3 block text-text-secondary">
-          확대/축소
-        </label>
-        <input
-          id="custom-zoom"
-          type="range"
-          min={sliderMin}
-          max={MAX_ZOOM}
-          step={0.01}
-          value={composition.zoom}
-          onChange={(event) => onZoom(Number(event.target.value))}
-          className="h-11 min-h-11 w-full accent-current"
-          aria-label="확대/축소"
-        />
-      </div>
-      <div className="rounded-xl border border-border-subtle bg-surface-elevated px-4 py-3.5">
-        <p className="type-label text-text-primary">
-          모든 이미지는 제작 전 AI 업스케일링을 통해 화질을 보정합니다.
-        </p>
-      </div>
       {qualityWarning ? (
-        <p className="type-supporting text-text-secondary">
+        <p className="text-[0.75rem] leading-snug text-text-tertiary">
           과도한 확대 시 원본 이미지에 따라 디테일이 제한될 수 있습니다.
         </p>
       ) : null}
@@ -59,26 +51,25 @@ export function CustomCompositionControls({
   );
 }
 
-function EmptyFrame({ orientation, label }: { orientation: CustomComposition['orientation']; label: string }) {
-  const portrait = orientation === 'portrait';
+function EmptyFrame({ orientation: _orientation, label }: { orientation: CustomComposition['orientation']; label: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 px-6">
-      <div
-        aria-hidden
-        className={`overflow-hidden rounded-xl border border-border-subtle bg-surface ${
-          portrait ? 'h-[11.5rem] w-[8.1rem]' : 'h-[8.1rem] w-[11.5rem]'
-        }`}
-      />
-      <p className="type-section-title text-center text-text-primary [word-break:keep-all] md:whitespace-nowrap">{label}</p>
-    </div>
+    <p className="type-section-title text-center text-text-primary [word-break:keep-all]">
+      <span className="relative inline-block">
+        {label}
+        <span
+          aria-hidden
+          className="absolute left-0 -bottom-2 h-px w-0 origin-left bg-[#8b9197] transition-[width] duration-500 ease-out group-hover:w-full group-focus-visible:w-full dark:bg-[#d5d8dc]"
+        />
+      </span>
+    </p>
   );
 }
 
 const PANEL_SHELL_CLASS =
-  'relative mx-auto w-full max-w-xl min-w-0 md:mx-0 md:flex md:h-[calc(100svh-8.5rem)] md:max-w-none md:items-center md:justify-center md:p-8 md:pb-16 md:[container-type:size] min-[1100px]:p-12 min-[1100px]:pb-16';
+  'relative mx-auto w-full max-w-xl min-w-0 max-[1099px]:flex max-[1099px]:h-[min(38svh,20rem)] max-[1099px]:max-h-[min(38svh,20rem)] max-[1099px]:shrink-0 max-[1099px]:items-center max-[1099px]:justify-center max-[1099px]:px-4 max-[1099px]:py-3 max-[1099px]:[container-type:size] md:mx-0 md:flex md:max-w-none md:items-start md:justify-center md:p-8 md:[container-type:size] min-[1100px]:h-full min-[1100px]:min-h-0 min-[1100px]:px-12 min-[1100px]:pb-20 min-[1100px]:pt-7';
 
 const PANEL_FRAME_CLASS =
-  'relative w-full overflow-hidden rounded-xl border border-border-subtle bg-zinc-100 select-none md:w-auto md:[width:min(100%,calc(100cqh*var(--frame-aspect)))] md:[height:min(100%,calc(100cqw/var(--frame-aspect)))]';
+  'relative w-full overflow-hidden border border-[#8b9197]/55 bg-canvas select-none dark:border-[#d5d8dc]/40 md:w-auto md:[width:min(100%,calc(100cqh*var(--frame-aspect)))] md:[height:min(100%,calc(100cqw/var(--frame-aspect)))] max-[1099px]:w-auto max-[1099px]:max-h-full max-[1099px]:max-w-full max-[1099px]:[width:min(100%,calc(100cqh*var(--frame-aspect)))] max-[1099px]:[height:min(100%,calc(100cqw/var(--frame-aspect)))]';
 
 export function CustomPreviewPanel({
   source,
@@ -89,6 +80,8 @@ export function CustomPreviewPanel({
   overlay,
   onPanByPointer,
   onZoom,
+  onRequestUpload,
+  uploadDisabled = false,
 }: {
   source: CustomSource | null;
   composition: CustomComposition;
@@ -98,6 +91,8 @@ export function CustomPreviewPanel({
   overlay?: React.ReactNode;
   onPanByPointer?: (dxPx: number, dyPx: number, frameWidth: number, frameHeight: number) => void;
   onZoom?: (zoom: number) => void;
+  onRequestUpload?: () => void;
+  uploadDisabled?: boolean;
 }) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null);
@@ -200,7 +195,7 @@ export function CustomPreviewPanel({
             {showSafeArea ? (
               <div
                 aria-hidden
-                className="pointer-events-none absolute border border-white/70 mix-blend-difference"
+                className="pointer-events-none absolute border border-[#8b9197]/80 dark:border-[#d5d8dc]/80"
                 style={{
                   left: `${safeInset.x * 100}%`,
                   right: `${safeInset.x * 100}%`,
@@ -211,6 +206,15 @@ export function CustomPreviewPanel({
             ) : null}
             {overlay ? <div className="absolute inset-0 z-[4] pointer-events-none">{overlay}</div> : null}
           </>
+        ) : onRequestUpload ? (
+          <button
+            type="button"
+            onClick={onRequestUpload}
+            disabled={uploadDisabled}
+            className="group focus-ring flex h-full min-h-64 w-full items-center justify-center px-6 disabled:opacity-50 max-[1099px]:min-h-0"
+          >
+            <EmptyFrame orientation={composition.orientation} label={emptyLabel} />
+          </button>
         ) : (
           <EmptyFrame orientation={composition.orientation} label={emptyLabel} />
         )}
@@ -225,6 +229,8 @@ export default function CustomImageEditor({
   emptyLabel,
   onPanByPointer,
   onZoom,
+  onRequestUpload,
+  uploadDisabled = false,
 }: CustomImageEditorProps) {
   return (
     <CustomPreviewPanel
@@ -235,6 +241,8 @@ export default function CustomImageEditor({
       showSafeArea
       onPanByPointer={onPanByPointer}
       onZoom={onZoom}
+      onRequestUpload={onRequestUpload}
+      uploadDisabled={uploadDisabled}
     />
   );
 }

@@ -73,6 +73,11 @@ const SIGNUP_CREATE_USERNAME_RE = /^[A-Za-z0-9]{4,32}$/;
 type SignupRevealStep = (typeof SIGNUP_REVEAL_STEPS)[number];
 type SignupEditStage = 'identity' | 'password' | null;
 
+function releaseAuthFocus() {
+  const active = document.activeElement;
+  if (active instanceof HTMLElement) active.blur();
+}
+
 function signupRevealRank(step: SignupRevealStep): number {
   return SIGNUP_REVEAL_STEPS.indexOf(step);
 }
@@ -425,6 +430,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
 
   useEffect(() => {
     if (user && isUsableMemberProfile(profile) && isOpen) {
+      releaseAuthFocus();
       onClose();
     }
   }, [user, profile, isOpen, onClose]);
@@ -629,6 +635,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
   };
 
   const finishAuthenticated = async (userId: string) => {
+    releaseAuthFocus();
     await refreshSession();
     const { data: profileRow, error: memberProfileError } = await supabase
       .from('profiles')
@@ -641,6 +648,8 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
       throw new Error('계정 정보를 불러올 수 없습니다. 관리자에게 문의해주세요.');
     }
 
+    releaseAuthFocus();
+    resetAuthSurface();
     if (onSuccess) onSuccess();
     else onClose();
   };
@@ -668,7 +677,6 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
       }
 
       await finishAuthenticated(signInData.session.user.id);
-      resetAuthSurface();
     } catch (error: unknown) {
       setErrorMsg(error instanceof Error ? error.message : '아이디 또는 비밀번호를 확인해주세요.');
     } finally {
@@ -836,7 +844,6 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
       }
       showToast('가입되었습니다.', 'success');
       await finishAuthenticated(signInData.session.user.id);
-      resetAuthSurface();
     } catch (error: unknown) {
       setErrorMsg(error instanceof Error ? error.message : '요청을 처리할 수 없습니다.');
     } finally {
@@ -935,6 +942,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
       setErrorMsg(mapSocialCompleteError(complete.status, complete.json));
       return;
     }
+    releaseAuthFocus();
     await refreshProfile();
     const userId = user?.id;
     if (!userId) {
@@ -952,6 +960,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
       setErrorMsg('계정 정보를 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.');
       return;
     }
+    releaseAuthFocus();
     resetAuthSurface();
     if (onSuccess) onSuccess();
     else onClose();
@@ -1127,11 +1136,11 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
   const socialBusy = Boolean(oauthStarting) || isLoading;
   const dividerLine = isDark ? 'bg-white/6' : 'bg-black/8';
   const fieldClass = cn(
-    'ml-auth-field w-full rounded-[14px] px-4 sm:px-5 py-3 text-[15px] sm:text-base tracking-tight focus:outline-none',
+    'ml-auth-field w-full rounded-[14px] px-4 sm:px-5 py-3 text-base tracking-tight focus:outline-none',
     isDark ? 'text-zinc-100 placeholder:text-zinc-500' : 'text-zinc-900 placeholder:text-zinc-400',
   );
   const loginFieldClass = cn(
-    'ml-auth-login-field w-full px-3.5 text-[15px] tracking-tight focus:outline-none',
+    'ml-auth-login-field w-full px-3.5 text-base tracking-tight focus:outline-none',
     isDark ? 'text-[#f3f1ec]' : 'text-[#16150f]',
   );
   const labelClass = 'block text-[13px] font-medium mb-1.5 text-text-primary';

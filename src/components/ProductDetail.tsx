@@ -9,6 +9,7 @@ import { track } from '../lib/analytics';
 import { getFullImageUrl } from '../lib/utils';
 import { normalizeWorkshopMediaRef, resolveWorkshopMediaSrc } from '../lib/workshopMedia';
 import LoginModal from './LoginModal';
+import { safeInternalPath } from '../lib/authIntegrity';
 import { Product } from '../data/products';
 import { Button } from './ui/Button';
 import { ProductTheatreLayout } from './pdp/ProductTheatreLayout';
@@ -33,6 +34,14 @@ import {
  */
 let lastViewItemDedupe: { productId: string; at: number } | null = null;
 const VIEW_ITEM_STRICT_MODE_MS = 400;
+const PDP_PENDING_ADD_KEY = 'metalora-pdp-pending-add';
+
+type PendingPdpAdd = {
+  productId: string;
+  optionId: string;
+  quantity: number;
+  orientation: 'portrait' | 'landscape';
+};
 
 type PdpPageStatus = 'loading' | 'ready' | 'not_found' | 'error';
 
@@ -128,6 +137,9 @@ export default function ProductDetail() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const roomPreviewEntryRef = useRef<HTMLButtonElement>(null);
   const roomPreviewWasOpenRef = useRef(false);
+  const currentUserRef = useRef(user || adminUser);
+  const resumeAddLockRef = useRef(false);
+  currentUserRef.current = user || adminUser;
 
   useEffect(() => {
     setRoomPreviewOpen(false);
@@ -279,6 +291,59 @@ export default function ProductDetail() {
     }
   }, [product]);
 
+  useEffect(() => {
+    if (!currentUser || !product?.id || resumeAddLockRef.current) return;
+    let pending: PendingPdpAdd | null = null;
+    try {
+      const raw = sessionStorage.getItem(PDP_PENDING_ADD_KEY);
+      if (!raw) return;
+      pending = JSON.parse(raw) as PendingPdpAdd;
+    } catch {
+      return;
+    }
+    if (!pending || pending.productId !== product.id || !pending.optionId) return;
+    const committed = pending;
+    sessionStorage.removeItem(PDP_PENDING_ADD_KEY);
+    resumeAddLockRef.current = true;
+    const option = product.options?.find((opt) => opt.id === committed.optionId);
+    const unitPrice = option ? option.price : 0;
+    const qty = Math.max(1, Math.floor(committed.quantity) || 1);
+    const orientation = committed.orientation === 'landscape' ? 'landscape' : 'portrait';
+    setSelectedOptionId(committed.optionId);
+    setSelectedOrientation(orientation);
+    setQuantity(qty);
+    const variantParts = [
+      option?.name,
+      orientation === 'landscape' ? 'landscape' : 'portrait',
+    ].filter(Boolean);
+    void (async () => {
+      setIsAddingToCart(true);
+      try {
+        const ok = await addToCart(
+          product.id,
+          committed.optionId,
+          qty,
+          undefined,
+          undefined,
+          orientation,
+          {
+            item_name: product.title,
+            price: unitPrice,
+            ...(variantParts.length > 0 ? { item_variant: variantParts.join(' / ') } : {}),
+          },
+        );
+        if (!ok) return;
+        setIsAdded(true);
+        setTimeout(() => openCart(), 800);
+      } catch (error: unknown) {
+        console.error('Add to Cart Failed:', error instanceof Error ? error.message : error);
+      } finally {
+        setIsAddingToCart(false);
+        resumeAddLockRef.current = false;
+      }
+    })();
+  }, [currentUser, product, addToCart, openCart]);
+
   const viewItemFiredForIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (pageStatus !== 'ready') return;
@@ -368,6 +433,18 @@ export default function ProductDetail() {
 
   const handleAddToCart = async () => {
     if (!currentUser) {
+      if (product?.id && selectedOptionId) {
+        try {
+          sessionStorage.setItem(PDP_PENDING_ADD_KEY, JSON.stringify({
+            productId: product.id,
+            optionId: selectedOptionId,
+            quantity: Math.max(1, Math.floor(quantity)),
+            orientation: selectedOrientation,
+          } satisfies PendingPdpAdd));
+        } catch {
+          // The in-page login path still has the current selection.
+        }
+      }
       setIsLoginModalOpen(true);
       return;
     }
@@ -424,7 +501,21 @@ export default function ProductDetail() {
 
   return (
     <div className="relative bg-canvas text-text-primary">
-      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onSuccess={() => setIsLoginModalOpen(false)} />
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        redirectUrl={safeInternalPath(`${location.pathname}${location.search}`)}
+        onClose={() => {
+          if (!currentUserRef.current) {
+            try {
+              sessionStorage.removeItem(PDP_PENDING_ADD_KEY);
+            } catch {
+              // ignore
+            }
+          }
+          setIsLoginModalOpen(false);
+        }}
+        onSuccess={() => setIsLoginModalOpen(false)}
+      />
 
       <ProductTheatreLayout
         stage={

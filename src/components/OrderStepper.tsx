@@ -1,7 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
-import { Check, Package, Hammer, Truck, CheckCircle2 } from 'lucide-react';
 
 interface OrderStepperProps {
   status: string;
@@ -10,14 +8,14 @@ interface OrderStepperProps {
 export const OrderStepper = ({ status }: OrderStepperProps) => {
   const { theme } = useTheme();
   const steps = [
-    { label: '결제확인', desc: '주문이 성공적으로 접수되었습니다.', icon: Check },
-    { label: '제작/검수 중', desc: '정성껏 제품을 제작하고 검수하고 있습니다.', icon: Hammer },
-    { label: '배송 중', desc: '제품이 배송지로 이동하고 있습니다.', icon: Truck },
-    { label: '배송완료', desc: '배송이 완료되었습니다. 감사합니다.', icon: CheckCircle2 },
+    { label: '결제확인', desc: '주문이 성공적으로 접수되었습니다.' },
+    { label: '제작/검수 중', desc: '정성껏 제품을 제작하고 검수하고 있습니다.' },
+    { label: '배송 중', desc: '제품이 배송지로 이동하고 있습니다.' },
+    { label: '배송완료', desc: '배송이 완료되었습니다. 감사합니다.' },
   ];
-  
-  const getActiveStep = (status: string) => {
-    switch (status) {
+
+  const getActiveStep = (value: string) => {
+    switch (value) {
       case 'PAID':
       case '결제확인':
       case '결제완료': return 0;
@@ -35,88 +33,38 @@ export const OrderStepper = ({ status }: OrderStepperProps) => {
   };
 
   const activeIndex = getActiveStep(status);
+  const progress = activeIndex <= 0 ? 0 : (activeIndex / (steps.length - 1)) * 100;
+  const ink = theme === 'dark' ? 'bg-[#f3f1ec]' : 'bg-[#16150f]';
+  const rule = theme === 'dark' ? 'bg-white/15' : 'bg-black/10';
+  const secondary = theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]';
 
   return (
-    <div className="w-full py-4 px-2">
-      <div className="relative space-y-10">
-        {/* Vertical Connecting Line */}
-        <div className={`absolute left-[15px] top-4 bottom-4 w-[2px] z-0 ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200'}`}>
-          <motion.div 
-            initial={{ height: 0 }}
-            animate={{ height: `${(activeIndex / (steps.length - 1)) * 100}%` }}
-            className="w-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"
-            transition={{ duration: 1, ease: "easeInOut" }}
-          />
-        </div>
-        
+    <div className="relative">
+      <div className={`absolute left-[3px] top-2 bottom-2 w-px ${rule}`}>
+        <div className={`w-px ${ink}`} style={{ height: `${progress}%` }} />
+      </div>
+      <ol className="space-y-6">
         {steps.map((step, idx) => {
           const isCompleted = idx < activeIndex;
           const isActive = idx === activeIndex;
-          const StepIcon = step.icon;
-          
+          const marked = isCompleted || isActive;
           return (
-            <div key={step.label} className="relative z-10 flex items-start gap-6 group">
-              {/* Indicator Circle */}
-              <div className="relative flex-shrink-0 mt-1">
-                <motion.div 
-                  animate={isActive ? {
-                    scale: [1, 1.15, 1],
-                    boxShadow: [
-                      "0 0 0px rgba(99, 102, 241, 0)",
-                      "0 0 20px rgba(99, 102, 241, 0.4)",
-                      "0 0 0px rgba(99, 102, 241, 0)"
-                    ]
-                  } : {}}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500 border-2 ${
-                    isActive 
-                      ? 'bg-indigo-600 border-indigo-400 text-white' 
-                      : isCompleted 
-                        ? theme === 'dark' ? 'bg-zinc-800 border-zinc-700 text-indigo-400' : 'bg-indigo-50 border-indigo-200 text-indigo-600'
-                        : theme === 'dark' ? 'bg-zinc-900 border-zinc-800 text-zinc-700' : 'bg-zinc-100 border-zinc-200 text-zinc-300'
-                  }`}
-                >
-                  {isCompleted ? (
-                    <Check size={16} strokeWidth={3} />
-                  ) : (
-                    <StepIcon size={16} strokeWidth={isActive ? 2.5 : 2} />
-                  )}
-                </motion.div>
-
-                {/* Breathing Aura for Active Step */}
-                {isActive && (
-                  <motion.div 
-                    initial={{ scale: 0.8, opacity: 0.5 }}
-                    animate={{ scale: 1.8, opacity: 0 }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
-                    className="absolute inset-0 bg-indigo-500 rounded-full -z-10"
-                  />
-                )}
-              </div>
-
-              {/* Text Content */}
-              <div className="flex flex-col gap-1 pt-0.5">
-                <h4 className={`text-sm font-black tracking-tight transition-colors duration-500 ${
-                  isActive 
-                    ? theme === 'dark' ? 'text-white' : 'text-black' 
-                    : isCompleted 
-                      ? theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700' 
-                      : theme === 'dark' ? 'text-zinc-600' : 'text-zinc-300'
-                }`}>
+            <li key={step.label} className="relative flex gap-4">
+              <span
+                className={`mt-1.5 h-1.5 w-1.5 shrink-0 ${marked ? ink : `border ${theme === 'dark' ? 'border-white/35 bg-[#101114]' : 'border-black/25 bg-[#f6f4ef]'}`}`}
+              />
+              <div className="min-w-0">
+                <p className={`text-sm ${isActive ? 'font-medium' : secondary}`}>
                   {step.label}
-                </h4>
-                <p className={`text-[11px] font-medium leading-relaxed transition-colors duration-500 ${
-                  isActive 
-                    ? theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500' 
-                    : theme === 'dark' ? 'text-zinc-700' : 'text-zinc-400'
-                }`}>
+                </p>
+                <p className={`mt-1 text-sm leading-relaxed ${secondary}`}>
                   {step.desc}
                 </p>
               </div>
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ol>
     </div>
   );
 };

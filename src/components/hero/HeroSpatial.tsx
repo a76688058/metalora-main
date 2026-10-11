@@ -312,6 +312,7 @@ export default function HeroSpatial() {
                 top: 'var(--hero-commerce-top, 62%)',
                 opacity: 'var(--hero-commerce-opacity, 0)',
                 pointerEvents: 'var(--hero-commerce-pe, none)' as React.CSSProperties['pointerEvents'],
+                visibility: 'var(--hero-commerce-visibility, hidden)' as React.CSSProperties['visibility'],
                 transform: 'translateX(-50%)',
               }}
             >

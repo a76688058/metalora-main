@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, animate } from 'framer-motion';
 import { X, ShoppingBag, ChevronRight, MapPin, CreditCard, CheckCircle2, Loader2, Trash2, Plus, Minus, Search, Check } from 'lucide-react';
-import { useCart } from '../context/CartContext';
+import { CART_AUTH_RETURN_KEY, useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useTheme } from '../context/ThemeContext';
@@ -21,7 +21,7 @@ import {
   reportPaymentFail,
   sanitizeTossFailureCode,
 } from '../lib/paymentFailureAnalytics';
-import { isUsableMemberProfile } from '../lib/authIntegrity';
+import { isUsableMemberProfile, safeInternalPath } from '../lib/authIntegrity';
 import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../lib/publicPaymentFreeze';
 import { checkoutPolicyVersionSnapshot } from '../lib/policyVersions';
 import { useWorkshopMediaDisplay } from '../hooks/useWorkshopMediaDisplay';
@@ -173,6 +173,8 @@ function mapSelectedItemsToAnalyticsItems(
 
 export default function Cart() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const cartAuthReturnPath = safeInternalPath(`${location.pathname}${location.search}`);
   const { cartItems, removeFromCart, updateQuantity, totalPrice, isLoading: isCartLoading, cartLoadFailed, refreshCart, isCartOpen, closeCart } = useCart();
   const { theme } = useTheme();
   const isOpen = isCartOpen;
@@ -194,7 +196,6 @@ export default function Cart() {
   const [step, setStep] = useState(1); // 1: List, 2: Order Form
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const pendingCheckoutRef = useRef(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [displayPrice, setDisplayPrice] = useState(0);
@@ -301,8 +302,8 @@ export default function Cart() {
     content: {
       title: '콘텐츠 권리 책임 동의',
       items: [
-        '업로드한 이미지의 <strong class="text-fuchsia-500">저작권 및 초상권</strong>은 본인에게 있습니다.',
-        '권리자의 허가 없이 사용 시 발생하는 <strong class="text-fuchsia-500">모든 법적 책임</strong>은 본인에게 있습니다.'
+        '업로드한 이미지의 <strong class="font-semibold">저작권 및 초상권</strong>은 본인에게 있습니다.',
+        '권리자의 허가 없이 사용 시 발생하는 <strong class="font-semibold">모든 법적 책임</strong>은 본인에게 있습니다.'
       ]
     },
     refund: {
@@ -310,19 +311,19 @@ export default function Cart() {
       items: [
         ...(hasWorkshopItems
           ? [
-              'WORKSHOP은 <strong class="text-fuchsia-500">이미지 검수 및 제작 승인 전</strong>까지 주문을 취소할 수 있습니다.',
-              '제작 승인 이후에는 사전 안내 및 동의한 범위에서 <strong class="text-fuchsia-500">단순변심에 의한 청약철회가 제한될 수 있습니다</strong>.',
-              '제품의 <strong class="text-fuchsia-500">불량·파손·오배송</strong>에 대한 교환·환불 권리는 제한되지 않습니다.',
+              'WORKSHOP은 <strong class="font-semibold">이미지 검수 및 제작 승인 전</strong>까지 주문을 취소할 수 있습니다.',
+              '제작 승인 이후에는 사전 안내 및 동의한 범위에서 <strong class="font-semibold">단순변심에 의한 청약철회가 제한될 수 있습니다</strong>.',
+              '제품의 <strong class="font-semibold">불량·파손·오배송</strong>에 대한 교환·환불 권리는 제한되지 않습니다.',
             ]
           : []),
-        '상품의 <strong class="text-fuchsia-500">명백한 하자 또는 오배송</strong>의 경우 수령 후 7일 이내에 교환/반품 신청이 가능합니다.',
-        '모니터 사양에 따른 <strong class="text-fuchsia-500">색상 차이, 원본 파일의 저화질 및 노이즈</strong>는 환불 사유에 해당하지 않음을 인지하였습니다.'
+        '상품의 <strong class="font-semibold">명백한 하자 또는 오배송</strong>의 경우 수령 후 7일 이내에 교환/반품 신청이 가능합니다.',
+        '모니터 사양에 따른 <strong class="font-semibold">색상 차이, 원본 파일의 저화질 및 노이즈</strong>는 환불 사유에 해당하지 않음을 인지하였습니다.'
       ]
     },
     terms: {
       title: '전체 약관 동의',
       items: [
-        '<strong class="text-fuchsia-500">이용약관, 개인정보처리방침, 쿠키 정책, 커스텀 제작 동의서</strong>를 모두 확인하였으며 이에 동의합니다.'
+        '<strong class="font-semibold">이용약관, 개인정보처리방침, 쿠키 정책, 커스텀 제작 동의서</strong>를 모두 확인하였으며 이에 동의합니다.'
       ]
     }
   };
@@ -397,26 +398,29 @@ export default function Cart() {
         : null;
   const canCheckout =
     Boolean(currentAuthUser) && isUsableMemberProfile(checkoutProfile);
+  const canCheckoutRef = useRef(canCheckout);
+  canCheckoutRef.current = canCheckout;
   const checkoutAuthPending =
     isAuthLoading || (Boolean(currentAuthUser) && !isProfileResolved);
 
   const beginCheckoutStep = () => {
-    if (selectedIds.size === 0 || isTransitioning || step !== 1) return;
+    if (selectedIds.size === 0 || step !== 1) return;
     track('begin_checkout', {
       currency: 'KRW',
       value: selectedTotalPrice,
       items: mapSelectedItemsToAnalyticsItems(selectedItems),
     });
-    setIsTransitioning(true);
-    setTimeout(() => {
-      setStep(2);
-      setIsTransitioning(false);
-    }, 600);
+    setStep(2);
   };
 
   const requireCheckoutAuth = (): boolean => {
     if (checkoutAuthPending) return false;
     if (canCheckout) return true;
+    try {
+      sessionStorage.setItem(CART_AUTH_RETURN_KEY, '1');
+    } catch {
+      // Session storage can be unavailable. Password login still stays on this page.
+    }
     pendingCheckoutRef.current = step === 1;
     setIsLoginModalOpen(true);
     return false;
@@ -717,20 +721,21 @@ export default function Cart() {
   };
 
   const handleNextStep = () => {
-    if (selectedIds.size === 0 || isTransitioning || step !== 1) return;
+    if (PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7) return;
+    if (selectedIds.size === 0 || step !== 1) return;
     if (!requireCheckoutAuth()) return;
     beginCheckoutStep();
   };
 
   const handlePrevStep = () => {
-    setIsTransitioning(true);
-    setTimeout(() => {
-      setStep(1);
-      setIsTransitioning(false);
-    }, 600);
+    setStep(1);
   };
 
   useEffect(() => {
+    if (PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7) {
+      pendingCheckoutRef.current = false;
+      return;
+    }
     if (!pendingCheckoutRef.current || isLoginModalOpen || checkoutAuthPending || !canCheckout) {
       return;
     }
@@ -755,61 +760,37 @@ export default function Cart() {
         className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto touch-none"
       />
 
-      {/* Cinematic Transition Overlay */}
-      <AnimatePresence>
-        {isTransitioning && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className={cn('absolute inset-0 bg-black/40 backdrop-blur-xl flex items-center justify-center pointer-events-none', zClass('criticalLoading'))}
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 1.2, opacity: 0 }}
-              className="flex flex-col items-center gap-4"
-            >
-              <div className="w-16 h-16 border-2 border-white/10 border-t-white rounded-full animate-spin" />
-              <span className="text-white font-bold tracking-[0.3em] uppercase text-[12px]">Processing...</span>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Cart Panel */}
       <motion.div
         initial={{ x: '100%' }}
         animate={{ x: 0 }}
         exit={{ opacity: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl pointer-events-auto transform-gpu will-change-transform transition-colors duration-500 ${
-          theme === 'dark' ? 'bg-[#0F0F11]' : 'bg-white'
+        className={`relative w-full max-w-lg h-full flex flex-col pointer-events-auto transform-gpu will-change-transform ${
+          theme === 'dark' ? 'bg-[#101114] text-[#f3f1ec]' : 'bg-[#f6f4ef] text-[#16150f]'
         }`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5">
-          <h2 className={`text-2xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+          <h2 className="text-[1.75rem] font-medium tracking-[-0.02em]">
             {step === 1 ? '장바구니' : '주문하기'}
           </h2>
           <button 
             onClick={onClose}
             aria-label="장바구니 닫기"
-            className={`p-2 rounded-full transition-all ${
-              theme === 'dark' ? 'bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-black'
-            }`}
+            className="focus-ring p-2 text-current/70 hover:text-current"
           >
             <X size={20} />
           </button>
         </div>
 
         {/* Step Indicator */}
-        <div className="px-6 pb-4 flex items-center gap-3 text-base font-bold tracking-tighter">
-          <span className={step === 1 ? (theme === 'dark' ? 'text-white' : 'text-black') : 'text-zinc-500'}>1. 장바구니</span>
-          <ChevronRight className="text-zinc-500/30" size={16} />
-          <span className={step === 2 ? (theme === 'dark' ? 'text-white' : 'text-black') : 'text-zinc-500'}>2. 주문서</span>
-          <ChevronRight className="text-zinc-500/30" size={16} />
-          <span className="text-zinc-600">3. 결제확인</span>
+        <div className="px-6 pb-6 flex items-center gap-3 text-sm tracking-tight">
+          <span className={step === 1 ? 'font-medium' : (theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]')}>장바구니</span>
+          <ChevronRight className={theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'} size={14} />
+          <span className={step === 2 ? 'font-medium' : (theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]')}>주문서</span>
+          <ChevronRight className={theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'} size={14} />
+          <span className={theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}>결제</span>
         </div>
 
         {/* Content */}
@@ -818,47 +799,39 @@ export default function Cart() {
             {step === 1 ? (
               <motion.div
                 key="step1"
-                initial={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
-                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, scale: 1.05, filter: 'blur(10px)' }}
-                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
                 className="py-4 space-y-4"
               >
                 {isCartLoading && cartItems.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-32 text-zinc-500 space-y-4">
                     <Loader2 size={28} className="animate-spin text-zinc-400" />
-                    <p className={`text-lg font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>장바구니를 불러오는 중</p>
+                    <p className="text-base font-medium">장바구니를 불러오는 중</p>
                   </div>
                 ) : cartLoadFailed && cartItems.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-32 text-zinc-500 space-y-4">
-                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${theme === 'dark' ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
-                      <ShoppingBag size={32} className="text-zinc-400" />
-                    </div>
-                    <p className={`text-lg font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>장바구니를 불러오지 못했습니다</p>
+                    <ShoppingBag size={32} strokeWidth={1} className={theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'} />
+                    <p className={`text-base font-medium ${theme === 'dark' ? 'text-[#f3f1ec]' : 'text-[#16150f]'}`}>장바구니를 불러오지 못했습니다</p>
                     <button
                       type="button"
                       onClick={() => { void refreshCart(); }}
-                      className={`px-6 py-3 font-medium rounded-2xl transition-colors mt-2 ${
-                        theme === 'dark' ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-zinc-100 text-black hover:bg-zinc-200'
-                      }`}
+                      className="mt-2 h-12 px-5 font-medium rounded-[2px] focus-ring bg-[#1a1914] text-[#f4f1eb] dark:bg-[#f2f0ea] dark:text-[#16150f]"
                     >
                       다시 시도
                     </button>
                   </div>
                 ) : cartItems.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-32 text-zinc-500 space-y-4">
-                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${theme === 'dark' ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
-                      <ShoppingBag size={32} className="text-zinc-400" />
-                    </div>
-                    <p className={`text-lg font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>장바구니가 비어있어요</p>
+                    <ShoppingBag size={32} strokeWidth={1} className={theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'} />
+                    <p className={`text-base font-medium ${theme === 'dark' ? 'text-[#f3f1ec]' : 'text-[#16150f]'}`}>장바구니가 비어 있습니다</p>
                     <button 
                       onClick={() => {
                         onClose();
                         navigate('/#marquee-section');
                       }}
-                      className={`px-6 py-3 font-medium rounded-2xl transition-colors mt-2 ${
-                        theme === 'dark' ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-zinc-100 text-black hover:bg-zinc-200'
-                      }`}
+                      className="mt-2 h-12 px-5 font-medium rounded-[2px] focus-ring bg-[#1a1914] text-[#f4f1eb] dark:bg-[#f2f0ea] dark:text-[#16150f]"
                     >
                       상품 둘러보기
                     </button>
@@ -869,12 +842,12 @@ export default function Cart() {
                     <div className="flex items-center justify-between px-1 mb-6">
                       <button 
                         onClick={toggleSelectAll}
-                        className={`flex items-center gap-2 transition-colors ${theme === 'dark' ? 'text-zinc-500 hover:text-white' : 'text-zinc-500 hover:text-black'}`}
+                        className={`flex items-center gap-2 transition-colors ${theme === 'dark' ? 'text-[#c9c4b8] hover:text-[#f3f1ec]' : 'text-[#3f3c36] hover:text-[#16150f]'}`}
                       >
-                        <span className={`text-sm font-bold tracking-tight ${selectedIds.size === cartItems.length ? 'text-fuchsia-500' : ''}`}>
+                        <span className="text-sm font-medium tracking-tight">
                           전체 선택
                         </span>
-                        <span className="text-sm text-zinc-400 font-medium">({selectedIds.size}/{cartItems.length})</span>
+                        <span className="text-sm font-medium">({selectedIds.size}/{cartItems.length})</span>
                       </button>
                     </div>
 
@@ -919,14 +892,12 @@ export default function Cart() {
                         <div 
                           key={item.id} 
                           onClick={() => toggleItemSelection(item.id)}
-                          className={`p-4 sm:p-6 rounded-[32px] flex gap-4 sm:gap-6 transition-all cursor-pointer border-[1.5px] ${
-                            theme === 'dark' ? 'bg-[#1C1C1E]' : 'bg-zinc-50'
-                          } ${
-                            isSelected 
-                              ? 'border-fuchsia-500/60 bg-fuchsia-500/[0.08] shadow-[0_0_30px_rgba(217,70,239,0.08)]' 
-                              : 'border-transparent'
-                          }`}
+                          className="py-6 flex gap-4 border-b border-black/10 dark:border-white/10 cursor-pointer"
                         >
+                          <span
+                            aria-hidden
+                            className={`mt-1 h-3.5 w-3.5 shrink-0 border ${isSelected ? 'bg-[#16150f] border-[#16150f] dark:bg-[#f3f1ec] dark:border-[#f3f1ec]' : 'border-black/30 dark:border-white/35'}`}
+                          />
                           <button
                             type="button"
                             aria-label={`${title} 상세 보기`}
@@ -934,7 +905,7 @@ export default function Cart() {
                               e.stopPropagation();
                               handleItemClick(e);
                             }}
-                            className={`${cartThumbFrameClass(rowOrientation)} rounded-2xl overflow-hidden shrink-0 hover:opacity-80 transition-opacity ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200'}`}
+                            className={`${cartThumbFrameClass(rowOrientation)} overflow-hidden shrink-0 hover:opacity-80 transition-opacity`}
                           >
                             {image ? (
                               <img
@@ -949,8 +920,8 @@ export default function Cart() {
                           <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
                             <div className="flex justify-between items-start gap-3">
                               <div className="min-w-0">
-                                <h3 className={`font-semibold text-lg leading-tight tracking-tight break-words ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{title}</h3>
-                                <p className="text-zinc-500 text-sm mt-2 font-medium">{optionDisplay}</p>
+                                <h3 className="font-medium text-base leading-tight tracking-[-0.02em] break-words">{title}</h3>
+                                <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>{optionDisplay}</p>
                               </div>
                               <button 
                                 type="button"
@@ -959,13 +930,13 @@ export default function Cart() {
                                   e.stopPropagation();
                                   void removeFromCart(item.id);
                                 }}
-                                className={`p-2 -mr-2 -mt-2 rounded-full transition-colors shrink-0 ${theme === 'dark' ? 'text-zinc-600 hover:text-white hover:bg-zinc-800' : 'text-zinc-400 hover:text-black hover:bg-zinc-100'}`}
+                                className={`p-2 -mr-2 -mt-2 shrink-0 focus-ring ${theme === 'dark' ? 'text-[#c9c4b8] hover:text-[#f3f1ec]' : 'text-[#3f3c36] hover:text-[#16150f]'}`}
                               >
                                 <X size={18} />
                               </button>
                             </div>
                             <div className="flex justify-between items-end mt-4 gap-3">
-                              <div className={`flex items-center rounded-full p-1 ${theme === 'dark' ? 'bg-zinc-900/80' : 'bg-zinc-200/80'}`}>
+                              <div className="flex items-center gap-1">
                                 <button 
                                   type="button"
                                   aria-label={`${title} 수량 줄이기`}
@@ -973,11 +944,11 @@ export default function Cart() {
                                     e.stopPropagation();
                                     void updateQuantity(item.id, item.quantity - 1);
                                   }}
-                                  className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${theme === 'dark' ? 'text-zinc-500 hover:text-white hover:bg-zinc-800' : 'text-zinc-500 hover:text-black hover:bg-zinc-300'}`}
+                                  className="w-8 h-8 flex items-center justify-center focus-ring"
                                 >
                                   <Minus size={16} />
                                 </button>
-                                <span className={`w-8 text-center text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{item.quantity}</span>
+                                <span className="w-8 text-center text-sm">{item.quantity}</span>
                                 <button 
                                   type="button"
                                   aria-label={`${title} 수량 늘리기`}
@@ -985,12 +956,12 @@ export default function Cart() {
                                     e.stopPropagation();
                                     void updateQuantity(item.id, item.quantity + 1);
                                   }}
-                                  className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${theme === 'dark' ? 'text-zinc-500 hover:text-white hover:bg-zinc-800' : 'text-zinc-500 hover:text-black hover:bg-zinc-300'}`}
+                                  className="w-8 h-8 flex items-center justify-center focus-ring"
                                 >
                                   <Plus size={16} />
                                 </button>
                               </div>
-                              <p className={`font-bold text-lg shrink-0 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{(price * item.quantity).toLocaleString()}</p>
+                              <p className="font-medium text-base shrink-0">₩{(price * item.quantity).toLocaleString()}</p>
                             </div>
                           </div>
                         </div>
@@ -1002,15 +973,15 @@ export default function Cart() {
             ) : (
               <motion.div
                 key="step2"
-                initial={{ opacity: 0, scale: 1.05, filter: 'blur(10px)' }}
-                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
-                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
                 className="py-4 space-y-8 pb-8"
               >
                 <section>
-                  <h3 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>주문 상품</h3>
-                  <div className={`rounded-3xl p-5 space-y-3 ${theme === 'dark' ? 'bg-[#1C1C1E]' : 'bg-zinc-50'}`}>
+                  <h3 className="text-sm font-medium mb-4">주문 상품</h3>
+                  <div className="space-y-4 border-b border-black/10 py-6 dark:border-white/10">
                     {selectedItems.map(item => {
                       const isWorkshop = isCustomCartRow(item);
                       const rowOrientation = cartRowOrientation(item);
@@ -1056,53 +1027,53 @@ export default function Cart() {
                 </section>
 
                 <section>
-                  <h3 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>배송지 정보</h3>
-                  <div className={`rounded-3xl p-5 space-y-5 ${theme === 'dark' ? 'bg-[#1C1C1E]' : 'bg-zinc-50'}`}>
+                  <h3 className="text-sm font-medium mb-4">배송지 정보</h3>
+                  <div className="space-y-5 border-b border-black/10 py-8 dark:border-white/10">
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-zinc-400 mb-2 ml-1">받는 사람</label>
+                        <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>받는 사람</label>
                         <input 
                           type="text"
                           value={shippingData.name}
                           onChange={(e) => setShippingData({...shippingData, name: e.target.value})}
-                          className={`w-full border-none rounded-2xl px-4 py-4 placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all ${
-                            theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
+                          className={`w-full rounded-[2px] border px-4 py-3 text-base focus:outline-none focus-ring ${
+                            theme === 'dark' ? 'border-white/20 bg-transparent text-[#f3f1ec] placeholder:text-[#8d887e]' : 'border-black/15 bg-transparent text-[#16150f] placeholder:text-[#6b675f]'
                           }`}
                           placeholder="이름을 입력해주세요"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-zinc-400 mb-2 ml-1">연락처</label>
+                        <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>연락처</label>
                         <input 
                           type="tel"
                           value={shippingData.phone}
                           onChange={(e) => setShippingData({...shippingData, phone: e.target.value})}
-                          className={`w-full border-none rounded-2xl px-4 py-4 placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all ${
-                            theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
+                          className={`w-full rounded-[2px] border px-4 py-3 text-base focus:outline-none focus-ring ${
+                            theme === 'dark' ? 'border-white/20 bg-transparent text-[#f3f1ec] placeholder:text-[#8d887e]' : 'border-black/15 bg-transparent text-[#16150f] placeholder:text-[#6b675f]'
                           }`}
                           placeholder="010-0000-0000"
                         />
                       </div>
                     </div>
                     
-                    <div className={`h-[1px] my-2 ${theme === 'dark' ? 'bg-zinc-800/50' : 'bg-zinc-200'}`} />
+                    <div className="my-2 h-px bg-black/10 dark:bg-white/10" />
                     
                     <div className="space-y-4">
-                      <label className="block text-sm font-medium text-zinc-400 mb-2 ml-1">주소</label>
+                      <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>주소</label>
                       <div className="flex gap-2">
                         <input 
                           type="text"
                           readOnly
                           value={shippingData.zipCode}
-                          className={`w-28 border-none rounded-2xl px-4 py-4 focus:ring-2 focus:ring-[#3182F6] transition-all ${
-                            theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
+                          className={`w-28 rounded-[2px] border px-4 py-3 text-base focus:outline-none focus-ring ${
+                            theme === 'dark' ? 'border-white/20 bg-transparent text-[#f3f1ec]' : 'border-black/15 bg-transparent text-[#16150f]'
                           }`}
                           placeholder="우편번호"
                         />
                         <button 
                           onClick={handleOpenPostcode}
-                          className={`px-6 font-medium rounded-2xl transition-all ${
-                            theme === 'dark' ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-zinc-200 hover:bg-zinc-300 text-black'
+                          className={`h-12 px-4 font-medium rounded-[2px] focus-ring ${
+                            theme === 'dark' ? 'bg-[#f2f0ea] text-[#16150f]' : 'bg-[#1a1914] text-[#f4f1eb]'
                           }`}
                         >
                           주소 검색
@@ -1110,7 +1081,7 @@ export default function Cart() {
                       </div>
                       
                       {isPostcodeOpen && (
-                        <div className={`mt-4 border rounded-2xl overflow-hidden ${theme === 'dark' ? 'bg-white border-zinc-800' : 'bg-white border-zinc-200'}`}>
+                        <div className="mt-4 overflow-hidden border border-black/10 bg-white dark:border-white/10">
                           <div className={`flex justify-between items-center p-3 border-b ${theme === 'dark' ? 'bg-zinc-100 border-zinc-200' : 'bg-zinc-50 border-zinc-200'}`}>
                             <span className="text-sm font-bold text-zinc-800">우편번호 검색</span>
                             <button onClick={() => setIsPostcodeOpen(false)} className="text-zinc-500 hover:text-zinc-800 p-1"><X size={18} /></button>
@@ -1123,8 +1094,8 @@ export default function Cart() {
                         type="text"
                         readOnly
                         value={shippingData.address}
-                        className={`w-full border-none rounded-2xl px-4 py-4 focus:ring-2 focus:ring-[#3182F6] transition-all ${
-                          theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
+                        className={`w-full rounded-[2px] border px-4 py-3 text-base focus:outline-none focus-ring ${
+                          theme === 'dark' ? 'border-white/20 bg-transparent text-[#f3f1ec]' : 'border-black/15 bg-transparent text-[#16150f]'
                         }`}
                         placeholder="기본 주소"
                       />
@@ -1132,8 +1103,8 @@ export default function Cart() {
                         type="text"
                         value={shippingData.addressDetail}
                         onChange={(e) => setShippingData({...shippingData, addressDetail: e.target.value})}
-                        className={`w-full border-none rounded-2xl px-4 py-4 placeholder:text-zinc-600 focus:ring-2 focus:ring-[#3182F6] transition-all ${
-                          theme === 'dark' ? 'bg-zinc-800/50 text-white' : 'bg-zinc-200/50 text-black'
+                        className={`w-full rounded-[2px] border px-4 py-3 text-base focus:outline-none focus-ring placeholder:text-[#6b675f] dark:placeholder:text-[#8d887e] ${
+                          theme === 'dark' ? 'border-white/20 bg-transparent text-[#f3f1ec]' : 'border-black/15 bg-transparent text-[#16150f]'
                         }`}
                         placeholder="상세 주소를 입력해주세요"
                       />
@@ -1142,36 +1113,20 @@ export default function Cart() {
                 </section>
 
                 <section className="space-y-6">
-                  <h3 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>결제 수단</h3>
+                  <h3 className="text-sm font-medium mb-4">결제 수단</h3>
                   {PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 ? (
-                    <div className={`relative rounded-2xl p-6 border ${
-                      theme === 'dark' ? 'bg-[#1C1C1E] border-white/10' : 'bg-zinc-50 border-black/10'
-                    }`}>
-                      <p className={`font-extrabold text-xl tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>결제 준비 중</p>
-                      <p className={`text-sm font-medium mt-2 ${theme === 'dark' ? 'text-white/60' : 'text-black/60'}`}>현재 결제 기능을 준비하고 있습니다.</p>
+                    <div className="border-b border-black/10 py-5 dark:border-white/10">
+                      <p className="text-base font-medium">결제 준비 중</p>
+                      <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>현재 결제 기능을 준비하고 있습니다.</p>
                     </div>
                   ) : (
-                    <div className={`relative rounded-2xl p-6 border-2 shadow-[0_0_15px_rgba(217,70,239,0.15)] transition-all cursor-pointer group overflow-hidden ${
-                      theme === 'dark' ? 'bg-[#1C1C1E] border-fuchsia-500/50' : 'bg-zinc-50 border-fuchsia-500/30'
-                    }`}>
-                      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 pointer-events-none" />
-                      <div className="relative z-10 flex justify-between items-start">
-                        <div className="flex flex-col">
-                          <p className={`font-extrabold text-xl tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>간편 결제</p>
-                          <p className={`text-sm font-medium mt-1 ${theme === 'dark' ? 'text-white/60' : 'text-black/60'}`}>신용/체크카드 및 간편 결제 지원</p>
+                    <div className="border-b border-black/10 py-5 dark:border-white/10">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-base font-medium">간편 결제</p>
+                          <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>신용/체크카드 및 간편 결제</p>
                         </div>
-                        <CheckCircle2 className="text-fuchsia-500 drop-shadow-[0_0_8px_rgba(217,70,239,0.5)]" size={24} />
-                      </div>
-                      <div className="relative z-10 flex items-center gap-3 mt-6">
-                        <div className="w-11 h-11 bg-[#3182F6] rounded-full flex items-center justify-center text-white font-bold text-[12px] italic border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
-                          toss
-                        </div>
-                        <div className="w-11 h-11 bg-[#FEE500] rounded-full flex items-center justify-center text-[#191919] font-bold text-[12px] border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
-                          pay
-                        </div>
-                        <div className="w-11 h-11 bg-[#03C75A] rounded-full flex items-center justify-center text-white font-bold text-[12px] border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
-                          N
-                        </div>
+                        <CheckCircle2 size={18} />
                       </div>
                     </div>
                   )}
@@ -1182,14 +1137,14 @@ export default function Cart() {
         </div>
 
         {/* Footer */}
-        <div className={`px-6 pt-6 pb-12 border-t transition-colors duration-500 ${theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'}`}>
-          <div className="flex justify-between items-end mb-6 px-2">
-            <span className="text-zinc-400 font-medium">총 결제 금액</span>
-            <span className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{displayPrice.toLocaleString()}</span>
+        <div className={`px-6 pt-6 pb-12 border-t ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}>
+          <div className="flex justify-between items-end mb-6">
+            <span className={`text-sm font-medium ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>총 결제 금액</span>
+            <span className="text-[1.75rem] font-medium tracking-[-0.03em]">₩{displayPrice.toLocaleString()}</span>
           </div>
 
-          {step === 2 && PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 && (
-            <p className={`text-sm font-medium mb-3 px-2 ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'}`}>
+          {PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 && (
+            <p className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>
               현재 결제 기능을 준비하고 있습니다.
             </p>
           )}
@@ -1199,8 +1154,8 @@ export default function Cart() {
               <button 
                 type="button"
                 onClick={handlePrevStep}
-                className={`w-1/3 h-14 font-semibold rounded-2xl transition-all ${
-                  theme === 'dark' ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-zinc-100 text-black hover:bg-zinc-200'
+                className={`w-1/3 h-12 font-medium rounded-[2px] transition-colors ${
+                  theme === 'dark' ? 'bg-white/10 text-[#f3f1ec] hover:bg-white/15' : 'bg-black/5 text-[#16150f] hover:bg-black/10'
                 }`}
               >
                 이전
@@ -1212,19 +1167,19 @@ export default function Cart() {
                 if (PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7) return;
                 setIsBottomSheetOpen(true);
               }}
-              disabled={selectedItems.length === 0 || isProcessing || (step === 2 && PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7)}
-              className={`flex-1 h-14 text-white font-bold text-lg rounded-2xl flex items-center justify-center gap-2 transition-all ${
-                selectedItems.length === 0 || isProcessing || (step === 2 && PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7)
-                  ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-                  : 'btn-cyberpunk'
+              disabled={selectedItems.length === 0 || isProcessing || PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7}
+              className={`flex-1 h-12 text-base font-medium tracking-[-0.02em] rounded-[2px] flex items-center justify-center gap-2 transition-colors ${
+                selectedItems.length === 0 || isProcessing || PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7
+                  ? (theme === 'dark' ? 'bg-[#2a2b31] text-[#f3f1ec]/35 cursor-not-allowed' : 'bg-[#e4dfd6] text-[#16150f]/35 cursor-not-allowed')
+                  : (theme === 'dark' ? 'bg-[#f2f0ea] text-[#16150f] hover:brightness-105' : 'bg-[#1a1914] text-[#f4f1eb] hover:brightness-110')
               }`}
             >
               {isProcessing ? (
                 <Loader2 className="animate-spin" size={24} />
-              ) : step === 1 ? (
-                selectedIds.size === 0 ? '상품을 선택해주세요' : '주문하기'
               ) : PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 ? (
                 '결제 준비 중'
+              ) : step === 1 ? (
+                selectedIds.size === 0 ? '상품을 선택해주세요' : '주문하기'
               ) : (
                 '결제하기'
               )}
@@ -1243,9 +1198,16 @@ export default function Cart() {
 
       <LoginModal
         isOpen={isLoginModalOpen}
+        redirectUrl={cartAuthReturnPath}
         onClose={() => {
-          pendingCheckoutRef.current = false;
           setIsLoginModalOpen(false);
+          if (canCheckoutRef.current) return;
+          pendingCheckoutRef.current = false;
+          try {
+            sessionStorage.removeItem(CART_AUTH_RETURN_KEY);
+          } catch {
+            // ignore
+          }
         }}
         onSuccess={() => setIsLoginModalOpen(false)}
       />
@@ -1265,36 +1227,34 @@ export default function Cart() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className={`relative w-full max-w-md rounded-[32px] overflow-hidden border shadow-2xl transition-colors duration-500 ${
-                theme === 'dark' ? 'bg-[#1C1C1E] border-white/10' : 'bg-white border-black/5'
+              className={`relative w-full max-w-md overflow-hidden border transition-colors duration-500 ${
+                theme === 'dark' ? 'bg-[#101114] text-[#f3f1ec] border-white/10' : 'bg-[#f6f4ef] text-[#16150f] border-black/10'
               }`}
             >
-              <div className={`p-6 border-b flex justify-between items-center ${theme === 'dark' ? 'border-white/5' : 'border-black/5'}`}>
-                <h4 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{CONSENT_TEXTS[consentModal.type].title}</h4>
+              <div className={`p-6 border-b flex justify-between items-center ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}>
+                <h4 className="text-lg font-medium tracking-[-0.02em]">{CONSENT_TEXTS[consentModal.type].title}</h4>
                 <button 
                   onClick={() => setConsentModal({ isOpen: false, type: null })}
-                  className={`p-2 transition-colors ${theme === 'dark' ? 'text-zinc-500 hover:text-white' : 'text-zinc-400 hover:text-black'}`}
+                  className={`p-2 transition-colors ${theme === 'dark' ? 'text-[#c9c4b8] hover:text-[#f3f1ec]' : 'text-[#3f3c36] hover:text-[#16150f]'}`}
                 >
                   <X size={20} />
                 </button>
               </div>
-              <div className={`p-8 max-h-[60vh] overflow-y-auto space-y-6 ${theme === 'dark' ? 'bg-black' : 'bg-zinc-50'}`}>
+              <div className="max-h-[60vh] space-y-6 overflow-y-auto p-8">
                 {CONSENT_TEXTS[consentModal.type].items.map((item, idx) => (
                   <div key={idx} className="flex gap-4 items-start">
-                    <div className="mt-2 w-1.5 h-1.5 rounded-full bg-fuchsia-500 shrink-0 shadow-[0_0_8px_rgba(217,70,239,0.5)]" />
+                    <div className={`mt-2 h-1 w-1 shrink-0 ${theme === 'dark' ? 'bg-[#c9c4b8]' : 'bg-[#3f3c36]'}`} />
                     <p 
-                      className={`text-base leading-relaxed tracking-tight ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-600'}`}
+                      className={`text-base leading-relaxed tracking-tight ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}
                       dangerouslySetInnerHTML={{ __html: item }}
                     />
                   </div>
                 ))}
               </div>
-              <div className={`p-6 ${theme === 'dark' ? 'bg-zinc-900/50' : 'bg-zinc-100'}`}>
+              <div className={`border-t p-6 ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}>
                 <button 
                   onClick={() => setConsentModal({ isOpen: false, type: null })}
-                  className={`w-full h-12 font-bold rounded-xl transition-colors ${
-                    theme === 'dark' ? 'bg-white text-black hover:bg-zinc-200' : 'bg-black text-white hover:bg-zinc-800'
-                  }`}
+                  className="h-12 w-full rounded-[2px] font-medium focus-ring bg-[#1a1914] text-[#f4f1eb] dark:bg-[#f2f0ea] dark:text-[#16150f]"
                 >
                   확인
                 </button>
@@ -1348,20 +1308,20 @@ export default function Cart() {
                         <div 
                           onClick={() => setConsents(prev => ({ ...prev, content: !prev.content }))}
                           className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all ${
-                            consents.content ? 'bg-fuchsia-500 border-fuchsia-500' : (theme === 'dark' ? 'border-zinc-700 hover:border-zinc-500' : 'border-zinc-300 hover:border-zinc-400')
+                            consents.content ? 'bg-[#16150f] border-[#16150f] dark:bg-[#f3f1ec] dark:border-[#f3f1ec]' : (theme === 'dark' ? 'border-zinc-700 hover:border-zinc-500' : 'border-zinc-300 hover:border-zinc-400')
                           }`}
                         >
-                          {consents.content && <Check size={16} className="text-white" />}
+                          {consents.content && <Check size={16} className="text-[#f4f1eb] dark:text-[#16150f]" />}
                         </div>
                         <span className={`text-base font-medium ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                          <span className="text-fuchsia-500 mr-1">(필수)</span>
+                          <span className="mr-1">(필수)</span>
                           콘텐츠 권리 책임 동의
                         </span>
                       </label>
                       <button 
                         onClick={() => setPolicyModal({ isOpen: true, key: 'agreement' })}
                         className={`text-sm underline underline-offset-4 px-3 py-2 transition-colors ${
-                          theme === 'dark' ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600'
+                          theme === 'dark' ? 'text-[#c9c4b8] hover:text-[#f3f1ec]' : 'text-[#3f3c36] hover:text-[#16150f]'
                         }`}
                       >
                         자세히 보기
@@ -1374,14 +1334,14 @@ export default function Cart() {
                       <div 
                         onClick={() => setConsents(prev => ({ ...prev, refund: !prev.refund }))}
                         className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${
-                          consents.refund ? 'bg-fuchsia-500 border-fuchsia-500' : (theme === 'dark' ? 'border-zinc-700 hover:border-zinc-500' : 'border-zinc-300 hover:border-zinc-400')
+                          consents.refund ? 'bg-[#16150f] border-[#16150f] dark:bg-[#f3f1ec] dark:border-[#f3f1ec]' : (theme === 'dark' ? 'border-zinc-700 hover:border-zinc-500' : 'border-zinc-300 hover:border-zinc-400')
                         }`}
                       >
-                        {consents.refund && <Check size={16} className="text-white" />}
+                        {consents.refund && <Check size={16} className="text-[#f4f1eb] dark:text-[#16150f]" />}
                       </div>
                       <span className="min-w-0">
                         <span className={`block text-base font-medium ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                          <span className="text-fuchsia-500 mr-1">(필수)</span>
+                          <span className="mr-1">(필수)</span>
                           환불 정책 동의
                         </span>
                         {hasWorkshopItems && (
@@ -1394,7 +1354,7 @@ export default function Cart() {
                     <button 
                       onClick={() => setPolicyModal({ isOpen: true, key: 'refund' })}
                       className={`text-sm underline underline-offset-4 px-3 py-2 transition-colors ${
-                        theme === 'dark' ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600'
+                        theme === 'dark' ? 'text-[#c9c4b8] hover:text-[#f3f1ec]' : 'text-[#3f3c36] hover:text-[#16150f]'
                       }`}
                     >
                       자세히 보기
@@ -1406,20 +1366,20 @@ export default function Cart() {
                       <div 
                         onClick={() => setConsents(prev => ({ ...prev, terms: !prev.terms }))}
                         className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all ${
-                          consents.terms ? 'bg-fuchsia-500 border-fuchsia-500' : (theme === 'dark' ? 'border-zinc-700 hover:border-zinc-500' : 'border-zinc-300 hover:border-zinc-400')
+                          consents.terms ? 'bg-[#16150f] border-[#16150f] dark:bg-[#f3f1ec] dark:border-[#f3f1ec]' : (theme === 'dark' ? 'border-zinc-700 hover:border-zinc-500' : 'border-zinc-300 hover:border-zinc-400')
                         }`}
                       >
-                        {consents.terms && <Check size={16} className="text-white" />}
+                        {consents.terms && <Check size={16} className="text-[#f4f1eb] dark:text-[#16150f]" />}
                       </div>
                       <span className={`text-base font-medium ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                        <span className="text-fuchsia-500 mr-1">(필수)</span>
+                        <span className="mr-1">(필수)</span>
                         전체 약관 동의
                       </span>
                     </label>
                     <button 
                       onClick={() => setPolicyModal({ isOpen: true, key: 'terms' })}
                       className={`text-sm underline underline-offset-4 px-3 py-2 transition-colors ${
-                        theme === 'dark' ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600'
+                        theme === 'dark' ? 'text-[#c9c4b8] hover:text-[#f3f1ec]' : 'text-[#3f3c36] hover:text-[#16150f]'
                       }`}
                     >
                       자세히 보기
@@ -1431,10 +1391,10 @@ export default function Cart() {
                   type="button"
                   onClick={handlePayment}
                   disabled={PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 || !isAllConsented || isProcessing}
-                  className={`w-full h-16 text-white font-bold text-lg rounded-2xl flex items-center justify-center gap-2 transition-all ${
+                  className={`w-full h-12 font-medium tracking-[-0.02em] rounded-[2px] flex items-center justify-center gap-2 ${
                     !isAllConsented || isProcessing
-                      ? (theme === 'dark' ? 'bg-zinc-800 text-zinc-500' : 'bg-zinc-200 text-zinc-400') + ' cursor-not-allowed'
-                      : 'bg-gradient-to-r from-fuchsia-600 to-purple-600 shadow-[0_0_20px_rgba(217,70,239,0.3)] active:scale-[0.98]'
+                      ? (theme === 'dark' ? 'bg-[#2a2b31] text-[#f3f1ec]/40 cursor-not-allowed' : 'bg-[#e4dfd6] text-[#16150f]/40 cursor-not-allowed')
+                      : (theme === 'dark' ? 'bg-[#f2f0ea] text-[#16150f]' : 'bg-[#1a1914] text-[#f4f1eb]')
                   }`}
                 >
                   {isProcessing ? (

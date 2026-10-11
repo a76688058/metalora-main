@@ -12,6 +12,7 @@ import { zClass } from '../constants/overlays';
 import { isPendingC1SocialCustomer, isUsableMemberProfile } from '../lib/authIntegrity';
 import AnnouncementBar from './AnnouncementBar';
 import AccountDrawer from './auth/AccountDrawer';
+import WorkshopPendingResume from './Workshop/WorkshopPendingResume';
 
 const LoginModal = lazy(() => import('./LoginModal'));
 
@@ -55,8 +56,6 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const isAdminChrome = isProfileResolved && Boolean(profile?.is_admin || adminProfile?.is_admin);
   const hasMemberChrome = isUsableCustomer || isAdminChrome;
   const pendingSocialCustomer = isProfileResolved && isPendingC1SocialCustomer(user, profile);
-  const isAdmin = profile?.is_admin || adminProfile?.is_admin;
-  const accountLabel = hasMemberChrome ? (isAdmin ? '관리자 대시보드' : '내 정보') : '로그인';
 
   useEffect(() => {
     setLocalSearch(searchQuery);
@@ -228,15 +227,6 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const handleAccount = () => {
     clearPendingCustomAccess();
     if (hasMemberChrome) {
-      if (isAdmin) {
-        if (isProfileOpen) closeProfile();
-        if (isCartOpen) closeCart();
-        if (isWorkshopOpen) closeWorkshop();
-        setIsSearchOpen(false);
-        setIsAccountDrawerOpen(false);
-        navigate('/admin');
-        return;
-      }
       if (isProfileOpen) {
         closeProfile();
       } else {
@@ -269,6 +259,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
 
   return (
     <>
+      <WorkshopPendingResume />
       <header
         ref={searchRef}
         className={cn(
@@ -357,7 +348,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
               {hasMemberChrome ? (
                 <IconButton
                   variant="ghost"
-                  aria-label={accountLabel}
+                  aria-label="내 정보"
                   onClick={handleAccount}
                   className={cn('shrink-0', iconTone, homeControlClass)}
                 >

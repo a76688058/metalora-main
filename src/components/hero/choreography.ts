@@ -36,6 +36,7 @@ export function evaluateHeroUiChannels(
 } {
   const commerceIn = smoothstep(0.72, 0.78, storyP);
   const commercePeak = 0.72 + smoothstep(0.78, 0.86, storyP) * 0.28;
+  const curtainCoversCommerce = 1 - smoothstep(0.04, 0.22, coverP);
 
   // Collection choreography driven by cover phase only
   const curtainRise = coverP;
@@ -45,7 +46,7 @@ export function evaluateHeroUiChannels(
 
   return {
     scrollCueOpacity: 1 - smoothstep(0.08, KEYFRAME_ROOM_END, storyP),
-    commerceOpacity: Math.min(1, commerceIn * commercePeak),
+    commerceOpacity: Math.min(1, commerceIn * commercePeak) * curtainCoversCommerce,
     shellOpacity: 1,
     exitOpacity: 1,
     collectionEnter: curtainRise,

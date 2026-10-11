@@ -4,7 +4,7 @@ import { ChevronLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import CopyrightPage from './Workshop/CopyrightPage';
-import WorkshopView from './Workshop/WorkshopView';
+import WorkshopView, { workshopSurfaceStyle } from './Workshop/WorkshopView';
 import { supabase } from '../lib/supabase';
 import { POLICY_TYPES, POLICY_VERSIONS } from '../lib/policyVersions';
 
@@ -144,7 +144,7 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
     >
       <div
         onClick={view === 'workshop' ? undefined : handleExit}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto touch-none"
+        className="absolute inset-0 bg-black/40 pointer-events-auto touch-none"
       />
 
       <motion.div
@@ -152,9 +152,8 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
         animate={{ x: 0 }}
         exit={{ opacity: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className={`relative w-full h-full flex flex-col shadow-2xl overflow-hidden pointer-events-auto border-l will-change-transform transform-gpu ${
-          theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'
-        }`}
+        className="pointer-events-auto relative flex h-full w-full transform-gpu flex-col overflow-hidden border-l border-border-subtle will-change-transform max-[1099px]:h-[100dvh] max-[1099px]:max-h-[100dvh]"
+        style={workshopSurfaceStyle(theme)}
       >
         {isCheckingAgreement ? (
           <div className="flex-1 flex items-center justify-center" role="status" aria-live="polite">
@@ -167,11 +166,7 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
               <button
                 type="button"
                 onClick={handleExit}
-                className={`focus-ring rounded-full p-2 ${
-                  theme === 'dark'
-                    ? 'bg-zinc-800/50 text-zinc-400 hover:bg-zinc-800 hover:text-white'
-                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-black'
-                }`}
+                className="focus-ring p-2 text-text-secondary hover:text-text-primary"
                 aria-label="닫기"
               >
                 <ChevronLeft size={20} />
@@ -183,7 +178,7 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
             />
           </div>
         ) : (
-          <div className="flex-1 flex flex-col h-full overflow-hidden">
+          <div className="flex-1 flex flex-col h-full overflow-hidden max-[1099px]:h-auto max-[1099px]:min-h-0">
             <WorkshopView
               onClose={handleExit}
               onBack={handleExit}

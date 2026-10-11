@@ -171,6 +171,17 @@ function ProductGrid({ products }: ProductGridProps) {
         className={`flex w-max items-center transform-gpu will-change-transform ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         style={{ x }}
         drag="x"
+        dragMomentum={false}
+        onPointerDown={() => {
+          isAutoPlaying.current = false;
+          lastDragTime.current = Date.now();
+        }}
+        onPointerUp={() => {
+          lastDragTime.current = Date.now();
+        }}
+        onPointerCancel={() => {
+          lastDragTime.current = Date.now();
+        }}
         onDragStart={() => setIsDragging(true)}
         onDragEnd={() => setIsDragging(false)}
         dragTransition={{ power: 0.8, timeConstant: 200, restDelta: 0.5 }}

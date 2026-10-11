@@ -42,10 +42,9 @@ export function useHeroUiVars(
         el.style.setProperty('--hero-cover-p', String(collectionCoverProgress));
         el.style.setProperty('--hero-scroll-cue-opacity', String(ui.scrollCueOpacity));
         el.style.setProperty('--hero-commerce-opacity', String(ui.commerceOpacity));
-        el.style.setProperty(
-          '--hero-commerce-pe',
-          ui.commerceOpacity < 0.05 ? 'none' : 'auto',
-        );
+        const commerceVisible = ui.commerceOpacity >= 0.05;
+        el.style.setProperty('--hero-commerce-pe', commerceVisible ? 'auto' : 'none');
+        el.style.setProperty('--hero-commerce-visibility', commerceVisible ? 'visible' : 'hidden');
         el.style.setProperty('--hero-shell-opacity', String(ui.shellOpacity));
         el.style.setProperty('--hero-collection-enter', String(ui.collectionEnter));
         el.style.setProperty('--hero-curtain-rise', String(ui.curtainRise));

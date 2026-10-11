@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AccountDrawer from '../components/auth/AccountDrawer';
 import LoginModal from '../components/LoginModal';
@@ -19,13 +19,19 @@ export default function Login() {
   const drawerOpen = !pendingSocial;
   const modalOpen = pendingSocial || authOpen;
 
+  const leaveAuth = useCallback(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
+    navigate(redirectUrl, { replace: true });
+  }, [navigate, redirectUrl]);
+
   useEffect(() => {
     if (!authReady || !user || !isUsableMemberProfile(profile)) return;
-    navigate(redirectUrl, { replace: true });
-  }, [user, profile, authReady, navigate, redirectUrl]);
+    leaveAuth();
+  }, [user, profile, authReady, leaveAuth]);
 
   const handleSuccess = () => {
-    navigate(redirectUrl, { replace: true });
+    leaveAuth();
   };
 
   return (
