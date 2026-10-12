@@ -78,6 +78,14 @@ function releaseAuthFocus() {
   if (active instanceof HTMLElement) active.blur();
 }
 
+function canRestoreFocus(el: HTMLElement | null): el is HTMLElement {
+  if (!el || !el.isConnected) return false;
+  if (el === document.body || el === document.documentElement) return false;
+  if (el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true') return false;
+  if (el.closest('[inert]')) return false;
+  return true;
+}
+
 function signupRevealRank(step: SignupRevealStep): number {
   return SIGNUP_REVEAL_STEPS.indexOf(step);
 }
@@ -238,6 +246,9 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
   const [reduceMotion, setReduceMotion] = useState(false);
   const [fieldFocus, setFieldFocus] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
   const rafRef = useRef(0);
   const leaveTimerRef = useRef<number | null>(null);
 
@@ -424,8 +435,36 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     }
   }, [isOpen, registerLoginOverlay]);
 
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body && !panelRef.current?.contains(active)) {
+      openerRef.current = active;
+    }
+    const root = panelRef.current;
+    const target = root?.querySelector<HTMLElement>(
+      'input:not([disabled]), button:not([disabled]), a[href], select:not([disabled]), textarea:not([disabled])',
+    );
+    if (target) target.focus();
+    else root?.focus();
+  }, [isOpen]);
+
+  const restoreOpenerFocus = () => {
+    const opener = openerRef.current;
+    openerRef.current = null;
+    if (!canRestoreFocus(opener)) return;
+    const apply = () => {
+      if (isOpenRef.current || !canRestoreFocus(opener)) return;
+      if (document.activeElement === opener) return;
+      opener.focus({ preventScroll: true });
+    };
+    apply();
+    requestAnimationFrame(apply);
+  };
+
   const handleLoginOverlayExit = () => {
     registerLoginOverlay('login', false);
+    restoreOpenerFocus();
   };
 
   useEffect(() => {
@@ -455,17 +494,15 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
-      if (policyModalState.isOpen) return;
-      if (surfaceView === 'login' || surfaceView === "signup" || surfaceView === "recovery") return;
-      if (surfaceView !== 'social') {
-        goBack();
+      if (policyModalState.isOpen) {
+        setPolicyModalState({ isOpen: false, key: null });
         return;
       }
       void abandonOrClose();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, surfaceView, policyModalState.isOpen, onClose, pendingSocial, abandoningPending]);
+  }, [isOpen, policyModalState.isOpen, pendingSocial, abandoningPending, onClose]);
 
   useEffect(() => {
     if (otpVerified && isOtpExpiryCustomerCopy(errorMsg)) clearAlerts();
@@ -1740,6 +1777,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
             >
             <motion.div
               ref={panelRef}
+              tabIndex={-1}
               initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.985 }}
               animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0 }}

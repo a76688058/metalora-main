@@ -8,6 +8,7 @@ import ProfileComplete from './pages/ProfileComplete';
 import AuthCallback from './pages/AuthCallback';
 import MemberEnrollExisting from './pages/MemberEnrollExisting';
 import PolicyPage from './pages/PolicyPage';
+import NotFound from './pages/NotFound';
 import LoadingScreen from './components/LoadingScreen';
 import AdminBanner from './components/AdminBanner';
 import ProfileOverlay from './components/ProfileOverlay';
@@ -168,6 +169,7 @@ function AnimatedRoutes() {
         <Route path="/admin/users" element={<ProtectedRoute requireAdmin={true}><LazyRoute><AdminUsers /></LazyRoute></ProtectedRoute>} />
         <Route path="/admin/best-sellers" element={<ProtectedRoute requireAdmin={true}><LazyRoute><AdminBestSellers /></LazyRoute></ProtectedRoute>} />
         <Route path="/admin/banners" element={<ProtectedRoute requireAdmin={true}><LazyRoute><AdminBanners /></LazyRoute></ProtectedRoute>} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>
   );

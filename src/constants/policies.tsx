@@ -221,7 +221,7 @@ export const policies = {
               ■ 현재 무료배송
             </h4>
             <p className="text-[15px] text-zinc-700 dark:text-zinc-300 leading-relaxed font-normal">
-              현재 무료배송입니다. 제주·도서산간을 포함한 고객 추가 배송비는 없습니다.
+              현재 무료배송입니다. 제주·도서산간은 추가 배송비가 발생합니다.
             </p>
           </div>
 

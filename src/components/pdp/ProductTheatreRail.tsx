@@ -247,6 +247,7 @@ export function ProductTheatreRail({
             장바구니로
           </Button>
         ) : (
+          <div data-pdp-purchase-action="">
           <Button
             fullWidth
             onClick={onAddToCart}
@@ -266,6 +267,7 @@ export function ProductTheatreRail({
                   ? '품절'
                   : '장바구니에 담기'}
           </Button>
+          </div>
         )}
 
         <p className="type-metadata text-text-secondary">

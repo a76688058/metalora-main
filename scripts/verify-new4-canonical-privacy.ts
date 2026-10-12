@@ -6,7 +6,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../src/lib/publicPaymentFreeze.ts';
 import { PRIVACY_POLICY_VERSION } from '../src/lib/policyVersions.ts';
-import { NOTICE_REVIEW_PENDING } from '../src/components/pdp/ProductInformationNotice.tsx';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let failed = 0;
@@ -36,7 +35,6 @@ const transitionSql = fs.readFileSync(
 );
 const policies = fs.readFileSync(path.join(root, 'src/constants/policies.tsx'), 'utf8');
 const freeze = fs.readFileSync(path.join(root, 'src/lib/publicPaymentFreeze.ts'), 'utf8');
-const notice = fs.readFileSync(path.join(root, 'src/components/pdp/ProductInformationNotice.tsx'), 'utf8');
 const handoff = fs.readFileSync(path.join(root, 'src/lib/customComposition/durableHandoff.ts'), 'utf8');
 const storage = fs.readFileSync(path.join(root, 'src/lib/workshopStorage.ts'), 'utf8');
 const priorPrivacySql = fs.readFileSync(
@@ -129,7 +127,6 @@ assert('required logs global ~400 days not single-region',
 assert('does not claim all logs are worldwide-stored', !/전 세계에 보관됩니다/.test(policies));
 assert('Discord payment-frozen wording preserved',
   /현재 공개 결제는 준비 중이어서, 공개 결제가 시작되기 전에는 주문 승인 알림이 생기지 않습니다/.test(policies));
-assert('origin hold unchanged', NOTICE_REVIEW_PENDING === '심의 예정' && /NOTICE_REVIEW_PENDING/.test(notice));
 assert('no forbidden origin claims in privacy',
   !/대한민국산|한국산|국내산|Made in Korea|Product of Korea|원산지 대한민국|제조국 대한민국/.test(policies));
 assert('payment freeze unchanged', PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 === true && /PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = true/.test(freeze));

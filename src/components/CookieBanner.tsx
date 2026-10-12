@@ -32,6 +32,7 @@ export default function CookieBanner() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [consent, setConsent] = useState<ConsentValue | null>(null);
   const settingsCloseRef = useRef<HTMLButtonElement>(null);
+  const bannerRef = useRef<HTMLDivElement>(null);
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearBannerTimer = () => {
@@ -104,11 +105,47 @@ export default function CookieBanner() {
   const shouldShowBanner = isVisible && !isSettingsOpen && !isTransactionOverlayActive;
   const shouldShowSettings = isSettingsOpen && !isTransactionOverlayActive;
 
+  useEffect(() => {
+    const root = document.documentElement;
+    const clearOffset = () => {
+      delete root.dataset.cookieBannerOpen;
+      root.style.removeProperty('--cookie-banner-offset');
+    };
+    if (!shouldShowBanner) {
+      clearOffset();
+      return;
+    }
+    const node = bannerRef.current;
+    if (!node) return;
+    const apply = () => {
+      root.dataset.cookieBannerOpen = 'true';
+      root.style.setProperty('--cookie-banner-offset', `${Math.ceil(node.getBoundingClientRect().height)}px`);
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      clearOffset();
+    };
+  }, [shouldShowBanner]);
+
   return (
     <>
+      <style>{`
+        @media (max-width: 1099px) {
+          html[data-cookie-banner-open] [data-pdp-purchase-action] {
+            position: sticky;
+            bottom: var(--cookie-banner-offset, 0px);
+            z-index: 1;
+            background: var(--color-canvas);
+          }
+        }
+      `}</style>
       <AnimatePresence>
         {shouldShowBanner && (
           <motion.div
+            ref={bannerRef}
             role="region"
             aria-label="쿠키 사용 안내"
             {...panelMotion}
