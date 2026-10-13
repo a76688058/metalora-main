@@ -7,6 +7,7 @@ import CopyrightPage from './Workshop/CopyrightPage';
 import WorkshopView, { workshopSurfaceStyle } from './Workshop/WorkshopView';
 import { supabase } from '../lib/supabase';
 import { POLICY_TYPES, POLICY_VERSIONS } from '../lib/policyVersions';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 
 interface WorkshopOverlayProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface WorkshopOverlayProps {
 export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProps) {
   const { user, openProfile, workshopOrigin } = useAuth();
   const { theme } = useTheme();
+  const reducedMotion = usePrefersReducedMotion();
   const [view, setView] = useState<'copyright' | 'workshop'>('copyright');
   const [isCheckingAgreement, setIsCheckingAgreement] = useState(true);
   const resumeCheckConsumedRef = useRef(false);
@@ -137,9 +139,10 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
+      initial={reducedMotion ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
+      transition={reducedMotion ? { duration: 0 } : undefined}
       className="fixed inset-0 z-[40000] flex justify-end pointer-events-auto"
     >
       <div
@@ -148,10 +151,10 @@ export default function WorkshopOverlay({ isOpen, onClose }: WorkshopOverlayProp
       />
 
       <motion.div
-        initial={{ x: '100%' }}
+        initial={reducedMotion ? false : { x: '100%' }}
         animate={{ x: 0 }}
-        exit={{ opacity: 0 }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+        exit={reducedMotion ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0 }}
+        transition={reducedMotion ? { duration: 0 } : { type: 'spring', damping: 30, stiffness: 300 }}
         className="pointer-events-auto relative flex h-full w-full transform-gpu flex-col overflow-hidden border-l border-border-subtle will-change-transform max-[1099px]:h-[100dvh] max-[1099px]:max-h-[100dvh]"
         style={workshopSurfaceStyle(theme)}
       >
