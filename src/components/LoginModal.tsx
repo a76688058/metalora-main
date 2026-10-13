@@ -86,6 +86,56 @@ function canRestoreFocus(el: HTMLElement | null): el is HTMLElement {
   return true;
 }
 
+const TRAPPED_CONTROL_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+function isTrappedControl(el: HTMLElement): boolean {
+  if (el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true') return false;
+  if (el.getAttribute('tabindex') === '-1') return false;
+  if (el.closest('[inert], [hidden], [aria-hidden="true"]')) return false;
+  if (typeof el.checkVisibility === 'function') {
+    return el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+  }
+  const style = window.getComputedStyle(el);
+  return style.display !== 'none' && style.visibility !== 'hidden';
+}
+
+function trappedControls(root: ParentNode | null): HTMLElement[] {
+  if (!root) return [];
+  return Array.from(root.querySelectorAll<HTMLElement>(TRAPPED_CONTROL_SELECTOR)).filter(isTrappedControl);
+}
+
+function policyDialogRoot(): HTMLElement | null {
+  const dialog = document.getElementById('policy-modal-title')?.closest('[role="dialog"]');
+  return dialog instanceof HTMLElement ? dialog : null;
+}
+
+function belongsToActiveSurface(el: HTMLElement, surface: string): boolean {
+  const owner = el.closest('[data-auth-surface]');
+  return !owner || owner.getAttribute('data-auth-surface') === surface;
+}
+
+function cycleTrappedFocus(root: HTMLElement | null, shiftKey: boolean, surface: string) {
+  if (!root) return;
+  const items = trappedControls(root).filter((el) => belongsToActiveSurface(el, surface));
+  if (items.length === 0) {
+    root.focus();
+    return;
+  }
+  const active = document.activeElement;
+  const index = active instanceof HTMLElement ? items.indexOf(active) : -1;
+  const next = shiftKey
+    ? (index <= 0 ? items[items.length - 1] : items[index - 1])
+    : (index < 0 || index >= items.length - 1 ? items[0] : items[index + 1]);
+  next.focus({ preventScroll: true });
+}
+
 function signupRevealRank(step: SignupRevealStep): number {
   return SIGNUP_REVEAL_STEPS.indexOf(step);
 }
@@ -247,6 +297,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
   const [fieldFocus, setFieldFocus] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  const policyOpenerRef = useRef<HTMLElement | null>(null);
   const isOpenRef = useRef(isOpen);
   isOpenRef.current = isOpen;
   const rafRef = useRef(0);
@@ -449,6 +500,34 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     else root?.focus();
   }, [isOpen]);
 
+  useLayoutEffect(() => {
+    if (!isOpen || policyModalState.isOpen) return;
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement) || !panelRef.current?.contains(active)) return;
+    const owner = active.closest('[data-auth-surface]');
+    if (!owner || owner.getAttribute('data-auth-surface') === surfaceView) return;
+    const stable = trappedControls(panelRef.current).find((el) => !el.closest('[data-auth-surface]'));
+    (stable ?? panelRef.current).focus({ preventScroll: true });
+  }, [isOpen, policyModalState.isOpen, surfaceView]);
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    if (!policyModalState.isOpen) {
+      const opener = policyOpenerRef.current;
+      policyOpenerRef.current = null;
+      if (opener && canRestoreFocus(opener) && panelRef.current?.contains(opener)) opener.focus();
+      return;
+    }
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && panelRef.current?.contains(active)) {
+      policyOpenerRef.current = active;
+    }
+    const root = policyDialogRoot();
+    const target = trappedControls(root)[0];
+    if (target) target.focus();
+    else root?.focus();
+  }, [isOpen, policyModalState.isOpen, policyModalState.key]);
+
   const restoreOpenerFocus = () => {
     const opener = openerRef.current;
     openerRef.current = null;
@@ -492,6 +571,15 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        cycleTrappedFocus(
+          policyModalState.isOpen ? policyDialogRoot() : panelRef.current,
+          event.shiftKey,
+          surfaceView,
+        );
+        return;
+      }
       if (event.key !== 'Escape') return;
       event.preventDefault();
       if (policyModalState.isOpen) {
@@ -502,7 +590,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, policyModalState.isOpen, pendingSocial, abandoningPending, onClose]);
+  }, [isOpen, policyModalState.isOpen, pendingSocial, abandoningPending, onClose, surfaceView]);
 
   useEffect(() => {
     if (otpVerified && isOtpExpiryCustomerCopy(errorMsg)) clearAlerts();
@@ -1936,6 +2024,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                   {!settleHidesForms && surfaceView === 'login' && phoneCollisionNotice && (
                     <motion.div
                       key="login-collision"
+                      data-auth-surface="login"
                       initial={viewMotion.initial}
                       animate={viewMotion.animate}
                       exit={viewMotion.exit}
@@ -1976,6 +2065,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                   {!settleHidesForms && surfaceView === 'login' && !phoneCollisionNotice && (
                     <motion.form
                       key="login"
+                      data-auth-surface="login"
                       onSubmit={handleLogin}
                       initial={viewMotion.initial}
                       animate={viewMotion.animate}
@@ -2069,6 +2159,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                   {!settleHidesForms && surfaceView === 'signup' && (
                     <motion.form
                       key="signup"
+                      data-auth-surface="signup"
                       onSubmit={(e) => {
                         if (!signupReady) {
                           e.preventDefault();
@@ -2358,6 +2449,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                   {!settleHidesForms && surfaceView === 'recovery' && (
                     <motion.form
                       key="recovery"
+                      data-auth-surface="recovery"
                       onSubmit={(e) => {
                         e.preventDefault();
                         if (recoveryResolved && recoveryResetOpen && passwordResetAllowed) {
@@ -2575,6 +2667,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
                   {!settleHidesForms && surfaceView === 'social' && (
                     <motion.form
                       key="social"
+                      data-auth-surface="social"
                       onSubmit={handleSocialComplete}
                       initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
