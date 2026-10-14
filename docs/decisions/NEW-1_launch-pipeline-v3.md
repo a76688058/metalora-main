@@ -1,12 +1,12 @@
 # METALORA — MASTER PIPELINE v3
 
-Status: **ACTIVE** (current operating-mode SoT)
+Status: **HISTORICAL BODY** (remaining-stage governance moved)
 
-Date: 2026-10-03 (live-status overlay; original v3 body preserved)
+Date: 2026-10-11 (remaining-pipeline overlay; original v3 body preserved)
 
-Decision: Current operating mode is **MASTER PIPELINE v3 ACTIVE**. This note is the successor to `docs/decisions/NEW-1_launch-pipeline-v2.md`. Historical `#16`–`#23` and NEW 1 remain closed. NEW 2A–2F are **CLOSED**. NEW 2 production release is **CLOSED** (`docs/decisions/NEW-2_production-release.md`). NEW 3 and NEW 4 are **NOT OPENED**. Live handoff lives in `docs/METALORA_PROJECT_STATE.md`.
+Decision: Historical pipeline body stays in this note. The only approved remaining pipeline is `docs/decisions/RELEASE_remaining-pipeline.md`. NEW 1 and NEW 2A–2F remain **CLOSED**. NEW 2 production release remains **CLOSED**. NEW 3 and NEW 4 are **CLOSED**. NEW5 is **INCOMPLETE** under the 2026-10-14 modified PATH 2 amendment. NEW6–NEW9 stay **NOT OPENED** until each prior exit passes. Live handoff lives in `docs/METALORA_PROJECT_STATE.md`.
 
-This note does **not** open NEW 3/4. It does **not** authorize live Toss or further production mutation.
+This note does **not** authorize live Toss, payment activation, or a production database or storage change.
 
 ---
 
@@ -22,7 +22,8 @@ v2 remains historical evidence of the NEW 1 roadmap lock. v3 restores launch-cri
 
 | Role | File |
 |------|------|
-| Current pipeline-definition SoT | **this note** |
+| Remaining pipeline SoT | `docs/decisions/RELEASE_remaining-pipeline.md` |
+| Historical pipeline body | **this note** |
 | Historical v2 / NEW 1 evidence | `docs/decisions/NEW-1_launch-pipeline-v2.md` (**SUPERSEDED AS CURRENT OPERATING MODE**) |
 | Live statuses / handoff | `docs/METALORA_PROJECT_STATE.md` |
 
@@ -44,16 +45,16 @@ Live handoff: `docs/METALORA_PROJECT_STATE.md`. NEW 2F auth expansion: `docs/dec
 | NEW 2D | **CLOSED** |
 | NEW 2E | **CLOSED** |
 | NEW 2F | **CLOSED** |
-| NEW 3 | **NOT OPENED** |
-| NEW 4 | **NOT OPENED** |
-| NEW 5 | **BLOCKED BY NEW 3 + NEW 4** |
+| NEW 3 | **CLOSED** |
+| NEW 4 | **CLOSED** |
+| NEW 5 | **INCOMPLETE** — amended exit not met |
 | NEW 6 | **NOT OPENED** |
 | NEW 7 | **NOT OPENED** |
 | NEW 8 | **NOT OPENED** |
 | NEW 9 | **NOT OPENED** |
 | LIVE | **NOT REACHED** |
 
-Next: **GPT REVIEW — NEW3/NEW4 opening decision**. Do **not** open NEW 3 or NEW 4 from this note.
+Next: finish mandatory NEW5 item A, then the amended NEW5 exit. Do **not** start NEW6, NEW7, NEW8, or NEW9 before that exit. Approved scope and carryovers: `docs/decisions/RELEASE_remaining-pipeline.md`.
 
 ---
 
@@ -94,15 +95,15 @@ Do **not** reopen `#16`–`#23`.
 
 ### NEW 3 — Admin / operations full UX/UI renewal
 
-**NOT OPENED.** Inherits v1 `#25D`.
+**CLOSED.** Inherits v1 `#25D`. Do not reopen unless a regression requires it.
 
 ### NEW 4 — Pre-launch legal / trust / operations prep
 
-**NOT OPENED.**
+**CLOSED.**
 
 ### NEW 5 — Final non-live visual / interaction QA
 
-**BLOCKED BY NEW 3 + NEW 4.** Inherits v1 `#25F`. Do **not** mark NEW 5 ready to execute until NEW 3 and NEW 4 satisfy their dependency.
+**INCOMPLETE.** Inherits v1 `#25F`. Approved scope, amended exit, and carryovers: `docs/decisions/RELEASE_remaining-pipeline.md`.
 
 ### NEW 6 — Backup / restore hard gate
 
@@ -217,7 +218,7 @@ Admin IA stays separate from customer IA.
 
 ---
 
-## NEW 4 — Pre-launch legal / trust / operations prep (NOT OPENED)
+## NEW 4 — Pre-launch legal / trust / operations prep (CLOSED)
 
 Preserve: origin; KC / certification; importer; required product information; privacy / PIPA; refund / cancellation consistency; Custom-product policy scope; shipping / production wording; customer-facing trust copy; operational SOP; CS / refund / cancellation preparation.
 
@@ -225,9 +226,9 @@ Visible customer-facing copy changes require **USER visual approval**. Do **not*
 
 ---
 
-## NEW 5 — Final non-live visual / interaction QA (BLOCKED BY NEW 3 + NEW 4)
+## NEW 5 — Final non-live visual / interaction QA (INCOMPLETE)
 
-v1 `#25F` **SITE-WIDE VISUAL / INTERACTION QA** migrated here. A5 **READ ONLY**. Not opened. Do **not** execute until NEW 3 and NEW 4 satisfy their dependency.
+v1 `#25F` **SITE-WIDE VISUAL / INTERACTION QA** migrated here. A5 **READ ONLY**. Approved checklist, 2026-10-14 amended exit, and carryovers: `docs/decisions/RELEASE_remaining-pipeline.md`. Do **not** start NEW 6 before that amended NEW 5 EXIT PASS.
 
 Include: typography; spacing; forms; buttons; dialog / sheet / modal hierarchy; responsive; accessibility; keyboard / focus; motion; reduced motion; light / dark parity; Auth regression; Cart / Checkout regression; Admin regression.
 
@@ -284,9 +285,9 @@ These requirements were **migrated, not deleted**.
 | v1 | Title | v3 |
 |----|--------|-----|
 | `#25C` | Cart / Checkout / Payment UX/UI Renewal | **NEW 2E** (CLOSED) |
-| `#25D` | Admin Page Full UX/UI Renewal | **NEW 3** (NOT OPENED) |
+| `#25D` | Admin Page Full UX/UI Renewal | **NEW 3** (CLOSED) |
 | `#25E` | Existing Account / Profile UI Polish | **NEW 2F** (CLOSED) |
-| `#25F` | Site-wide Visual / Interaction QA | **NEW 5** (NOT OPENED) |
+| `#25F` | Site-wide Visual / Interaction QA | **NEW 5** (INCOMPLETE) |
 | `#20F` | Backup / restore | **NEW 6** |
 | `#24` composite (live Toss, settlement, cancel/refund, legal launch, fulfillment) | PARTIALLY MIGRATED | NEW 4 + NEW 7 + NEW 8 + NEW 9. Do **not** invent `#24A–J` history. |
 | `#25A` | | NEW 2A + 2C (CLOSED) |
@@ -356,7 +357,7 @@ LIVE
 
 Operational default: **sequential** unless explicitly authorized otherwise.
 
-Current next action: **GPT REVIEW — NEW3/NEW4 opening decision**. NEW 2 is **CLOSED** (including production release). NEW 3 and NEW 4 remain **NOT OPENED**. NEW 5 is **BLOCKED BY NEW 3 + NEW 4**. Do not open NEW 3/4 from this note.
+Current next action: finish mandatory NEW5 item A on the release candidate. NEW 2, NEW 3, and NEW 4 are **CLOSED**. NEW 5 is **INCOMPLETE**. NEW 6–NEW 9 remain **NOT OPENED**. Do not start them before the amended NEW 5 EXIT PASS.
 
 ---
 
@@ -399,7 +400,8 @@ A3 owns payment **UX**. A6 owns payment **authority**.
 | NEW 2E payment-test artifacts | **MAY REMAIN** |
 | Live Toss | **NOT ACTIVATED** |
 | Production payment | **NOT ACTIVATED** |
-| NEW 2 production deploy | **CERTIFIED** — `metalora-direct-00093-car` @ 100%; rollback `metalora-direct-00090-kig`; SHA `d38e41ad1173ad542a5b68eaccc7e96cb0b1367c` |
+| NEW 2 production deploy | **CERTIFIED** (historical) — `metalora-direct-00093-car`; SHA `d38e41ad1173ad542a5b68eaccc7e96cb0b1367c` |
+| Current production (2026-10-11) | `metalora-direct-00139-men` @ 100%; rollback `metalora-direct-00136-daq`; SHA `84aabfb99bcb68cf658e6b7b1fd9a44ecc81ce2d` |
 | LIVE-COMMERCE READY | **NO** — NEW 6 must PASS before NEW 7 |
 
 This note does **not** imply launch readiness.
@@ -408,8 +410,8 @@ This note does **not** imply launch readiness.
 
 ## Next stage rule
 
-1. Live status is in `docs/METALORA_PROJECT_STATE.md`. This v3 note remains the pipeline-definition SoT.
-2. Next: **GPT REVIEW — NEW3/NEW4 opening decision**. Do **not** open NEW 3/4 here.
+1. Live status is in `docs/METALORA_PROJECT_STATE.md`. Remaining-stage governance is `docs/decisions/RELEASE_remaining-pipeline.md`. This v3 note keeps the historical pipeline body.
+2. Next: finish mandatory NEW5 item A. Do **not** start NEW 6–NEW 9 before the amended NEW 5 EXIT PASS.
 3. Do **not** activate live Toss. Do **not** mutate production DB from this note.
 
 ---
