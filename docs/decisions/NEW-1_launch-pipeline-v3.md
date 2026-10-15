@@ -326,7 +326,7 @@ Preserve roadmap history. Classify as optional / post-launch / data-dependent. D
 
 | Historical | Subject | Classification |
 |------------|---------|----------------|
-| `#27` | Reviews / Trust | optional / primarily POST-LAUNCH |
+| `#27` | Reviews / Trust | historical: optional / primarily POST-LAUNCH. Current, owner-approved 2026-10-15: mandatory pre-launch, required before NEW9. Contract: `docs/decisions/NEW27_reviews-trust.md`. Not implemented. |
 | `#28` | Conversion Optimization / Experiments | primarily POST-LAUNCH / optional framework |
 | `#29` | Advertising / Landing | optional pre-launch / post-traffic |
 | `#30` | CRM / Retention | optional groundwork / post-launch |
@@ -423,7 +423,7 @@ This note does **not** imply launch readiness.
 - Rewrite v2 historical body to current statuses
 - Downgrade NEW 3 `#25D` or NEW 5 `#25F`
 - Treat historical OPTIONAL AUTH EXPANSION as the current exclusion
-- Promote `#27`–`#30` into launch-critical path automatically
+- Promote `#28`–`#30` into the launch-critical path automatically. `#27` was promoted by the owner on 2026-10-15.
 - Redesign frozen Home/PDP
 - Claim production 2B rollout, live Toss, production payment, or LIVE
 - Enable real payments before NEW 6 PASS

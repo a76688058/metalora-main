@@ -8,7 +8,7 @@ Decision: This note is the only approved remaining release pipeline. Order is fi
 
 Completed: NEW3 **CLOSED**. NEW4 **CLOSED**.
 
-Blocker / Open Item: NEW5 EXIT PASS is recorded. Item A is **PASS**. NEW6 is **OPEN / IN PROGRESS**. RESTORE PASS is not recorded. NEW7, NEW8, and NEW9 are **NOT OPENED**. C, J, B, and D-I remain **NOT TESTED** at their later gates.
+Blocker / Open Item: NEW5 EXIT PASS is recorded. Item A is **PASS**. NEW6 is **OPEN / IN PROGRESS**. RESTORE PASS is not recorded. NEW7, NEW8, and NEW9 are **NOT OPENED**. C, J, B, and D-I remain **NOT TESTED** at their later gates. `#27` Reviews / Trust is mandatory before NEW9 and is **NOT IMPLEMENTED**. This copy is on `review/prelaunch-27` and is not yet the release candidate.
 
 Do Not Do: Do not change the order. Do not skip stages. Do not create a new stage without approval. Do not reopen a closed stage unless a regression requires it. Do not start NEW6, NEW7, NEW8, or NEW9 before the amended NEW5 EXIT PASS. Do not modify payment state before NEW7. Do not modify production database or storage without approved scope. Do not expand QA scope. Do not refactor during QA. Do not declare PASS without evidence. Do not treat a deferred check as PASS.
 
@@ -120,7 +120,7 @@ EXIT CONDITION: **REAL ORDER / FULFILLMENT PASS**
 
 ## NEW9 — Final Launch Gate
 
-Status: **NOT OPENED**. Items B and D–I must PASS before this stage's final pass. All are **NOT TESTED**.
+Status: **NOT OPENED**. Items B and D–I must PASS before this stage's final pass. All are **NOT TESTED**. `#27` Reviews / Trust must also PASS before this stage's final pass. Contract: `docs/decisions/NEW27_reviews-trust.md`. It is **NOT IMPLEMENTED**.
 
 Scope: Release Evidence Review; Production Infrastructure; Cloud Run Revision; Rollback Revision; Domain / TLS / Health; Public Web Verification; Operational Readiness; Monitoring / Analytics; Final Release Record.
 
