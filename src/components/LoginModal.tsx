@@ -116,6 +116,22 @@ function policyDialogRoot(): HTMLElement | null {
   return dialog instanceof HTMLElement ? dialog : null;
 }
 
+/** Entry opacity is 0, so checkVisibility cannot see these controls yet. */
+function focusOpenedPolicyDialog(root: HTMLElement) {
+  const closeButton = root.querySelector<HTMLElement>('button[aria-label="닫기"]:not([disabled])');
+  const candidate = closeButton ?? root.querySelector<HTMLElement>('button:not([disabled])');
+  if (
+    candidate
+    && candidate.getAttribute('aria-disabled') !== 'true'
+    && !candidate.closest('[inert], [hidden], [aria-hidden="true"]')
+  ) {
+    candidate.focus({ preventScroll: true });
+    return;
+  }
+  root.tabIndex = -1;
+  root.focus({ preventScroll: true });
+}
+
 function belongsToActiveSurface(el: HTMLElement, surface: string): boolean {
   const owner = el.closest('[data-auth-surface]');
   return !owner || owner.getAttribute('data-auth-surface') === surface;
@@ -523,9 +539,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
       policyOpenerRef.current = active;
     }
     const root = policyDialogRoot();
-    const target = trappedControls(root)[0];
-    if (target) target.focus();
-    else root?.focus();
+    if (root) focusOpenedPolicyDialog(root);
   }, [isOpen, policyModalState.isOpen, policyModalState.key]);
 
   const restoreOpenerFocus = () => {
