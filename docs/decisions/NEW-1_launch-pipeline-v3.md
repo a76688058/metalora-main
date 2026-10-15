@@ -4,7 +4,7 @@ Status: **HISTORICAL BODY** (remaining-stage governance moved)
 
 Date: 2026-10-11 (remaining-pipeline overlay; original v3 body preserved)
 
-Decision: Historical pipeline body stays in this note. The only approved remaining pipeline is `docs/decisions/RELEASE_remaining-pipeline.md`. NEW 1 and NEW 2A–2F remain **CLOSED**. NEW 2 production release remains **CLOSED**. NEW 3 and NEW 4 are **CLOSED**. NEW5 is **CLOSED** under the 2026-10-14 modified PATH 2 amendment. NEW6 is eligible and **NOT OPENED**. NEW7–NEW9 stay **NOT OPENED** until each prior exit passes. Live handoff lives in `docs/METALORA_PROJECT_STATE.md`.
+Decision: Historical pipeline body stays in this note. The only approved remaining pipeline is `docs/decisions/RELEASE_remaining-pipeline.md`. NEW 1 and NEW 2A–2F remain **CLOSED**. NEW 2 production release remains **CLOSED**. NEW 3 and NEW 4 are **CLOSED**. NEW5 is **CLOSED** under the 2026-10-14 modified PATH 2 amendment. NEW6 is **OPEN / IN PROGRESS**. NEW7–NEW9 stay **NOT OPENED** until each prior exit passes. Live handoff lives in `docs/METALORA_PROJECT_STATE.md`.
 
 This note does **not** authorize live Toss, payment activation, or a production database or storage change.
 
@@ -48,13 +48,13 @@ Live handoff: `docs/METALORA_PROJECT_STATE.md`. NEW 2F auth expansion: `docs/dec
 | NEW 3 | **CLOSED** |
 | NEW 4 | **CLOSED** |
 | NEW 5 | **CLOSED** — amended FINAL QA PASS |
-| NEW 6 | **NOT OPENED** |
+| NEW 6 | **OPEN / IN PROGRESS** — RESTORE PASS not recorded |
 | NEW 7 | **NOT OPENED** |
 | NEW 8 | **NOT OPENED** |
 | NEW 9 | **NOT OPENED** |
 | LIVE | **NOT REACHED** |
 
-Next: NEW6 Backup / Restore is eligible and **NOT OPENED**. Do not execute it from this note. Approved scope and carryovers: `docs/decisions/RELEASE_remaining-pipeline.md`.
+Next: NEW6 read-only backup and PITR verification. Do not upgrade, restore, or open NEW7. Approved scope and carryovers: `docs/decisions/RELEASE_remaining-pipeline.md`.
 
 ---
 
@@ -107,7 +107,7 @@ Do **not** reopen `#16`–`#23`.
 
 ### NEW 6 — Backup / restore hard gate
 
-**NOT OPENED.** Old `#20F`. Must **PASS** before NEW 7.
+**OPEN / IN PROGRESS.** Old `#20F`. Must **PASS** before NEW 7. RESTORE PASS is not recorded.
 
 ### NEW 7 — Production payment activation
 
@@ -238,7 +238,7 @@ NEW 5 targets: surfaces changed by NEW 2–4; plausible shared-chrome regression
 
 ---
 
-## NEW 6 — Backup / restore hard gate (NOT OPENED)
+## NEW 6 — Backup / restore hard gate (OPEN / IN PROGRESS)
 
 Old `#20F`. Must **PASS** before NEW 7.
 
@@ -357,7 +357,7 @@ LIVE
 
 Operational default: **sequential** unless explicitly authorized otherwise.
 
-Current next action: NEW6 Backup / Restore is eligible and **NOT OPENED**. NEW 2, NEW 3, NEW 4, and NEW 5 are **CLOSED**. NEW 7–NEW 9 remain **NOT OPENED**. Do not execute NEW 6 until its own open.
+Current next action: NEW6 read-only backup and PITR verification. NEW 2, NEW 3, NEW 4, and NEW 5 are **CLOSED**. NEW 6 is **OPEN / IN PROGRESS**. NEW 7–NEW 9 remain **NOT OPENED**. Do not upgrade, restore, or open NEW 7.
 
 ---
 
@@ -411,7 +411,7 @@ This note does **not** imply launch readiness.
 ## Next stage rule
 
 1. Live status is in `docs/METALORA_PROJECT_STATE.md`. Remaining-stage governance is `docs/decisions/RELEASE_remaining-pipeline.md`. This v3 note keeps the historical pipeline body.
-2. Next: NEW6 is eligible and **NOT OPENED**. Do not execute backup or restore from this note. Do **not** start NEW 7–NEW 9 before their prior exits.
+2. Next: NEW6 is **OPEN / IN PROGRESS** for read-only verification. Do not upgrade, restore, or copy storage from this note. Do **not** start NEW 7–NEW 9 before their prior exits.
 3. Do **not** activate live Toss. Do **not** mutate production DB from this note.
 
 ---

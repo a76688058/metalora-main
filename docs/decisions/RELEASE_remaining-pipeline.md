@@ -8,13 +8,13 @@ Decision: This note is the only approved remaining release pipeline. Order is fi
 
 Completed: NEW3 **CLOSED**. NEW4 **CLOSED**.
 
-Blocker / Open Item: NEW5 EXIT PASS is recorded. Item A is **PASS**. NEW6 is eligible and **NOT OPENED**. NEW7, NEW8, and NEW9 are **NOT OPENED**. C, J, B, and D-I remain **NOT TESTED** at their later gates.
+Blocker / Open Item: NEW5 EXIT PASS is recorded. Item A is **PASS**. NEW6 is **OPEN / IN PROGRESS**. RESTORE PASS is not recorded. NEW7, NEW8, and NEW9 are **NOT OPENED**. C, J, B, and D-I remain **NOT TESTED** at their later gates.
 
 Do Not Do: Do not change the order. Do not skip stages. Do not create a new stage without approval. Do not reopen a closed stage unless a regression requires it. Do not start NEW6, NEW7, NEW8, or NEW9 before the amended NEW5 EXIT PASS. Do not modify payment state before NEW7. Do not modify production database or storage without approved scope. Do not expand QA scope. Do not refactor during QA. Do not declare PASS without evidence. Do not treat a deferred check as PASS.
 
-Resume Condition: Owner opens NEW6 Backup / Restore. NEW5 is **CLOSED**. Deferred checks stay **NOT TESTED** until their gates.
+Resume Condition: NEW6 is open for read-only production backup and PITR verification only. NEW5 is **CLOSED**. Deferred checks stay **NOT TESTED** until their gates.
 
-Resume Procedure: A0 PRE-STAGE REPORT for NEW6, then HARD STOP until OPEN READY. Do not run backup or restore from this note.
+Resume Procedure: A6 reads current backup and PITR state for `qifloweuwyhvukabgnoa`. Do not upgrade, restore, copy storage, or open NEW7 from this note.
 
 Ownership: A0 release governance. NEW5 execution is A5 read-only QA unless a later ticket assigns a write. NEW6–NEW9 payment, backup, and production gates stay A6.
 
@@ -28,7 +28,7 @@ Approval history: The owner registered this remaining pipeline on 2026-10-11. Th
 
 ## NEW5 — Final Non-Live QA
 
-Status: **CLOSED**. Amended **FINAL QA PASS** on 2026-10-15. Evidence commit `c74d5e5f220dbfbe173d9b7ec889c6c1f61c0959`. NEW6 remains **NOT OPENED**.
+Status: **CLOSED**. Amended **FINAL QA PASS** on 2026-10-15. Evidence commit `c74d5e5f220dbfbe173d9b7ec889c6c1f61c0959`. The NEW5 exit did not itself open NEW6.
 
 Approved fixes, already accepted inside their tested scope:
 
@@ -96,7 +96,7 @@ Payment freeze remains in effect until NEW7. NEW6 RESTORE PASS remains a hard pr
 
 ## NEW6 — Backup / Restore Hard Gate
 
-Status: **NOT OPENED**. Eligible after the NEW5 exit pass. Do not execute backup or restore until a separate open. Failure blocks NEW7.
+Status: **OPEN / IN PROGRESS**. Owner opened the stage on 2026-10-15 for read-only backup and PITR verification on `qifloweuwyhvukabgnoa`. RESTORE PASS is not recorded. No upgrade, restore, isolated project, or storage copy is authorized. Failure blocks NEW7.
 
 Scope: Production Backup Verification; Supabase Backup Status; PITR Verification; Isolated Restore Drill; Storage Recovery; Restore Validation.
 
