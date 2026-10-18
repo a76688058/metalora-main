@@ -72,13 +72,13 @@ Paths: `reviews/{review_id}/{uuid}.jpg` after server re-encode. The database sto
 
 ## Tables
 
-`public.reviews`: `id`, `order_item_id` unique, `order_id`, `user_id`, `product_id` nullable, `rating`, `body`, `status` (`pending`, `approved`, `rejected`, `hidden`), `created_at`, `updated_at`. Links are set by the server and are not client-editable.
+`public.reviews`: `id`, `order_item_id` unique, `order_id`, `user_id`, `product_id` nullable, `rating`, `body`, `status` (`pending`, `approved`, `rejected`, `hidden`, and the delete tombstone `deleted`), `created_at`, `updated_at`. Links are set by the server and are not client-editable. A written review is required and, in this draft, limited to 4000 characters. Delete keeps the row, clears the rating and body, and does not free the `order_item_id`. An edit returns the review to `pending`. Approve, reject, and hide are the admin transitions. A refund or cancellation hides the review and cannot be followed by a new approve while the line is not `fulfilled`.
 
 `public.review_images`: `id`, `review_id`, `object_path`, `content_type`, `byte_size`.
 
 `public.review_moderation_events`: append-only `id`, `review_id`, `actor_id` nullable for the server, `action`, `from_status`, `to_status`, `created_at`. No body and no image bytes. No update or delete.
 
-RLS: owner select on own rows. Public select only where `status = approved` and the commerce state is still `fulfilled`. Admin select for `profiles.is_admin`. No direct client insert or status update. Create, edit, and delete use one security-definer function with `search_path` locked to `pg_catalog, pg_temp`, executed as the invoker check inside the function against `auth.uid()`. Moderation uses a second function that checks `is_admin` and inserts the audit row in the same transaction. Status transitions are only those two functions.
+Reads: public, owner, and admin results come from security-definer functions. The tables do not grant SELECT to anon, authenticated, or service_role, so `user_id` and `order_id` are not a public table path. Public functions return an approved review only while its commerce state is `fulfilled`. Create, edit, and delete use one security-definer function with `search_path` locked to `pg_catalog, pg_temp`, and that function checks `auth.uid()` for an authenticated JWT. Moderation uses a second function that checks `is_admin` and inserts the audit row in the same transaction. Status transitions are only those functions.
 
 ## Ownership
 
@@ -96,7 +96,9 @@ Owner approved the product requirements on 2026-10-15. Isolated branch `review/p
 
 ## Blocker / Open Item
 
-No migration has been applied. No bucket has been created. The commerce-state writer is not authorized on production. NEW9 cannot pass until the QA list above passes on the release candidate.
+A draft migration and static verifier exist in this worktree. They have not been applied. No bucket has been created. The commerce-state writer is not authorized on production and is not called by `finalize_paid_order`. NEW9 cannot pass until the QA list above passes on the release candidate.
+
+Draft files: `supabase/migrations/20261015180000_new27_reviews.sql`, `scripts/verify-new27-reviews-static.mjs`, `scripts/sql/verify-new27-reviews.scratch.sql`. The scratch SQL refuses to run unless `metalora.review_test_scratch=1` on a disposable database. That run has not happened.
 
 ## Do Not Do
 

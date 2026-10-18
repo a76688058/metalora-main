@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { cn } from '../lib/cn';
 import { zClass } from '../constants/overlays';
+import { CustomerReviews } from './reviews/CustomerReviews';
 
 interface ProfileOverlayProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
   const { profile, signOut, openWorkshop, openProfileEdit, openOrders, openInquiry } = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
+  const [view, setView] = useState<'hub' | 'reviews'>('hub');
 
   useEffect(() => {
     if (isOpen) {
@@ -26,6 +28,10 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
     return () => {
       document.body.style.overflow = '';
     };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) setView('hub');
   }, [isOpen]);
 
   useEffect(() => {
@@ -77,6 +83,14 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
       }
     },
     {
+      id: 'reviews',
+      label: '리뷰',
+      description: '배송이 끝난 주문의 리뷰를 작성하고 관리합니다.',
+      onClick: () => {
+        setView('reviews');
+      }
+    },
+    {
       id: 'cs',
       label: '1:1 문의',
       description: '궁금한 점이나 불편한 사항을 해결해 드립니다.',
@@ -114,7 +128,9 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
         }`}
       >
         <div className={`flex items-center justify-between px-6 py-5 border-b ${theme === 'dark' ? 'border-white/5' : 'border-black/5'}`}>
-          <h2 id="profile-overlay-title" className="text-[1.75rem] font-medium tracking-[-0.02em]">내 정보</h2>
+          <h2 id="profile-overlay-title" className="text-[1.75rem] font-medium tracking-[-0.02em]">
+            {view === 'reviews' ? '리뷰' : '내 정보'}
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -126,6 +142,8 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 pb-[max(2rem,env(safe-area-inset-bottom))] custom-scrollbar">
+          {view === 'reviews' ? <CustomerReviews embedded onBack={() => setView('hub')} /> : (
+          <>
           <div className="mb-10 px-1 pt-2">
             <p className="text-[1.75rem] font-medium tracking-[-0.02em] leading-tight">
               {profile?.full_name || '사용자'}님,<br />
@@ -172,6 +190,8 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
               로그아웃
             </button>
           </div>
+          </>
+          )}
         </div>
       </motion.div>
     </motion.div>

@@ -20,6 +20,7 @@ import { ProductTruthSection } from './pdp/ProductTruthSection';
 import { ProductMountIncluded } from './pdp/ProductMountIncluded';
 import { ProductOrderConfidence } from './pdp/ProductOrderConfidence';
 import { ProductInformationNotice } from './pdp/ProductInformationNotice';
+import { ProductReviewSection } from './pdp/reviews/ProductReviewSection';
 import { PdpStorySection } from './pdp/story';
 import {
   initialWorkshopPreviewState,
@@ -566,6 +567,8 @@ export default function ProductDetail() {
       <ProductOrderConfidence />
 
       <ProductInformationNotice productTitle={product.title} />
+
+      <ProductReviewSection productId={product.id} />
 
       {roomPreviewOpen ? (
         <ProductTheatreRoomPreview
