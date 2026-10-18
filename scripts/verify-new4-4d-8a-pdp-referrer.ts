@@ -46,7 +46,7 @@ const SIGNED =
 const CATALOG = 'https://example.supabase.co/storage/v1/object/public/products/a.jpg';
 
 const html = (node: React.ReactElement) => renderToStaticMarkup(node);
-const imgTags = (markup: string) => markup.match(/<img\b[^>]*>/g) ?? [];
+const imgTags = (markup: string): string[] => markup.match(/<img\b[^>]*>/g) ?? [];
 const imgTagsFor = (markup: string, src: string) =>
   imgTags(markup).filter((tag) => tag.includes(`src="${src.replace(/&/g, '&amp;')}"`));
 const allNoReferrer = (tags: string[]) => tags.length > 0 && tags.every((t) => t.includes('referrerPolicy="no-referrer"') || t.includes('referrerpolicy="no-referrer"'));

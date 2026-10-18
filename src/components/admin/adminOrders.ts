@@ -162,6 +162,22 @@ export function dateFilterStartIso(filter: DateFilter): string | null {
   return new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
+export async function requestCompletedOrderReviewEligibility(orderId: string): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token?.trim() ?? '';
+    if (!token) return false;
+    const response = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}/review-eligibility`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function itemSummary(order: AdminOrder): string {
   const first = order.items[0];
   if (!first) return '상품 없음';

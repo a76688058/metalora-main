@@ -12,6 +12,7 @@ import {
   nextOrderActionLabel,
   nextOrderStatus,
   orderStatusLabel,
+  requestCompletedOrderReviewEligibility,
   type AdminOrder,
   type AdminOrderItem,
   type AdminOrderStatus,
@@ -20,6 +21,7 @@ import {
 } from '../components/admin/adminOrders';
 import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
+import { completionSyncFeedback, REVIEW_ELIGIBILITY_SYNC_ERROR } from '../lib/reviewEligibilityFeedback';
 import { cn } from '../lib/cn';
 import { useWorkshopMediaDisplay } from '../hooks/useWorkshopMediaDisplay';
 import type { WorkshopMediaDisplay } from '../lib/workshopMediaDisplay';
@@ -150,6 +152,7 @@ export default function AdminOrders() {
   const [confirmTrackingSave, setConfirmTrackingSave] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [eligibilityRetryId, setEligibilityRetryId] = useState<string | null>(null);
   const lastOpenerRef = useRef<HTMLElement | null>(null);
   const workshopMedia = useWorkshopMediaDisplay(visibleWorkshopRefs(orders, selectedOrder), 'admin');
 
@@ -255,15 +258,44 @@ export default function AdminOrders() {
       updateData.tracking_number = tracking.tracking_number.trim();
     }
     const { error } = await supabase.from('orders').update(updateData).eq('id', order.id);
-    setIsSubmitting(false);
     if (error) {
+      setIsSubmitting(false);
       setMutationError('상태 변경에 실패했습니다.');
       showToast('상태 변경에 실패했습니다.', 'error');
       return;
     }
     applyLocalOrder(order.id, updateData);
     setPendingStatus(null);
+    if (status === 'COMPLETED') {
+      const recorded = await requestCompletedOrderReviewEligibility(order.id);
+      const feedback = completionSyncFeedback(recorded);
+      setIsSubmitting(false);
+      if (!feedback.showCompletionSuccess) {
+        setEligibilityRetryId(order.id);
+        setMutationError(feedback.message);
+        showToast(REVIEW_ELIGIBILITY_SYNC_ERROR, 'error');
+        return;
+      }
+      setEligibilityRetryId((current) => (current === order.id ? null : current));
+    }
+    setIsSubmitting(false);
     showToast(`상태가 ${orderStatusLabel(status)}(으)로 변경되었습니다.`, 'success');
+  };
+
+  const retryReviewEligibility = async () => {
+    if (!selectedOrder || isSubmitting || eligibilityRetryId !== selectedOrder.id) return;
+    setIsSubmitting(true);
+    setMutationError(null);
+    const recorded = await requestCompletedOrderReviewEligibility(selectedOrder.id);
+    const feedback = completionSyncFeedback(recorded);
+    setIsSubmitting(false);
+    if (!feedback.showCompletionSuccess) {
+      setMutationError(feedback.message);
+      showToast(REVIEW_ELIGIBILITY_SYNC_ERROR, 'error');
+      return;
+    }
+    setEligibilityRetryId(null);
+    showToast('리뷰 가능 상태가 기록되었습니다.', 'success');
   };
 
   const persistTracking = async (order: AdminOrder) => {
@@ -706,6 +738,19 @@ export default function AdminOrders() {
                       >
                         배송완료 처리
                       </button>
+                    )}
+                    {selectedOrder.status === 'COMPLETED' && eligibilityRetryId === selectedOrder.id && (
+                      <div>
+                        <p className="text-sm text-red-400">{mutationError ?? REVIEW_ELIGIBILITY_SYNC_ERROR}</p>
+                        <button
+                          type="button"
+                          disabled={isSubmitting}
+                          onClick={() => { void retryReviewEligibility(); }}
+                          className="mt-3 min-h-11 px-4 rounded-lg bg-indigo-600 text-white text-sm font-medium disabled:opacity-50"
+                        >
+                          리뷰 가능 상태 다시 기록
+                        </button>
+                      </div>
                     )}
                   </div>
                 </section>

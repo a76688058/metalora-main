@@ -98,6 +98,8 @@ Owner approved the product requirements on 2026-10-15. Isolated branch `review/p
 
 A draft migration and static verifier exist in this worktree. They have not been applied. No bucket has been created. The commerce-state writer is not authorized on production and is not called by `finalize_paid_order`. NEW9 cannot pass until the QA list above passes on the release candidate.
 
+The independent fulfillment hook is `POST /api/admin/orders/:orderId/review-eligibility`. It re-reads the order with the service role and calls `set_order_item_commerce_state(p_order_item_id, p_state)` with `fulfilled` only when `status` is `COMPLETED`, `completed_at` is present, and `payment_finalized_at` is present. The admin browser does not send that state. Cancel and refund still have no server transition. The deferred connection is a future service-role cancel or refund confirmation, which must call the same RPC with `cancelled` or `refunded`. That confirmation is not NEW7 opening and is not this hook.
+
 Draft files: `supabase/migrations/20261015180000_new27_reviews.sql`, `scripts/verify-new27-reviews-static.mjs`, `scripts/sql/verify-new27-reviews.scratch.sql`. The scratch SQL refuses to run unless `metalora.review_test_scratch=1` on a disposable database. That run has not happened.
 
 ## Do Not Do
