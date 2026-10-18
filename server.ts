@@ -17,6 +17,8 @@ import {
 import { registerOtpAuthRoutes } from "./src/lib/otpAuthHandlers";
 import { registerPasswordAuthRoutes } from "./src/lib/passwordAuthHandlers";
 import { registerSocialAuthRoutes } from "./src/lib/socialAuthHandlers";
+import { createSharpReviewImageCodec } from "./src/lib/reviewImageCodec";
+import { registerReviewImageRoutes } from "./src/lib/reviewImageRoutes";
 import { resolveSmsAdapter } from "./src/lib/smsAdapter";
 import { configureExpressTrustProxy, resolveTrustedIpMode } from "./src/lib/trustedClientIp";
 import { verifyPaymentMember } from "./src/lib/paymentMemberAuth";
@@ -2429,6 +2431,13 @@ ${staticUrls}${productUrls}
     supabaseAdmin,
     supabasePublic,
     getEnv: () => process.env,
+  });
+  registerReviewImageRoutes(app, {
+    supabaseAdmin,
+    supabasePublic,
+    supabaseUrl,
+    supabaseAnonKey,
+    codec: createSharpReviewImageCodec(),
   });
 
   /**

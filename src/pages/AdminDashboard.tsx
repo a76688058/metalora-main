@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import AdminLayout from '../components/admin/AdminLayout';
+import { AdminReviewQueue } from '../components/reviews/AdminReviewQueue';
 import { Package, ShoppingBag, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Calendar as CalendarIcon, BarChart3, PieChart as PieChartIcon } from 'lucide-react';
 import { motion, useMotionValue, useTransform, animate, AnimatePresence } from 'framer-motion';
 import {
@@ -524,6 +525,7 @@ export default function AdminDashboard() {
 
   const [totalProducts, setTotalProducts] = useState<number | null>(null);
   const [productState, setProductState] = useState<LoadState>('loading');
+  const [reviewsOpen, setReviewsOpen] = useState(false);
 
   const statsGenRef = useRef(0);
   const calendarGenRef = useRef(0);
@@ -668,12 +670,21 @@ export default function AdminDashboard() {
 
   return (
     <AdminLayout>
+      {reviewsOpen ? <AdminReviewQueue onBack={() => setReviewsOpen(false)} /> : (
+      <>
       <div className="space-y-10 pb-20 bg-black min-h-screen">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
             <h2 className="text-4xl font-black text-white tracking-tighter mb-2">대시보드</h2>
             <p className="text-zinc-500 font-bold tracking-tight">매출 · 주문 현황</p>
           </div>
+          <button
+            type="button"
+            onClick={() => setReviewsOpen(true)}
+            className="focus-ring min-h-11 rounded-xl border border-zinc-800 px-4 text-sm font-bold text-white"
+          >
+            리뷰 검토
+          </button>
         </div>
 
         {statsState === 'error' && !displayedStats && (
@@ -871,6 +882,8 @@ export default function AdminDashboard() {
           />
         )}
       </AnimatePresence>
+      </>
+      )}
     </AdminLayout>
   );
 }
