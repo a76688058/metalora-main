@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import express, { type Express, type Request, type Response } from "express";
+import { reviewRequestBlocked } from "../types/reviews";
 import {
   REVIEW_IMAGE_BUCKET,
   REVIEW_IMAGE_MAX_BYTES,
@@ -27,6 +28,7 @@ const RPC_REASONS: Record<string, ReviewImageError> = {
   review_image_not_allowed: new ReviewImageError("not_allowed", 409),
   review_image_server_only: new ReviewImageError("unavailable", 503),
   review_image_not_found: new ReviewImageError("not_found", 404),
+  review_backend_unavailable: new ReviewImageError("unavailable", 503),
 };
 
 export type ReviewImageRouteDeps = {
@@ -241,6 +243,13 @@ export function registerReviewImageRoutes(app: Express, deps: ReviewImageRouteDe
     type: () => true,
   });
 
+  const denyClosed = (res: Response, capability: "read" | "write"): boolean => {
+    if (!reviewRequestBlocked(capability)) return false;
+    res.setHeader("Cache-Control", "no-store");
+    res.status(503).json({ ok: false, error: "unavailable" });
+    return true;
+  };
+
   app.post("/api/reviews/:reviewId/images", (req, res, next) => {
     readBytes(req, res, (error) => {
       if (error) {
@@ -252,6 +261,7 @@ export function registerReviewImageRoutes(app: Express, deps: ReviewImageRouteDe
     });
   }, async (req: Request, res: Response) => {
     try {
+      if (denyClosed(res, "write")) return;
       const caller = await authenticateCaller(deps, req.headers.authorization);
       if (!caller) {
         res.status(401).json({ ok: false, error: "unauthorized" });
@@ -273,6 +283,7 @@ export function registerReviewImageRoutes(app: Express, deps: ReviewImageRouteDe
 
   app.get("/api/reviews/:reviewId/my-images", async (req, res) => {
     try {
+      if (denyClosed(res, "read")) return;
       const caller = await authenticateCaller(deps, req.headers.authorization);
       if (!caller) {
         res.status(401).json({ ok: false, error: "unauthorized" });
@@ -289,6 +300,7 @@ export function registerReviewImageRoutes(app: Express, deps: ReviewImageRouteDe
 
   app.get("/api/reviews/:reviewId/images", async (req, res) => {
     try {
+      if (denyClosed(res, "read")) return;
       const images = await signPublicReviewImages(portsFor(deps), req.params.reviewId);
       if (images.length === 0) {
         res.status(404).json({ ok: false, error: "not_allowed" });
@@ -304,6 +316,7 @@ export function registerReviewImageRoutes(app: Express, deps: ReviewImageRouteDe
 
   app.delete("/api/reviews/:reviewId/images/:imageId", async (req, res) => {
     try {
+      if (denyClosed(res, "write")) return;
       const caller = await authenticateCaller(deps, req.headers.authorization);
       if (!caller) {
         res.status(401).json({ ok: false, error: "unauthorized" });
@@ -335,6 +348,7 @@ export function registerReviewImageRoutes(app: Express, deps: ReviewImageRouteDe
 
   app.post("/api/reviews/:reviewId/image-deletion", async (req, res) => {
     try {
+      if (denyClosed(res, "write")) return;
       const caller = await authenticateCaller(deps, req.headers.authorization);
       if (!caller) {
         res.status(401).json({ ok: false, error: "unauthorized" });

@@ -374,6 +374,93 @@ COMMENT ON FUNCTION public.set_order_item_commerce_state(uuid, text) IS
   'The payment server may call it only after its own confirmation. Not wired here.';
 
 -- ---------------------------------------------------------------------------
+-- Feature gate. Defaults closed. service_role opens it for a hosted test.
+-- A session GUC is not the switch. Client flags are not the switch.
+-- ---------------------------------------------------------------------------
+CREATE TABLE public.review_api_activation (
+  id boolean PRIMARY KEY DEFAULT true CHECK (id),
+  read_ready boolean NOT NULL DEFAULT false,
+  write_ready boolean NOT NULL DEFAULT false
+);
+
+INSERT INTO public.review_api_activation (id, read_ready, write_ready)
+VALUES (true, false, false);
+
+COMMENT ON TABLE public.review_api_activation IS
+  'NEW27 activation. Both booleans stay false until service_role sets them. '
+  'Absence of true denies review read and write. Commerce state is not gated here.';
+
+ALTER TABLE public.review_api_activation ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.review_api_activation FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.review_api_guard(p_capability text)
+RETURNS void
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $$
+DECLARE
+  v_read boolean;
+  v_write boolean;
+BEGIN
+  IF p_capability IS DISTINCT FROM 'read' AND p_capability IS DISTINCT FROM 'write' THEN
+    RAISE EXCEPTION 'review_backend_unavailable' USING ERRCODE = '42501';
+  END IF;
+  SELECT gate.read_ready, gate.write_ready
+    INTO v_read, v_write
+  FROM public.review_api_activation AS gate
+  WHERE gate.id IS TRUE;
+  IF p_capability = 'read' AND v_read IS TRUE THEN
+    RETURN;
+  END IF;
+  IF p_capability = 'write' AND v_write IS TRUE THEN
+    RETURN;
+  END IF;
+  RAISE EXCEPTION 'review_backend_unavailable' USING ERRCODE = '42501';
+END;
+$$;
+
+ALTER FUNCTION public.review_api_guard(text) OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.review_api_guard(text) FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.set_review_api_activation(
+  p_read_ready boolean,
+  p_write_ready boolean
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $$
+BEGIN
+  IF coalesce(auth.role(), '') IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'review_activation_server_only' USING ERRCODE = '42501';
+  END IF;
+  IF p_read_ready IS NULL OR p_write_ready IS NULL THEN
+    RAISE EXCEPTION 'review_backend_unavailable' USING ERRCODE = '42501';
+  END IF;
+  UPDATE public.review_api_activation
+  SET read_ready = p_read_ready,
+      write_ready = p_write_ready
+  WHERE id IS TRUE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'review_backend_unavailable' USING ERRCODE = '42501';
+  END IF;
+END;
+$$;
+
+ALTER FUNCTION public.set_review_api_activation(boolean, boolean) OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.set_review_api_activation(boolean, boolean) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.set_review_api_activation(boolean, boolean) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_review_api_activation(boolean, boolean) TO service_role;
+
+COMMENT ON FUNCTION public.set_review_api_activation(boolean, boolean) IS
+  'service_role only. Opens or closes review read/write without changing grants. '
+  'Does not change payment or commerce state.';
+
+-- ---------------------------------------------------------------------------
 -- Customer RPCs.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.create_review(
@@ -398,6 +485,7 @@ DECLARE
   v_review_id uuid;
   v_withdrawn timestamptz;
 BEGIN
+  PERFORM public.review_api_guard('write');
   IF coalesce(auth.role(), '') IS DISTINCT FROM 'authenticated' OR auth.uid() IS NULL THEN
     RAISE EXCEPTION 'review_auth_required' USING ERRCODE = '42501';
   END IF;
@@ -501,6 +589,7 @@ DECLARE
   v_item uuid;
   v_commerce text;
 BEGIN
+  PERFORM public.review_api_guard('write');
   IF coalesce(auth.role(), '') IS DISTINCT FROM 'authenticated' OR auth.uid() IS NULL THEN
     RAISE EXCEPTION 'review_auth_required' USING ERRCODE = '42501';
   END IF;
@@ -578,6 +667,7 @@ DECLARE
   v_status text;
   v_paths text[];
 BEGIN
+  PERFORM public.review_api_guard('write');
   IF coalesce(auth.role(), '') IS DISTINCT FROM 'authenticated' OR auth.uid() IS NULL THEN
     RAISE EXCEPTION 'review_auth_required' USING ERRCODE = '42501';
   END IF;
@@ -646,6 +736,7 @@ DECLARE
   v_status text;
   v_image_id uuid;
 BEGIN
+  PERFORM public.review_api_guard('write');
   IF coalesce(auth.role(), '') IS DISTINCT FROM 'service_role' THEN
     RAISE EXCEPTION 'review_image_server_only' USING ERRCODE = '42501';
   END IF;
@@ -699,6 +790,7 @@ DECLARE
   v_item uuid;
   v_commerce text;
 BEGIN
+  PERFORM public.review_api_guard('write');
   IF coalesce(auth.role(), '') IS DISTINCT FROM 'authenticated' OR auth.uid() IS NULL THEN
     RAISE EXCEPTION 'review_auth_required' USING ERRCODE = '42501';
   END IF;
@@ -786,6 +878,7 @@ DECLARE
   v_status text;
   v_item uuid;
 BEGIN
+  PERFORM public.review_api_guard('write');
   IF coalesce(auth.role(), '') IS DISTINCT FROM 'authenticated' OR auth.uid() IS NULL THEN
     RAISE EXCEPTION 'review_auth_required' USING ERRCODE = '42501';
   END IF;
@@ -897,11 +990,14 @@ RETURNS TABLE (
   body text,
   created_at timestamptz
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog, pg_temp
 AS $$
+BEGIN
+  PERFORM public.review_api_guard('read');
+  RETURN QUERY
   SELECT review.id, review.rating, review.body, review.created_at
   FROM public.reviews AS review
   WHERE review.product_id = p_product_id
@@ -911,6 +1007,7 @@ AS $$
   ORDER BY review.created_at DESC
   LIMIT least(greatest(coalesce(p_limit, 20), 1), 20)
   OFFSET greatest(coalesce(p_offset, 0), 0);
+END;
 $$;
 
 ALTER FUNCTION public.list_public_reviews(uuid, integer, integer) OWNER TO postgres;
@@ -922,11 +1019,14 @@ RETURNS TABLE (
   approved_count bigint,
   average_rating numeric
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog, pg_temp
 AS $$
+BEGIN
+  PERFORM public.review_api_guard('read');
+  RETURN QUERY
   SELECT
     count(*)::bigint,
     round(avg(review.rating)::numeric, 2)
@@ -936,6 +1036,7 @@ AS $$
     AND review.status = 'approved'
     AND review.rating IS NOT NULL
     AND public.review_commerce_is_fulfilled(review.order_item_id);
+END;
 $$;
 
 ALTER FUNCTION public.product_review_public_stats(uuid) OWNER TO postgres;
@@ -953,11 +1054,14 @@ RETURNS TABLE (
   created_at timestamptz,
   updated_at timestamptz
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog, pg_temp
 AS $$
+BEGIN
+  PERFORM public.review_api_guard('read');
+  RETURN QUERY
   SELECT
     review.id,
     review.order_item_id,
@@ -978,6 +1082,7 @@ AS $$
         AND profiles.withdrawn_at IS NOT NULL
     )
   ORDER BY review.created_at DESC;
+END;
 $$;
 
 ALTER FUNCTION public.list_my_reviews() OWNER TO postgres;
@@ -1002,6 +1107,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog, pg_temp
 AS $$
 BEGIN
+  PERFORM public.review_api_guard('read');
   IF coalesce(auth.role(), '') IS DISTINCT FROM 'authenticated'
      OR auth.uid() IS NULL
      OR NOT public.profiles_is_current_user_admin() THEN
@@ -1048,6 +1154,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog, pg_temp
 AS $$
 BEGIN
+  PERFORM public.review_api_guard('read');
   IF coalesce(auth.role(), '') IS DISTINCT FROM 'authenticated'
      OR auth.uid() IS NULL
      OR NOT public.profiles_is_current_user_admin() THEN

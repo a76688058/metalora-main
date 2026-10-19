@@ -96,6 +96,16 @@ export const REVIEW_WRITE_API_READY = false;
 /** Public and account reads stay closed until the validated RPCs exist. */
 export const REVIEW_READ_API_READY = false;
 
+function capabilityClosed(ready: boolean): boolean {
+  return ready !== true;
+}
+
+/** True while the matching capability constant is still closed. */
+export function reviewRequestBlocked(capability: 'read' | 'write'): boolean {
+  if (capability === 'read') return capabilityClosed(REVIEW_READ_API_READY);
+  return capabilityClosed(REVIEW_WRITE_API_READY);
+}
+
 /** Dev-only preview. Production builds never enable this. */
 export function reviewUiPreviewEnabled(): boolean {
   return import.meta.env.DEV === true && import.meta.env.VITE_REVIEW_UI_PREVIEW === '1';

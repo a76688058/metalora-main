@@ -34,6 +34,7 @@ DECLARE
   v_status text;
   v_count integer;
 BEGIN
+  PERFORM public.review_api_guard('write');
   IF coalesce(auth.role(), '') IS DISTINCT FROM 'authenticated' OR auth.uid() IS NULL THEN
     RAISE EXCEPTION 'review_auth_required' USING ERRCODE = '42501';
   END IF;
@@ -85,6 +86,7 @@ DECLARE
   v_owner uuid;
   v_paths text[];
 BEGIN
+  PERFORM public.review_api_guard('read');
   IF coalesce(auth.role(), '') IS DISTINCT FROM 'authenticated' OR auth.uid() IS NULL THEN
     RAISE EXCEPTION 'review_auth_required' USING ERRCODE = '42501';
   END IF;
@@ -123,11 +125,14 @@ RETURNS TABLE (
   review_id uuid,
   image_id uuid
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog, pg_temp
 AS $$
+BEGIN
+  PERFORM public.review_api_guard('read');
+  RETURN QUERY
   SELECT img.review_id, img.id
   FROM public.review_images AS img
   JOIN public.reviews AS review ON review.id = img.review_id
@@ -136,6 +141,7 @@ AS $$
     AND review.status = 'approved'
     AND review.product_id IS NOT NULL
     AND public.review_commerce_is_fulfilled(review.order_item_id);
+END;
 $$;
 
 ALTER FUNCTION public.list_public_review_image_ids(uuid[]) OWNER TO postgres;
@@ -152,6 +158,7 @@ AS $$
 DECLARE
   v_path text;
 BEGIN
+  PERFORM public.review_api_guard('read');
   IF coalesce(auth.role(), '') IS DISTINCT FROM 'service_role' THEN
     RAISE EXCEPTION 'review_image_server_only' USING ERRCODE = '42501';
   END IF;

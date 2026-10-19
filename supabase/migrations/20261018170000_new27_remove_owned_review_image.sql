@@ -42,6 +42,7 @@ DECLARE
   v_image_review uuid;
   v_path text;
 BEGIN
+  PERFORM public.review_api_guard('write');
   IF coalesce(auth.role(), '') IS DISTINCT FROM 'service_role' THEN
     RAISE EXCEPTION 'review_image_server_only' USING ERRCODE = '42501';
   END IF;
