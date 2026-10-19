@@ -20,6 +20,7 @@ import { registerSocialAuthRoutes } from "./src/lib/socialAuthHandlers";
 import { createSharpReviewImageCodec } from "./src/lib/reviewImageCodec";
 import { registerReviewImageRoutes } from "./src/lib/reviewImageRoutes";
 import { registerReviewEligibilityRoute } from "./src/lib/reviewCommerceEligibility";
+import { registerFullOrderCancellationRoute } from "./src/lib/paymentCancellation";
 import { resolveSmsAdapter } from "./src/lib/smsAdapter";
 import { configureExpressTrustProxy, resolveTrustedIpMode } from "./src/lib/trustedClientIp";
 import { verifyPaymentMember } from "./src/lib/paymentMemberAuth";
@@ -2442,6 +2443,7 @@ ${staticUrls}${productUrls}
   });
   // Review eligibility is not granted here. finalize_paid_order leaves status PAID.
   registerReviewEligibilityRoute(app, { supabaseAdmin, supabasePublic });
+  registerFullOrderCancellationRoute(app, { supabaseAdmin, supabasePublic });
 
   /**
    * 결제 준비 API — server-validated immutable payment_intents snapshot (#18B-2)
