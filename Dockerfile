@@ -32,6 +32,9 @@ COPY server.ts ./
 # Builder COPY src is compile-only and is not present in this stage.
 # Top-level *.ts only: customComposition/ is client rasterize, not imported by server.ts.
 COPY src/lib/*.ts ./src/lib/
+# Extensionless import ../types/reviews from reviewImageRoutes.ts.
+# tsx resolves it to this file. It has no further local imports.
+COPY src/types/reviews.ts ./src/types/reviews.ts
 COPY --from=builder /app/dist/client ./dist/client
 
 EXPOSE 8080

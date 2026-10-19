@@ -2,7 +2,9 @@
  * NEW2 P0.5 — Docker runner must contain server.ts's local src/lib runtime graph.
  * Structural only. Does not deploy, migrate, or print secrets.
  */
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -110,18 +112,26 @@ for (const file of transitive) {
   assert(`graph includes ${file}`, graph.includes(file));
 }
 
+const allowedOutsideLib = ["src/types/reviews.ts"];
 const nested = graph.filter(
-  (file) => file !== "server.ts" && !/^src\/lib\/[^/]+\.tsx?$/.test(file),
+  (file) => file !== "server.ts"
+    && !/^src\/lib\/[^/]+\.tsx?$/.test(file)
+    && !allowedOutsideLib.includes(file),
 );
 assert(
-  "runtime graph stays in top-level src/lib/*.ts",
+  "runtime graph stays in src/lib/*.ts plus src/types/reviews.ts",
   nested.length === 0,
   nested.join(", "),
 );
+assert("graph includes src/types/reviews.ts", graph.includes("src/types/reviews.ts"));
 
 assert(
   "runner copies src/lib/*.ts",
   /COPY\s+src\/lib\/\*\.ts\s+\.\/src\/lib\//.test(runner),
+);
+assert(
+  "runner copies src/types/reviews.ts",
+  /COPY\s+src\/types\/reviews\.ts\s+\.\/src\/types\/reviews\.ts/.test(runner),
 );
 assert(
   "runner no longer copies only two lib files",
@@ -142,7 +152,9 @@ const copiedTopLevel = fs
   .filter((entry) => entry.isFile() && entry.name.endsWith(".ts"))
   .map((entry) => `src/lib/${entry.name}`);
 const missingFromGlob = graph.filter(
-  (file) => file !== "server.ts" && !copiedTopLevel.includes(file),
+  (file) => file !== "server.ts"
+    && !copiedTopLevel.includes(file)
+    && !allowedOutsideLib.includes(file),
 );
 assert(
   "src/lib/*.ts glob covers the runtime graph",
@@ -164,6 +176,48 @@ assert(
   importError === "",
   importError || `${libGraph.length} modules`,
 );
+
+const layout = fs.mkdtempSync(path.join(os.tmpdir(), "metalora-runner-"));
+try {
+  fs.mkdirSync(path.join(layout, "src/lib"), { recursive: true });
+  fs.mkdirSync(path.join(layout, "src/types"), { recursive: true });
+  fs.copyFileSync(path.join(root, "server.ts"), path.join(layout, "server.ts"));
+  fs.copyFileSync(path.join(root, "package.json"), path.join(layout, "package.json"));
+  for (const file of copiedTopLevel) {
+    fs.copyFileSync(path.join(root, file), path.join(layout, file));
+  }
+  fs.copyFileSync(
+    path.join(root, "src/types/reviews.ts"),
+    path.join(layout, "src/types/reviews.ts"),
+  );
+  fs.symlinkSync(path.join(root, "node_modules"), path.join(layout, "node_modules"), "junction");
+  fs.writeFileSync(
+    path.join(layout, "src/lib/runnerResolveProbe.ts"),
+    [
+      "import { reviewRequestBlocked, REVIEW_READ_API_READY, REVIEW_WRITE_API_READY } from \"../types/reviews\";",
+      "import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from \"./publicPaymentFreeze\";",
+      "import \"./reviewImageRoutes\";",
+      "if (REVIEW_READ_API_READY !== false || REVIEW_WRITE_API_READY !== false) throw new Error(\"review flags\");",
+      "if (PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 !== true) throw new Error(\"payment freeze\");",
+      "if (!reviewRequestBlocked(\"read\") || !reviewRequestBlocked(\"write\")) throw new Error(\"review gate\");",
+      "console.log(\"RUNNER_RESOLVE=PASS\");",
+    ].join("\n"),
+    "utf8",
+  );
+  const resolved = spawnSync(
+    process.execPath,
+    ["--import", "tsx", "src/lib/runnerResolveProbe.ts"],
+    { cwd: layout, encoding: "utf8", windowsHide: true },
+  );
+  const resolveOut = `${resolved.stdout ?? ""}\n${resolved.stderr ?? ""}`;
+  assert(
+    "runner layout resolves extensionless review import",
+    resolved.status === 0 && resolveOut.includes("RUNNER_RESOLVE=PASS"),
+    resolveOut.slice(0, 500),
+  );
+} finally {
+  fs.rmSync(layout, { recursive: true, force: true });
+}
 
 const failed = results.filter((row) => !row.pass);
 console.log(`\n${results.length - failed.length}/${results.length} PASS`);
