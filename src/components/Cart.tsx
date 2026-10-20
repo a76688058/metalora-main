@@ -23,6 +23,7 @@ import {
 } from '../lib/paymentFailureAnalytics';
 import { isUsableMemberProfile, safeInternalPath } from '../lib/authIntegrity';
 import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../lib/publicPaymentFreeze';
+import { assertTossTestClientKey, CARD_SCREENING_TEST_ENABLED, createCardScreeningOrderId } from '../lib/cardScreeningTest';
 import { checkoutPolicyVersionSnapshot } from '../lib/policyVersions';
 import { useWorkshopMediaDisplay } from '../hooks/useWorkshopMediaDisplay';
 
@@ -402,6 +403,8 @@ export default function Cart() {
   canCheckoutRef.current = canCheckout;
   const checkoutAuthPending =
     isAuthLoading || (Boolean(currentAuthUser) && !isProfileResolved);
+  const screeningCheckout = CARD_SCREENING_TEST_ENABLED && PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7;
+  const checkoutClosed = PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 && !screeningCheckout;
 
   const beginCheckoutStep = () => {
     if (selectedIds.size === 0 || step !== 1) return;
@@ -720,8 +723,54 @@ export default function Cart() {
     }
   };
 
+  const handleScreeningPayment = async () => {
+    if (!screeningCheckout) return;
+    if (!requireCheckoutAuth()) return;
+    if (!shippingData.name || !shippingData.phone || !shippingData.address || !shippingData.zipCode || !shippingData.addressDetail) {
+      showToast('배송 정보를 모두 입력해 주세요.', 'error');
+      return;
+    }
+    if (!isAllConsented) {
+      showToast('필수 약관에 모두 동의해 주세요.', 'error');
+      return;
+    }
+    const amount = parsePositiveKrwAmount(selectedTotalPrice);
+    if (amount === null) {
+      showToast('테스트 결제 금액이 올바르지 않습니다.', 'error');
+      return;
+    }
+
+    let orderId = '';
+    try {
+      setIsProcessing(true);
+      const clientKey = assertTossTestClientKey(TOSS_CLIENT_KEY);
+      orderId = createCardScreeningOrderId();
+      const tossPayments = await loadTossPayments(clientKey);
+      const productTitle = selectedItems[0]?.product?.title || '메탈로라 작품';
+      const orderName = selectedItems.length > 1
+        ? `[심사테스트] ${productTitle} 외 ${selectedItems.length - 1}건`
+        : `[심사테스트] ${productTitle}`;
+      await tossPayments.requestPayment('카드', {
+        amount,
+        orderId,
+        orderName,
+        customerName: shippingData.name,
+        successUrl: `${window.location.origin}/payment/screening/success`,
+        failUrl: `${window.location.origin}/payment/screening/fail`,
+      });
+      setIsBottomSheetOpen(false);
+    } catch (error: unknown) {
+      const message = error instanceof Error && error.message
+        ? error.message
+        : '테스트 결제 창을 열지 못했습니다.';
+      showToast(message, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleNextStep = () => {
-    if (PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7) return;
+    if (checkoutClosed) return;
     if (selectedIds.size === 0 || step !== 1) return;
     if (!requireCheckoutAuth()) return;
     beginCheckoutStep();
@@ -732,7 +781,7 @@ export default function Cart() {
   };
 
   useEffect(() => {
-    if (PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7) {
+    if (checkoutClosed) {
       pendingCheckoutRef.current = false;
       return;
     }
@@ -745,7 +794,7 @@ export default function Cart() {
     }
     pendingCheckoutRef.current = false;
     beginCheckoutStep();
-  }, [isLoginModalOpen, checkoutAuthPending, canCheckout, step]);
+  }, [isLoginModalOpen, checkoutAuthPending, canCheckout, step, checkoutClosed]);
 
   return (
     <motion.div 
@@ -1114,7 +1163,7 @@ export default function Cart() {
 
                 <section className="space-y-6">
                   <h3 className="text-sm font-medium mb-4">결제 수단</h3>
-                  {PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 ? (
+                  {checkoutClosed ? (
                     <div className="border-b border-black/10 py-5 dark:border-white/10">
                       <p className="text-base font-medium">결제 준비 중</p>
                       <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>현재 결제 기능을 준비하고 있습니다.</p>
@@ -1123,8 +1172,12 @@ export default function Cart() {
                     <div className="border-b border-black/10 py-5 dark:border-white/10">
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="text-base font-medium">간편 결제</p>
-                          <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>신용/체크카드 및 간편 결제</p>
+                          <p className="text-base font-medium">{screeningCheckout ? '심사 테스트 카드 결제' : '간편 결제'}</p>
+                          <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>
+                            {screeningCheckout
+                              ? '카드사 심사 테스트입니다. 실제 주문과 배송은 만들어지지 않습니다.'
+                              : '신용/체크카드 및 간편 결제'}
+                          </p>
                         </div>
                         <CheckCircle2 size={18} />
                       </div>
@@ -1143,11 +1196,15 @@ export default function Cart() {
             <span className="text-[1.75rem] font-medium tracking-[-0.03em]">₩{displayPrice.toLocaleString()}</span>
           </div>
 
-          {PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 && (
+          {screeningCheckout ? (
+            <p className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>
+              카드사 심사 테스트 결제입니다. 실제 주문과 배송은 만들어지지 않습니다.
+            </p>
+          ) : PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 ? (
             <p className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>
               현재 결제 기능을 준비하고 있습니다.
             </p>
-          )}
+          ) : null}
           
           <div className="flex gap-3">
             {step === 2 && (
@@ -1164,19 +1221,19 @@ export default function Cart() {
             <button 
               type="button"
               onClick={step === 1 ? handleNextStep : () => {
-                if (PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7) return;
+                if (checkoutClosed) return;
                 setIsBottomSheetOpen(true);
               }}
-              disabled={selectedItems.length === 0 || isProcessing || PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7}
+              disabled={selectedItems.length === 0 || isProcessing || checkoutClosed}
               className={`flex-1 h-12 text-base font-medium tracking-[-0.02em] rounded-[2px] flex items-center justify-center gap-2 transition-colors ${
-                selectedItems.length === 0 || isProcessing || PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7
+                selectedItems.length === 0 || isProcessing || checkoutClosed
                   ? (theme === 'dark' ? 'bg-[#2a2b31] text-[#f3f1ec]/35 cursor-not-allowed' : 'bg-[#e4dfd6] text-[#16150f]/35 cursor-not-allowed')
                   : (theme === 'dark' ? 'bg-[#f2f0ea] text-[#16150f] hover:brightness-105' : 'bg-[#1a1914] text-[#f4f1eb] hover:brightness-110')
               }`}
             >
               {isProcessing ? (
                 <Loader2 className="animate-spin" size={24} />
-              ) : PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 ? (
+              ) : checkoutClosed ? (
                 '결제 준비 중'
               ) : step === 1 ? (
                 selectedIds.size === 0 ? '상품을 선택해주세요' : '주문하기'
@@ -1266,7 +1323,7 @@ export default function Cart() {
 
       {/* Toss-style Consent Bottom Sheet */}
       <AnimatePresence>
-      {isBottomSheetOpen && !PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 && (
+      {isBottomSheetOpen && !checkoutClosed && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
@@ -1389,8 +1446,8 @@ export default function Cart() {
                 
                 <button
                   type="button"
-                  onClick={handlePayment}
-                  disabled={PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 || !isAllConsented || isProcessing}
+                  onClick={screeningCheckout ? handleScreeningPayment : handlePayment}
+                  disabled={checkoutClosed || !isAllConsented || isProcessing}
                   className={`w-full h-12 font-medium tracking-[-0.02em] rounded-[2px] flex items-center justify-center gap-2 ${
                     !isAllConsented || isProcessing
                       ? (theme === 'dark' ? 'bg-[#2a2b31] text-[#f3f1ec]/40 cursor-not-allowed' : 'bg-[#e4dfd6] text-[#16150f]/40 cursor-not-allowed')
@@ -1400,7 +1457,7 @@ export default function Cart() {
                   {isProcessing ? (
                     <Loader2 className="animate-spin" size={24} />
                   ) : (
-                    '동의하고 결제하기'
+                    screeningCheckout ? '동의하고 테스트 결제하기' : '동의하고 결제하기'
                   )}
                 </button>
               </div>

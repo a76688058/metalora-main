@@ -32,6 +32,7 @@ const ProductDetail = lazy(() => import('./components/ProductDetail'));
 const Login = lazy(() => import('./pages/Login'));
 const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'));
 const PaymentFail = lazy(() => import('./pages/PaymentFail'));
+const ScreeningPaymentResult = lazy(() => import('./pages/ScreeningPaymentResult'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AdminProducts = lazy(() => import('./pages/AdminProducts'));
@@ -159,6 +160,8 @@ function AnimatedRoutes() {
         {/* Member Only Routes */}
         <Route path="/payment/success" element={<ProtectedRoute><LazyRoute><PaymentSuccess /></LazyRoute></ProtectedRoute>} />
         <Route path="/payment/fail" element={<ProtectedRoute><LazyRoute><PaymentFail /></LazyRoute></ProtectedRoute>} />
+        <Route path="/payment/screening/success" element={<ProtectedRoute><LazyRoute><ScreeningPaymentResult outcome="success" /></LazyRoute></ProtectedRoute>} />
+        <Route path="/payment/screening/fail" element={<ProtectedRoute><LazyRoute><ScreeningPaymentResult outcome="fail" /></LazyRoute></ProtectedRoute>} />
         
         {/* Admin Routes - Protected */}
         <Route path="/admin/login" element={<LazyRoute><AdminLogin /></LazyRoute>} />

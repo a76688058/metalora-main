@@ -10,5 +10,6 @@
  *
  * NEW7 production payment activation is a dedicated change of this constant
  * together with the live Toss client key. Do not unfreeze in an unrelated deploy.
+ * Card screening uses CARD_SCREENING_TEST_ENABLED and must not change this flag.
  */
 export const PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = true;
