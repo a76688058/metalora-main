@@ -230,7 +230,7 @@ export const policies = {
               ■ 일반 상품 출고
             </h4>
             <p className="text-[15px] text-zinc-700 dark:text-zinc-300 leading-relaxed font-normal">
-              일반 상품은 주문 후 <span className="font-semibold text-zinc-950 dark:text-white">2~3영업일 이내 출고</span>됩니다.
+              일반 상품은 제작에 <span className="font-semibold text-zinc-950 dark:text-white">2~5영업일</span>이 소요되며, 제작이 끝난 뒤 출고됩니다. 출고 후 배송은 <span className="font-semibold text-zinc-950 dark:text-white">1~3영업일</span>이 소요됩니다.
             </p>
           </div>
 
