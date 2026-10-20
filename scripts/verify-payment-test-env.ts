@@ -36,6 +36,12 @@ const liveToProd = refuseTossTestToProductionSupabase({
 });
 assert(liveToProd.refuse === false, "live Toss prefix is not this TEST-cross-write guard");
 
+const gskTestToProd = refuseTossTestToProductionSupabase({
+  tossSecretKey: "test_gsk_PLACEHOLDER_NOT_A_REAL_SECRET",
+  supabaseUrl: PRODUCTION_SUPABASE_URL,
+});
+assert(gskTestToProd.refuse === true, "Toss TEST gsk + production host must be refused");
+
 const paymentTestProd = refusePaymentTestProductionHost({
   metaloraEnv: "payment-test",
   supabaseUrl: PRODUCTION_SUPABASE_URL,
@@ -95,6 +101,28 @@ assert(
 assert(
   serverSrc.includes("paymentCrossWriteGuard"),
   "server.ts must guard payment prepare/confirm",
+);
+const confirmAt = serverSrc.indexOf('app.post("/api/payment/confirm"');
+const confirmEnd = serverSrc.indexOf("app.post(", confirmAt + 20);
+const confirmBody = serverSrc.slice(confirmAt, confirmEnd === -1 ? undefined : confirmEnd);
+const confirmGuardAt = confirmBody.indexOf("const envGuard = paymentCrossWriteGuard()");
+const confirmTossAt = confirmBody.indexOf("https://api.tosspayments.com/v1/payments/confirm");
+assert(
+  confirmGuardAt >= 0 && confirmTossAt > confirmGuardAt,
+  "confirm must refuse TEST-to-production cross-write before contacting Toss",
+);
+assert(
+  confirmBody.indexOf("return res.status(envGuard.status)") < confirmTossAt,
+  "confirm must return the cross-write refusal before the Toss request",
+);
+
+const screeningPage = fs.readFileSync(path.join(root, "src/pages/ScreeningPaymentResult.tsx"), "utf8");
+assert(!screeningPage.includes("/api/payment/confirm"), "screening return page must not confirm a payment");
+assert(!screeningPage.includes("/api/payment/prepare"), "screening return page must not prepare a payment");
+const screeningMode = fs.readFileSync(path.join(root, "src/lib/cardScreeningTest.ts"), "utf8");
+assert(
+  screeningMode.includes("never calls production prepare, confirm, or order finalization"),
+  "screening mode must stay isolated from production finalization",
 );
 
 const clientSrc = fs.readFileSync(path.join(root, "src/lib/supabase.ts"), "utf8");
