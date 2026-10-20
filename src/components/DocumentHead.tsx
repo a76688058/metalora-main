@@ -35,6 +35,8 @@ const FUNCTIONAL_TITLES: Record<string, string> = {
   '/profile/complete': '프로필 | 메탈로라',
   '/payment/success': '결제 완료 | 메탈로라',
   '/payment/fail': '결제 | 메탈로라',
+  '/payment/screening/success': '심사 테스트 | 메탈로라',
+  '/payment/screening/fail': '심사 테스트 | 메탈로라',
   '/admin': '관리자 | 메탈로라',
   '/admin/login': '관리자 로그인 | 메탈로라',
   '/admin/products': '관리자 | 메탈로라',

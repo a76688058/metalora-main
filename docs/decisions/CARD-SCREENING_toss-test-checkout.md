@@ -4,7 +4,7 @@ Status: IMPLEMENTED, not deployed
 
 Decision: `CARD_SCREENING_TEST_ENABLED` opens a Toss `test_ck` payment window from the existing cart. `PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7` stays true. Production `POST /api/payment/prepare` stays HTTP 503.
 
-Completed: Cart CTA, isolated screening request, `/payment/screening/success` and `/payment/screening/fail`. Those pages do not call confirm.
+Completed: Cart CTA, isolated screening request, `/payment/screening/success` and `/payment/screening/fail`. Those paths are public noindex documents. The pages do not read callback parameters and do not call confirm.
 
 Do Not Do: Do not set the freeze flag false. Do not switch the client key to `live_ck`. Do not point screening callbacks at `/payment/success`.
 

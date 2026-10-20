@@ -160,8 +160,8 @@ function AnimatedRoutes() {
         {/* Member Only Routes */}
         <Route path="/payment/success" element={<ProtectedRoute><LazyRoute><PaymentSuccess /></LazyRoute></ProtectedRoute>} />
         <Route path="/payment/fail" element={<ProtectedRoute><LazyRoute><PaymentFail /></LazyRoute></ProtectedRoute>} />
-        <Route path="/payment/screening/success" element={<ProtectedRoute><LazyRoute><ScreeningPaymentResult outcome="success" /></LazyRoute></ProtectedRoute>} />
-        <Route path="/payment/screening/fail" element={<ProtectedRoute><LazyRoute><ScreeningPaymentResult outcome="fail" /></LazyRoute></ProtectedRoute>} />
+        <Route path="/payment/screening/success" element={<LazyRoute><ScreeningPaymentResult outcome="success" /></LazyRoute>} />
+        <Route path="/payment/screening/fail" element={<LazyRoute><ScreeningPaymentResult outcome="fail" /></LazyRoute>} />
         
         {/* Admin Routes - Protected */}
         <Route path="/admin/login" element={<LazyRoute><AdminLogin /></LazyRoute>} />
