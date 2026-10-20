@@ -21,6 +21,7 @@ import { createSharpReviewImageCodec } from "./src/lib/reviewImageCodec";
 import { registerReviewImageRoutes } from "./src/lib/reviewImageRoutes";
 import { registerReviewEligibilityRoute } from "./src/lib/reviewCommerceEligibility";
 import { registerFullOrderCancellationRoute } from "./src/lib/paymentCancellation";
+import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from "./src/lib/publicPaymentFreeze";
 import { resolveSmsAdapter } from "./src/lib/smsAdapter";
 import { configureExpressTrustProxy, resolveTrustedIpMode } from "./src/lib/trustedClientIp";
 import { verifyPaymentMember } from "./src/lib/paymentMemberAuth";
@@ -198,6 +199,18 @@ function assertProductionEnvironment(): void {
       `Production startup aborted: missing required environment variable(s): ${missing.join(", ")}`,
     );
   }
+}
+
+const PUBLIC_PAYMENT_FROZEN_MESSAGE = "현재 결제 기능을 준비하고 있습니다.";
+
+/**
+ * Stops a new checkout while the public freeze is on.
+ * Payment-test may still prepare. Confirm and admin cancellation stay available
+ * so an already accepted payment can be recovered without taking a new charge.
+ */
+function publicPaymentPrepareGuard(): { status: number; error: string } | null {
+  if (!PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 || isPaymentTestMode) return null;
+  return { status: 503, error: PUBLIC_PAYMENT_FROZEN_MESSAGE };
 }
 
 function paymentCrossWriteGuard(): { status: number; error: string } | null {
@@ -2450,6 +2463,10 @@ ${staticUrls}${productUrls}
    */
   app.post("/api/payment/prepare", async (req, res) => {
     const requestId = newPaymentRequestId();
+    const freezeGuard = publicPaymentPrepareGuard();
+    if (freezeGuard) {
+      return res.status(freezeGuard.status).json({ error: freezeGuard.error });
+    }
     const envGuard = paymentCrossWriteGuard();
     if (envGuard) {
       await logPaymentOpsFailure({

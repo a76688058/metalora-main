@@ -1,4 +1,7 @@
 import express from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../src/lib/publicPaymentFreeze';
 import {
   executeFullOrderCancellation,
@@ -118,6 +121,11 @@ function provider(script: {
 
 async function main() {
   assert('public payment remains frozen', PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 === true);
+  const serverSrc = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../server.ts'), 'utf8');
+  const prepareAt = serverSrc.indexOf('app.post("/api/payment/prepare"');
+  const confirmAt = serverSrc.indexOf('app.post("/api/payment/confirm"');
+  assert('prepare refuses a new charge while frozen', prepareAt > 0 && serverSrc.slice(prepareAt, prepareAt + 500).includes('publicPaymentPrepareGuard()'));
+  assert('confirm stays available for recovery', confirmAt > 0 && !serverSrc.slice(confirmAt, confirmAt + 500).includes('publicPaymentPrepareGuard()'));
   assert('full cancel body omits amount', !('cancelAmount' in fullCancelRequestBody('관리자 전액 취소')));
 
   const recorded: { url?: string; body?: string; key?: string } = {};
