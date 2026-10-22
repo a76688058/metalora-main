@@ -34,6 +34,19 @@ interface CartProps {
 
 const TOSS_CLIENT_KEY = 'test_ck_Poxy1XQL8R9nPR9Xn61Xr7nO5Wml';
 
+type CheckoutShippingFields = {
+  name: string;
+  phone: string;
+  zipCode: string;
+  address: string;
+  addressDetail: string;
+};
+
+function hasCompleteShipping(shipping: CheckoutShippingFields): boolean {
+  return [shipping.name, shipping.phone, shipping.zipCode, shipping.address, shipping.addressDetail]
+    .every((value) => value.trim() !== '');
+}
+
 function parsePositiveKrwAmount(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value) && value >= 1) {
     return value;
@@ -257,7 +270,7 @@ export default function Cart() {
   };
   
   // Shipping Form State
-  const [shippingData, setShippingData] = useState({
+  const [shippingData, setShippingData] = useState<CheckoutShippingFields>({
     name: '',
     phone: '',
     zipCode: '',
@@ -434,7 +447,7 @@ export default function Cart() {
     if (!requireCheckoutAuth()) return;
     const currentUser = user || adminUser;
     if (!currentUser) return;
-    if (!shippingData.name || !shippingData.phone || !shippingData.address || !shippingData.zipCode || !shippingData.addressDetail) {
+    if (!hasCompleteShipping(shippingData)) {
       showToast('배송 정보를 모두 입력해 주세요.', 'error');
       return;
     }
@@ -726,7 +739,7 @@ export default function Cart() {
   const handleScreeningPayment = async () => {
     if (!screeningCheckout) return;
     if (!requireCheckoutAuth()) return;
-    if (!shippingData.name || !shippingData.phone || !shippingData.address || !shippingData.zipCode || !shippingData.addressDetail) {
+    if (!hasCompleteShipping(shippingData)) {
       showToast('배송 정보를 모두 입력해 주세요.', 'error');
       return;
     }

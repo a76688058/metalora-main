@@ -104,7 +104,7 @@ export function ProductOrderConfidence() {
             <ConfidenceCell
               index="02"
               label="배송"
-              detail="출고 후 1–3영업일 이내 배송됩니다. 제주·도서산간은 추가 배송비가 발생합니다."
+              detail="출고 후 1–3영업일 이내 배송됩니다. 현재 무료배송이며 제주·도서산간 추가 배송비는 없습니다."
               invert={invert}
               className="border-b border-border-subtle"
             >
