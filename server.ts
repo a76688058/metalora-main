@@ -170,7 +170,7 @@ function workshopStorageAdapterFor(admin: NonNullable<typeof supabaseAdmin>): Wo
   }
   return createWorkshopStorageAdapter({
     legacy: createSupabaseLegacyWorkshopStore(admin),
-    gcs: workshopGcsStoreFor(workshopGcsConfig),
+    gcs: workshopGcsConfig.state === "ready" ? workshopGcsStoreFor(workshopGcsConfig) : null,
   });
 }
 
@@ -2131,7 +2131,10 @@ async function startServer() {
   // Workshop private media (NEW4-4D-3). Responses may carry signed URLs: never cached,
   // never logged, no Referer. Not used by the live client until the consumer cutover tickets.
   if (workshopGcsConfig.state !== "ready") {
-    console.log("[WORKSHOP_MEDIA]", { gcs_config: workshopGcsConfig.state });
+    console.log("[WORKSHOP_MEDIA]", {
+      gcs_config: workshopGcsConfig.state,
+      ...(workshopGcsConfig.state === "invalid" ? { reason_class: workshopGcsConfig.reason } : {}),
+    });
   }
   console.log("[WORKSHOP_MEDIA]", {
     legacy_fallback: workshopLegacyFallback.state === "ready" ? workshopLegacyFallback.enabled : "invalid",
@@ -2179,12 +2182,16 @@ async function startServer() {
         if (workshopGcsConfig.state !== "ready") {
           return res.status(503).json({ error: "workshop_gcs_not_configured" });
         }
+        const workshopGcs = workshopGcsStoreFor(workshopGcsConfig);
+        if (!workshopGcs) {
+          return res.status(503).json({ error: "workshop_gcs_not_configured" });
+        }
         if (workshopLegacyFallback.state !== "ready") {
           return res.status(503).json({ error: "workshop_legacy_mode_invalid" });
         }
         const result = await handler(
           {
-            gcs: workshopGcsStoreFor(workshopGcsConfig),
+            gcs: workshopGcs,
             references: createSupabaseWorkshopReferenceSource(supabaseAdmin!),
             legacyHosts: workshopLegacyHosts,
             legacyFallback: workshopLegacyFallback.enabled,

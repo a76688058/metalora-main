@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Storage } from '@google-cloud/storage';
 import { GoogleAuth, Impersonated, type AuthClient } from 'google-auth-library';
+import { PAYMENT_TEST_ENV_NAME } from './paymentEnvGuard';
 
 /**
  * NEW4-4D-3 — Workshop media storage adapter.
@@ -17,8 +18,10 @@ import { GoogleAuth, Impersonated, type AuthClient } from 'google-auth-library';
 export const WORKSHOP_BUCKET = 'workshop';
 export const WORKSHOP_GCS_PROJECT = 'metalora-auth';
 export const WORKSHOP_GCS_APPROVED_BUCKET = 'metalora-workshop-apne3';
+export const WORKSHOP_GCS_TEST_BUCKET = 'metalora-workshop-test-apne3';
 export const WORKSHOP_GCS_REGIONAL_HOST = 'storage.asia-northeast3.rep.googleapis.com';
 export const WORKSHOP_GCS_SIGNER_SA = `workshop-media-signer@${WORKSHOP_GCS_PROJECT}.iam.gserviceaccount.com`;
+export const WORKSHOP_GCS_TEST_SIGNER_SA = `workshop-media-signer-test@${WORKSHOP_GCS_PROJECT}.iam.gserviceaccount.com`;
 export const WORKSHOP_GCS_ENV = {
   bucket: 'WORKSHOP_GCS_BUCKET',
   endpoint: 'WORKSHOP_GCS_ENDPOINT',
@@ -331,16 +334,30 @@ export function resolveRegionalEndpointHost(value: string | null | undefined): s
   return null;
 }
 
+/** Production accepts only the production pair. Payment-test accepts only the test pair. */
+export function approvedWorkshopSignerForBucket(bucket: string): string | null {
+  if (bucket === WORKSHOP_GCS_APPROVED_BUCKET) return WORKSHOP_GCS_SIGNER_SA;
+  if (bucket === WORKSHOP_GCS_TEST_BUCKET) return WORKSHOP_GCS_TEST_SIGNER_SA;
+  return null;
+}
+
+function workshopGcsRuntime(env: Record<string, string | undefined>): 'production' | 'payment-test' {
+  return (env.METALORA_ENV ?? '').trim() === PAYMENT_TEST_ENV_NAME ? 'payment-test' : 'production';
+}
+
 export function readWorkshopGcsConfig(env: Record<string, string | undefined>): WorkshopGcsConfigResult {
   const bucket = (env[WORKSHOP_GCS_ENV.bucket] ?? '').trim();
   const endpoint = (env[WORKSHOP_GCS_ENV.endpoint] ?? '').trim();
   const signer = (env[WORKSHOP_GCS_ENV.signer] ?? '').trim();
   if (!bucket && !endpoint && !signer) return { state: 'absent' };
   if (!bucket || !endpoint || !signer) return { state: 'invalid', reason: 'partial' };
-  if (bucket !== WORKSHOP_GCS_APPROVED_BUCKET) return { state: 'invalid', reason: 'bucket' };
+  const paymentTest = workshopGcsRuntime(env) === 'payment-test';
+  const expectedBucket = paymentTest ? WORKSHOP_GCS_TEST_BUCKET : WORKSHOP_GCS_APPROVED_BUCKET;
+  const expectedSigner = paymentTest ? WORKSHOP_GCS_TEST_SIGNER_SA : WORKSHOP_GCS_SIGNER_SA;
+  if (bucket !== expectedBucket) return { state: 'invalid', reason: 'bucket' };
   const endpointHost = resolveRegionalEndpointHost(endpoint);
   if (!endpointHost) return { state: 'invalid', reason: 'endpoint' };
-  if (signer !== WORKSHOP_GCS_SIGNER_SA) return { state: 'invalid', reason: 'signer' };
+  if (signer !== expectedSigner) return { state: 'invalid', reason: 'signer' };
   return { state: 'ready', config: { bucket, endpointHost, signerSa: signer } };
 }
 
@@ -524,7 +541,9 @@ export function createSignerStorage(config: WorkshopGcsConfig, sourceClient: Aut
   if (resolveRegionalEndpointHost(config.endpointHost) !== WORKSHOP_GCS_REGIONAL_HOST) {
     throw new WorkshopStorageConfigError('endpoint');
   }
-  if (config.signerSa !== WORKSHOP_GCS_SIGNER_SA) throw new WorkshopStorageConfigError('signer');
+  if (approvedWorkshopSignerForBucket(config.bucket) !== config.signerSa) {
+    throw new WorkshopStorageConfigError('signer');
+  }
   const authClient = new Impersonated({
     sourceClient,
     targetPrincipal: config.signerSa,
@@ -540,10 +559,13 @@ export function createSignerStorage(config: WorkshopGcsConfig, sourceClient: Aut
   });
 }
 
-/** Fails closed unless the storage client's effective identity is exactly the signer SA. */
-export async function assertEffectiveSigner(storage: Storage): Promise<void> {
+/** Fails closed unless the live token is exactly the signer selected for this store. */
+export async function assertEffectiveSigner(storage: Storage, expectedSigner: string): Promise<void> {
+  if (expectedSigner !== WORKSHOP_GCS_SIGNER_SA && expectedSigner !== WORKSHOP_GCS_TEST_SIGNER_SA) {
+    throw new WorkshopStorageError('gcs', 'sign', false);
+  }
   const creds = await storage.authClient.getCredentials();
-  if (creds.client_email !== WORKSHOP_GCS_SIGNER_SA) {
+  if (creds.client_email !== expectedSigner) {
     throw new WorkshopStorageError('gcs', 'sign', false);
   }
 }
@@ -557,10 +579,12 @@ export function assertSignedUrlShape(url: string, bucket: string, path: string):
     throw new WorkshopStorageError('gcs', 'sign', false);
   }
   const credential = parsed.searchParams.get('X-Goog-Credential') ?? '';
+  const signer = approvedWorkshopSignerForBucket(bucket);
   const ok =
+    signer !== null &&
     parsed.protocol === 'https:' &&
     parsed.host === WORKSHOP_GCS_REGIONAL_HOST &&
-    credential.startsWith(`${WORKSHOP_GCS_SIGNER_SA}/`) &&
+    credential.startsWith(`${signer}/`) &&
     parsed.pathname === `/${bucket}/${path}` &&
     parsed.searchParams.get('X-Goog-Expires') === String(WORKSHOP_SIGNED_URL_TTL_SECONDS);
   if (!ok) throw new WorkshopStorageError('gcs', 'sign', false);
@@ -609,7 +633,7 @@ export function createGcsWorkshopStore(
     if (!pending) {
       pending = (async () => {
         const client = await factory();
-        await assertEffectiveSigner(client);
+        await assertEffectiveSigner(client, config.signerSa);
         return client;
       })();
       pending.catch(() => {
@@ -687,7 +711,7 @@ export function createGcsWorkshopStore(
         throw new WorkshopStorageError('gcs', 'sign', false);
       }
       const client = await storage();
-      await assertEffectiveSigner(client);
+      await assertEffectiveSigner(client, config.signerSa);
       const headers = workshopUploadHeaders(contentType, maxBytes);
       const expiresMs = Date.now() + WORKSHOP_SIGNED_URL_TTL_SECONDS * 1000;
       let url: string;
@@ -712,7 +736,7 @@ export function createGcsWorkshopStore(
     async signRead(path) {
       if (!parseStrictCanonicalPath(path, 'canonical')) throw new WorkshopStorageError('gcs', 'sign', false);
       const client = await storage();
-      await assertEffectiveSigner(client);
+      await assertEffectiveSigner(client, config.signerSa);
       const expiresMs = Date.now() + WORKSHOP_SIGNED_URL_TTL_SECONDS * 1000;
       let url: string;
       try {

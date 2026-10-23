@@ -13,6 +13,8 @@ import {
   WORKSHOP_GCS_APPROVED_BUCKET,
   WORKSHOP_GCS_REGIONAL_HOST,
   WORKSHOP_GCS_SIGNER_SA,
+  WORKSHOP_GCS_TEST_BUCKET,
+  WORKSHOP_GCS_TEST_SIGNER_SA,
   WORKSHOP_MEDIA_CACHE_CONTROL,
   WORKSHOP_MEDIA_PATHS,
   WORKSHOP_SIGN_READ_BATCH_MAX,
@@ -36,6 +38,7 @@ import {
   parseWorkshopRef,
   readWorkshopGcsConfig,
   resolveRegionalEndpointHost,
+  workshopGcsStoreFor,
   validateCommitMetadata,
   validateSignUploadRequest,
   workshopRefIdentity,
@@ -57,6 +60,8 @@ import {
   type WorkshopMediaApi,
 } from '../src/lib/customComposition/durableHandoff';
 import { WORKSHOP_MEDIA_GCS_HOST, parseWorkshopMediaRef } from '../src/lib/workshopMediaCore';
+import { PAYMENT_TEST_ENV_NAME } from '../src/lib/paymentEnvGuard';
+import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../src/lib/publicPaymentFreeze';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const results: { group: string; name: string; pass: boolean }[] = [];
@@ -203,6 +208,121 @@ try {
 assert('signed URL bound to another object refused', shapePath);
 
 // ---------------------------------------------------------------------------
+section('Item C production / payment-test GCS isolation');
+const testApprovedEnv = {
+  METALORA_ENV: PAYMENT_TEST_ENV_NAME,
+  WORKSHOP_GCS_BUCKET: WORKSHOP_GCS_TEST_BUCKET,
+  WORKSHOP_GCS_ENDPOINT: `https://${WORKSHOP_GCS_REGIONAL_HOST}`,
+  WORKSHOP_GCS_SIGNER_SA: WORKSHOP_GCS_TEST_SIGNER_SA,
+};
+const productionReady = readWorkshopGcsConfig(approvedEnv);
+const paymentTestReady = readWorkshopGcsConfig(testApprovedEnv);
+assert('A production pair accepted in production',
+  productionReady.state === 'ready'
+    && productionReady.config.bucket === WORKSHOP_GCS_APPROVED_BUCKET
+    && productionReady.config.signerSa === WORKSHOP_GCS_SIGNER_SA
+    && productionReady.config.endpointHost === WORKSHOP_GCS_REGIONAL_HOST);
+assert('B test pair accepted in payment-test',
+  paymentTestReady.state === 'ready'
+    && paymentTestReady.config.bucket === WORKSHOP_GCS_TEST_BUCKET
+    && paymentTestReady.config.signerSa === WORKSHOP_GCS_TEST_SIGNER_SA
+    && paymentTestReady.config.endpointHost === WORKSHOP_GCS_REGIONAL_HOST);
+const crossCases: { name: string; env: Record<string, string> }[] = [
+  { name: 'C payment-test production bucket', env: { ...testApprovedEnv, WORKSHOP_GCS_BUCKET: WORKSHOP_GCS_APPROVED_BUCKET, WORKSHOP_GCS_SIGNER_SA: WORKSHOP_GCS_TEST_SIGNER_SA } },
+  { name: 'C payment-test production pair', env: { ...testApprovedEnv, WORKSHOP_GCS_BUCKET: WORKSHOP_GCS_APPROVED_BUCKET, WORKSHOP_GCS_SIGNER_SA: WORKSHOP_GCS_SIGNER_SA } },
+  { name: 'D payment-test production signer', env: { ...testApprovedEnv, WORKSHOP_GCS_SIGNER_SA: WORKSHOP_GCS_SIGNER_SA } },
+  { name: 'E production test bucket', env: { ...approvedEnv, WORKSHOP_GCS_BUCKET: WORKSHOP_GCS_TEST_BUCKET, WORKSHOP_GCS_SIGNER_SA: WORKSHOP_GCS_TEST_SIGNER_SA } },
+  { name: 'E production test pair', env: { ...approvedEnv, WORKSHOP_GCS_BUCKET: WORKSHOP_GCS_TEST_BUCKET, WORKSHOP_GCS_SIGNER_SA: WORKSHOP_GCS_SIGNER_SA } },
+  { name: 'F production test signer', env: { ...approvedEnv, WORKSHOP_GCS_SIGNER_SA: WORKSHOP_GCS_TEST_SIGNER_SA } },
+  { name: 'G production bucket with test signer', env: { ...approvedEnv, WORKSHOP_GCS_BUCKET: WORKSHOP_GCS_APPROVED_BUCKET, WORKSHOP_GCS_SIGNER_SA: WORKSHOP_GCS_TEST_SIGNER_SA } },
+  { name: 'G test bucket with production signer', env: { ...testApprovedEnv, WORKSHOP_GCS_BUCKET: WORKSHOP_GCS_TEST_BUCKET, WORKSHOP_GCS_SIGNER_SA: WORKSHOP_GCS_SIGNER_SA } },
+];
+for (const item of crossCases) {
+  const result = readWorkshopGcsConfig(item.env);
+  assert(`${item.name} rejected`, result.state === 'invalid' && (result.reason === 'bucket' || result.reason === 'signer'));
+  assert(`${item.name} does not build a store`, workshopGcsStoreFor(result) === null);
+}
+assert('H payment-test absent config is not ready', readWorkshopGcsConfig({ METALORA_ENV: PAYMENT_TEST_ENV_NAME }).state === 'absent');
+assert('H payment-test bucket only is partial',
+  readWorkshopGcsConfig({ METALORA_ENV: PAYMENT_TEST_ENV_NAME, WORKSHOP_GCS_BUCKET: WORKSHOP_GCS_TEST_BUCKET }).state === 'invalid');
+assert('H payment-test missing signer is partial',
+  readWorkshopGcsConfig({
+    METALORA_ENV: PAYMENT_TEST_ENV_NAME,
+    WORKSHOP_GCS_BUCKET: WORKSHOP_GCS_TEST_BUCKET,
+    WORKSHOP_GCS_ENDPOINT: `https://${WORKSHOP_GCS_REGIONAL_HOST}`,
+  }).state === 'invalid');
+assert('H partial payment-test config does not build a store',
+  workshopGcsStoreFor(readWorkshopGcsConfig({ METALORA_ENV: PAYMENT_TEST_ENV_NAME, WORKSHOP_GCS_BUCKET: WORKSHOP_GCS_TEST_BUCKET })) === null);
+const FAKE_SIGNED_FOR = (bucket: string, signer: string, p: string) =>
+  `https://${WORKSHOP_GCS_REGIONAL_HOST}/${bucket}/${p}?X-Goog-Credential=${encodeURIComponent(`${signer}/x`)}&X-Goog-Expires=300&X-Goog-Signature=synthetic`;
+let testShapeOk = true;
+try {
+  assertSignedUrlShape(FAKE_SIGNED_FOR(WORKSHOP_GCS_TEST_BUCKET, WORKSHOP_GCS_TEST_SIGNER_SA, PREVIEW), WORKSHOP_GCS_TEST_BUCKET, PREVIEW);
+} catch {
+  testShapeOk = false;
+}
+assert('I payment-test signed URL host, bucket and signer match', testShapeOk);
+let crossUrlRefused = false;
+try {
+  assertSignedUrlShape(FAKE_SIGNED_FOR(WORKSHOP_GCS_TEST_BUCKET, WORKSHOP_GCS_SIGNER_SA, PREVIEW), WORKSHOP_GCS_TEST_BUCKET, PREVIEW);
+} catch (error) {
+  crossUrlRefused = error instanceof WorkshopStorageError;
+}
+assert('I production signer on test bucket URL refused', crossUrlRefused);
+let crossProdUrlRefused = false;
+try {
+  assertSignedUrlShape(FAKE_SIGNED_FOR(WORKSHOP_GCS_APPROVED_BUCKET, WORKSHOP_GCS_TEST_SIGNER_SA, PREVIEW), WORKSHOP_GCS_APPROVED_BUCKET, PREVIEW);
+} catch (error) {
+  crossProdUrlRefused = error instanceof WorkshopStorageError;
+}
+assert('I test signer on production bucket URL refused', crossProdUrlRefused);
+const canonical = buildCanonicalWorkshopPath('original', UID, 'image/png', OBJ_A);
+assert('J canonical path stays originals/{uid}/{object}.ext',
+  canonical === ORIGINAL && canonical !== null && !canonical.includes(WORKSHOP_GCS_APPROVED_BUCKET) && !canonical.includes(WORKSHOP_GCS_TEST_BUCKET));
+assert('K payment freeze remains true', PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 === true);
+assert('L production approved env unchanged', readWorkshopGcsConfig(approvedEnv).state === 'ready');
+assert('L unknown bucket still rejected in production',
+  readWorkshopGcsConfig({ ...approvedEnv, WORKSHOP_GCS_BUCKET: 'other-bucket' }).state === 'invalid');
+let mixedSignerThrew = false;
+try {
+  createSignerStorage(
+    { bucket: WORKSHOP_GCS_APPROVED_BUCKET, endpointHost: WORKSHOP_GCS_REGIONAL_HOST, signerSa: WORKSHOP_GCS_TEST_SIGNER_SA },
+    new OAuth2Client(),
+  );
+} catch {
+  mixedSignerThrew = true;
+}
+assert('G createSignerStorage refuses a mixed production bucket and test signer', mixedSignerThrew);
+const testOffline = new OAuth2Client();
+testOffline.setCredentials({ access_token: 'offline-identity-check' });
+let testSignerBuilt = true;
+try {
+  const testStorage = createSignerStorage(
+    { bucket: WORKSHOP_GCS_TEST_BUCKET, endpointHost: WORKSHOP_GCS_REGIONAL_HOST, signerSa: WORKSHOP_GCS_TEST_SIGNER_SA },
+    testOffline,
+  );
+  await assertEffectiveSigner(testStorage, WORKSHOP_GCS_TEST_SIGNER_SA);
+} catch {
+  testSignerBuilt = false;
+}
+assert('B createSignerStorage accepts the payment-test signer offline', testSignerBuilt);
+{
+  const example = fs.readFileSync(path.join(root, '.env.payment-test.example'), 'utf8');
+  assert('payment-test example pins the test bucket, signer and regional host',
+    example.includes(`WORKSHOP_GCS_BUCKET=${WORKSHOP_GCS_TEST_BUCKET}`)
+      && example.includes(`WORKSHOP_GCS_SIGNER_SA=${WORKSHOP_GCS_TEST_SIGNER_SA}`)
+      && example.includes(`WORKSHOP_GCS_ENDPOINT=https://${WORKSHOP_GCS_REGIONAL_HOST}`)
+      && !example.includes(WORKSHOP_GCS_APPROVED_BUCKET)
+      && !example.includes(WORKSHOP_GCS_SIGNER_SA));
+  const server = fs.readFileSync(path.join(root, 'server.ts'), 'utf8');
+  assert('H media routes stay 503 unless the selected GCS config is ready',
+    server.includes('workshop_gcs_not_configured')
+      && server.includes('workshopGcsConfig.state === "ready" ? workshopGcsStoreFor(workshopGcsConfig) : null'));
+  assert('payment-test required env does not include WORKSHOP_GCS_*',
+    !fs.readFileSync(path.join(root, 'src/lib/paymentEnvGuard.ts'), 'utf8').includes('WORKSHOP_GCS_'));
+}
+
+// ---------------------------------------------------------------------------
 section('Q effective signer principal hard check');
 const readyConfig = { bucket: WORKSHOP_GCS_APPROVED_BUCKET, endpointHost: WORKSHOP_GCS_REGIONAL_HOST, signerSa: WORKSHOP_GCS_SIGNER_SA };
 const offlineSource = new OAuth2Client();
@@ -210,7 +330,7 @@ offlineSource.setCredentials({ access_token: 'offline-identity-check' });
 const signerStorage = createSignerStorage(readyConfig, offlineSource);
 let signerOk = true;
 try {
-  await assertEffectiveSigner(signerStorage);
+  await assertEffectiveSigner(signerStorage, WORKSHOP_GCS_SIGNER_SA);
 } catch {
   signerOk = false;
 }
