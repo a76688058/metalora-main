@@ -141,9 +141,13 @@ Stop new charges and continue recovery as different actions.
 | Toss `DONE`, local finalize failed | Do not start another checkout for that order | Retry confirm. Do not insert an order or edit `total_spent` by hand |
 | Cancel `provider_uncertain` | — | Retry the same admin cancel. The route looks up first and reuses the stored idempotency key. Do not create a second key |
 | Toss `CANCELED`, ledger missing | — | Retry the same admin cancel while the attempt is `local_uncertain` or `provider_uncertain`. Lookup finalizes. Do not send a new cancel if lookup already proves the full cancel |
-| Bad deploy | — | `scripts/rollback-production.ps1` returns 100% to the `stable` revision. Do not invent a traffic command |
+| Bad deploy | — | Dry-run `scripts/rollback-production.ps1`. A separately approved `-Execute` returns 100% to `metalora-direct-00153-puf`. Do not use `stable` or invent another traffic command |
 
-Rollback safety: do not send traffic to a revision that lacks `POST /api/admin/orders/:orderId/cancel` while any `payment_cancellations` row is `pending`, `provider_uncertain`, or `local_uncertain`. The cancellation SQL can stay. An older app cannot resume those rows. Freezing checkout does not require that rollback; `00146-peg` is already frozen.
+`stable` currently points to `metalora-direct-00139-men` (`DEPLOY_SHA` `84aabfb99bcb68cf658e6b7b1fd9a44ecc81ce2d`). That revision has no `POST /api/admin/orders/:orderId/cancel`. The validated rollback target is `metalora-direct-00153-puf` (`DEPLOY_SHA` `f8e4bc2dc1b09ddbb5ba86037afcce25adb6d106`). The script checks that revision and SHA, and the cancellation route, on every run. A mismatch fails closed. The default run does not change traffic. Actual rollback requires `-Execute` and `-OwnerAuthorization "APPROVE ROLLBACK metalora-direct-00153-puf"`.
+
+The script does not remove tags. A LIVE-capable revision remains reachable at its tag URL after traffic returns to `00153-puf`. After a real rollback, read the live tag map and remove only the one tag on that LIVE-capable revision. Tag removal needs a separate owner authorization. Do not remove `stable` or unrelated tags. If the mapping is ambiguous, remove nothing.
+
+Rollback safety: do not send traffic to a revision that lacks `POST /api/admin/orders/:orderId/cancel` while any `payment_cancellations` row is `pending`, `provider_uncertain`, or `local_uncertain`. The cancellation SQL can stay. An older app cannot resume those rows. `POST /api/payment/confirm` and the admin cancellation route stay available on `00153-puf` for a payment that was already accepted. Freezing checkout does not require a traffic rollback.
 
 Customer support: use the published phone and email. Do not promise a refund until the provider status is `CANCELED` and the ledger row exists. Escalation is an admin cancel of a `PAID` card order that has not entered production, shipping, or completed fulfillment.
 

@@ -20,13 +20,13 @@ Traffic model:
 |-----|------|
 | *(untagged / percent traffic)* | Live production traffic (100% on one revision) |
 | `candidate` | Zero-traffic revision under test |
-| `stable` | Previous production revision — rollback target |
+| `stable` | Currently `metalora-direct-00139-men`. Not the NEW7 rollback target |
 
 Scripts (authoritative automation):
 
 - `scripts/deploy-candidate.ps1` — build image, deploy **no-traffic** candidate, tag `stable` = current prod
 - `scripts/promote-candidate.ps1` — route 100% traffic to the **existing** `candidate` revision
-- `scripts/rollback-production.ps1` — route 100% traffic to the `stable` revision
+- `scripts/rollback-production.ps1` — dry-run by default. Approved traffic target is `metalora-direct-00153-puf`, not `stable`. It does not remove tags
 
 Do not hardcode a permanent “current revision” name here; always read Cloud Run traffic.
 
@@ -65,7 +65,7 @@ Failure at any step: **NO PROMOTION**.
    powershell -ExecutionPolicy Bypass -File .\scripts\promote-candidate.ps1
    ```
 6. Verify production `/api/health` and `/`.
-7. Confirm `stable` still points at the previous production revision (rollback target).
+7. Confirm promotion did not move `stable`. `stable` remains `metalora-direct-00139-men` and is not the rollback target.
 
 **Do not rebuild between candidate validation and promotion.**  
 Promotion must move traffic to the already-tested revision only.
@@ -76,13 +76,24 @@ Promotion must move traffic to the already-tested revision only.
 
 Rollback is **not automatic**. Use it only after recording current traffic and deciding a revision regression is the cause. Full incident wrapper: **#20G**.
 
+`stable` currently points to `metalora-direct-00139-men` (`DEPLOY_SHA` `84aabfb99bcb68cf658e6b7b1fd9a44ecc81ce2d`). That revision does not implement `POST /api/admin/orders/:orderId/cancel`. Do not send production traffic there.
+
+The validated rollback target is `metalora-direct-00153-puf` (`DEPLOY_SHA` `f8e4bc2dc1b09ddbb5ba86037afcce25adb6d106`). Each run reads that revision and fails closed if its name or `DEPLOY_SHA` differs, or if that SHA no longer contains the admin cancellation route. The script does not substitute `stable` or any other revision. This target is revalidated on every run; it is not a permanent assumption.
+
+The default command is a dry-run. It prints the traffic command and does not execute it:
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\rollback-production.ps1
 ```
 
-- Script sends 100% traffic to the **stable-tagged** previous production revision. It does **not** retag `stable`.
-- **CHECK** before: production revision, `stable` target, `deploy_sha`.
-- **CHECK** after: exactly one revision at 100%; `GET /api/health` → 200 JSON `{"status":"ok"}`; `GET /` → 200 HTML.
+An actual traffic change needs a separate owner approval, then both `-Execute` and `-OwnerAuthorization "APPROVE ROLLBACK metalora-direct-00153-puf"`. That path sends 100% to `00153-puf` only. It does not retag `stable` and it does not remove tags.
+
+A tagged revision remains reachable on its tag URL after traffic moves. Tag removal is not automated. After a real rollback, read the live tag-to-revision map and remove only the one tag that points at the LIVE-capable revision just left. That removal needs its own owner authorization. Do not remove `stable` or unrelated tags. If the LIVE-capable revision has more than one tag, or its only tag is `stable`, stop and remove nothing.
+
+`POST /api/payment/confirm` and `POST /api/admin/orders/:orderId/cancel` stay available on `00153-puf` for a payment that was already accepted.
+
+- **CHECK** before: production revision, target revision `00153-puf`, and `DEPLOY_SHA` `f8e4bc2dc1b09ddbb5ba86037afcce25adb6d106`.
+- **CHECK** after a real rollback: exactly one revision at 100%, and that revision is `00153-puf`; `GET /api/health` → 200 JSON `{"status":"ok"}`; `GET /` → 200 HTML.
 - Do **not** run `scripts/verify-candidate.ps1` against production (it refuses when `candidate` aliases production).
 
 ---
@@ -467,15 +478,12 @@ Isolated `recovery_required` with one `order_number` is typically **SEV-2** (HIG
 
 1. Record production + `stable` **before** any traffic change.
 2. Stop `deploy-candidate` / `promote-candidate`.
-3. If rollback is justified, run **only**:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\scripts\rollback-production.ps1
-   ```
-4. Confirm exactly one revision has 100% traffic and it equals the pre-recorded `stable` target.
+3. If rollback is justified, the default script command is a dry-run. A real rollback still requires the separate `-Execute` authorization in section C. Do not point traffic at `stable`.
+4. Confirm exactly one revision has 100% traffic and it is `metalora-direct-00153-puf`.
 5. Smoke: `GET /api/health`, `GET /` on `https://metalora.art` (and service URL if needed).
-6. Keep the failed revision identity for the incident record. Do not delete it as cleanup.
+6. Keep the failed revision identity for the incident record. Do not delete it as cleanup. Do not remove its tag unless section C's separate tag-removal approval applies.
 
-**DO NOT** auto-rollback. **DO NOT** promote a new candidate as the first recovery. **DO NOT** use ad-hoc `gcloud run services update-traffic` unless the approved script cannot run — and then only to the already-recorded `stable` revision. `scripts/verify-candidate.ps1` is for an **isolated 0% candidate**, not production.
+**DO NOT** auto-rollback. **DO NOT** promote a new candidate as the first recovery. **DO NOT** use ad-hoc `gcloud run services update-traffic`, and do not send traffic to `metalora-direct-00139-men`. `scripts/verify-candidate.ps1` is for an **isolated 0% candidate**, not production.
 
 ### Payment incident
 
@@ -634,7 +642,7 @@ Use the universal flow in **#20G**. These playbooks classify **which** dependenc
 
 **CHECK:** production revision; traffic percents; `stable`; `DEPLOY_SHA`; revision logs; `GET /api/health`.
 
-**ACTION:** stop deploy/promote; decide revision-vs-dependency; rollback **only** if release-related using `scripts/rollback-production.ps1`; verify 100% + smoke.
+**ACTION:** stop deploy/promote; decide revision-vs-dependency; rollback **only** if release-related, using the section C dry-run and a separately approved `-Execute` to `00153-puf`; verify 100% + smoke. Do not target `stable`.
 
 **DO NOT:** retag `stable` during incident recovery; probe production with `verify-candidate.ps1`.
 
