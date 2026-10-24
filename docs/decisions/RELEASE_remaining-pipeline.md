@@ -8,13 +8,13 @@ Decision: This note is the only approved remaining release pipeline. Order is fi
 
 Completed: NEW3 **CLOSED**. NEW4 **CLOSED**.
 
-Blocker / Open Item: NEW5 EXIT PASS is recorded. Item A is **PASS**. NEW6 is **OPEN / IN PROGRESS**. RESTORE PASS is not recorded. NEW7, NEW8, and NEW9 are **NOT OPENED**. C, J, B, and D-I remain **NOT TESTED** at their later gates. `#27` Reviews / Trust is mandatory before NEW9 and is **NOT IMPLEMENTED**. This copy is on `review/prelaunch-27` and is not yet the release candidate.
+Blocker / Open Item: NEW5 EXIT PASS is recorded. Item A is **PASS**. NEW6 is **WAIVED / OWNER-APPROVED EXCEPTION**. This is not RESTORE PASS and not a technical PASS. Production database restoration and Storage recovery remain unverified. PITR remains disabled, and the Supabase plan remains unchanged. The exception replaces RESTORE PASS only as the prerequisite for entering NEW7. It does not authorize payment activation, production deployment, SQL execution, ingress changes, or any other production modification. NEW7, NEW8, and NEW9 are **NOT OPENED**. C, J, B, and D-I remain **NOT TESTED** at their later gates. `#27` Reviews / Trust is mandatory before NEW9 and is **NOT IMPLEMENTED**. This copy is on `review/prelaunch-27` and is not yet the release candidate.
 
 Do Not Do: Do not change the order. Do not skip stages. Do not create a new stage without approval. Do not reopen a closed stage unless a regression requires it. Do not start NEW6, NEW7, NEW8, or NEW9 before the amended NEW5 EXIT PASS. Do not modify payment state before NEW7. Do not modify production database or storage without approved scope. Do not expand QA scope. Do not refactor during QA. Do not declare PASS without evidence. Do not treat a deferred check as PASS.
 
-Resume Condition: NEW6 is open for read-only production backup and PITR verification only. NEW5 is **CLOSED**. Deferred checks stay **NOT TESTED** until their gates.
+Resume Condition: NEW6 is **WAIVED / OWNER-APPROVED EXCEPTION** for NEW7 entry only. NEW5 is **CLOSED**. NEW7 remains **NOT OPENED**. Deferred checks stay **NOT TESTED** until their gates.
 
-Resume Procedure: A6 reads current backup and PITR state for `qifloweuwyhvukabgnoa`. Do not upgrade, restore, copy storage, or open NEW7 from this note.
+Resume Procedure: Do not repeat the backup listing or start a new isolated restore drill from this note. Do not enable PITR, change the Supabase plan, upgrade, restore, copy storage, or open NEW7 from this note.
 
 Ownership: A0 release governance. NEW5 execution is A5 read-only QA unless a later ticket assigns a write. NEW6–NEW9 payment, backup, and production gates stay A6.
 
@@ -92,19 +92,19 @@ Accepted NEW5 evidence, only inside the scope already tested:
 - Production-mode server SEO.
 - Home Canvas on Cursor Chromium only.
 
-Payment freeze remains in effect until NEW7. NEW6 RESTORE PASS remains a hard prerequisite before NEW7. NEW9 still requires the prior release-gate evidence, including the carryovers above, and final owner approval.
+Payment freeze remains in effect until NEW7. The owner-adopted NEW6 exception replaces RESTORE PASS only as the prerequisite for entering NEW7. It is not a technical restoration. NEW9 still requires the prior release-gate evidence, including the carryovers above, and final owner approval.
 
 ## NEW6 — Backup / Restore Hard Gate
 
-Status: **OPEN / IN PROGRESS**. Owner opened the stage on 2026-10-15 for read-only backup and PITR verification on `qifloweuwyhvukabgnoa`. RESTORE PASS is not recorded. No upgrade, restore, isolated project, or storage copy is authorized. Failure blocks NEW7.
+Status: **WAIVED / OWNER-APPROVED EXCEPTION**. Owner opened the stage on 2026-10-15 for read-only backup and PITR verification on `qifloweuwyhvukabgnoa`. No technical RESTORE PASS was recorded. On 2026-10-24 the owner adopted an exception that waives a new isolated restore drill as the prerequisite for entering NEW7. Production database restoration and Storage recovery remain unverified. PITR remains disabled. The Supabase plan remains unchanged. No upgrade, restore, isolated project, or storage copy is authorized. The exception does not authorize payment activation, production deployment, SQL execution, ingress changes, or any other production modification.
 
 Scope: Production Backup Verification; Supabase Backup Status; PITR Verification; Isolated Restore Drill; Storage Recovery; Restore Validation.
 
-EXIT CONDITION: **RESTORE PASS**
+Recorded result: **WAIVED / OWNER-APPROVED EXCEPTION**. The historical exit name was RESTORE PASS. That result was not achieved and is not claimed.
 
 ## NEW7 — Production Payment Activation
 
-Status: **NOT OPENED**. No payment activation before this stage. NEW6 RESTORE PASS is required first. Items C and J must PASS before this stage's payment exit. Both are **NOT TESTED**.
+Status: **NOT OPENED**. No payment activation before this stage. This note does not open NEW7. The prerequisite for entering NEW7 is the recorded NEW6 owner exception, not a technical RESTORE PASS. Items C and J must PASS before this stage's payment exit. Both are **NOT TESTED**.
 
 Scope: Toss Production Configuration; Server Payment Contract; Prepare / Confirm Flow; Amount Guards; Order Guards; Idempotency; Failure Handling; Custom / Workshop Payment Dependencies; Production Payment Smoke; Cancel / Refund Verification.
 

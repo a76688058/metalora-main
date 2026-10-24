@@ -4,7 +4,7 @@ Status: **HISTORICAL BODY** (remaining-stage governance moved)
 
 Date: 2026-10-11 (remaining-pipeline overlay; original v3 body preserved)
 
-Decision: Historical pipeline body stays in this note. The only approved remaining pipeline is `docs/decisions/RELEASE_remaining-pipeline.md`. NEW 1 and NEW 2A–2F remain **CLOSED**. NEW 2 production release remains **CLOSED**. NEW 3 and NEW 4 are **CLOSED**. NEW5 is **CLOSED** under the 2026-10-14 modified PATH 2 amendment. NEW6 is **OPEN / IN PROGRESS**. NEW7–NEW9 stay **NOT OPENED** until each prior exit passes. Live handoff lives in `docs/METALORA_PROJECT_STATE.md`.
+Decision: Historical pipeline body stays in this note. The only approved remaining pipeline is `docs/decisions/RELEASE_remaining-pipeline.md`. NEW 1 and NEW 2A–2F remain **CLOSED**. NEW 2 production release remains **CLOSED**. NEW 3 and NEW 4 are **CLOSED**. NEW5 is **CLOSED** under the 2026-10-14 modified PATH 2 amendment. NEW6 is **WAIVED / OWNER-APPROVED EXCEPTION**, not RESTORE PASS and not a technical PASS. That exception replaces RESTORE PASS only as the prerequisite for entering NEW7. NEW7–NEW9 stay **NOT OPENED**. Live handoff lives in `docs/METALORA_PROJECT_STATE.md`.
 
 This note does **not** authorize live Toss, payment activation, or a production database or storage change.
 
@@ -48,13 +48,13 @@ Live handoff: `docs/METALORA_PROJECT_STATE.md`. NEW 2F auth expansion: `docs/dec
 | NEW 3 | **CLOSED** |
 | NEW 4 | **CLOSED** |
 | NEW 5 | **CLOSED** — amended FINAL QA PASS |
-| NEW 6 | **OPEN / IN PROGRESS** — RESTORE PASS not recorded |
+| NEW 6 | **WAIVED / OWNER-APPROVED EXCEPTION** — not RESTORE PASS; database restoration and Storage recovery unverified |
 | NEW 7 | **NOT OPENED** |
 | NEW 8 | **NOT OPENED** |
 | NEW 9 | **NOT OPENED** |
 | LIVE | **NOT REACHED** |
 
-Next: NEW6 read-only backup and PITR verification. Do not upgrade, restore, or open NEW7. Approved scope and carryovers: `docs/decisions/RELEASE_remaining-pipeline.md`.
+Next: do not repeat the backup test, enable PITR, change the Supabase plan, or open NEW7 from this note. NEW7 entry no longer requires RESTORE PASS. NEW7 remains **NOT OPENED**. C and J remain **NOT TESTED**. This waiver does not satisfy NEW8, NEW9, or LIVE. Approved scope and carryovers: `docs/decisions/RELEASE_remaining-pipeline.md`.
 
 ---
 
@@ -107,7 +107,7 @@ Do **not** reopen `#16`–`#23`.
 
 ### NEW 6 — Backup / restore hard gate
 
-**OPEN / IN PROGRESS.** Old `#20F`. Must **PASS** before NEW 7. RESTORE PASS is not recorded.
+**WAIVED / OWNER-APPROVED EXCEPTION.** Not RESTORE PASS and not a technical PASS. Old `#20F`. A new isolated restore drill is waived only as the prerequisite for entering NEW 7. Production database restoration and Storage recovery remain unverified. NEW 7 stays **NOT OPENED**.
 
 ### NEW 7 — Production payment activation
 
@@ -238,13 +238,13 @@ NEW 5 targets: surfaces changed by NEW 2–4; plausible shared-chrome regression
 
 ---
 
-## NEW 6 — Backup / restore hard gate (OPEN / IN PROGRESS)
+## NEW 6 — Backup / restore hard gate (WAIVED / OWNER-APPROVED EXCEPTION)
 
-Old `#20F`. Must **PASS** before NEW 7.
+Old `#20F`. Technical RESTORE PASS is not claimed. The owner-adopted exception replaces that result only as the prerequisite for entering NEW 7.
 
 Include: then-current Supabase backup capability verification; scheduled backup verification; PITR decision if applicable; isolated restore target; DB restore drill; Storage recovery procedure; evidence.
 
-Do **not** hard-code `Pro`. Timing: paid capability **before** first live payment; not first payment then upgrade. Until NEW 6 PASS: production is **not** restorable; real payments must **not** be enabled.
+Do **not** hard-code `Pro`. Timing: paid capability **before** first live payment; not first payment then upgrade. Production is **not** restorable under this exception. PITR remains disabled. The Supabase plan remains unchanged. Real payments must **not** be enabled.
 
 See `docs/decisions/20F-0_account-side-backup-confirmation.md` (unchanged). `docs/operations.md` remains the A6 runbook.
 
@@ -258,7 +258,7 @@ Include: production Toss client/secret wiring; production env verification; prod
 
 Before production Custom ordering is launch-ready, verify/apply as required: trusted Custom RPC production rollout (2B-5A); workshop Storage contract production rollout (2B-5C); related production runtime promotion if required. Do **not** claim completed.
 
-NEW 6 remains the hard prerequisite.
+Technical RESTORE PASS is no longer the prerequisite for entering NEW 7. The recorded owner exception replaces that entry prerequisite only. This note does not open NEW 7. Payment activation remains unauthorized. Conditions C and J remain required before the NEW 7 payment exit.
 
 ---
 
@@ -357,7 +357,7 @@ LIVE
 
 Operational default: **sequential** unless explicitly authorized otherwise.
 
-Current next action: NEW6 read-only backup and PITR verification. NEW 2, NEW 3, NEW 4, and NEW 5 are **CLOSED**. NEW 6 is **OPEN / IN PROGRESS**. NEW 7–NEW 9 remain **NOT OPENED**. Do not upgrade, restore, or open NEW 7.
+Current next action: do not open NEW 7. NEW 2, NEW 3, NEW 4, and NEW 5 are **CLOSED**. NEW 6 is **WAIVED / OWNER-APPROVED EXCEPTION**, not RESTORE PASS. NEW 7–NEW 9 remain **NOT OPENED**. Do not upgrade, restore, enable PITR, change the Supabase plan, or open NEW 7.
 
 ---
 
@@ -402,7 +402,7 @@ A3 owns payment **UX**. A6 owns payment **authority**.
 | Production payment | **NOT ACTIVATED** |
 | NEW 2 production deploy | **CERTIFIED** (historical) — `metalora-direct-00093-car`; SHA `d38e41ad1173ad542a5b68eaccc7e96cb0b1367c` |
 | Current production (2026-10-11) | `metalora-direct-00139-men` @ 100%; rollback `metalora-direct-00136-daq`; SHA `84aabfb99bcb68cf658e6b7b1fd9a44ecc81ce2d` |
-| LIVE-COMMERCE READY | **NO** — NEW 6 must PASS before NEW 7 |
+| LIVE-COMMERCE READY | **NO** — NEW 7 is **NOT OPENED**. The NEW 6 exception is not technical restoration and does not activate payment. |
 
 This note does **not** imply launch readiness.
 
@@ -411,7 +411,7 @@ This note does **not** imply launch readiness.
 ## Next stage rule
 
 1. Live status is in `docs/METALORA_PROJECT_STATE.md`. Remaining-stage governance is `docs/decisions/RELEASE_remaining-pipeline.md`. This v3 note keeps the historical pipeline body.
-2. Next: NEW6 is **OPEN / IN PROGRESS** for read-only verification. Do not upgrade, restore, or copy storage from this note. Do **not** start NEW 7–NEW 9 before their prior exits.
+2. Next: NEW6 is **WAIVED / OWNER-APPROVED EXCEPTION** for NEW7 entry only. Do not upgrade, restore, copy storage, enable PITR, or change the Supabase plan from this note. Do **not** open NEW 7 from this note. NEW 8, NEW 9, and LIVE keep their existing gates.
 3. Do **not** activate live Toss. Do **not** mutate production DB from this note.
 
 ---
@@ -426,7 +426,7 @@ This note does **not** imply launch readiness.
 - Promote `#28`–`#30` into the launch-critical path automatically. `#27` was promoted by the owner on 2026-10-15.
 - Redesign frozen Home/PDP
 - Claim production 2B rollout, live Toss, production payment, or LIVE
-- Enable real payments before NEW 6 PASS
+- Enable real payments on the basis of the NEW 6 exception
 - Duplicate this tree into agent Rules
 
 ---
