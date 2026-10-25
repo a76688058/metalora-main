@@ -22,29 +22,17 @@ import {
   sanitizeTossFailureCode,
 } from '../lib/paymentFailureAnalytics';
 import { isUsableMemberProfile, safeInternalPath } from '../lib/authIntegrity';
+import { cartMayOpenCanonicalCheckout, isExplicitPaymentTestIsolation } from '../lib/paymentEnvGuard';
 import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../lib/publicPaymentFreeze';
+import { hasCompleteShipping, type CheckoutShippingFields } from '../lib/checkoutShipping';
 import { assertTossTestClientKey, CARD_SCREENING_TEST_ENABLED, createCardScreeningOrderId } from '../lib/cardScreeningTest';
+import { resolveTossClientKey } from '../lib/tossClientKey';
 import { checkoutPolicyVersionSnapshot } from '../lib/policyVersions';
 import { useWorkshopMediaDisplay } from '../hooks/useWorkshopMediaDisplay';
 
 interface CartProps {
   isOpen: boolean;
   onClose: () => void;
-}
-
-const TOSS_CLIENT_KEY = 'test_ck_Poxy1XQL8R9nPR9Xn61Xr7nO5Wml';
-
-type CheckoutShippingFields = {
-  name: string;
-  phone: string;
-  zipCode: string;
-  address: string;
-  addressDetail: string;
-};
-
-function hasCompleteShipping(shipping: CheckoutShippingFields): boolean {
-  return [shipping.name, shipping.phone, shipping.zipCode, shipping.address, shipping.addressDetail]
-    .every((value) => value.trim() !== '');
 }
 
 function parsePositiveKrwAmount(value: unknown): number | null {
@@ -529,6 +517,17 @@ export default function Cart() {
         throw new Error('로그인 세션이 만료되었습니다. 다시 로그인 후 시도해 주세요.');
       }
 
+      if (!cartMayOpenCanonicalCheckout({
+        hostname: window.location.hostname,
+        paymentTestIsolated: isExplicitPaymentTestIsolation({
+          mode: import.meta.env.MODE,
+          viteMetaloraEnv: import.meta.env.VITE_METALORA_ENV,
+        }),
+      })) {
+        showToast('이 주소에서는 결제를 진행할 수 없습니다.', 'error');
+        return;
+      }
+
       let prepareResponse: Response;
       try {
         prepareResponse = await fetch('/api/payment/prepare', {
@@ -678,10 +677,32 @@ export default function Cart() {
         items: pendingOrderItems
       }));
 
-      // 3. Initialize Toss Payments
+      const paymentTestIsolated = isExplicitPaymentTestIsolation({
+        mode: import.meta.env.MODE,
+        viteMetaloraEnv: import.meta.env.VITE_METALORA_ENV,
+      });
+      if (!cartMayOpenCanonicalCheckout({
+        hostname: window.location.hostname,
+        paymentTestIsolated,
+      })) {
+        showToast('이 주소에서는 결제를 진행할 수 없습니다.', 'error');
+        return;
+      }
+
+      const resolvedClientKey = resolveTossClientKey({
+        purpose: paymentTestIsolated ? 'payment-test' : 'production-checkout',
+        raw: paymentTestIsolated
+          ? import.meta.env.VITE_TOSS_TEST_CLIENT_KEY
+          : import.meta.env.VITE_TOSS_LIVE_CLIENT_KEY,
+      });
+      if (!resolvedClientKey.ok) {
+        showToast('결제 설정을 확인할 수 없어 결제를 진행할 수 없습니다.', 'error');
+        return;
+      }
+
       let tossPayments;
       try {
-        tossPayments = await loadTossPayments(TOSS_CLIENT_KEY);
+        tossPayments = await loadTossPayments(resolvedClientKey.key);
       } catch (error: unknown) {
         reportPaymentFail({
           failure_stage: 'toss_sdk_load',
@@ -753,10 +774,19 @@ export default function Cart() {
       return;
     }
 
+    const resolvedTestKey = resolveTossClientKey({
+      purpose: 'screening',
+      raw: import.meta.env.VITE_TOSS_TEST_CLIENT_KEY,
+    });
+    if (!resolvedTestKey.ok) {
+      showToast('테스트 결제 설정을 확인할 수 없습니다.', 'error');
+      return;
+    }
+
     let orderId = '';
     try {
       setIsProcessing(true);
-      const clientKey = assertTossTestClientKey(TOSS_CLIENT_KEY);
+      const clientKey = assertTossTestClientKey(resolvedTestKey.key);
       orderId = createCardScreeningOrderId();
       const tossPayments = await loadTossPayments(clientKey);
       const productTitle = selectedItems[0]?.product?.title || '메탈로라 작품';

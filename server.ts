@@ -9,11 +9,16 @@ import { PRODUCTION_SUPABASE_URL } from "./src/lib/supabaseHosts";
 import {
   PAYMENT_TEST_CROSS_WRITE_ERROR,
   PAYMENT_TEST_ENV_NAME,
+  REQUIRED_CARD_METHOD,
+  capturedPaymentLocalMismatchDisposition,
+  evaluateCanonicalPaymentHost,
   isTossTestSecret,
   missingPaymentTestEnv,
   refusePaymentTestProductionHost,
   refuseTossTestToProductionSupabase,
+  validateTossDonePayment,
 } from "./src/lib/paymentEnvGuard";
+import { persistProviderObservation, postWinningTossConfirm, prepareDurableConfirmDispatch } from "./src/lib/paymentCaptureRecovery";
 import { registerOtpAuthRoutes } from "./src/lib/otpAuthHandlers";
 import { registerPasswordAuthRoutes } from "./src/lib/passwordAuthHandlers";
 import { registerSocialAuthRoutes } from "./src/lib/socialAuthHandlers";
@@ -21,6 +26,7 @@ import { createSharpReviewImageCodec } from "./src/lib/reviewImageCodec";
 import { registerReviewImageRoutes } from "./src/lib/reviewImageRoutes";
 import { registerReviewEligibilityRoute } from "./src/lib/reviewCommerceEligibility";
 import { registerFullOrderCancellationRoute } from "./src/lib/paymentCancellation";
+import { registerCaptureRecoveryAdminRoutes } from "./src/lib/paymentCaptureCancellation";
 import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from "./src/lib/publicPaymentFreeze";
 import { resolveSmsAdapter } from "./src/lib/smsAdapter";
 import { configureExpressTrustProxy, resolveTrustedIpMode } from "./src/lib/trustedClientIp";
@@ -211,6 +217,24 @@ const PUBLIC_PAYMENT_FROZEN_MESSAGE = "현재 결제 기능을 준비하고 있�
 function publicPaymentPrepareGuard(): { status: number; error: string } | null {
   if (!PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 || isPaymentTestMode) return null;
   return { status: 503, error: PUBLIC_PAYMENT_FROZEN_MESSAGE };
+}
+
+const PUBLIC_PAYMENT_HOST_MESSAGE = "결제 요청 호스트가 올바르지 않습니다.";
+
+/**
+ * Raw Host header only. Does not call requestHostname and does not treat
+ * X-Forwarded-Host as proof of metalora.art. Payment-test exemption is the
+ * verified startup mode, not a client header.
+ */
+function publicPaymentHostGuard(req: express.Request): { status: number; error: string } | null {
+  const decision = evaluateCanonicalPaymentHost({
+    hostHeader: req.headers.host,
+    forwardedHostHeader: req.headers["x-forwarded-host"],
+    paymentTestIsolated: isPaymentTestMode,
+  });
+  if (!decision.refuse) return null;
+  console.error("[PAYMENT_HOST_GUARD] refused", decision.reason);
+  return { status: 403, error: PUBLIC_PAYMENT_HOST_MESSAGE };
 }
 
 function paymentCrossWriteGuard(): { status: number; error: string } | null {
@@ -1759,38 +1783,6 @@ async function lookupTossPaymentByOrderId(
   }
 }
 
-/**
- * Shared Toss Payment identity checks for both POST confirm and GET recovery.
- * Only status === 'DONE' may proceed to finalize for this site's card flow.
- */
-function validateTossDonePayment(
-  payment: TossPaymentObject,
-  expected: { orderNumber: string; totalPrice: number; paymentKey: string },
-): { ok: true } | { ok: false; reason: string } {
-  if (payment.status !== 'DONE') {
-    return { ok: false, reason: `status_not_done:${String(payment.status ?? 'missing')}` };
-  }
-
-  if (typeof payment.orderId !== 'string' || payment.orderId !== expected.orderNumber) {
-    return { ok: false, reason: 'order_id_mismatch' };
-  }
-
-  const totalAmount = Number(payment.totalAmount);
-  if (!Number.isFinite(totalAmount) || totalAmount !== expected.totalPrice) {
-    return { ok: false, reason: 'amount_mismatch' };
-  }
-
-  // paymentKey must be present on the Toss Payment and match the redirect key.
-  if (typeof payment.paymentKey !== 'string' || payment.paymentKey.length === 0) {
-    return { ok: false, reason: 'payment_key_missing' };
-  }
-  if (payment.paymentKey !== expected.paymentKey) {
-    return { ok: false, reason: 'payment_key_mismatch' };
-  }
-
-  return { ok: true };
-}
-
 async function validateCheckoutItems(
   pendingItems: unknown,
   orderIdForLog: string,
@@ -2468,12 +2460,17 @@ ${staticUrls}${productUrls}
   // Review eligibility is not granted here. finalize_paid_order leaves status PAID.
   registerReviewEligibilityRoute(app, { supabaseAdmin, supabasePublic });
   registerFullOrderCancellationRoute(app, { supabaseAdmin, supabasePublic });
+  registerCaptureRecoveryAdminRoutes(app, { supabaseAdmin, supabasePublic });
 
   /**
    * 결제 준비 API — server-validated immutable payment_intents snapshot (#18B-2)
    */
   app.post("/api/payment/prepare", async (req, res) => {
     const requestId = newPaymentRequestId();
+    const hostGuard = publicPaymentHostGuard(req);
+    if (hostGuard) {
+      return res.status(hostGuard.status).json({ error: hostGuard.error });
+    }
     const freezeGuard = publicPaymentPrepareGuard();
     if (freezeGuard) {
       return res.status(freezeGuard.status).json({ error: freezeGuard.error });
@@ -2597,6 +2594,10 @@ ${staticUrls}${productUrls}
    */
   app.post("/api/payment/confirm", async (req, res) => {
     const requestId = newPaymentRequestId();
+    const hostGuard = publicPaymentHostGuard(req);
+    if (hostGuard) {
+      return res.status(hostGuard.status).json({ error: hostGuard.error });
+    }
     const envGuard = paymentCrossWriteGuard();
     if (envGuard) {
       await logPaymentOpsFailure({
@@ -2812,6 +2813,7 @@ ${staticUrls}${productUrls}
         orderNumber: paymentIntent.order_number as string,
         totalPrice: intentTotal,
         paymentKey,
+        requireLiveMid: !isPaymentTestMode,
       };
 
       let verifiedPayment: TossPaymentObject | null = null;
@@ -2819,75 +2821,92 @@ ${staticUrls}${productUrls}
       let lastTossHttpStatus: number | null = null;
       let lastTossProviderCode: string | null = null;
 
-      // --- Establish Toss DONE: POST confirm, else GET recovery ---
+      if (!supabaseAdmin) {
+        return res.status(500).json({ error: "서버 구성 오류가 발생했습니다." });
+      }
+      const dispatch = await prepareDurableConfirmDispatch(supabaseAdmin, {
+        orderNumber: paymentIntent.order_number,
+        userId: verifiedUserId,
+        claimedPaymentKey: paymentKey,
+        amount: intentTotal,
+      });
+      if (dispatch === "abort") {
+        await logPaymentOpsFailure({
+          payment_event: "db_finalize_rpc",
+          phase: "confirm",
+          alert_eligible: true,
+          request_id: requestId,
+          order_id: opsOrderId,
+          http_status: 500,
+          retryable: true,
+          recovery_required: true,
+        });
+        return res.status(500).json({ error: "결제 확인을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요." });
+      }
+
+      // Winning worker is the only caller of the Toss confirm POST.
       try {
         console.log(`[PAYMENT_START] Confirming amount ${intentTotal} for order ${orderId}`);
-
-        const tossResponse = await fetch("https://api.tosspayments.com/v1/payments/confirm", {
-          method: "POST",
-          headers: {
-            Authorization: getTossBasicAuthHeader(TOSS_SECRET_KEY),
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+        if (dispatch === "post") {
+          const tossResponse = await postWinningTossConfirm(fetch, TOSS_SECRET_KEY, {
             paymentKey,
             orderId: paymentIntent.order_number,
             amount: intentTotal,
-          }),
-        });
-
-        lastTossHttpStatus = tossResponse.status;
-
-        let tossData: any = null;
-        try {
-          tossData = await tossResponse.json();
-        } catch {
-          tossData = null;
-        }
-        lastTossProviderCode = paymentOpsProviderCode(tossData?.code);
-
-        if (tossResponse.ok && tossData && typeof tossData === 'object') {
-          const validation = validateTossDonePayment(tossData as TossPaymentObject, expectedToss);
-          if (validation.ok === false) {
-            console.error("[PAYMENT_TOSS_VALIDATE_FAIL] POST confirm payment invalid:", {
-              orderId,
-              reason: validation.reason,
-            });
-            const statusNotDone = validation.reason.startsWith("status_not_done");
-            await logPaymentOpsFailure({
-              payment_event: statusNotDone ? "provider_not_done" : "integrity_provider_mismatch",
-              phase: "toss_confirm",
-              alert_eligible: true,
-              request_id: requestId,
-              order_id: opsOrderId,
-              http_status: 400,
-              provider: "toss",
-              provider_code: lastTossProviderCode,
-              recovery_required: !statusNotDone,
-              retryable: false,
-            });
-            return res.status(400).json({ error: "결제 금액 불일치가 감지되었습니다." });
-          }
-          verifiedPayment = tossData as TossPaymentObject;
-          establishSource = 'post_confirm';
-          tossDoneEstablished = true;
-        } else {
-          console.error("[PAYMENT_TOSS_ERROR] POST confirm failed; attempting GET recovery:", {
-            orderId,
-            status: tossResponse.status,
-            code: tossData?.code,
           });
+          lastTossHttpStatus = tossResponse.status;
+          let tossData: any = null;
+          try {
+            tossData = await tossResponse.json();
+          } catch {
+            tossData = null;
+          }
+          lastTossProviderCode = paymentOpsProviderCode(tossData?.code);
+          if (tossResponse.ok && tossData && typeof tossData === "object") {
+            const stored = await persistProviderObservation(supabaseAdmin, {
+              orderNumber: paymentIntent.order_number,
+              source: "confirm_body",
+              payment: tossData as Record<string, unknown>,
+            });
+            if (!stored.ok) {
+              return res.status(500).json({ error: "결제 확인은 접수되었으나 저장에 실패했습니다. 고객센터에 문의해 주세요." });
+            }
+            const validation = validateTossDonePayment(tossData as TossPaymentObject, expectedToss);
+            if (validation.ok && stored.status === "provider_done_pending_finalize") {
+              verifiedPayment = tossData as TossPaymentObject;
+              establishSource = "post_confirm";
+              tossDoneEstablished = true;
+            } else {
+              const validationReason = validation.ok === false ? validation.reason : "capture_not_finalizable";
+              const disposition = capturedPaymentLocalMismatchDisposition(validationReason);
+              await logPaymentOpsFailure({
+                payment_event: disposition.recoveryRequired ? "integrity_provider_mismatch" : "provider_not_done",
+                phase: "toss_confirm",
+                alert_eligible: true,
+                request_id: requestId,
+                order_id: opsOrderId,
+                http_status: 400,
+                provider: "toss",
+                provider_code: lastTossProviderCode,
+                recovery_required: true,
+                retryable: false,
+              });
+            }
+          }
         }
       } catch (postError) {
         console.error("[PAYMENT_TOSS_ERROR] POST confirm network/error; attempting GET recovery:", {
           orderId,
-          message: postError instanceof Error ? postError.message : 'unknown',
+          message: postError instanceof Error ? postError.message : "unknown",
         });
       }
 
       if (!verifiedPayment) {
         const lookup = await lookupTossPaymentByOrderId(TOSS_SECRET_KEY, paymentIntent.order_number);
         if (lookup.ok === false) {
+          await supabaseAdmin.rpc("note_capture_lookup_attempt", {
+            p_order_number: paymentIntent.order_number,
+            p_lookup_class: lookup.reason === "not_found" ? "not_found" : "unavailable",
+          });
           console.error("[PAYMENT_TOSS_RECOVERY_FAIL] Lookup did not yield payment:", {
             orderId,
             reason: lookup.reason,
@@ -2912,18 +2931,27 @@ ${staticUrls}${productUrls}
           return res.status(400).json({ error: "결제 대행사 승인 실패" });
         }
 
+        const storedLookup = await persistProviderObservation(supabaseAdmin, {
+          orderNumber: paymentIntent.order_number,
+          source: "get_lookup",
+          payment: lookup.payment as unknown as Record<string, unknown>,
+        });
+        if (!storedLookup.ok) {
+          return res.status(500).json({ error: "결제 확인은 접수되었으나 저장에 실패했습니다. 고객센터에 문의해 주세요." });
+        }
         const validation = validateTossDonePayment(lookup.payment, expectedToss);
-        if (validation.ok === false) {
+        if (validation.ok === false || storedLookup.status !== "provider_done_pending_finalize") {
+          const validationReason = validation.ok === false ? validation.reason : "capture_not_finalizable";
+          const disposition = capturedPaymentLocalMismatchDisposition(validationReason);
           console.error("[PAYMENT_TOSS_RECOVERY_FAIL] Lookup payment not conclusively DONE:", {
             orderId,
-            reason: validation.reason,
+            reason: validationReason,
             status: lookup.payment.status,
           });
-          const statusNotDone = validation.reason.startsWith("status_not_done");
           await logPaymentOpsFailure({
-            payment_event: statusNotDone ? "provider_not_done" : "integrity_provider_mismatch",
+            payment_event: disposition.recoveryRequired ? "integrity_provider_mismatch" : "provider_not_done",
             phase: "toss_recovery",
-            alert_eligible: !statusNotDone,
+            alert_eligible: disposition.recoveryRequired,
             request_id: requestId,
             order_id: opsOrderId,
             http_status: 400,
@@ -2931,8 +2959,8 @@ ${staticUrls}${productUrls}
             provider_code: paymentOpsProviderCode(
               typeof lookup.payment.status === "string" ? lookup.payment.status : null,
             ),
-            recovery_required: !statusNotDone,
-            retryable: false,
+            recovery_required: disposition.recoveryRequired,
+            retryable: disposition.retryProviderConfirm,
           });
           return res.status(400).json({ error: "결제 대행사 승인 실패" });
         }
@@ -2943,11 +2971,27 @@ ${staticUrls}${productUrls}
         console.log(`[PAYMENT_TOSS_RECOVERY] Established DONE via GET for order ${orderId}`);
       }
 
+      if (verifiedPayment.method !== REQUIRED_CARD_METHOD) {
+        const disposition = capturedPaymentLocalMismatchDisposition("method_not_card");
+        await logPaymentOpsFailure({
+          payment_event: "integrity_provider_mismatch",
+          phase: "finalize",
+          alert_eligible: true,
+          request_id: requestId,
+          order_id: opsOrderId,
+          http_status: 400,
+          provider: "toss",
+          recovery_required: disposition.recoveryRequired,
+          retryable: disposition.retryProviderConfirm,
+        });
+        return res.status(400).json({ error: "결제 금액 불일치가 감지되었습니다." });
+      }
+
       const confirmedAmount = Number(verifiedPayment.totalAmount);
       const shippingInfo = {
         ...(snapshot.consents ? { consents: snapshot.consents } : {}),
         payment_key: paymentKey,
-        payment_method: (typeof verifiedPayment.method === 'string' && verifiedPayment.method) || '카드',
+        payment_method: verifiedPayment.method,
         confirmed_at: new Date().toISOString(),
         recovery_source: establishSource,
         toss_data: {

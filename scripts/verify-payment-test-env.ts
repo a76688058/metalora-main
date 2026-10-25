@@ -106,14 +106,18 @@ const confirmAt = serverSrc.indexOf('app.post("/api/payment/confirm"');
 const confirmEnd = serverSrc.indexOf("app.post(", confirmAt + 20);
 const confirmBody = serverSrc.slice(confirmAt, confirmEnd === -1 ? undefined : confirmEnd);
 const confirmGuardAt = confirmBody.indexOf("const envGuard = paymentCrossWriteGuard()");
-const confirmTossAt = confirmBody.indexOf("https://api.tosspayments.com/v1/payments/confirm");
+const confirmDispatchAt = confirmBody.indexOf("prepareDurableConfirmDispatch");
 assert(
-  confirmGuardAt >= 0 && confirmTossAt > confirmGuardAt,
+  confirmGuardAt >= 0 && confirmDispatchAt > confirmGuardAt,
   "confirm must refuse TEST-to-production cross-write before contacting Toss",
 );
 assert(
-  confirmBody.indexOf("return res.status(envGuard.status)") < confirmTossAt,
+  confirmBody.indexOf("return res.status(envGuard.status)") < confirmDispatchAt,
   "confirm must return the cross-write refusal before the Toss request",
+);
+assert(
+  !confirmBody.includes("https://api.tosspayments.com/v1/payments/confirm"),
+  "confirm handler must not keep a legacy direct confirm request",
 );
 
 const screeningPage = fs.readFileSync(path.join(root, "src/pages/ScreeningPaymentResult.tsx"), "utf8");
