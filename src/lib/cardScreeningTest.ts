@@ -5,7 +5,7 @@
  * without opening live checkout.
  * This mode never calls production prepare, confirm, or order finalization.
  */
-export const CARD_SCREENING_TEST_ENABLED = true;
+export const CARD_SCREENING_TEST_ENABLED = false;
 
 const SCREENING_ORDER_PATTERN = /^MLSCRN-[A-Za-z0-9-]{6,56}$/;
 

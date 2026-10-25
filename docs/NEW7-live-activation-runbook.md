@@ -2,7 +2,7 @@
 
 Status: **PREPARED. NOT ACTIVATED.**
 
-Public payment remains frozen. This document does not enable checkout, change Toss credentials, or close NEW6.
+Public payment activation remains **NO-GO**, and checkout remains frozen. NEW6 is a **WAIVED / OWNER-APPROVED EXCEPTION** for NEW7 entry only, not RESTORE PASS or a technical restoration PASS. This document does not enable checkout, change Toss credentials, open NEW7, or authorize public payment activation.
 
 ## A. Existing completed evidence
 
@@ -74,18 +74,18 @@ Production `METALORA_ENV` stays unset. Do not use it to unfreeze.
 1. Toss merchant and card-company approval, including the MID and the allowed method list.
 2. Issue the live client key and live secret. Do not send those values in chat.
 3. Decide whether the published 2–3 business-day dispatch line stays for the review packet.
-4. Close NEW6 restore verification. It is still OPEN.
+4. NEW6 is **WAIVED / OWNER-APPROVED EXCEPTION** for entering NEW7 only. This is not RESTORE PASS or a technical restoration PASS. Production database restoration and Storage recovery remain unverified. This item does not open NEW7.
 5. Approve one real production payment and one full cancellation after the freeze is intentionally removed. That approval is not this document.
 
 ## E. NEW6 hard gate
 
-NEW6 remains OPEN. `docs/operations.md` still blocks live-payment launch on the restore gate: no scheduled backup, no PITR, and no verified restore drill.
+NEW6 is **WAIVED / OWNER-APPROVED EXCEPTION**. The exception substitutes for RESTORE PASS only as the prerequisite for entering NEW7. It is not RESTORE PASS and not a technical restoration PASS. Production database restoration and Storage recovery remain unverified. PITR remains disabled, and the current Supabase plan remains unchanged. NEW7 remains **NOT OPENED**. NEW7 conditions C and J remain **NOT TESTED**.
 
-NO-GO for public activation while NEW6 is OPEN. This preparation does not change that status.
+Public payment activation remains **NO-GO**. The exception does not authorize payment activation, production deployment, SQL execution, ingress changes, or any other production modification.
 
 ## F. Safe production activation sequence
 
-Do this only after sections D and E are satisfied. Do not fold it into an unrelated deploy.
+Recording sections D and E does not start this sequence. Those sections do not open NEW7, authorize public payment activation, or authorize deployment. A separate explicit authorization is required before any activation action. Public payment activation remains **NO-GO**, and checkout remains frozen. Do not fold it into an unrelated deploy.
 
 1. Record the current 100% revision and `DEPLOY_SHA`. Expected baseline before this sequence is `metalora-direct-00146-peg` / `22e5d7259851bbaa55e521c0efb0c5c84bcefc62`, unless a later frozen revision has replaced it.
 2. In one reviewed change, and only then:
@@ -161,14 +161,14 @@ GO only when every line is true:
 - Live client key and live secret are the same MID, and the secret binding is the live secret
 - The activation commit is the only change that sets the freeze false and replaces the test client key
 - Candidate verification passed at 0% traffic
-- NEW6 restore gate is closed
+- NEW6 is **WAIVED / OWNER-APPROVED EXCEPTION** for NEW7 entry only. That waiver is not RESTORE PASS, not a technical restoration PASS, and not authorization for public payment activation. Production database restoration and Storage recovery remain unverified.
 - Review flags are still false
 - One controlled live payment and one full cancel match sections G and H
 - Rollback target still contains the admin cancel route, or no uncertain cancellation is open
 
 NO-GO if any of these are true:
 
-- NEW6 is OPEN
+- NEW6 is treated as RESTORE PASS, a technical restoration PASS, or authorization to activate public payment
 - The freeze is false while the client key still starts with `test_ck_`
 - The production secret is a test secret
 - A deploy other than the activation commit is being used to turn checkout on

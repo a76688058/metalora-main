@@ -25,9 +25,37 @@ export function supabaseRefFromApiHost(host: string | null | undefined): string 
   return match ? match[1] : null;
 }
 
+const DIRECT_DB_HOST = /^db\.([a-z0-9]+)\.supabase\.co$/;
+const POOLER_SUFFIX = ".pooler.supabase.com";
+
+function postgresUrl(raw: string): URL | null {
+  const trimmed = raw.trim();
+  if (!/^postgres(ql)?:\/\//i.test(trimmed)) return null;
+  try {
+    return new URL(trimmed.replace(/^postgres(ql)?:/i, "http:"));
+  } catch {
+    return null;
+  }
+}
+
+function strictSupabaseDbHost(hostname: string): "direct" | "pooler" | null {
+  const host = hostname.toLowerCase();
+  if (!host || host.endsWith(".") || host.startsWith(".") || host.includes("..")) return null;
+  if (host.includes(":") || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return null;
+  const labels = host.split(".");
+  if (labels.some((label) => !/^[a-z0-9-]+$/.test(label) || label.startsWith("-") || label.endsWith("-"))) {
+    return null;
+  }
+  if (host === "pooler.supabase.com" || host.endsWith(POOLER_SUFFIX)) return "pooler";
+  if (DIRECT_DB_HOST.test(host)) return "direct";
+  return null;
+}
+
 /**
  * Classify a Postgres URI without returning userinfo/password.
- * Direct: db.<ref>.supabase.co — Pooler: user postgres.<ref> @ *.pooler.supabase.com
+ * Direct: db.<ref>.supabase.co with username postgres, port 5432.
+ * Session pooler: pooler.supabase.com or *.pooler.supabase.com with username postgres.<ref>, port 5432.
+ * The hostname is the parsed URL hostname. A project ref is never taken from a lookalike host.
  */
 export function classifyPostgresConnection(raw: string): {
   parseable: boolean;
@@ -35,51 +63,34 @@ export function classifyPostgresConnection(raw: string): {
   ref: string | null;
   isProductionRef: boolean;
 } {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    return { parseable: false, host: null, ref: null, isProductionRef: false };
-  }
-
+  const empty = { parseable: false, host: null, ref: null, isProductionRef: false };
+  const url = postgresUrl(raw);
+  if (!url) return empty;
+  const host = url.hostname.toLowerCase();
+  if (url.port !== "" && url.port !== "5432") return { ...empty, host };
+  const kind = strictSupabaseDbHost(host);
+  if (!kind) return { ...empty, host };
+  let user = "";
   try {
-    const normalized = trimmed.replace(/^postgres(ql)?:/i, "http:");
-    const url = new URL(normalized);
-    const host = url.hostname.toLowerCase();
-    const user = decodeURIComponent(url.username);
-
-    const hostRef = host.match(/^db\.([a-z0-9]+)\.supabase\.co$/);
-    const userRef = user.match(/^postgres\.([a-z0-9]+)$/);
-    const ref = hostRef?.[1] ?? userRef?.[1] ?? null;
-
-    return {
-      parseable: true,
-      host,
-      ref,
-      isProductionRef: ref === PRODUCTION_SUPABASE_REF,
-    };
+    user = decodeURIComponent(url.username).toLowerCase();
   } catch {
-    const lower = trimmed.toLowerCase();
-    const hostMatch = lower.match(/db\.([a-z0-9]+)\.supabase\.co/);
-    const userMatch = lower.match(/postgres\.([a-z0-9]+)[:@]/);
-    const ref = hostMatch?.[1] ?? userMatch?.[1] ?? null;
-    const host = hostMatch
-      ? `db.${hostMatch[1]}.supabase.co`
-      : lower.includes("pooler.supabase.com")
-        ? "pooler.supabase.com"
-        : null;
-    return {
-      parseable: false,
-      host,
-      ref,
-      isProductionRef: ref === PRODUCTION_SUPABASE_REF,
-    };
+    return { ...empty, host };
   }
+  if (kind === "direct") {
+    if (user !== "postgres") return { ...empty, host };
+    const ref = host.match(DIRECT_DB_HOST)?.[1] ?? null;
+    if (!ref) return { ...empty, host };
+    return { parseable: true, host, ref, isProductionRef: ref === PRODUCTION_SUPABASE_REF };
+  }
+  const ref = user.match(/^postgres\.([a-z0-9]+)$/)?.[1] ?? null;
+  if (!ref) return { ...empty, host };
+  return { parseable: true, host, ref, isProductionRef: ref === PRODUCTION_SUPABASE_REF };
 }
 
 /** Full Dashboard URI only — rejects short placeholders. Never log the raw value. */
 export function isUsableSupabaseDbUrl(raw: string): boolean {
   const trimmed = raw.trim();
   if (trimmed.length < 60) return false;
-  if (!/^postgres(ql)?:\/\//i.test(trimmed)) return false;
-  const lower = trimmed.toLowerCase();
-  return lower.includes("supabase.co") || lower.includes("pooler.supabase.com");
+  const classified = classifyPostgresConnection(trimmed);
+  return classified.parseable && classified.ref !== null;
 }

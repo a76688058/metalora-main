@@ -345,6 +345,8 @@ Database backups do **not** automatically imply that Storage object files have a
 
 **#20F** remains blocked by unavailable capability. Do **not** invent a restore command. `#20` may close with this deferred restore obligation; `#24` still owns live-payment activation.
 
+NEW6 is **WAIVED / OWNER-APPROVED EXCEPTION**. This is not RESTORE PASS, not a technical PASS, and not verified recoverability. Production database restoration and Storage recovery remain unverified. PITR remains disabled, and the current Supabase plan remains unchanged. The exception replaces the NEW6 RESTORE PASS requirement only as the prerequisite for entering NEW7. NEW7 remains **NOT OPENED**, and conditions C and J remain **NOT TESTED**. It does not authorize payment activation, deployment, SQL execution, ingress changes, or any other production modification. The hard gate above still requires restoration verification before real payment activation.
+
 ---
 
 ## F. Database migration rule
