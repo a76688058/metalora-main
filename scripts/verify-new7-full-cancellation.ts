@@ -125,7 +125,7 @@ async function main() {
   const prepareAt = serverSrc.indexOf('app.post("/api/payment/prepare"');
   const confirmAt = serverSrc.indexOf('app.post("/api/payment/confirm"');
   assert('prepare refuses a new charge while frozen', prepareAt > 0 && serverSrc.slice(prepareAt, prepareAt + 500).includes('publicPaymentPrepareGuard()'));
-  assert('confirm stays available for recovery', confirmAt > 0 && !serverSrc.slice(confirmAt, confirmAt + 500).includes('publicPaymentPrepareGuard()'));
+  assert('confirm fails closed while frozen', confirmAt > 0 && serverSrc.slice(confirmAt, confirmAt + 500).includes('confirmFreezeBlock()'));
   assert('full cancel body omits amount', !('cancelAmount' in fullCancelRequestBody('관리자 전액 취소')));
 
   const recorded: { url?: string; body?: string; key?: string } = {};
