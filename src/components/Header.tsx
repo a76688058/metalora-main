@@ -18,6 +18,7 @@ const LoginModal = lazy(() => import('./LoginModal'));
 
 const LOGO_URL = '/logo/metalora-wordmark.webp';
 const SEARCH_PANEL_ID = 'header-search-panel';
+const HOME_HEADER_FILL_DISTANCE = 100;
 
 export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [hasOpenedLoginModal, setHasOpenedLoginModal] = useState(false);
@@ -25,6 +26,10 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isHomeOverContent, setIsHomeOverContent] = useState(false);
+  const [homeHeaderFill, setHomeHeaderFill] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
   const {
     user,
     profile,
@@ -36,6 +41,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     closeWorkshop,
     pendingCustomAccess,
     clearPendingCustomAccess,
+    isLoading: isAuthLoading,
     isProfileResolved,
   } = useAuth();
   const { cartItems, isCartOpen, openCart, closeCart } = useCart();
@@ -56,6 +62,8 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   const isAdminChrome = isProfileResolved && Boolean(profile?.is_admin || adminProfile?.is_admin);
   const hasMemberChrome = isUsableCustomer || isAdminChrome;
   const pendingSocialCustomer = isProfileResolved && isPendingC1SocialCustomer(user, profile);
+  const authPending = isAuthLoading || !isProfileResolved;
+  const showMemberChrome = !authPending && hasMemberChrome;
 
   useEffect(() => {
     setLocalSearch(searchQuery);
@@ -100,6 +108,41 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   useEffect(() => {
     if (hasMemberChrome) setIsAccountDrawerOpen(false);
   }, [hasMemberChrome]);
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const apply = () => setReduceMotion(media.matches);
+    media.addEventListener('change', apply);
+    return () => media.removeEventListener('change', apply);
+  }, []);
+
+  useEffect(() => {
+    if (!isHome) {
+      setHomeHeaderFill(0);
+      return;
+    }
+
+    let cancelled = false;
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      if (cancelled) return;
+      const y = window.scrollY;
+      const next = y <= 0 ? 0 : Math.min(1, y / HOME_HEADER_FILL_DISTANCE);
+      setHomeHeaderFill((prev) => (Math.abs(prev - next) < 0.001 ? prev : next));
+    };
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(measure);
+    };
+    measure();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, [isHome, location.pathname]);
 
   useEffect(() => {
     if (!isHome) {
@@ -197,6 +240,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   };
 
   const isDark = theme === 'dark';
+  const homeHeaderVisualFill = !isHome || homeHeaderFill >= 1 ? 1 : homeHeaderFill;
 
   const openLoginModal = () => {
     setHasOpenedLoginModal(true);
@@ -218,13 +262,14 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
   };
 
   useEffect(() => {
-    if (!pendingCustomAccess || hasMemberChrome || isLoginModalOpen) return;
+    if (authPending || !pendingCustomAccess || hasMemberChrome || isLoginModalOpen) return;
     setHasOpenedLoginModal(true);
     registerLoginOverlay('login', true);
     setIsLoginModalOpen(true);
-  }, [pendingCustomAccess, hasMemberChrome, isLoginModalOpen, registerLoginOverlay]);
+  }, [authPending, pendingCustomAccess, hasMemberChrome, isLoginModalOpen, registerLoginOverlay]);
 
   const handleAccount = () => {
+    if (authPending) return;
     clearPendingCustomAccess();
     if (hasMemberChrome) {
       if (isProfileOpen) {
@@ -278,38 +323,25 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
           <div
             className={cn(
               isHome && 'header-home-quiet',
-              isHome && isHomeOverContent && 'header-home-over-content',
+              isHome && (homeHeaderVisualFill >= 1 || isHomeOverContent) && 'header-home-over-content',
             )}
+            style={isHome ? {
+              backgroundColor: homeHeaderFill <= 0
+                ? 'transparent'
+                : isDark
+                  ? `rgba(34, 37, 43, ${homeHeaderFill})`
+                  : `rgba(240, 235, 227, ${homeHeaderFill})`,
+              ['--home-header-control' as string]: isDark ? '#ffffff' : undefined,
+              transition: reduceMotion
+                ? 'none'
+                : 'background-color 200ms cubic-bezier(0.22, 1, 0.36, 1)',
+            } : undefined}
           >
           <div
             className="relative flex items-center justify-between container-shell"
             style={{ height: 'var(--shell-nav-height)' }}
           >
-            {/* Left controls */}
-            <div className="flex min-w-0 flex-1 items-center justify-start gap-1 sm:gap-2">
-              <IconButton
-                ref={searchToggleRef}
-                variant="ghost"
-                aria-label={isSearchOpen ? '검색 닫기' : '검색 열기'}
-                aria-expanded={isSearchOpen}
-                aria-controls={SEARCH_PANEL_ID}
-                onClick={() => {
-                  setIsSearchOpen((open) => !open);
-                }}
-                className={cn('shrink-0', iconTone, homeControlClass)}
-              >
-                <Search size={20} strokeWidth={1.5} />
-              </IconButton>
-
-              <IconButton
-                variant="ghost"
-                aria-label={isDark ? '라이트 모드로 전환' : '다크 모드로 전환'}
-                onClick={toggleTheme}
-                className={cn('shrink-0', iconTone, homeControlClass)}
-              >
-                {isDark ? <Sun size={20} strokeWidth={1.5} /> : <Moon size={20} strokeWidth={1.5} />}
-              </IconButton>
-            </div>
+            <div className="min-w-0 flex-1" />
 
             {/* Center logo */}
             <div className="pointer-events-none absolute left-1/2 top-1/2 max-w-[7.25rem] -translate-x-1/2 -translate-y-1/2 min-[360px]:max-w-[42vw] sm:max-w-none">
@@ -345,7 +377,17 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
 
             {/* Right controls */}
             <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-2">
-              {hasMemberChrome ? (
+              {authPending ? (
+                <IconButton
+                  variant="ghost"
+                  aria-label="계정 상태 확인 중"
+                  aria-busy="true"
+                  disabled
+                  className={cn('shrink-0', iconTone, homeControlClass)}
+                >
+                  <User size={20} strokeWidth={1.5} />
+                </IconButton>
+              ) : showMemberChrome ? (
                 <IconButton
                   variant="ghost"
                   aria-label="내 정보"
@@ -365,18 +407,12 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 </IconButton>
               )}
 
+              {showMemberChrome ? (
               <IconButton
                 variant="ghost"
                 aria-label="장바구니"
-                onClick={(e) => {
+                onClick={() => {
                   setIsSearchOpen(false);
-                  if (!hasMemberChrome) {
-                    e.preventDefault();
-                    clearPendingCustomAccess();
-                    if (isWorkshopOpen) closeWorkshop();
-                    openLoginModal();
-                    return;
-                  }
                   if (isCartOpen) {
                     closeCart();
                   } else {
@@ -388,7 +424,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 className={cn('relative shrink-0', iconTone, homeControlClass)}
               >
                 <Frame size={20} strokeWidth={1.5} />
-                {hasMemberChrome && cartItems.length > 0 && (
+                {cartItems.length > 0 && (
                   <span
                     className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-text-primary text-[10px] font-semibold text-text-inverse"
                     aria-hidden
@@ -397,6 +433,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                   </span>
                 )}
               </IconButton>
+              ) : null}
             </div>
           </div>
 

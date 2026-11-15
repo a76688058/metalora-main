@@ -12,9 +12,15 @@
 
 /* ── Global customer shell dimensions ── */
 :root {
-  --shell-announcement-height: 2rem;
+  --shell-announcement-height: 36px;
   --shell-nav-height: 4rem;
   --shell-offset: calc(var(--shell-announcement-height) + var(--shell-nav-height));
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --shell-announcement-height: 40.5px;
+  }
 }
 
 @utility shell-offset {
@@ -221,7 +227,7 @@
 }
 
 .dark .header-home-quiet.header-home-over-content {
-  background-color: #000000;
+  background-color: #22252B;
 }
 
 .dark .header-home-quiet.header-home-over-content .header-home-control {
@@ -240,7 +246,7 @@
   }
 
   .dark .header-home-quiet:hover {
-    background-color: #000000;
+    background-color: #22252B;
   }
 
   .dark .header-home-quiet:hover .header-home-control {
@@ -274,5 +280,103 @@
   .motion-safe-animate {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+.announcement-bar {
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.announcement-bar:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: -2px;
+}
+
+.announcement-viewport {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.announcement-track {
+  display: flex;
+  width: max-content;
+  align-items: center;
+}
+
+.announcement-track--run {
+  animation-name: announcement-marquee;
+  animation-duration: var(--announcement-duration, 28s);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.announcement-bar:hover .announcement-track--run,
+.announcement-bar:focus-within .announcement-track--run {
+  animation-play-state: paused;
+}
+
+.announcement-group,
+.announcement-run {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.announcement-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.35rem;
+  padding-inline-end: 1.35rem;
+  white-space: nowrap;
+}
+
+.announcement-message {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: #ffffff;
+}
+
+.announcement-sep {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+@media (min-width: 48rem) {
+  .announcement-message,
+  .announcement-sep {
+    font-size: 16.5px;
+  }
+}
+
+@keyframes announcement-marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .announcement-track--run {
+    animation: none;
+  }
+
+  .announcement-clone {
+    display: none;
+  }
+
+  .announcement-viewport {
+    justify-content: safe center;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .announcement-viewport::-webkit-scrollbar {
+    display: none;
   }
 }

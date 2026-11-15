@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 const FALLBACK_MESSAGES = [
@@ -15,9 +15,21 @@ function allowedMessages(list: string[]): string[] {
   return kept.length > 0 ? kept : FALLBACK_MESSAGES;
 }
 
+const ANNOUNCEMENT_BLUE = '#0984E3';
+const ANNOUNCEMENT_TEXT = '#FFFFFF';
+/** Constant travel speed. Duration is derived from the measured loop width. */
+const PIXELS_PER_SECOND = 36;
+
 const AnnouncementBar = () => {
   const [messages, setMessages] = useState<string[]>(FALLBACK_MESSAGES);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(
+    () => typeof window !== 'undefined'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
+  const [copies, setCopies] = useState(1);
+  const [duration, setDuration] = useState(28);
+  const viewRef = useRef<HTMLDivElement>(null);
+  const runRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     const fetchBanners = async () => {
@@ -45,44 +57,85 @@ const AnnouncementBar = () => {
   }, []);
 
   useEffect(() => {
-    if (messages.length <= 1) return;
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = () => setReduceMotion(media.matches);
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, []);
 
-    const prefersReduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  useLayoutEffect(() => {
+    if (reduceMotion) return;
+    const run = runRef.current;
+    const view = viewRef.current;
+    if (!run || !view) return;
 
-    if (prefersReduced) return;
+    const measure = () => {
+      const runWidth = run.scrollWidth;
+      const viewWidth = view.clientWidth;
+      if (runWidth <= 0 || viewWidth <= 0) return;
+      const needed = Math.max(1, Math.ceil(viewWidth / runWidth));
+      if (needed !== copies) {
+        setCopies(needed);
+        return;
+      }
+      const next = (runWidth * needed) / PIXELS_PER_SECOND;
+      setDuration((prev) => (Math.abs(prev - next) < 0.05 ? prev : next));
+    };
 
-    const interval = window.setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % messages.length);
-    }, 8000);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(view);
+    return () => observer.disconnect();
+  }, [messages, copies, reduceMotion]);
 
-    return () => window.clearInterval(interval);
-  }, [messages.length]);
+  const renderRun = (copy: number, hidden: boolean) => (
+    <span
+      className="announcement-run"
+      key={copy}
+      ref={copy === 0 && !hidden ? runRef : undefined}
+      aria-hidden={hidden ? true : undefined}
+    >
+      {messages.map((msg, index) => (
+        <span className="announcement-slot" key={`${copy}-${index}`}>
+          <span className="announcement-message">{msg}</span>
+          <span className="announcement-sep" aria-hidden="true">·</span>
+        </span>
+      ))}
+    </span>
+  );
 
-  const displayMessage = messages[activeIndex] ?? messages[0];
+  const fillCount = reduceMotion ? 1 : copies;
 
   return (
     <div
-      className="relative z-10 w-full shrink-0 border-b border-border-subtle bg-surface-elevated"
+      className="announcement-bar relative z-10 w-full shrink-0"
       style={{
-        minHeight: 'var(--shell-announcement-height)',
-        backgroundColor: 'var(--color-surface-elevated)',
+        height: 'var(--shell-announcement-height)',
+        backgroundColor: ANNOUNCEMENT_BLUE,
+        color: ANNOUNCEMENT_TEXT,
+        ['--announcement-duration' as string]: `${duration}s`,
       }}
       role="region"
       aria-label="공지"
+      tabIndex={0}
     >
-      <div className="container-shell flex h-8 items-center justify-center">
-        <p className="type-metadata truncate text-center text-text-secondary">
-          {displayMessage}
-        </p>
-        {messages.length > 1 ? (
-          <span className="sr-only">
-            {messages.map((msg, i) => (
-              <span key={i}>{msg}. </span>
-            ))}
-          </span>
-        ) : null}
+      <div className="announcement-viewport" ref={viewRef}>
+        <div
+          className={
+            reduceMotion
+              ? 'announcement-track'
+              : 'announcement-track announcement-track--run'
+          }
+        >
+          <div className="announcement-group">
+            {Array.from({ length: fillCount }, (_, copy) => renderRun(copy, copy > 0))}
+          </div>
+          {reduceMotion ? null : (
+            <div className="announcement-group announcement-clone" aria-hidden="true">
+              {Array.from({ length: fillCount }, (_, copy) => renderRun(copy, true))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

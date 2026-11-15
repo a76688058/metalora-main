@@ -1,0 +1,165 @@
+.n75-hero {
+  position: relative;
+  height: calc(100svh - var(--shell-offset, 88px));
+  min-height: 560px;
+  overflow: hidden;
+  background: #05040a;
+  color: #f7f4ee;
+}
+.n75-slides,
+.n75-slide { height: 100%; }
+.n75-slide { position: absolute; inset: 0; }
+.n75-slide[hidden] { display: none; }
+.n75-reel,
+.n75-plate-still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.n75-reel:not([src]) { display: none; }
+.n75-badge {
+  position: absolute;
+  left: clamp(16px, 4vw, 48px);
+  top: 20px;
+  z-index: 2;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .55);
+  color: #9eefff;
+  font-size: 12px;
+}
+.n75-veil {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 2;
+  width: min(640px, 92vw);
+  padding: 72px clamp(16px, 4vw, 48px) 96px;
+  background: linear-gradient(90deg, rgba(5, 4, 10, .84), rgba(5, 4, 10, .46) 78%, transparent);
+}
+.n75-kicker {
+  margin: 0;
+  letter-spacing: .16em;
+  font-size: 12px;
+  color: #9eefff;
+}
+.n75-veil h1 {
+  margin: 10px 0;
+  max-width: 12ch;
+  font-size: clamp(36px, 4.6vw, 68px);
+  line-height: 1.05;
+  letter-spacing: -.04em;
+  word-break: keep-all;
+  color: #fff;
+}
+.n75-veil p { max-width: 28rem; color: #d5d0dc; word-break: keep-all; }
+.n75-cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: #fff;
+  color: #140818;
+  font-weight: 700;
+  text-decoration: none;
+}
+.n75-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  width: 52px;
+  height: 52px;
+  transform: translateY(-50%);
+  border: 1px solid rgba(247, 244, 238, .24);
+  border-radius: 999px;
+  background: rgba(7, 6, 11, .42);
+  color: #f7f4ee;
+  font-size: 28px;
+  line-height: 1;
+}
+.n75-prev { left: 18px; }
+.n75-next { right: 18px; }
+.n75-dots {
+  position: absolute;
+  left: clamp(16px, 4vw, 48px);
+  bottom: 22px;
+  z-index: 3;
+  display: flex;
+  gap: 8px;
+}
+.n75-dots button {
+  width: 44px;
+  min-height: 44px;
+  border: 1px solid rgba(247, 244, 238, .24);
+  border-radius: 999px;
+  background: rgba(7, 6, 11, .42);
+  color: #f7f4ee;
+}
+.n75-dots button[aria-selected="true"] {
+  background: #fff;
+  color: #140818;
+}
+.n75-slide.is-active { animation: n75-enter 640ms cubic-bezier(.2, .7, .2, 1) both; }
+.n75-slide.is-active.is-back { animation-name: n75-enter-back; }
+@keyframes n75-enter {
+  from { opacity: 0; transform: translateX(4%); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes n75-enter-back {
+  from { opacity: 0; transform: translateX(-4%); }
+  to { opacity: 1; transform: none; }
+}
+html.light .n75-hero {
+  background: #f4efe6;
+  color: #1c1915;
+}
+html.light .n75-plate-still {
+  filter: brightness(1.18) saturate(.9) contrast(.96);
+}
+html.light .n75-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(255, 250, 240, .28), transparent 58%),
+    linear-gradient(180deg, rgba(247, 243, 236, .18), rgba(244, 239, 230, .42));
+}
+html.light .n75-veil {
+  background: linear-gradient(90deg, rgba(247, 243, 236, .94), rgba(247, 243, 236, .62) 74%, transparent);
+}
+html.light .n75-veil h1 { color: #1c1915; }
+html.light .n75-veil p,
+html.light .n75-kicker { color: #4a433c; }
+html.light .n75-badge { background: rgba(255, 250, 244, .82); color: #6a4a16; }
+html.light .n75-arrow,
+html.light .n75-dots button {
+  background: rgba(255, 250, 244, .82);
+  color: #1c1915;
+  border-color: rgba(28, 25, 21, .16);
+}
+html.light .n75-dots button[aria-selected="true"] {
+  background: #1c1915;
+  color: #f7f3ec;
+}
+html.n75-theme-shift .n75-hero,
+html.n75-theme-shift .n75-plate-still,
+html.n75-theme-shift .n75-veil {
+  transition: background 800ms ease, color 800ms ease, filter 800ms ease;
+}
+@media (max-width: 700px) {
+  .n75-prev { left: 8px; }
+  .n75-next { right: 8px; }
+  .n75-veil { width: 100%; padding-bottom: 88px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .n75-slide.is-active,
+  .n75-slide.is-active.is-back { animation: none; }
+  html.n75-theme-shift .n75-hero,
+  html.n75-theme-shift .n75-plate-still,
+  html.n75-theme-shift .n75-veil { transition: none; }
+}

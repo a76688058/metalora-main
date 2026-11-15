@@ -1,0 +1,115 @@
+.n75-video-hero {
+  width: 100%;
+  background: #11110e;
+}
+
+.n75-video-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #11110e;
+}
+
+.n75-video-poster,
+.n75-video-media {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.n75-video-media {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.n75-video-media.is-playing {
+  opacity: 1;
+}
+
+.n75-video-play {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  transform: translate(-50%, -50%);
+  border: 0;
+  border-radius: 999px;
+  background: rgba(247, 244, 238, 0.92);
+  color: #17191d;
+  font: inherit;
+  cursor: pointer;
+}
+
+.n75-video-media::-webkit-media-controls,
+.n75-video-media::-webkit-media-controls-enclosure,
+.n75-video-media::-webkit-media-controls-panel {
+  display: none !important;
+  opacity: 0;
+}
+
+@media (min-width: 768px) {
+  .n75-video-hero {
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0;
+    background: #f3eee6;
+    padding: calc(var(--shell-offset, 6rem) + 1.25rem) calc(28px * 2 / 3) 1.5rem;
+  }
+
+  .n75-video-frame {
+    width: 100%;
+    height: 610px;
+    max-height: none;
+    aspect-ratio: auto;
+    margin-inline: auto;
+    border-radius: 8px;
+  }
+
+  .n75-video-poster,
+  .n75-video-media {
+    object-position: center 40%;
+  }
+}
+
+@media (max-width: 767px) {
+  .n75-video-frame {
+    aspect-ratio: 9 / 16;
+    max-height: 100svh;
+  }
+}
+
+.n75-hero-stage {
+  position: relative;
+}
+
+@media (min-width: 861px) {
+  .n75-unified-hero.n75-hero,
+  html.light .n75-unified-hero.n75-hero,
+  html.dark .n75-unified-hero.n75-hero {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    background: var(--home-surface, #17191d);
+    padding: calc(var(--shell-offset, 6rem) + 1px) calc(28px * 2 / 3) 0;
+  }
+
+  .n75-unified-hero .n75-hero-stage {
+    width: 100%;
+    height: 610px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #11110e;
+  }
+
+  .n75-unified-hero .n75-video-frame {
+    height: 100%;
+    aspect-ratio: auto;
+    border-radius: 0;
+  }
+}

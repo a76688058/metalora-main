@@ -9,6 +9,119 @@ interface ProductGridProps {
   products?: Product[];
 }
 
+const MARQUEE_VELOCITY = -0.5;
+
+function useNarrowMarquee() {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)');
+    const apply = () => setNarrow(media.matches);
+    apply();
+    media.addEventListener('change', apply);
+    return () => media.removeEventListener('change', apply);
+  }, []);
+  return narrow;
+}
+
+function MarqueeTrack({ products, startOffset = 0 }: { products: Product[]; startOffset?: number }) {
+  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [contentWidth, setContentWidth] = useState(0);
+  const x = useMotionValue(0);
+  const lastDragTime = useRef(0);
+  const isAutoPlaying = useRef(true);
+  const offsetApplied = useRef(false);
+
+  const { marqueeItems, finalCopies } = useMemo(() => {
+    if (products.length === 0) return { marqueeItems: [] as Product[], finalCopies: 0 };
+    const minItems = 32;
+    const copiesNeeded = Math.max(4, Math.ceil(minItems / products.length));
+    const copies = copiesNeeded % 2 === 0 ? copiesNeeded : copiesNeeded + 1;
+    const items: Product[] = [];
+    for (let i = 0; i < copies; i += 1) items.push(...products);
+    return { marqueeItems: items, finalCopies: copies };
+  }, [products]);
+
+  useEffect(() => {
+    if (containerRef.current && finalCopies > 0) {
+      setContentWidth(containerRef.current.scrollWidth / finalCopies);
+    }
+  }, [marqueeItems, finalCopies]);
+
+  useEffect(() => {
+    if (!contentWidth || offsetApplied.current || startOffset === 0) return;
+    x.set(-Math.min(startOffset, contentWidth));
+    offsetApplied.current = true;
+  }, [contentWidth, startOffset, x]);
+
+  useAnimationFrame((_t, delta) => {
+    let currentX = x.get();
+    if (isDragging) {
+      isAutoPlaying.current = false;
+      lastDragTime.current = Date.now();
+      if (contentWidth > 0) {
+        const wrapped = wrap(-contentWidth, 0, currentX);
+        if (wrapped !== currentX) x.set(wrapped);
+      }
+      return;
+    }
+    if (!isAutoPlaying.current) {
+      const velocity = x.getVelocity();
+      if (Math.abs(velocity) < 5) {
+        if (Date.now() - lastDragTime.current > 1500) isAutoPlaying.current = true;
+      } else {
+        lastDragTime.current = Date.now();
+      }
+      if (contentWidth > 0) {
+        const wrapped = wrap(-contentWidth, 0, currentX);
+        if (wrapped !== currentX) x.set(wrapped);
+      }
+      return;
+    }
+    currentX += MARQUEE_VELOCITY * (delta / 16.66);
+    if (contentWidth > 0) currentX = wrap(-contentWidth, 0, currentX);
+    x.set(currentX);
+  });
+
+  if (marqueeItems.length === 0) return null;
+
+  return (
+    <motion.div
+      ref={containerRef}
+      className={`flex w-max items-center transform-gpu will-change-transform ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+      style={{ x }}
+      drag="x"
+      dragMomentum={false}
+      onPointerDown={() => {
+        isAutoPlaying.current = false;
+        lastDragTime.current = Date.now();
+      }}
+      onPointerUp={() => { lastDragTime.current = Date.now(); }}
+      onPointerCancel={() => { lastDragTime.current = Date.now(); }}
+      onDragStart={() => setIsDragging(true)}
+      onDragEnd={() => setIsDragging(false)}
+      dragTransition={{ power: 0.8, timeConstant: 200, restDelta: 0.5 }}
+    >
+      {marqueeItems.map((product, index) => {
+        const clone = index >= products.length;
+        return (
+          <motion.div
+            key={`${product.id}-${index}`}
+            className="w-[70px] md:w-[109px] flex-shrink-0 mx-1.5 md:mx-4 transform-gpu will-change-transform"
+            animate={{ scale: isDragging ? 0.97 : 1 }}
+            transition={{ duration: 0.2 }}
+            whileHover={!isDragging ? { scale: 1.03 } : {}}
+            aria-hidden={clone ? true : undefined}
+            inert={clone ? true : undefined}
+          >
+            <ProductCard product={product} />
+          </motion.div>
+        );
+      })}
+    </motion.div>
+  );
+}
+
 // Custom wrap function
 const wrap = (min: number, max: number, v: number) => {
   const rangeSize = max - min;
@@ -18,87 +131,19 @@ const wrap = (min: number, max: number, v: number) => {
 function ProductGrid({ products }: ProductGridProps) {
   const { products: allProducts, isLoading, isError, fetchProducts } = useProducts();
   const { theme } = useTheme();
-  const [isDragging, setIsDragging] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [contentWidth, setContentWidth] = useState(0);
-  
-  const x = useMotionValue(0);
-  const baseVelocity = -1.0; // pixels per frame
-  const lastDragTime = useRef(0);
-  const isAutoPlaying = useRef(true);
+  const narrow = useNarrowMarquee();
 
   const visibleProducts = useMemo(() => {
     if (products !== undefined) return products;
     return allProducts.filter(p => p.is_visible !== false);
   }, [products, allProducts]);
 
-  const { marqueeItems, finalCopies } = useMemo(() => {
-    if (visibleProducts.length === 0) return { marqueeItems: [], finalCopies: 0 };
-    
+  const rows = useMemo(() => {
     const shuffled = [...visibleProducts].sort(() => Math.random() - 0.5);
-    
-    const minItems = 32;
-    const copiesNeeded = Math.max(4, Math.ceil(minItems / shuffled.length));
-    const finalCopies = copiesNeeded % 2 === 0 ? copiesNeeded : copiesNeeded + 1;
-    
-    const items = [];
-    for (let i = 0; i < finalCopies; i++) {
-      items.push(...shuffled);
-    }
-    return { marqueeItems: items, finalCopies };
-  }, [visibleProducts]);
-
-  useEffect(() => {
-    if (containerRef.current && finalCopies > 0) {
-      const totalWidth = containerRef.current.scrollWidth;
-      setContentWidth(totalWidth / finalCopies);
-    }
-  }, [marqueeItems, finalCopies]);
-
-  useAnimationFrame((t, delta) => {
-    let currentX = x.get();
-
-    if (isDragging) {
-      isAutoPlaying.current = false;
-      lastDragTime.current = Date.now();
-      
-      if (contentWidth > 0) {
-        const wrapped = wrap(-contentWidth, 0, currentX);
-        if (wrapped !== currentX) {
-          x.set(wrapped);
-        }
-      }
-      return;
-    }
-
-    if (!isAutoPlaying.current) {
-      const v = x.getVelocity();
-      if (Math.abs(v) < 5) {
-        if (Date.now() - lastDragTime.current > 1500) {
-          isAutoPlaying.current = true;
-        }
-      } else {
-        lastDragTime.current = Date.now();
-      }
-      
-      if (contentWidth > 0) {
-        const wrapped = wrap(-contentWidth, 0, currentX);
-        if (wrapped !== currentX) {
-          x.set(wrapped);
-        }
-      }
-      return;
-    }
-
-    // Auto play
-    const moveBy = baseVelocity * (delta / 16.66);
-    currentX += moveBy;
-    
-    if (contentWidth > 0) {
-      currentX = wrap(-contentWidth, 0, currentX);
-    }
-    x.set(currentX);
-  });
+    if (!narrow || shuffled.length < 2) return [shuffled];
+    const mid = Math.ceil(shuffled.length / 2);
+    return [shuffled.slice(0, mid), shuffled.slice(mid)];
+  }, [visibleProducts, narrow]);
 
   if (isLoading) {
     const skeletonTone = theme === 'dark' ? 'bg-zinc-900 border-white/5' : 'bg-zinc-100 border-black/5';
@@ -120,7 +165,7 @@ function ProductGrid({ products }: ProductGridProps) {
           {Array.from({ length: 12 }).map((_, index) => (
             <div
               key={index}
-              className="w-[85px] md:w-[109px] flex-shrink-0 mx-2 md:mx-4"
+              className="w-[70px] md:w-[109px] flex-shrink-0 mx-1.5 md:mx-4"
             >
               <div className={`w-full aspect-[210/297] border animate-pulse ${skeletonTone}`} />
             </div>
@@ -149,7 +194,7 @@ function ProductGrid({ products }: ProductGridProps) {
     );
   }
 
-  if (marqueeItems.length === 0) {
+  if (rows.every((row) => row.length === 0)) {
     return null;
   }
 
@@ -165,39 +210,11 @@ function ProductGrid({ products }: ProductGridProps) {
         theme === 'dark' ? 'bg-gradient-to-l from-black to-transparent' : 'bg-gradient-to-l from-white to-transparent'
       }`} />
 
-      {/* Marquee Track */}
-      <motion.div 
-        ref={containerRef}
-        className={`flex w-max items-center transform-gpu will-change-transform ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-        style={{ x }}
-        drag="x"
-        dragMomentum={false}
-        onPointerDown={() => {
-          isAutoPlaying.current = false;
-          lastDragTime.current = Date.now();
-        }}
-        onPointerUp={() => {
-          lastDragTime.current = Date.now();
-        }}
-        onPointerCancel={() => {
-          lastDragTime.current = Date.now();
-        }}
-        onDragStart={() => setIsDragging(true)}
-        onDragEnd={() => setIsDragging(false)}
-        dragTransition={{ power: 0.8, timeConstant: 200, restDelta: 0.5 }}
-      >
-        {marqueeItems.map((product, index) => (
-          <motion.div 
-            key={`${product.id}-${index}`} 
-            className="w-[85px] md:w-[109px] flex-shrink-0 mx-2 md:mx-4 transform-gpu will-change-transform"
-            animate={{ scale: isDragging ? 0.97 : 1 }}
-            transition={{ duration: 0.2 }}
-            whileHover={!isDragging ? { scale: 1.03 } : {}}
-          >
-            <ProductCard product={product} />
-          </motion.div>
+      <div className={`flex w-full min-w-0 flex-col ${rows.length > 1 ? 'gap-2.5' : ''}`}>
+        {rows.map((row, rowIndex) => (
+          <MarqueeTrack key={rowIndex} products={row} startOffset={rowIndex === 1 ? 72 : 0} />
         ))}
-      </motion.div>
+      </div>
     </section>
   );
 }
