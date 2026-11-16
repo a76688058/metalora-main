@@ -4,6 +4,7 @@ import ProductCard from './ProductCard';
 import { Product } from '../data/products';
 import { motion, useMotionValue, useAnimationFrame } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 
 interface ProductGridProps {
   products?: Product[];
@@ -11,26 +12,17 @@ interface ProductGridProps {
 
 const MARQUEE_VELOCITY = -0.5;
 
-function useNarrowMarquee() {
-  const [narrow, setNarrow] = useState(false);
-  useEffect(() => {
-    const media = window.matchMedia('(max-width: 767px)');
-    const apply = () => setNarrow(media.matches);
-    apply();
-    media.addEventListener('change', apply);
-    return () => media.removeEventListener('change', apply);
-  }, []);
-  return narrow;
-}
-
-function MarqueeTrack({ products, startOffset = 0 }: { products: Product[]; startOffset?: number }) {
+function MarqueeTrack({ products }: { products: Product[] }) {
+  const reducedMotion = usePrefersReducedMotion();
   const [isDragging, setIsDragging] = useState(false);
+  const [holdingFocus, setHoldingFocus] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [contentWidth, setContentWidth] = useState(0);
   const x = useMotionValue(0);
   const lastDragTime = useRef(0);
   const isAutoPlaying = useRef(true);
-  const offsetApplied = useRef(false);
+  const holdingFocusRef = useRef(false);
+  holdingFocusRef.current = holdingFocus;
 
   const { marqueeItems, finalCopies } = useMemo(() => {
     if (products.length === 0) return { marqueeItems: [] as Product[], finalCopies: 0 };
@@ -48,13 +40,8 @@ function MarqueeTrack({ products, startOffset = 0 }: { products: Product[]; star
     }
   }, [marqueeItems, finalCopies]);
 
-  useEffect(() => {
-    if (!contentWidth || offsetApplied.current || startOffset === 0) return;
-    x.set(-Math.min(startOffset, contentWidth));
-    offsetApplied.current = true;
-  }, [contentWidth, startOffset, x]);
-
   useAnimationFrame((_t, delta) => {
+    if (reducedMotion || holdingFocusRef.current) return;
     let currentX = x.get();
     if (isDragging) {
       isAutoPlaying.current = false;
@@ -85,7 +72,36 @@ function MarqueeTrack({ products, startOffset = 0 }: { products: Product[]; star
 
   if (marqueeItems.length === 0) return null;
 
+  const releaseFocus = (event: React.FocusEvent<HTMLDivElement>) => {
+    const next = event.relatedTarget;
+    if (next instanceof Node && event.currentTarget.contains(next)) return;
+    setHoldingFocus(false);
+  };
+
+  if (reducedMotion) {
+    return (
+      <div
+        className="flex w-max items-center"
+      >
+        {marqueeItems.map((product, index) => {
+          const clone = index >= products.length;
+          return (
+            <div
+              key={`${product.id}-${index}`}
+              className="w-[70px] md:w-[109px] flex-shrink-0 mx-1.5 md:mx-4"
+              aria-hidden={clone ? true : undefined}
+              inert={clone ? true : undefined}
+            >
+              <ProductCard product={product} />
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
+    <div onFocusCapture={() => setHoldingFocus(true)} onBlurCapture={releaseFocus}>
     <motion.div
       ref={containerRef}
       className={`flex w-max items-center transform-gpu will-change-transform ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
@@ -119,6 +135,7 @@ function MarqueeTrack({ products, startOffset = 0 }: { products: Product[]; star
         );
       })}
     </motion.div>
+    </div>
   );
 }
 
@@ -131,19 +148,17 @@ const wrap = (min: number, max: number, v: number) => {
 function ProductGrid({ products }: ProductGridProps) {
   const { products: allProducts, isLoading, isError, fetchProducts } = useProducts();
   const { theme } = useTheme();
-  const narrow = useNarrowMarquee();
+  const reducedMotion = usePrefersReducedMotion();
 
   const visibleProducts = useMemo(() => {
     if (products !== undefined) return products;
     return allProducts.filter(p => p.is_visible !== false);
   }, [products, allProducts]);
 
-  const rows = useMemo(() => {
-    const shuffled = [...visibleProducts].sort(() => Math.random() - 0.5);
-    if (!narrow || shuffled.length < 2) return [shuffled];
-    const mid = Math.ceil(shuffled.length / 2);
-    return [shuffled.slice(0, mid), shuffled.slice(mid)];
-  }, [visibleProducts, narrow]);
+  const rows = useMemo(
+    () => [[...visibleProducts].sort(() => Math.random() - 0.5)],
+    [visibleProducts],
+  );
 
   if (isLoading) {
     const skeletonTone = theme === 'dark' ? 'bg-zinc-900 border-white/5' : 'bg-zinc-100 border-black/5';
@@ -167,7 +182,7 @@ function ProductGrid({ products }: ProductGridProps) {
               key={index}
               className="w-[70px] md:w-[109px] flex-shrink-0 mx-1.5 md:mx-4"
             >
-              <div className={`w-full aspect-[210/297] border animate-pulse ${skeletonTone}`} />
+              <div className={`w-full aspect-[210/297] border animate-pulse motion-reduce:animate-none ${skeletonTone}`} />
             </div>
           ))}
         </div>
@@ -199,7 +214,9 @@ function ProductGrid({ products }: ProductGridProps) {
   }
 
   return (
-    <section id="product-grid" className={`relative w-full py-0 overflow-x-hidden overflow-y-visible flex items-center transition-colors duration-500 ${
+    <section id="product-grid" className={`relative w-full py-0 overflow-y-visible flex items-center transition-colors duration-500 ${
+      reducedMotion ? 'overflow-x-auto' : 'overflow-x-hidden'
+    } ${
       theme === 'dark' ? 'bg-black' : 'bg-white'
     }`}>
       {/* Fade Masks for smooth appearance/disappearance */}
@@ -210,9 +227,9 @@ function ProductGrid({ products }: ProductGridProps) {
         theme === 'dark' ? 'bg-gradient-to-l from-black to-transparent' : 'bg-gradient-to-l from-white to-transparent'
       }`} />
 
-      <div className={`flex w-full min-w-0 flex-col ${rows.length > 1 ? 'gap-2.5' : ''}`}>
+      <div className="flex w-full min-w-0 flex-col">
         {rows.map((row, rowIndex) => (
-          <MarqueeTrack key={rowIndex} products={row} startOffset={rowIndex === 1 ? 72 : 0} />
+          <MarqueeTrack key={rowIndex} products={row} />
         ))}
       </div>
     </section>

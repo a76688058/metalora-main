@@ -201,21 +201,6 @@
   transition-timing-function: var(--ease-exit);
 }
 
-/* 1px theme-canvas hairline at the Home Header's viewport top.
-   Gives Safari a stable canvas sample instead of Hero pixels through
-   the transparent nav. Does not replace header-home-quiet transparency. */
-.header-home-edge::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 1px;
-  background-color: var(--color-canvas);
-  pointer-events: none;
-  z-index: 20;
-}
-
 .header-home-quiet.header-home-over-content {
   background-color: var(--color-surface);
   transition-duration: var(--duration-fast);
@@ -228,6 +213,10 @@
 
 .dark .header-home-quiet.header-home-over-content {
   background-color: #22252B;
+}
+
+.dark .header-home-quiet .header-home-control {
+  color: var(--home-header-control, #ffffff);
 }
 
 .dark .header-home-quiet.header-home-over-content .header-home-control {
@@ -378,5 +367,22 @@
 
   .announcement-viewport::-webkit-scrollbar {
     display: none;
+  }
+}
+
+/* Home footer only. One step darker than the home surface:
+   light #F7F4EE, dark desktop #17191D, dark mobile #23262B.
+   The mobile switch matches the home surface at 860px. */
+.home-footer-surface {
+  background-color: #f1ece4;
+}
+
+html.dark .home-footer-surface {
+  background-color: #121418;
+}
+
+@media (max-width: 860px) {
+  html.dark .home-footer-surface {
+    background-color: #1e2126;
   }
 }

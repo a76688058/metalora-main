@@ -30,7 +30,7 @@
     "build": "npm run clean && vite build --outDir dist/client",
     "start": "node server.ts",
     "preview": "vite preview",
-    "clean": "rm -rf dist",
+    "clean": "node scripts/clean-dist.mjs",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

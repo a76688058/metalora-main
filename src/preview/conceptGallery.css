@@ -646,6 +646,17 @@ html.dark .concept-sort button[aria-pressed='true'] {
   cursor: pointer;
 }
 
+.all-works-search input:focus,
+.all-works-search input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.all-works-search.is-key-focus {
+  outline: 1px solid color-mix(in srgb, currentColor 72%, transparent);
+  outline-offset: 3px;
+}
+
 .all-works-search input,
 .all-works-search .concept-clear {
   width: 0;

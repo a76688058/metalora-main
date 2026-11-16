@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import PolicyModal from './PolicyModal';
 
 const Divider = () => <div className="my-6 h-px bg-border-subtle" />;
@@ -13,6 +13,7 @@ function isUnmodifiedPrimaryClick(event: React.MouseEvent) {
 }
 
 export default function Footer() {
+  const isHome = useLocation().pathname === '/';
   const [modalState, setModalState] = useState<{ isOpen: boolean; key: keyof typeof policies | null }>({
     isOpen: false,
     key: null,
@@ -40,7 +41,7 @@ export default function Footer() {
   return (
     <footer className="w-full font-sans">
       {/* Opaque in-flow surface above Home's leaked sticky hero (z-[1]). PolicyModal stays a sibling so overlay z-index is not trapped. */}
-      <div className="relative z-[2] isolate overflow-hidden border-t border-border-subtle bg-canvas">
+      <div className={`relative z-[2] isolate overflow-hidden border-t border-border-subtle ${isHome ? 'home-footer-surface' : 'bg-canvas'}`}>
         <div className="container-shell grid grid-cols-1 gap-10 py-12 md:grid-cols-3 md:py-14">
           {/* Company */}
           <div className="text-center md:text-left">

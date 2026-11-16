@@ -212,9 +212,11 @@ export default function AllWorks({
   const showMore = hasMore && phase !== 'error' && !(phase === 'loading' && items.length === 0);
   const controls = readCatalogControls();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchKeyFocus, setSearchKeyFocus] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchToggleRef = useRef<HTMLButtonElement>(null);
   const searchFocusRef = useRef(false);
+  const searchKeyFocusRef = useRef(false);
 
   useEffect(() => {
     if (controls?.search) setSearchOpen(true);
@@ -225,6 +227,24 @@ export default function AllWorks({
     searchFocusRef.current = false;
     searchInputRef.current?.focus();
   }, [searchOpen]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') searchKeyFocusRef.current = true;
+      if ((event.key === 'Enter' || event.key === ' ') && event.target === searchToggleRef.current) {
+        searchKeyFocusRef.current = true;
+      }
+    };
+    const onPointer = () => {
+      searchKeyFocusRef.current = false;
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onPointer);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onPointer);
+    };
+  }, []);
 
   return (
     <section
@@ -249,7 +269,7 @@ export default function AllWorks({
               </button>
             </div>
             <form
-              className={searchOpen ? 'all-works-search is-open' : 'all-works-search'}
+              className={`all-works-search${searchOpen ? ' is-open' : ''}${searchKeyFocus ? ' is-key-focus' : ''}`}
               role="search"
               onSubmit={(event) => event.preventDefault()}
             >
@@ -276,7 +296,6 @@ export default function AllWorks({
               <input
                 ref={searchInputRef}
                 id="catalog-artwork-search"
-                className="focus-ring"
                 type="search"
                 placeholder="작품검색"
                 value={controls.search}
@@ -284,6 +303,8 @@ export default function AllWorks({
                 tabIndex={searchOpen ? 0 : -1}
                 aria-hidden={searchOpen ? undefined : true}
                 onChange={(event) => { armedRandom.current = 0; controls.onSearch(event.target.value, true); }}
+                onFocus={() => setSearchKeyFocus(searchKeyFocusRef.current)}
+                onBlur={() => setSearchKeyFocus(false)}
                 onKeyDown={(event) => {
                   if (event.key !== 'Escape' || controls.search) return;
                   event.preventDefault();

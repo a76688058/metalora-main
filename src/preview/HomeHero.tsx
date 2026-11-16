@@ -6,6 +6,7 @@ import type { Product } from '../data/products';
 import ConceptGallery from './ConceptGallery';
 import VideoHero from './VideoHero';
 import { HERO_SCENES, type HeroDestination, type HeroScene } from './heroScenes';
+import type { VideoHeroMediaConfig } from './videoHeroConfig';
 import './reference.css';
 
 const IMAGE_SLIDE_MS = 4000;
@@ -37,12 +38,22 @@ function useReducedMotion() {
   return reduce;
 }
 
-export default function HomeHero({ scenes = HERO_SCENES }: { scenes?: HeroScene[] }) {
+export default function HomeHero({
+  scenes = HERO_SCENES,
+  videoMedia,
+}: {
+  scenes?: HeroScene[];
+  videoMedia?: Partial<VideoHeroMediaConfig> | null;
+}) {
   const { theme } = useTheme();
   const { requestCustomAccess } = useAuth();
   const navigate = useNavigate();
   const reduce = useReducedMotion();
   const [index, setIndex] = useState(0);
+  const [slideDir, setSlideDir] = useState<'next' | 'prev'>('next');
+  const [slidePrep, setSlidePrep] = useState(false);
+  const [leaveIndex, setLeaveIndex] = useState<number | null>(null);
+  const [slideArm, setSlideArm] = useState<{ step: 1 | -1; id: number } | null>(null);
   const [failedVideo, setFailedVideo] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const [suspended, setSuspended] = useState(false);
@@ -58,25 +69,40 @@ export default function HomeHero({ scenes = HERO_SCENES }: { scenes?: HeroScene[
   const programmaticRef = useRef(false);
   const touchingRef = useRef(false);
   const dragRef = useRef({ x: 0, moved: false });
+  const indexRef = useRef(index);
+  const reduceRef = useRef(reduce);
+  const leaveTimerRef = useRef<number | null>(null);
+  const moveRef = useRef<(step: 1 | -1) => void>(() => {});
+  indexRef.current = index;
   pausedRef.current = paused;
   suspendedRef.current = suspended;
   countRef.current = count;
+  reduceRef.current = reduce;
 
   const mobileRail = () => window.matchMedia('(max-width: 860px)').matches;
+  const desktopMotion = () => !reduceRef.current && window.matchMedia('(min-width: 861px)').matches;
 
-  const show = (next: number) => {
-    if (count < 1) return;
+  const move = (step: 1 | -1) => {
+    if (countRef.current < 1) return;
     pendingRef.current = false;
-    setIndex((next + count) % count);
+    if (!desktopMotion()) {
+      if (leaveTimerRef.current) window.clearTimeout(leaveTimerRef.current);
+      setLeaveIndex(null);
+      setIndex((current) => (current + step + countRef.current) % countRef.current);
+      return;
+    }
+    setSlideDir(step === 1 ? 'next' : 'prev');
+    setSlidePrep(true);
+    setSlideArm({ step, id: performance.now() });
   };
+  moveRef.current = move;
 
   const advance = () => {
     if (pausedRef.current || suspendedRef.current) {
       pendingRef.current = true;
       return;
     }
-    pendingRef.current = false;
-    setIndex((current) => (current + 1) % countRef.current);
+    moveRef.current(1);
   };
 
   const go = (to: HeroDestination) => {
@@ -92,9 +118,29 @@ export default function HomeHero({ scenes = HERO_SCENES }: { scenes?: HeroScene[
   };
 
   useEffect(() => {
+    if (!slideArm) return;
+    const step = slideArm.step;
+    const from = indexRef.current;
+    const total = countRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      setSlidePrep(false);
+      setLeaveIndex(from);
+      setIndex((from + step + total) % total);
+      setSlideArm(null);
+      if (leaveTimerRef.current) window.clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = window.setTimeout(() => setLeaveIndex(null), 520);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [slideArm]);
+
+  useEffect(() => () => {
+    if (leaveTimerRef.current) window.clearTimeout(leaveTimerRef.current);
+  }, []);
+
+  useEffect(() => {
     if (paused || suspended || reduce || !pendingRef.current) return;
     pendingRef.current = false;
-    setIndex((current) => (current + 1) % count);
+    moveRef.current(1);
   }, [paused, suspended, reduce, count]);
 
   const videoHolds = scene?.layout === 'video' && !reduce && !videoBlocked;
@@ -102,7 +148,7 @@ export default function HomeHero({ scenes = HERO_SCENES }: { scenes?: HeroScene[
   useEffect(() => {
     if (reduce || paused || suspended || count < 2 || videoHolds) return;
     const timer = window.setTimeout(() => {
-      setIndex((current) => (current + 1) % count);
+      moveRef.current(1);
     }, IMAGE_SLIDE_MS);
     return () => window.clearTimeout(timer);
   }, [index, reduce, paused, suspended, count, videoHolds]);
@@ -158,17 +204,19 @@ export default function HomeHero({ scenes = HERO_SCENES }: { scenes?: HeroScene[
       const target = event.target as HTMLElement | null;
       if (target?.closest('input, textarea')) return;
       if (!target?.closest('.n75-hero')) return;
-      if (event.key === 'ArrowRight') show(index + 1);
-      if (event.key === 'ArrowLeft') show(index - 1);
+      if (event.key === 'ArrowRight') moveRef.current(1);
+      if (event.key === 'ArrowLeft') moveRef.current(-1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [index, count]);
+  }, []);
 
   return (
     <section
       className="n75-hero n75-unified-hero"
       data-slide={scene?.id ?? ''}
+      data-hero-dir={slideDir}
+      data-hero-prep={slidePrep ? '1' : undefined}
       aria-roledescription="캐러셀"
       aria-label={`홈 장면, ${index + 1} / ${count}`}
       onMouseEnter={() => setSuspended(true)}
@@ -213,10 +261,11 @@ export default function HomeHero({ scenes = HERO_SCENES }: { scenes?: HeroScene[
         const poster = theme === 'dark' ? item.posterDark : item.posterLight;
         const playVideo = Boolean(item.video) && !reduce && failedVideo !== item.video;
         return (
-          <div key={item.id} id={item.id} className={`n75-hero-frame${active ? ' is-active' : ''}`} aria-hidden={active ? undefined : true}>
+          <div key={item.id} id={item.id} className={`n75-hero-frame${active ? ' is-active' : ''}${sceneIndex === leaveIndex && !active ? ' is-leaving' : ''}`} aria-hidden={active ? undefined : true}>
             {item.layout === 'video' ? (
               <VideoHero
                 embedded
+                media={videoMedia}
                 active={active}
                 onEnded={advance}
                 onBlocked={() => setBlockIndex(index)}
@@ -268,8 +317,8 @@ export default function HomeHero({ scenes = HERO_SCENES }: { scenes?: HeroScene[
           </div>
         );
       })}
-      <button type="button" className="n75-arrow n75-prev" aria-label="이전 장면" onClick={() => show(index - 1)}>‹</button>
-      <button type="button" className="n75-arrow n75-next" aria-label="다음 장면" onClick={() => show(index + 1)}>›</button>
+      <button type="button" className="n75-arrow n75-prev" aria-label="이전 장면" onClick={() => move(-1)}>‹</button>
+      <button type="button" className="n75-arrow n75-next" aria-label="다음 장면" onClick={() => move(1)}>›</button>
       {reduce || count < 2 ? null : (
         <button
           type="button"

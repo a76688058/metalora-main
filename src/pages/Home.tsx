@@ -8,6 +8,8 @@ import AllWorks from '../preview/AllWorks';
 import { catalogSourceFromStoreProducts } from '../preview/collection18/catalogPage';
 import { bindCatalogControls } from '../preview/catalogControls';
 import { HOME_UNIFIED_SCENES } from '../preview/heroScenes';
+import { selectPublicHeroVideoSrc } from '../preview/homepageVideoSource';
+import type { VideoHeroMediaConfig } from '../preview/videoHeroConfig';
 import { useTheme } from '../context/ThemeContext';
 
 // Document-lifetime: first Home mount vs later SPA remounts (e.g. Product → Back).
@@ -110,6 +112,27 @@ export default function Home() {
     }
   }, [navType, location.pathname]);
 
+  const [heroVideo, setHeroVideo] = useState<Partial<VideoHeroMediaConfig> | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    const mobile = window.matchMedia('(max-width: 860px)').matches;
+    const probe = (slot: 'desktop' | 'mobile') => fetch(`/api/homepage-video/${slot}`, { method: 'HEAD' })
+      .then((response) => response.ok)
+      .catch(() => false);
+    Promise.all([
+      probe('desktop'),
+      mobile ? probe('mobile') : Promise.resolve(false),
+    ]).then(([desktopAvailable, mobileAvailable]) => {
+      if (cancelled) return;
+      const src = selectPublicHeroVideoSrc({ mobile, desktopAvailable, mobileAvailable });
+      if (src.startsWith('/api/')) setHeroVideo({ src });
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const catalogSource = useMemo(
     () => catalogSourceFromStoreProducts(products),
     [products],
@@ -126,7 +149,7 @@ export default function Home() {
 
   return (
     <div className="home-surface">
-      <HomeHero scenes={HOME_UNIFIED_SCENES} />
+      <HomeHero scenes={HOME_UNIFIED_SCENES} videoMedia={heroVideo} />
 
       {isError ? (
         <div className="container-shell flex flex-col items-center gap-4 py-16 text-text-secondary">
