@@ -13,6 +13,7 @@ RUN npm ci
 COPY index.html vite.config.ts tsconfig.json ./
 COPY public ./public
 COPY src ./src
+COPY scripts/clean-dist.mjs ./scripts/clean-dist.mjs
 
 RUN npm run build
 
