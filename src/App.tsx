@@ -182,6 +182,7 @@ function Layout() {
   const location = useLocation();
   const { isProfileOpen, closeProfile, isWorkshopOpen, closeWorkshop, isProfileEditOpen, closeProfileEdit, isOrdersOpen, closeOrders, isInquiryOpen, closeInquiry } = useAuth();
   const { isCartOpen, closeCart } = useCart();
+  const [cartHostMounted, setCartHostMounted] = useState(false);
   const { theme } = useTheme();
   const [hasOpenedProfileEdit, setHasOpenedProfileEdit] = useState(false);
   const isAdminPage = location.pathname.startsWith('/admin');
@@ -197,6 +198,10 @@ function Layout() {
     if (isProfileEditOpen) setHasOpenedProfileEdit(true);
   }, [isProfileEditOpen]);
 
+  if (isCartOpen && !cartHostMounted) {
+    setCartHostMounted(true);
+  }
+
   const shouldRenderProfileEdit = hasOpenedProfileEdit || isProfileEditOpen;
 
   // Force dark mode for admin pages
@@ -209,12 +214,12 @@ function Layout() {
       currentTheme === 'dark' ? 'bg-black text-white' : 'bg-white text-black',
     )}>
       <AnimatePresence>
-        {isCartOpen && (
+        {cartHostMounted && (
           <Suspense fallback={null}>
             <Cart key="cart-overlay" />
           </Suspense>
         )}
-        {isProfileOpen && <ProfileOverlay key="profile-overlay" isOpen={isProfileOpen} onClose={closeProfile} />}
+        <ProfileOverlay key="profile-overlay" isOpen={isProfileOpen} onClose={closeProfile} />
         {shouldRenderProfileEdit && (
           <Suspense fallback={null}>
             <ProfileEditModal key="profile-edit-modal" isOpen={isProfileEditOpen} onClose={closeProfileEdit} />

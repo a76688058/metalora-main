@@ -391,6 +391,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 <IconButton
                   variant="ghost"
                   aria-label="내 정보"
+                  data-account-anchor=""
                   onClick={handleAccount}
                   className={cn('shrink-0', iconTone, homeControlClass)}
                 >
@@ -400,6 +401,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
                 <IconButton
                   variant="ghost"
                   aria-label="로그인"
+                  data-account-anchor=""
                   onClick={handleAccount}
                   className={cn('shrink-0', iconTone, homeControlClass)}
                 >
@@ -411,6 +413,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
               <IconButton
                 variant="ghost"
                 aria-label="장바구니"
+                data-cart-anchor=""
                 onClick={() => {
                   setIsSearchOpen(false);
                   if (isCartOpen) {

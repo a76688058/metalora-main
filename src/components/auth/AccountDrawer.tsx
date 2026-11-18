@@ -1,13 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronRight, Moon, Sun, X } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { cn } from '../../lib/cn';
 import { zClass } from '../../constants/overlays';
-
-const EASE_IN: [number, number, number, number] = [0.16, 1, 0.3, 1];
-const EASE_OUT: [number, number, number, number] = [0.4, 0, 1, 1];
+import { GenieShell } from '../shell/genieShell';
 
 const POLICY_ROWS = [
   { to: '/policy/terms', label: '이용약관' },
@@ -41,128 +38,27 @@ export default function AccountDrawer({
     return () => mq.removeEventListener('change', apply);
   }, []);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const body = document.body;
-    const prevOverflow = body.style.overflow;
-    const prevPaddingRight = body.style.paddingRight;
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-    body.style.overflow = 'hidden';
-    if (scrollbarWidth > 0) {
-      body.style.paddingRight = `${scrollbarWidth}px`;
-    }
-
-    const preventBackgroundScroll = (event: Event) => {
-      event.preventDefault();
-    };
-    const preventScrollKeys = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
-      const key = event.key;
-      if (
-        key !== 'ArrowUp'
-        && key !== 'ArrowDown'
-        && key !== 'PageUp'
-        && key !== 'PageDown'
-        && key !== 'Home'
-        && key !== 'End'
-        && key !== ' '
-      ) {
-        return;
-      }
-      const target = event.target;
-      if (
-        key === ' '
-        && target instanceof HTMLElement
-        && (target.closest('button, a, [role="button"], [role="switch"], input, textarea, select') || target.isContentEditable)
-      ) {
-        return;
-      }
-      event.preventDefault();
-    };
-
-    window.addEventListener('wheel', preventBackgroundScroll, { passive: false });
-    window.addEventListener('touchmove', preventBackgroundScroll, { passive: false });
-    window.addEventListener('keydown', preventScrollKeys);
-
-    return () => {
-      body.style.overflow = prevOverflow;
-      body.style.paddingRight = prevPaddingRight;
-      window.removeEventListener('wheel', preventBackgroundScroll);
-      window.removeEventListener('touchmove', preventBackgroundScroll);
-      window.removeEventListener('keydown', preventScrollKeys);
-    };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen || inert) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, inert, onClose]);
-
-  const panelMotion = reduceMotion
-    ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } }
-    : {
-        initial: { x: '22%', opacity: 0 },
-        animate: { x: 0, opacity: 1 },
-        exit: { x: '14%', opacity: 0, transition: { duration: 0.4, ease: EASE_OUT } },
-      };
-
   const rowClass = cn(
     'flex min-h-11 w-full items-center justify-between gap-3 type-metadata tracking-tight',
     isDark ? 'text-zinc-500' : 'text-zinc-400',
   );
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{
-            duration: reduceMotion ? 0.16 : 0.5,
-            ease: reduceMotion ? 'linear' : EASE_IN,
-          }}
-          role="dialog"
-          aria-modal={!inert}
-          aria-hidden={inert}
-          {...(inert ? { inert: true } : {})}
-          aria-labelledby="ml-acct-title"
-          className={cn(
-            'fixed inset-0 flex justify-end overflow-hidden',
-            zClass('drawer'),
-            inert && 'pointer-events-none',
-          )}
-        >
-          <button
-            type="button"
-            tabIndex={inert ? -1 : 0}
-            aria-label="계정 닫기"
-            onClick={onClose}
-            className={cn(
-              'absolute inset-0 touch-none',
-              isDark ? 'bg-black/[0.36]' : 'bg-[rgba(28,24,20,0.18)]',
-              inert && 'opacity-0',
-            )}
-          />
-
-          <motion.aside
-            {...panelMotion}
-            transition={
-              reduceMotion
-                ? { duration: 0.16 }
-                : { duration: 0.62, ease: EASE_IN }
-            }
-            className={cn(
-              'relative flex h-full w-full flex-col overflow-hidden sm:w-[24.5rem]',
-              isDark ? 'ml-acct-panel--dark' : 'ml-acct-panel--light',
-            )}
-          >
+    <GenieShell
+      isOpen={isOpen}
+      inert={inert}
+      labelledBy="ml-acct-title"
+      className={cn(zClass('drawer'), inert && 'pointer-events-none')}
+      panelClassName="w-full sm:w-[24.5rem]"
+      backdropClassName={cn(isDark ? 'bg-black/[0.36]' : 'bg-[rgba(28,24,20,0.18)]', inert && 'opacity-0')}
+      onClose={onClose}
+    >
+      <aside
+        className={cn(
+          'relative flex h-full flex-col overflow-hidden',
+          isDark ? 'ml-acct-panel--dark' : 'ml-acct-panel--light',
+        )}
+      >
             <style>{`
               .ml-acct-panel--dark {
                 background: #121316;
@@ -315,9 +211,7 @@ export default function AccountDrawer({
                 aria-hidden="true"
               />
             )}
-          </motion.aside>
-        </motion.div>
-      )}
-    </AnimatePresence>
+      </aside>
+    </GenieShell>
   );
 }

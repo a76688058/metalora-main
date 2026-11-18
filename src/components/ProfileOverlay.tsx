@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { cn } from '../lib/cn';
 import { zClass } from '../constants/overlays';
 import { CustomerReviews } from './reviews/CustomerReviews';
+import { GenieShell } from './shell/genieShell';
 
 interface ProfileOverlayProps {
   isOpen: boolean;
@@ -20,30 +20,8 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
   const [view, setView] = useState<'hub' | 'reviews'>('hub');
 
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isOpen]);
-
-  useEffect(() => {
     if (!isOpen) setView('hub');
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, onClose]);
 
   const menuItems = [
     ...(profile?.is_admin ? [{
@@ -102,28 +80,16 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
   ];
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="profile-overlay-title"
-      className={cn('fixed inset-0 flex justify-end pointer-events-auto', zClass('sheet'))}
+    <GenieShell
+      isOpen={isOpen}
+      labelledBy="profile-overlay-title"
+      className={zClass('sheet')}
+      panelClassName="w-full max-w-lg"
+      backdropClassName="bg-black/60 backdrop-blur-sm"
+      onClose={onClose}
     >
-      <button
-        type="button"
-        aria-label="내 정보 닫기"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto touch-none"
-      />
-
-      <motion.div
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ opacity: 0 }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className={`relative w-full max-w-lg h-full flex flex-col pointer-events-auto transform-gpu ${
+      <div
+        className={`flex h-full flex-col ${
           theme === 'dark' ? 'bg-[#101114] text-[#f3f1ec]' : 'bg-[#f6f4ef] text-[#16150f]'
         }`}
       >
@@ -193,7 +159,7 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
           </>
           )}
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </GenieShell>
   );
 }
