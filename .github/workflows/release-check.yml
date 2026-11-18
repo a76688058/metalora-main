@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - release/new7-remaining
+      - release/new75-m1-home
 
 permissions:
   contents: read
