@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 import {
   Loader2, ChevronLeft, Package, Image
 } from 'lucide-react';
@@ -17,6 +18,8 @@ import { workshopOrderItemThumbRef } from '../lib/workshopMediaDisplay';
 interface OrdersModalProps {
   isOpen: boolean;
   onClose: () => void;
+  embedded?: boolean;
+  onExit?: () => void;
 }
 
 const KNOWN_ORDER_STATUSES = new Set([
@@ -50,9 +53,13 @@ function CatalogThumb({ src, theme }: { src: string; theme: string }) {
   );
 }
 
-export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
+export default function OrdersModal({ isOpen, onClose, embedded = false, onExit }: OrdersModalProps) {
   const { user, openProfile } = useAuth();
   const { theme } = useTheme();
+  const reducedMotion = usePrefersReducedMotion();
+  const sheetMove = reducedMotion
+    ? { duration: 0 }
+    : { duration: 0.22, ease: [0.22, 1, 0.36, 1] as const };
   const navigate = useNavigate();
   const [orders, setOrders] = useState<any[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
@@ -62,10 +69,11 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
 
   const returnToHub = useCallback(() => {
     onClose();
+    if (embedded) return;
     setTimeout(() => {
       openProfile();
     }, 100);
-  }, [onClose, openProfile]);
+  }, [onClose, openProfile, embedded]);
 
   useEffect(() => {
     mounted.current = true;
@@ -75,22 +83,18 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
-      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-      document.body.style.overflow = 'hidden';
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    } else {
-      document.body.style.overflow = '';
-      document.body.style.paddingRight = '';
-    }
+    if (!isOpen || embedded) return;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
     return () => {
       document.body.style.overflow = '';
       document.body.style.paddingRight = '';
     };
-  }, [isOpen]);
+  }, [isOpen, embedded]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || embedded) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
@@ -165,30 +169,36 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          initial={{ opacity: 0 }}
+          initial={embedded || reducedMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="orders-title"
-          className={cn('fixed inset-0 flex justify-end pointer-events-auto', zClass('sheet'))}
+          transition={sheetMove}
+          role={embedded ? undefined : 'dialog'}
+          aria-modal={embedded ? undefined : true}
+          aria-labelledby={embedded ? undefined : 'orders-title'}
+          className={cn(embedded ? 'relative w-full' : 'fixed inset-0 flex justify-end pointer-events-auto', !embedded && zClass('sheet'))}
         >
+          {!embedded && (
           <button
             type="button"
             aria-label="내 정보로 돌아가기"
             onClick={returnToHub}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto touch-none"
           />
+          )}
 
           <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden pointer-events-auto transition-colors duration-500 will-change-transform transform-gpu ${
-              theme === 'dark' ? 'bg-[#101114] text-[#f3f1ec]' : 'bg-[#f6f4ef] text-[#16150f]'
-            }`}
+            initial={embedded || reducedMotion ? false : { opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={reducedMotion ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, x: 12 }}
+            transition={sheetMove}
+            className={embedded
+              ? 'relative w-full'
+              : `relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden pointer-events-auto transition-colors duration-500 will-change-transform transform-gpu ${
+                theme === 'dark' ? 'bg-[#101114] text-[#f3f1ec]' : 'bg-[#f6f4ef] text-[#16150f]'
+              }`}
           >
+            {!embedded && (
             <div className={`flex items-center justify-between px-6 py-5 border-b ${
               theme === 'dark' ? 'border-white/5' : 'border-black/5'
             }`}>
@@ -197,17 +207,18 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
                   type="button"
                   onClick={returnToHub}
                   aria-label="내 정보로 돌아가기"
-                  className={`p-2 rounded-full transition-all focus-ring ${
+                  className={`focus-ring flex size-10 items-center justify-center rounded-full ${
                     theme === 'dark' ? 'bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-black'
                   }`}
                 >
-                  <ChevronLeft size={20} />
+                  <ChevronLeft size={20} strokeWidth={1.75} />
                 </button>
                 <h2 id="orders-title" className="text-[1.75rem] font-medium tracking-[-0.02em]">주문 내역</h2>
               </div>
             </div>
+            )}
 
-            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar overscroll-contain touch-pan-y">
+            <div className={embedded ? 'px-6 py-5' : 'flex-1 overflow-y-auto p-6 custom-scrollbar overscroll-contain touch-pan-y'}>
               <div className="space-y-5 pb-[max(2rem,env(safe-area-inset-bottom))]">
                 {isLoadingOrders && orders.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-24 gap-3">
@@ -232,7 +243,7 @@ export default function OrdersModal({ isOpen, onClose }: OrdersModalProps) {
                     <button
                       type="button"
                       onClick={() => {
-                        onClose();
+                        (onExit ?? onClose)();
                         navigate('/');
                       }}
                       className="px-6 py-3 font-medium rounded-[2px] focus-ring bg-[#1a1914] text-[#f4f1eb] dark:bg-[#f2f0ea] dark:text-[#16150f]"

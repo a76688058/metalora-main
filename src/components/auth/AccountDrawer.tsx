@@ -6,7 +6,7 @@ import { cn } from '../../lib/cn';
 import { zClass } from '../../constants/overlays';
 import { GenieShell } from '../shell/genieShell';
 
-const POLICY_ROWS = [
+export const POLICY_ROWS = [
   { to: '/policy/terms', label: '이용약관' },
   { to: '/policy/privacy', label: '개인정보처리방침' },
 ] as const;
@@ -39,8 +39,7 @@ export default function AccountDrawer({
   }, []);
 
   const rowClass = cn(
-    'flex min-h-11 w-full items-center justify-between gap-3 type-metadata tracking-tight',
-    isDark ? 'text-zinc-500' : 'text-zinc-400',
+    'flex min-h-11 w-full items-center justify-between gap-3 type-metadata tracking-tight text-text-secondary',
   );
 
   return (
@@ -193,8 +192,7 @@ export default function AccountDrawer({
                     onClick={onClose}
                     className={cn(
                       rowClass,
-                      'focus-ring rounded-sm',
-                      isDark ? 'hover:text-zinc-300' : 'hover:text-zinc-700',
+                      'focus-ring rounded-sm hover:text-text-primary focus-visible:text-text-primary',
                     )}
                   >
                     <span>{row.label}</span>

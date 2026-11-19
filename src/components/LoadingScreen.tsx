@@ -1,63 +1,42 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
+
+const LOGO_URL = '/logo/metalora-wordmark.webp';
 
 export default function LoadingScreen() {
   const { theme } = useTheme();
-  const LOGO_URL = "/logo/metalora-wordmark.webp";
+  const reduced = usePrefersReducedMotion();
+  const isDark = theme === 'dark';
 
   return (
-    <div className={`fixed inset-0 z-[9999] flex items-center justify-center transition-colors duration-500 ${
-      theme === 'dark' ? 'bg-black' : 'bg-white'
-    }`}>
-      <motion.div
-        initial={{ scale: 1 }}
-        exit={{ scale: 0.8, opacity: 0 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="relative flex items-center justify-center"
-      >
-        <motion.div
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          className="relative"
-        >
-          {/* Base Logo */}
-          <img
-            src={LOGO_URL}
-            alt="METALORA"
-            width={384}
-            height={124}
-            className={`h-12 md:h-16 object-contain transition-all duration-500 ${
-              theme === 'dark' ? 'filter invert opacity-30' : 'opacity-100'
-            }`}
-            referrerPolicy="no-referrer"
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      className={`fixed inset-0 z-[9999] flex items-center justify-center ${
+        isDark ? 'bg-black text-white' : 'bg-white text-black'
+      }`}
+    >
+      <div className="flex flex-col items-center">
+        <img
+          src={LOGO_URL}
+          alt="METALORA"
+          width={384}
+          height={124}
+          className={`h-12 w-auto object-contain md:h-16 ${isDark ? 'invert opacity-80' : 'opacity-100'}`}
+          referrerPolicy="no-referrer"
+        />
+        <div className="mt-8 h-px w-16 overflow-hidden bg-current/20" aria-hidden="true">
+          <motion.span
+            className="block h-full w-6 bg-current"
+            initial={false}
+            animate={reduced ? { x: 20 } : { x: [-24, 64] }}
+            transition={reduced ? { duration: 0 } : { duration: 1.1, repeat: Infinity, ease: 'linear' }}
           />
-          
-          {/* Shimmer Logo */}
-          {theme === 'dark' && (
-            <motion.div
-              className="absolute inset-0 z-10"
-              style={{
-                WebkitMaskImage: `url(${LOGO_URL})`,
-                WebkitMaskSize: 'contain',
-                WebkitMaskRepeat: 'no-repeat',
-                WebkitMaskPosition: 'center',
-                background: 'linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)',
-                backgroundSize: '200% 100%',
-                filter: 'invert(1)',
-              }}
-              animate={{
-                backgroundPosition: ['200% 0', '-200% 0'],
-              }}
-              transition={{
-                duration: 2.5,
-                repeat: Infinity,
-                ease: 'linear',
-              }}
-            />
-          )}
-        </motion.div>
-      </motion.div>
+        </div>
+        <span className="sr-only">불러오는 중</span>
+      </div>
     </div>
   );
 }

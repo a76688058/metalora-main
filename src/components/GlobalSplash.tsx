@@ -82,57 +82,16 @@ export default function GlobalSplash() {
             theme === 'dark' ? 'bg-black' : 'bg-white'
           }`}
         >
-          <motion.div
-            initial={{ scale: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="relative flex items-center justify-center will-change-transform"
-          >
-            <motion.div
-              animate={{ scale: [1, 1.05, 1] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              className="relative will-change-transform"
-            >
-              {/* Base Logo */}
-              <img
-                src={LOGO_URL}
-                alt="METALORA"
-                className={`h-12 md:h-16 object-contain transition-all duration-500 ${
-                  theme === 'dark' ? 'filter invert opacity-30' : 'opacity-100'
-                }`}
-                referrerPolicy="no-referrer"
-              />
-              
-              {/* Shimmer Logo optimized with translateX instead of backgroundPosition */}
-              {theme === 'dark' && (
-                <div 
-                  className="absolute inset-0 z-10 overflow-hidden" 
-                  style={{
-                    WebkitMaskImage: `url(${LOGO_URL})`,
-                    WebkitMaskSize: 'contain',
-                    WebkitMaskRepeat: 'no-repeat',
-                    WebkitMaskPosition: 'center',
-                    filter: 'invert(1)',
-                  }}
-                >
-                  <motion.div
-                    className="absolute inset-y-0 w-[200%] will-change-transform"
-                    style={{
-                      background: 'linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.8) 50%, transparent 100%)',
-                    }}
-                    animate={{
-                      x: ['-50%', '0%'],
-                    }}
-                    transition={{
-                      duration: 2.5,
-                      repeat: Infinity,
-                      ease: 'linear',
-                    }}
-                  />
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
+          <div className="relative flex items-center justify-center">
+            <img
+              src={LOGO_URL}
+              alt="METALORA"
+              className={`h-12 object-contain md:h-16 ${
+                theme === 'dark' ? 'invert opacity-80' : 'opacity-100'
+              }`}
+              referrerPolicy="no-referrer"
+            />
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

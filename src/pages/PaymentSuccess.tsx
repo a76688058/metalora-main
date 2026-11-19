@@ -1,16 +1,110 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Check, Loader2, Copy, Factory, Package, Truck, ShieldCheck } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
-import LoadingScreen from '../components/LoadingScreen';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
+import { cn } from '../lib/cn';
 import { resolvePurchaseAnalyticsAfterConfirm } from '../lib/purchaseAnalyticsDedupe';
 import {
   httpFailureCode,
   reportPaymentFail,
 } from '../lib/paymentFailureAnalytics';
+
+function localResultPreviewAllowed(): boolean {
+  if (!import.meta.env.DEV) return false;
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1';
+}
+
+type SuccessPreview = 'verifying' | 'confirmed' | 'unknown';
+
+const DRAW = [0.16, 1, 0.3, 1] as const;
+
+function PaymentStatusMark({ mark }: { mark: SuccessPreview }) {
+  const reduced = usePrefersReducedMotion();
+  const tone = mark === 'unknown' ? 'text-[var(--color-warning)]' : 'text-accent';
+
+  if (mark === 'verifying') {
+    return (
+      <div className={cn('grid h-[88px] w-[88px] shrink-0 place-items-center', tone)} aria-hidden>
+        <motion.div
+          className="h-20 w-20"
+          animate={reduced ? { rotate: 0 } : { rotate: 360 }}
+          transition={reduced ? { duration: 0 } : { duration: 1.4, repeat: Infinity, ease: 'linear' }}
+        >
+          <svg viewBox="0 0 80 80" className="h-full w-full">
+            <circle cx="40" cy="40" r="27" fill="none" stroke="currentColor" strokeOpacity="0.16" strokeWidth="1.25" />
+            <motion.circle
+              cx="40"
+              cy="40"
+              r="27"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.25"
+              strokeLinecap="round"
+              strokeDasharray="46 124"
+              animate={reduced ? { opacity: 1 } : { opacity: [0.42, 1, 0.42] }}
+              transition={reduced ? { duration: 0 } : { duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          </svg>
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn('grid h-[88px] w-[88px] shrink-0 place-items-center', tone)} aria-hidden>
+      <motion.svg
+        viewBox="0 0 80 80"
+        className="h-20 w-20"
+        initial={reduced ? false : { scale: 0.96, opacity: 0.7 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: reduced ? 0 : 0.55, ease: DRAW }}
+      >
+        <motion.circle
+          cx="40"
+          cy="40"
+          r="27"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.25"
+          strokeLinecap="round"
+          initial={reduced ? false : { pathLength: 0 }}
+          animate={{ pathLength: mark === 'unknown' ? 0.68 : 1 }}
+          transition={{ duration: reduced ? 0 : 0.46, ease: DRAW }}
+        />
+        {mark === 'confirmed' ? (
+          <motion.path
+            d="M29 41.5 L36.5 49 L51.5 32"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            initial={reduced ? false : { pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: reduced ? 0 : 0.24, delay: reduced ? 0 : 0.3, ease: DRAW }}
+          />
+        ) : (
+          <motion.circle
+            cx="40"
+            cy="40"
+            r="2.2"
+            fill="currentColor"
+            initial={reduced ? false : { opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: reduced ? 0 : 0.2, delay: reduced ? 0 : 0.34, ease: DRAW }}
+          />
+        )}
+      </motion.svg>
+    </div>
+  );
+}
 
 /**
  * METALORA PII(Personally Identifiable Information) 보호 모듈
@@ -42,49 +136,24 @@ export default function PaymentSuccess() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { refreshCart } = useCart();
+  const { openOrders } = useAuth();
   const { theme } = useTheme();
   const [isConfirming, setIsConfirming] = useState(true);
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [simulationStep, setSimulationStep] = useState(0);
-  const [selectedStep, setSelectedStep] = useState<number | null>(null);
-  const [isSimulationComplete, setIsSimulationComplete] = useState(false);
+  const [previewMode, setPreviewMode] = useState<SuccessPreview | null>(null);
 
-  const SIMULATION_STEPS = [
-    { icon: <ShieldCheck size={18} />, text: "결제가 확인되었습니다", duration: 2500 },
-    { icon: <Factory size={18} />, text: "주문을 접수했습니다", duration: 2500 },
-    { icon: <Package size={18} />, text: "제작 준비를 진행합니다", duration: 3500 },
-    { icon: <Truck size={18} />, text: "배송 준비 단계입니다", duration: 2000 },
-  ];
-
-  useEffect(() => {
-    if (!isConfirming && !errorMessage) {
-      let current = 0;
-      const runSimulation = () => {
-        if (current < SIMULATION_STEPS.length - 1) {
-          setTimeout(() => {
-            current++;
-            setSimulationStep(current);
-            runSimulation();
-          }, SIMULATION_STEPS[current].duration);
-        } else {
-          setIsSimulationComplete(true);
-        }
-      };
-      runSimulation();
-    }
-  }, [isConfirming, errorMessage]);
-
-  const activeStep = selectedStep !== null ? selectedStep : simulationStep;
-  
   const paymentKey = searchParams.get('paymentKey');
   const orderId = searchParams.get('orderId');
   const totalAmount = searchParams.get('amount') || searchParams.get('totalAmount');
   const method = searchParams.get('method') || searchParams.get('paymentType');
 
   const isProcessing = React.useRef(false);
+  const hasPaymentAttempt = Boolean(paymentKey && orderId && totalAmount);
+  const previewAvailable = localResultPreviewAllowed() && !hasPaymentAttempt;
 
   useEffect(() => {
+    if (previewAvailable) return;
     const confirmPayment = async () => {
       if (isProcessing.current) return;
       if (!paymentKey || !orderId || !totalAmount) {
@@ -230,259 +299,135 @@ export default function PaymentSuccess() {
     };
 
     confirmPayment();
-  }, [paymentKey, orderId, totalAmount, method, searchParams]);
+  }, [paymentKey, orderId, totalAmount, method, searchParams, previewAvailable]);
 
 
   const handleCopy = () => {
-    if (!orderId) return;
-    navigator.clipboard.writeText(orderId);
+    const value = import.meta.env.DEV && previewMode
+      ? 'ML-PREVIEW-0000-NOT-A-REAL-ORDER-WITH-A-LONG-IDENTIFIER'
+      : orderId;
+    if (!value) return;
+    navigator.clipboard.writeText(value);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (isConfirming) {
-    return <LoadingScreen />;
-  }
+  const goHome = () => navigate('/');
+  const goOrders = () => {
+    navigate('/');
+    openOrders();
+  };
 
-  if (errorMessage) {
-    return (
-      <div className={`min-h-screen flex items-center justify-center p-6 transition-colors duration-500 ${theme === 'dark' ? 'bg-[#0F0F11]' : 'bg-white'}`}>
-        <div className={`max-w-md w-full rounded-3xl p-8 text-center border shadow-2xl ${theme === 'dark' ? 'bg-[#1C1C1E] border-red-500/20' : 'bg-zinc-50 border-red-500/10'}`}>
-          <p className="text-red-500 font-bold mb-6">{errorMessage}</p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className={`px-6 py-3 rounded-2xl font-semibold ${
-                theme === 'dark' ? 'bg-[#2C2C2E] text-white hover:bg-[#3C3C3E]' : 'bg-zinc-200 text-black hover:bg-zinc-300'
-              }`}
-            >
-              다시 시도
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="px-6 py-3 btn-cyberpunk rounded-2xl font-semibold text-white"
-            >
-              홈으로 이동
-            </button>
-          </div>
-        </div>
-      </div>
+  const reducedMotion = usePrefersReducedMotion();
+  const isDark = theme === 'dark';
+  const pageClass = isDark ? 'bg-[#101114] text-[#f3f1ec]' : 'bg-[#f6f4ef] text-[#16150f]';
+  const muted = isDark ? 'text-[#c9c4b8]' : 'text-[#3f3c36]';
+  const line = isDark ? 'border-white/10' : 'border-black/10';
+  const primaryBtn = cn(
+    'focus-ring inline-flex h-12 w-full items-center justify-center rounded-[2px] px-5 text-[0.9375rem] font-medium sm:flex-[1.4]',
+    isDark ? 'bg-[#f2f0ea] text-[#16150f]' : 'bg-[#1a1914] text-[#f4f1eb]',
+  );
+  const secondaryBtn = cn(
+    'focus-ring inline-flex h-12 w-full items-center justify-center rounded-[2px] px-5 text-[0.9375rem] font-medium sm:flex-1',
+    isDark ? 'bg-white/10 text-[#f3f1ec]' : 'bg-black/[0.05] text-[#16150f]',
+  );
+
+  const showingPreview = import.meta.env.DEV && Boolean(previewMode);
+  const view: SuccessPreview = showingPreview && previewMode
+    ? previewMode
+    : (isConfirming ? 'verifying' : errorMessage ? 'unknown' : 'confirmed');
+  const shownOrderId = import.meta.env.DEV && previewMode
+    ? 'ML-PREVIEW-0000-NOT-A-REAL-ORDER-WITH-A-LONG-IDENTIFIER'
+    : orderId;
+  const amountNumber = import.meta.env.DEV && previewMode ? 54900 : Number(totalAmount);
+  const amountLabel = Number.isFinite(amountNumber) ? `₩${amountNumber.toLocaleString()}` : '금액 확인 필요';
+
+  const title = view === 'verifying'
+    ? '결제 결과를 확인하고 있습니다'
+    : view === 'unknown'
+      ? '결제 상태를 확인하지 못했습니다'
+      : '결제가 확인되었습니다';
+  const support = view === 'verifying'
+    ? '아직 결제가 확인되지 않았습니다.'
+    : view === 'unknown'
+      ? '결제 완료로 확인할 수 없습니다. 주문 내역을 확인해 주세요.'
+      : (import.meta.env.DEV && showingPreview
+        ? '예시 주문번호와 금액입니다. 결제는 진행되지 않았습니다.'
+        : '주문 내역에서 진행 상태를 확인할 수 있습니다.');
+
+  const page = (body: React.ReactNode) => (
+    <div className={cn('px-6 py-14 md:px-10 md:py-20', pageClass)}>
+      <div className="mx-auto flex w-full max-w-[42rem] flex-col">{body}</div>
+    </div>
+  );
+
+  if (import.meta.env.DEV && previewAvailable && !previewMode) {
+    return page(
+      <div className="flex flex-col gap-4">
+        <h1 className="text-[1.75rem] font-medium leading-tight tracking-[-0.02em]">개발용 상태 미리보기</h1>
+        <p className={cn('text-[0.9375rem] leading-relaxed', muted)}>확인할 상태를 고르세요. 주소만으로는 미리보기가 열리지 않습니다.</p>
+        <button type="button" className={secondaryBtn} onClick={() => setPreviewMode('verifying')}>확인 중</button>
+        <button type="button" className={secondaryBtn} onClick={() => setPreviewMode('confirmed')}>확인된 성공</button>
+        <button type="button" className={secondaryBtn} onClick={() => setPreviewMode('unknown')}>확인 불가</button>
+      </div>,
     );
   }
 
-  return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-500 ${theme === 'dark' ? 'bg-[#0F0F11] text-white' : 'bg-white text-black'}`}>
-      {/* Step Indicator */}
-      <div className="w-full max-w-2xl mx-auto px-8 pt-8 pb-4 flex items-center justify-center gap-4">
-        <div className="flex items-center gap-2">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold ${theme === 'dark' ? 'bg-[#1C1C1E] text-zinc-300' : 'bg-zinc-100 text-zinc-800'}`}>1</div>
-          <span className="text-sm font-medium text-zinc-500 hidden sm:inline">내 컬렉션</span>
+  return page(
+    <>
+      {import.meta.env.DEV && showingPreview ? (
+        <div className={cn('mb-10 flex items-center justify-between gap-4 border-b pb-4 text-xs', line, muted)}>
+          <span>개발용 미리보기 · 결제 요청 없음</span>
+          <button type="button" className="focus-ring h-10 px-3" onClick={() => setPreviewMode(null)}>목록</button>
         </div>
-        <div className={`w-4 h-[1px] ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
-        <div className="flex items-center gap-2">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold ${theme === 'dark' ? 'bg-[#1C1C1E] text-zinc-300' : 'bg-zinc-100 text-zinc-800'}`}>2</div>
-          <span className="text-sm font-medium text-zinc-500 hidden sm:inline">주문서</span>
-        </div>
-        <div className={`w-4 h-[1px] ${theme === 'dark' ? 'bg-white/10' : 'bg-black/10'}`} />
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-[#3182F6] text-white flex items-center justify-center text-[12px] font-bold">3</div>
-          <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-black'}`}>결제확인</span>
-        </div>
+      ) : null}
+      <div className="flex flex-col items-center text-center" role="status" aria-live="polite" aria-busy={view === 'verifying'}>
+        <PaymentStatusMark mark={view} />
+        <h1 className="mt-8 w-full max-w-[36rem] text-balance text-[1.75rem] font-medium leading-tight tracking-[-0.02em]">{title}</h1>
+        <p className={cn('mt-3 max-w-[26rem] text-pretty text-[0.9375rem] leading-relaxed', muted)}>{support}</p>
       </div>
-
-      <div className="flex-1 flex items-start justify-center p-6 pt-4 md:pt-8">
-        <div className={`max-w-md w-full rounded-3xl p-6 md:p-8 text-center shadow-2xl transform-gpu will-change-transform border transition-colors duration-500 ${
-          theme === 'dark' ? 'bg-[#1C1C1E] border-white/5' : 'bg-zinc-50 border-black/5'
-        }`}>
-          <div className="relative flex items-center justify-center w-20 h-20 mx-auto mb-6 transform-gpu">
-            <motion.svg 
-              className="absolute inset-0 w-full h-full transform-gpu"
-              viewBox="0 0 100 100"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
-              <motion.circle 
-                className="text-[#3182F6]" 
-                strokeWidth="6" 
-                stroke="currentColor" 
-                fill="transparent" 
-                r="47" cx="50" cy="50"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 1, ease: "easeInOut" }}
-              />
-            </motion.svg>
-            <motion.div
-              className="absolute inset-0 flex items-center justify-center origin-center transform-gpu"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 1, type: "spring", stiffness: 200, damping: 10 }}
-            >
-              <Check size={40} className="text-[#3182F6]" />
-            </motion.div>
+      {view === 'unknown' && !showingPreview && errorMessage ? (
+        <p className={cn('mx-auto mt-6 max-w-[26rem] text-center text-sm leading-relaxed break-words', muted)}>{errorMessage}</p>
+      ) : null}
+      {view === 'confirmed' ? (
+        <motion.section
+          aria-label="주문 정보"
+          className="mt-12 w-full"
+          initial={reducedMotion ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: reducedMotion ? 0 : 0.45, delay: reducedMotion ? 0 : 0.12, ease: DRAW }}
+        >
+          <div className={cn('flex items-start justify-between gap-4 border-t pt-7', line)}>
+            <div className="min-w-0">
+              <p className={cn('text-xs tracking-[0.06em]', muted)}>주문번호</p>
+              <p className="mt-1.5 break-all text-sm font-medium leading-6">{shownOrderId || '주문번호 확인 필요'}</p>
+            </div>
+            {shownOrderId ? (
+              <button
+                type="button"
+                className={cn('focus-ring grid h-11 w-11 shrink-0 place-items-center', muted)}
+                onClick={handleCopy}
+                aria-label={copied ? '주문번호를 복사했습니다' : '주문번호 복사'}
+              >
+                {copied ? <Check size={16} aria-hidden /> : <Copy size={16} aria-hidden />}
+              </button>
+            ) : null}
           </div>
-          <h1 className={`text-2xl md:text-3xl font-bold mb-8 tracking-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>결제가 완료되었습니다</h1>
-          
-          <motion.div 
-            className={`rounded-2xl p-5 md:p-6 mb-8 transform-gpu will-change-transform transition-colors duration-500 ${
-              theme === 'dark' ? 'bg-[#0F0F11]' : 'bg-white border border-black/5 shadow-sm'
-            }`}
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.2, duration: 0.5 }}
-          >
-            <div className="flex justify-between items-start gap-3 mb-4">
-              <span className="text-zinc-400 text-sm font-medium shrink-0 whitespace-nowrap">주문번호</span>
-              <div className="flex items-start justify-end gap-2 min-w-0">
-                <span className={`font-mono break-all text-sm text-right min-w-0 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{orderId}</span>
-                <button 
-                  onClick={handleCopy}
-                  className={`p-1.5 rounded-md transition-colors shrink-0 ${
-                    theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-black'
-                  }`}
-                  title="주문번호 복사"
-                >
-                  <AnimatePresence mode="wait">
-                    {copied ? (
-                      <motion.div
-                        key="check"
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        exit={{ scale: 0 }}
-                      >
-                        <Check size={14} className="text-[#3182F6]" />
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        key="copy"
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        exit={{ scale: 0 }}
-                      >
-                        <Copy size={14} />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </button>
-              </div>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-zinc-400 text-sm font-medium">결제금액</span>
-              <span className="text-[#3182F6] font-bold text-lg md:text-xl">{Number(totalAmount).toLocaleString()}원</span>
-            </div>
-          </motion.div>
-
-          {/* Real-time Delivery Simulation (Toss UI Redesign) */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.5 }}
-            className="mb-10 text-left transform-gpu will-change-transform"
-          >
-            <div className="flex items-center justify-between mb-4 px-1">
-              <h3 className="text-[13px] font-bold text-zinc-800 dark:text-zinc-300 uppercase tracking-[0.15em]">주문 진행</h3>
-            </div>
-
-            <div className={`rounded-[28px] p-6 border relative overflow-hidden shadow-inner transition-colors duration-500 ${
-              theme === 'dark' ? 'bg-[#0F0F11] border-white/5' : 'bg-white border-black/5'
-            }`}>
-              {/* Current Step Highlight */}
-              <div className="flex items-center gap-5 mb-8">
-                <motion.div 
-                  key={activeStep}
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="w-14 h-14 rounded-2xl bg-[#3182F6] flex items-center justify-center text-white shadow-[0_8px_24px_rgba(49,130,246,0.25)]"
-                >
-                  {SIMULATION_STEPS[activeStep].icon}
-                </motion.div>
-                <div>
-                  <motion.p 
-                    key={`text-${activeStep}`}
-                    initial={{ y: 10, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    className={`text-lg font-bold tracking-tight leading-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}
-                  >
-                    {SIMULATION_STEPS[activeStep].text}
-                  </motion.p>
-                  <p className="text-[13px] text-zinc-600 dark:text-zinc-400 mt-1 font-medium">
-                    {isSimulationComplete && selectedStep !== null ? '안내 확인' : '주문이 정상적으로 접수되었습니다'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Horizontal Step Map */}
-              <div className="relative pt-2 pb-1">
-                {/* Background Line */}
-                <div className={`absolute top-[18px] left-0 w-full h-[3px] rounded-full ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-100'}`} />
-                
-                {/* Progress Line */}
-                <motion.div 
-                  className="absolute top-[18px] left-0 h-[3px] bg-[#3182F6] rounded-full shadow-[0_0_12px_rgba(49,130,246,0.6)]"
-                  initial={{ width: "0%" }}
-                  animate={{ width: `${(simulationStep / (SIMULATION_STEPS.length - 1)) * 100}%` }}
-                  transition={{ duration: 0.8, ease: "circOut" }}
-                />
-
-                <div className="relative flex justify-between items-center">
-                  {SIMULATION_STEPS.map((step, idx) => (
-                    <button 
-                      key={idx} 
-                      onClick={() => isSimulationComplete && setSelectedStep(idx)}
-                      disabled={!isSimulationComplete}
-                      className={`flex flex-col items-center group relative outline-none transition-all ${isSimulationComplete ? 'cursor-pointer' : 'cursor-default'}`}
-                    >
-                      <div 
-                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-500 z-10 border-4 ${
-                          theme === 'dark' ? 'border-[#0F0F11]' : 'border-white'
-                        } ${
-                          idx <= simulationStep 
-                            ? (activeStep === idx ? (theme === 'dark' ? 'bg-white text-[#3182F6] scale-110 shadow-[0_0_15px_rgba(255,255,255,0.3)]' : 'bg-black text-white scale-110 shadow-[0_0_15px_rgba(0,0,0,0.1)]') : 'bg-[#3182F6] text-white') 
-                            : (theme === 'dark' ? 'bg-zinc-800 text-zinc-600' : 'bg-zinc-100 text-zinc-300')
-                        }`}
-                      >
-                        {idx < simulationStep && activeStep !== idx ? (
-                          <Check size={14} strokeWidth={3} />
-                        ) : (
-                          <div className={`w-1.5 h-1.5 rounded-full ${idx === simulationStep && !isSimulationComplete ? (theme === 'dark' ? 'bg-white' : 'bg-black') + ' animate-pulse' : (activeStep === idx ? (theme === 'dark' ? 'bg-[#3182F6]' : 'bg-white') : 'bg-current')}`} />
-                        )}
-                      </div>
-                      {/* Tooltip-like text for desktop, hidden on mobile if too crowded */}
-                      <span className={`absolute -bottom-6 text-[12px] font-bold whitespace-nowrap transition-all duration-300 ${
-                        activeStep === idx ? (theme === 'dark' ? 'text-white opacity-100' : 'text-black opacity-100') : 'text-zinc-500 opacity-0 group-hover:opacity-100'
-                      }`}>
-                        STEP {idx + 1}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              {isSimulationComplete && selectedStep === null && (
-                <motion.p 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-center text-[12px] text-zinc-800 dark:text-zinc-200 mt-10 font-medium"
-                >
-                  단계를 누르면 안내를 다시 볼 수 있습니다.
-                </motion.p>
-              )}
-            </div>
-          </motion.div>
-          
-          <motion.button
-            onClick={() => navigate('/')}
-            className="w-full h-14 btn-cyberpunk rounded-2xl font-bold text-lg text-white mb-2"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.7, duration: 0.5 }}
-          >
-            홈으로 돌아가기
-          </motion.button>
+          <div className="mt-7 flex items-baseline justify-between gap-4">
+            <p className={cn('text-xs tracking-[0.06em]', muted)}>결제 금액</p>
+            <p className="text-[1.375rem] font-medium tabular-nums tracking-[-0.03em]">{amountLabel}</p>
+          </div>
+        </motion.section>
+      ) : null}
+      {view !== 'verifying' ? (
+        <div className="mt-12 flex w-full flex-col gap-3 sm:flex-row">
+          <button type="button" className={primaryBtn} onClick={goOrders}>주문 내역 보기</button>
+          {!showingPreview && view === 'unknown' && hasPaymentAttempt ? (
+            <button type="button" className={secondaryBtn} onClick={() => window.location.reload()}>다시 확인</button>
+          ) : null}
+          <button type="button" className={secondaryBtn} onClick={goHome}>쇼핑 계속하기</button>
         </div>
-      </div>
-    </div>
+      ) : null}
+    </>,
   );
 }

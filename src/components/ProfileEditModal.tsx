@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 import {
   Loader2, X, ChevronLeft
 } from 'lucide-react';
@@ -13,6 +14,7 @@ import { zClass } from '../constants/overlays';
 interface ProfileEditModalProps {
   isOpen: boolean;
   onClose: () => void;
+  embedded?: boolean;
 }
 
 const inputClass = (theme: string, disabled = false) =>
@@ -25,9 +27,13 @@ const inputClass = (theme: string, disabled = false) =>
         : 'border-black/15 bg-transparent text-[#16150f] placeholder:text-[#6b675f]'),
   );
 
-export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
+export default function ProfileEditModal({ isOpen, onClose, embedded = false }: ProfileEditModalProps) {
   const { user, profile, refreshProfile, openProfile } = useAuth();
   const { theme } = useTheme();
+  const reducedMotion = usePrefersReducedMotion();
+  const sheetMove = reducedMotion
+    ? { duration: 0 }
+    : { duration: 0.22, ease: [0.22, 1, 0.36, 1] as const };
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -35,10 +41,11 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
 
   const returnToHub = useCallback(() => {
     onClose();
+    if (embedded) return;
     setTimeout(() => {
       openProfile();
     }, 100);
-  }, [onClose, openProfile]);
+  }, [onClose, openProfile, embedded]);
 
   const [formData, setFormData] = useState({
     user_custom_id: '',
@@ -55,22 +62,29 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
   const postcodeContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-      document.body.style.overflow = 'hidden';
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    } else {
-      document.body.style.overflow = '';
-      document.body.style.paddingRight = '';
-    }
+    if (!isOpen || embedded) return;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
     return () => {
       document.body.style.overflow = '';
       document.body.style.paddingRight = '';
     };
-  }, [isOpen]);
+  }, [isOpen, embedded]);
 
   useEffect(() => {
     if (!isOpen) return;
+    if (embedded) {
+      if (!isPostcodeOpen) return;
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        event.stopPropagation();
+        setIsPostcodeOpen(false);
+      };
+      window.addEventListener('keydown', onKeyDown, true);
+      return () => window.removeEventListener('keydown', onKeyDown, true);
+    }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
@@ -82,7 +96,7 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, isPostcodeOpen, returnToHub]);
+  }, [isOpen, embedded, isPostcodeOpen, returnToHub]);
 
   useEffect(() => {
     const scriptId = 'daum-postcode-script';
@@ -196,30 +210,36 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          initial={{ opacity: 0 }}
+          initial={embedded || reducedMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="profile-edit-title"
-          className={cn('fixed inset-0 flex justify-end pointer-events-auto', zClass('sheet'))}
+          transition={sheetMove}
+          role={embedded ? undefined : 'dialog'}
+          aria-modal={embedded ? undefined : true}
+          aria-labelledby={embedded ? undefined : 'profile-edit-title'}
+          className={cn(embedded ? 'relative w-full' : 'fixed inset-0 flex justify-end pointer-events-auto', !embedded && zClass('sheet'))}
         >
+          {!embedded && (
           <button
             type="button"
             aria-label="내 정보로 돌아가기"
             onClick={returnToHub}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto touch-none"
           />
+          )}
 
           <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden pointer-events-auto transition-colors duration-500 will-change-transform transform-gpu ${
-              theme === 'dark' ? 'bg-[#101114] text-[#f3f1ec]' : 'bg-[#f6f4ef] text-[#16150f]'
-            }`}
+            initial={embedded || reducedMotion ? false : { opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={reducedMotion ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, x: 12 }}
+            transition={sheetMove}
+            className={embedded
+              ? 'relative min-h-full w-full'
+              : `relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden pointer-events-auto transition-colors duration-500 will-change-transform transform-gpu ${
+                theme === 'dark' ? 'bg-[#101114] text-[#f3f1ec]' : 'bg-[#f6f4ef] text-[#16150f]'
+              }`}
           >
+            {!embedded && (
             <div className={`flex items-center justify-between px-6 py-5 border-b ${
               theme === 'dark' ? 'border-white/5' : 'border-black/5'
             }`}>
@@ -228,17 +248,18 @@ export default function ProfileEditModal({ isOpen, onClose }: ProfileEditModalPr
                   type="button"
                   onClick={returnToHub}
                   aria-label="내 정보로 돌아가기"
-                  className={`p-2 rounded-full transition-all focus-ring ${
+                  className={`focus-ring flex size-10 items-center justify-center rounded-full ${
                     theme === 'dark' ? 'bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-black'
                   }`}
                 >
-                  <ChevronLeft size={20} />
+                  <ChevronLeft size={20} strokeWidth={1.75} />
                 </button>
                 <h2 id="profile-edit-title" className="text-[1.75rem] font-medium tracking-[-0.02em]">프로필 수정</h2>
               </div>
             </div>
+            )}
 
-            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar overscroll-contain touch-pan-y">
+            <div className={embedded ? 'px-6 py-5' : 'flex-1 overflow-y-auto p-6 custom-scrollbar overscroll-contain touch-pan-y'}>
               <form onSubmit={handleUpdateProfile} className="space-y-8">
                 <section className="space-y-5">
                   <h3 className={`text-sm font-semibold tracking-tight ${theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}`}>기본 정보</h3>

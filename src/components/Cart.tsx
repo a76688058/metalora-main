@@ -30,6 +30,7 @@ import { assertTossTestClientKey, CARD_SCREENING_TEST_ENABLED, createCardScreeni
 import { resolveTossClientKey } from '../lib/tossClientKey';
 import { checkoutPolicyVersionSnapshot } from '../lib/policyVersions';
 import { useWorkshopMediaDisplay } from '../hooks/useWorkshopMediaDisplay';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 
 interface CartProps {
   isOpen: boolean;
@@ -83,14 +84,74 @@ function customSizeLabel(size: unknown): string {
 }
 
 function cartThumbFrameClass(orientation: 'portrait' | 'landscape' | null, compact = false): string {
-  if (orientation === 'landscape') {
-    return compact
+  const size = orientation === 'landscape'
+    ? (compact
       ? 'w-[4.5rem] h-[3.15rem]'
-      : 'w-[6.75rem] h-[4.75rem] sm:w-[7.5rem] sm:h-[5.25rem]';
-  }
-  return compact
-    ? 'w-[3.15rem] h-[4.5rem]'
-    : 'w-[4.75rem] h-[6.75rem] sm:w-[5.25rem] sm:h-[7.5rem]';
+      : 'w-[6.75rem] h-[4.75rem] sm:w-[7.5rem] sm:h-[5.25rem]')
+    : (compact
+      ? 'w-[3.15rem] h-[4.5rem]'
+      : 'w-[4.75rem] h-[6.75rem] sm:w-[5.25rem] sm:h-[7.5rem]');
+  return `${size} rounded-[2px] bg-black/[0.04] dark:bg-white/[0.06]`;
+}
+
+/**
+ * Local form preview only. Production builds drop this because
+ * import.meta.env.DEV is false. A query string cannot enable it.
+ */
+function localCheckoutUiPreviewAllowed(): boolean {
+  if (!import.meta.env.DEV) return false;
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1';
+}
+
+type CartCheckState = 'off' | 'on' | 'mixed';
+
+function CartCheckMark({ state }: { state: CartCheckState }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'flex size-[22px] items-center justify-center rounded-[2px] border',
+        state === 'off'
+          ? 'border-black/40 bg-transparent dark:border-white/50'
+          : 'border-accent bg-accent text-text-inverse',
+      )}
+    >
+      {state === 'on' ? <Check size={14} strokeWidth={3} /> : null}
+      {state === 'mixed' ? <Minus size={14} strokeWidth={3} /> : null}
+    </span>
+  );
+}
+
+function RollingKrwAmount({
+  value,
+  reducedMotion,
+  className,
+}: {
+  value: number;
+  reducedMotion: boolean;
+  className?: string;
+}) {
+  const safe = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+  const [display, setDisplay] = useState(safe);
+  const displayRef = useRef(safe);
+
+  useEffect(() => {
+    const controls = animate(displayRef.current, safe, {
+      duration: reducedMotion ? 0 : 0.8,
+      ease: [0.16, 1, 0.3, 1],
+      onUpdate: (next) => {
+        const floored = Math.floor(next);
+        if (!Number.isFinite(floored)) return;
+        displayRef.current = floored;
+        setDisplay(floored);
+      },
+    });
+    return () => controls.stop();
+  }, [safe, reducedMotion]);
+
+  return <span className={cn('tabular-nums', className)}>₩{display.toLocaleString()}</span>;
 }
 
 function joinAnalyticsVariant(
@@ -180,12 +241,16 @@ export default function Cart() {
   const cartAuthReturnPath = safeInternalPath(`${location.pathname}${location.search}`);
   const { cartItems, removeFromCart, updateQuantity, totalPrice, isLoading: isCartLoading, cartLoadFailed, refreshCart, isCartOpen, closeCart } = useCart();
   const { theme } = useTheme();
+  const reducedMotion = usePrefersReducedMotion();
   const isOpen = isCartOpen;
   const onClose = closeCart;
+  const muted = theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]';
 
   const { user, adminUser, profile, adminProfile, isLoading: isAuthLoading, isProfileResolved } = useAuth();
   const { showToast } = useToast();
   const [step, setStep] = useState(1); // 1: List, 2: Order Form
+  const [checkoutUiPreview, setCheckoutUiPreview] = useState(false);
+  const cartEnterSettled = useRef(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const pendingCheckoutRef = useRef(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -196,7 +261,14 @@ export default function Cart() {
     if (!isOpen) {
       setIsLoginModalOpen(false);
       pendingCheckoutRef.current = false;
+      setCheckoutUiPreview(false);
+      cartEnterSettled.current = false;
+      return;
     }
+    const id = window.setTimeout(() => {
+      cartEnterSettled.current = true;
+    }, 520);
+    return () => window.clearTimeout(id);
   }, [isOpen]);
 
   // Initialize selection: Select all by default
@@ -222,12 +294,12 @@ export default function Cart() {
   // Toss-style price animation
   useEffect(() => {
     const controls = animate(displayPrice, selectedTotalPrice, {
-      duration: 0.8,
+      duration: reducedMotion ? 0 : 0.8,
       ease: [0.16, 1, 0.3, 1],
       onUpdate: (value) => setDisplayPrice(Math.floor(value)),
     });
     return () => controls.stop();
-  }, [selectedTotalPrice]);
+  }, [selectedTotalPrice, reducedMotion]);
 
   const toggleSelectAll = () => {
     if (selectedIds.size === cartItems.length) {
@@ -255,6 +327,7 @@ export default function Cart() {
     address: '',
     addressDetail: '',
   });
+  const [shippingTouched, setShippingTouched] = useState<Partial<Record<keyof CheckoutShippingFields, boolean>>>({});
   
   const [isPostcodeOpen, setIsPostcodeOpen] = useState(false);
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
@@ -813,6 +886,29 @@ export default function Cart() {
     setStep(1);
   };
 
+  const openCheckoutUiPreview = () => {
+    if (!localCheckoutUiPreviewAllowed()) return;
+    setCheckoutUiPreview(true);
+  };
+
+  const closeCheckoutUiPreview = () => {
+    setCheckoutUiPreview(false);
+  };
+
+  const markShippingTouched = (key: keyof CheckoutShippingFields) => {
+    setShippingTouched((current) => ({ ...current, [key]: true }));
+  };
+
+  const shippingFieldError = (key: keyof CheckoutShippingFields) => {
+    if (!shippingTouched[key]) return null;
+    return shippingData[key].trim() === '' ? '입력해 주세요.' : null;
+  };
+
+  const showingCheckoutForm = step === 2 || checkoutUiPreview;
+  const stepShift = reducedMotion || !cartEnterSettled.current
+    ? { duration: 0 }
+    : { duration: 0.22, ease: [0.22, 1, 0.36, 1] as const };
+
   useEffect(() => {
     if (checkoutClosed) {
       pendingCheckoutRef.current = false;
@@ -849,47 +945,50 @@ export default function Cart() {
         }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5">
+        <div className={`flex items-center justify-between border-b px-6 py-5 ${theme === 'dark' ? 'border-white/5' : 'border-black/5'}`}>
           <h2 id="cart-drawer-title" className="text-[1.75rem] font-medium tracking-[-0.02em]">
-            {step === 1 ? '장바구니' : '주문하기'}
+            {showingCheckoutForm ? '주문하기' : '장바구니'}
           </h2>
-          <button 
+          <button
+            type="button"
             onClick={onClose}
             aria-label="장바구니 닫기"
-            className="focus-ring p-2 text-current/70 hover:text-current"
+            className={`focus-ring flex size-10 shrink-0 items-center justify-center rounded-full ${
+              theme === 'dark' ? 'bg-zinc-800/50 text-zinc-400 hover:bg-zinc-800 hover:text-white' : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-black'
+            }`}
           >
-            <X size={20} />
+            <X size={20} strokeWidth={1.75} />
           </button>
         </div>
 
         {/* Step Indicator */}
         <div className="px-6 pb-6 flex items-center gap-3 text-sm tracking-tight">
-          <span className={step === 1 ? 'font-medium' : (theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]')}>장바구니</span>
-          <ChevronRight className={theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'} size={14} />
-          <span className={step === 2 ? 'font-medium' : (theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]')}>주문서</span>
-          <ChevronRight className={theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'} size={14} />
-          <span className={theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}>결제</span>
+          <span className={showingCheckoutForm ? muted : 'font-medium'}>장바구니</span>
+          <ChevronRight className={muted} size={14} />
+          <span className={showingCheckoutForm ? 'font-medium' : muted}>주문서</span>
+          <ChevronRight className={muted} size={14} />
+          <span className={muted}>결제</span>
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto custom-scrollbar px-6">
           <AnimatePresence mode="wait">
-            {step === 1 ? (
+            {!showingCheckoutForm ? (
               <motion.div
                 key="step1"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
+                initial={reducedMotion || !cartEnterSettled.current ? false : { opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={reducedMotion ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, x: -12 }}
+                transition={stepShift}
                 className="py-4 space-y-4"
               >
                 {isCartLoading && cartItems.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-32 text-zinc-500 space-y-4">
-                    <Loader2 size={28} className="animate-spin text-zinc-400" />
+                  <div className={`flex flex-col items-center justify-center py-32 space-y-4 ${muted}`}>
+                    <Loader2 size={28} className="animate-spin motion-reduce:animate-none" />
                     <p className="text-base font-medium">장바구니를 불러오는 중</p>
                   </div>
                 ) : cartLoadFailed && cartItems.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-32 text-zinc-500 space-y-4">
+                  <div className="flex flex-col items-center justify-center py-32 space-y-4">
                     <ShoppingBag size={32} strokeWidth={1} className={theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'} />
                     <p className={`text-base font-medium ${theme === 'dark' ? 'text-[#f3f1ec]' : 'text-[#16150f]'}`}>장바구니를 불러오지 못했습니다</p>
                     <button
@@ -918,14 +1017,32 @@ export default function Cart() {
                   <div className="space-y-4 pb-8">
                     {/* Select All Toggle */}
                     <div className="flex items-center justify-between px-1 mb-6">
-                      <button 
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={
+                          cartItems.length > 0 && selectedIds.size === cartItems.length
+                            ? true
+                            : selectedIds.size > 0
+                              ? 'mixed'
+                              : false
+                        }
+                        aria-label="전체 선택"
                         onClick={toggleSelectAll}
-                        className={`flex items-center gap-2 transition-colors ${theme === 'dark' ? 'text-[#c9c4b8] hover:text-[#f3f1ec]' : 'text-[#3f3c36] hover:text-[#16150f]'}`}
+                        className={`focus-ring flex min-h-10 items-center gap-2 ${muted}`}
                       >
+                        <CartCheckMark
+                          state={
+                            cartItems.length > 0 && selectedIds.size === cartItems.length
+                              ? 'on'
+                              : selectedIds.size > 0
+                                ? 'mixed'
+                                : 'off'
+                          }
+                        />
                         <span className="text-sm font-medium tracking-tight">
-                          전체 선택
+                          전체 선택 ({selectedIds.size}/{cartItems.length})
                         </span>
-                        <span className="text-sm font-medium">({selectedIds.size}/{cartItems.length})</span>
                       </button>
                     </div>
 
@@ -967,15 +1084,20 @@ export default function Cart() {
                       };
 
                       return (
-                        <div 
-                          key={item.id} 
-                          onClick={() => toggleItemSelection(item.id)}
-                          className="py-6 flex gap-4 border-b border-black/10 dark:border-white/10 cursor-pointer"
+                        <div
+                          key={item.id}
+                          className="flex gap-3 border-b border-black/10 py-6 dark:border-white/10"
                         >
-                          <span
-                            aria-hidden
-                            className={`mt-1 h-3.5 w-3.5 shrink-0 border ${isSelected ? 'bg-[#16150f] border-[#16150f] dark:bg-[#f3f1ec] dark:border-[#f3f1ec]' : 'border-black/30 dark:border-white/35'}`}
-                          />
+                          <button
+                            type="button"
+                            role="checkbox"
+                            aria-checked={isSelected}
+                            aria-label={`${title} 선택`}
+                            onClick={() => toggleItemSelection(item.id)}
+                            className="focus-ring flex size-10 shrink-0 items-center justify-center"
+                          >
+                            <CartCheckMark state={isSelected ? 'on' : 'off'} />
+                          </button>
                           <button
                             type="button"
                             aria-label={`${title} 상세 보기`}
@@ -999,7 +1121,7 @@ export default function Cart() {
                             <div className="flex justify-between items-start gap-3">
                               <div className="min-w-0">
                                 <h3 className="font-medium text-base leading-tight tracking-[-0.02em] break-words">{title}</h3>
-                                <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>{optionDisplay}</p>
+                                <p className={`text-sm mt-1 break-words ${muted}`}>{optionDisplay}</p>
                               </div>
                               <button 
                                 type="button"
@@ -1008,38 +1130,47 @@ export default function Cart() {
                                   e.stopPropagation();
                                   void removeFromCart(item.id);
                                 }}
-                                className={`p-2 -mr-2 -mt-2 shrink-0 focus-ring ${theme === 'dark' ? 'text-[#c9c4b8] hover:text-[#f3f1ec]' : 'text-[#3f3c36] hover:text-[#16150f]'}`}
+                                className={`focus-ring flex size-10 shrink-0 items-center justify-center ${muted}`}
                               >
                                 <X size={18} />
                               </button>
                             </div>
-                            <div className="flex justify-between items-end mt-4 gap-3">
+                            <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
                               <div className="flex items-center gap-1">
-                                <button 
+                                <button
                                   type="button"
                                   aria-label={`${title} 수량 줄이기`}
+                                  disabled={item.quantity <= 1}
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    if (item.quantity <= 1) return;
                                     void updateQuantity(item.id, item.quantity - 1);
                                   }}
-                                  className="w-8 h-8 flex items-center justify-center focus-ring"
+                                  className="focus-ring flex size-10 items-center justify-center disabled:cursor-not-allowed disabled:opacity-35"
                                 >
                                   <Minus size={16} />
                                 </button>
                                 <span className="w-8 text-center text-sm">{item.quantity}</span>
-                                <button 
+                                <button
                                   type="button"
                                   aria-label={`${title} 수량 늘리기`}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     void updateQuantity(item.id, item.quantity + 1);
                                   }}
-                                  className="w-8 h-8 flex items-center justify-center focus-ring"
+                                  className="focus-ring flex size-10 items-center justify-center"
                                 >
                                   <Plus size={16} />
                                 </button>
                               </div>
-                              <p className="font-medium text-base shrink-0">₩{(price * item.quantity).toLocaleString()}</p>
+                              <div className="ml-auto max-w-full shrink-0 text-right">
+                                <p className={`text-sm ${muted}`}>상품 금액</p>
+                                <RollingKrwAmount
+                                  value={price * item.quantity}
+                                  reducedMotion={reducedMotion}
+                                  className="text-base font-medium"
+                                />
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1051,14 +1182,14 @@ export default function Cart() {
             ) : (
               <motion.div
                 key="step2"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="py-4 space-y-8 pb-8"
+                initial={reducedMotion || !cartEnterSettled.current ? false : { opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={reducedMotion ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, x: 12 }}
+                transition={stepShift}
+                className="space-y-8 py-4 pb-8"
               >
                 <section>
-                  <h3 className="text-sm font-medium mb-4">주문 상품</h3>
+                  <h3 className="mb-4 text-base font-medium">주문 상품</h3>
                   <div className="space-y-4 border-b border-black/10 py-6 dark:border-white/10">
                     {selectedItems.map(item => {
                       const isWorkshop = isCustomCartRow(item);
@@ -1079,7 +1210,7 @@ export default function Cart() {
                           : (item.product?.front_image || item.product?.image || ''));
                       return (
                         <div key={item.id} className="flex items-center gap-3 text-sm">
-                          <div className={`${cartThumbFrameClass(rowOrientation, true)} rounded-xl overflow-hidden shrink-0 ${theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200'}`}>
+                          <div className={`${cartThumbFrameClass(rowOrientation, true)} shrink-0 overflow-hidden`}>
                             {image ? (
                               <img
                                 src={image}
@@ -1091,13 +1222,20 @@ export default function Cart() {
                             ) : null}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className={`font-medium block truncate ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{title}</span>
+                            <span className="block truncate font-medium">{title}</span>
                             {meta ? (
-                              <span className={`text-sm font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>{meta}</span>
+                              <span className={`text-sm ${muted}`}>{meta}</span>
                             ) : null}
-                            <span className={`block text-sm font-medium ${theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}`}>수량 {item.quantity}개</span>
+                            <span className={`block text-sm ${muted}`}>수량 {item.quantity}개</span>
                           </div>
-                          <span className={`font-semibold shrink-0 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>₩{(price * item.quantity).toLocaleString()}</span>
+                          <span className="shrink-0 text-right">
+                            <span className={`block text-sm ${muted}`}>상품 금액</span>
+                            <RollingKrwAmount
+                              value={price * item.quantity}
+                              reducedMotion={reducedMotion}
+                              className="block text-base font-medium"
+                            />
+                          </span>
                         </div>
                       );
                     })}
@@ -1105,50 +1243,67 @@ export default function Cart() {
                 </section>
 
                 <section>
-                  <h3 className="text-sm font-medium mb-4">배송지 정보</h3>
+                  <h3 className="mb-4 text-base font-medium">배송지 정보</h3>
                   <div className="space-y-5 border-b border-black/10 py-8 dark:border-white/10">
                     <div className="space-y-4">
                       <div>
-                        <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>받는 사람</label>
-                        <input 
+                        <label htmlFor="cart-ship-name" className={`mb-2 block text-sm font-medium ${muted}`}>받는 사람</label>
+                        <input
+                          id="cart-ship-name"
                           type="text"
                           value={shippingData.name}
                           onChange={(e) => setShippingData({...shippingData, name: e.target.value})}
-                          className={`w-full rounded-[2px] border px-4 py-3 text-base focus:outline-none focus-ring ${
-                            theme === 'dark' ? 'border-white/20 bg-transparent text-[#f3f1ec] placeholder:text-[#8d887e]' : 'border-black/15 bg-transparent text-[#16150f] placeholder:text-[#6b675f]'
-                          }`}
+                          onBlur={() => markShippingTouched('name')}
+                          aria-invalid={shippingFieldError('name') ? true : undefined}
+                          aria-describedby={shippingFieldError('name') ? 'cart-ship-name-error' : undefined}
+                          className={`w-full rounded-[2px] border bg-transparent px-4 py-3 text-base focus:outline-none focus-ring ${
+                            shippingFieldError('name')
+                              ? 'border-black/40 dark:border-white/40'
+                              : (theme === 'dark' ? 'border-white/20 text-[#f3f1ec] placeholder:text-[#8d887e]' : 'border-black/15 text-[#16150f] placeholder:text-[#6b675f]')
+                          } ${theme === 'dark' ? 'text-[#f3f1ec] placeholder:text-[#8d887e]' : 'text-[#16150f] placeholder:text-[#6b675f]'}`}
                           placeholder="이름을 입력해주세요"
                         />
+                        {shippingFieldError('name') ? <p id="cart-ship-name-error" className={`mt-2 text-sm ${muted}`}>{shippingFieldError('name')}</p> : null}
                       </div>
                       <div>
-                        <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>연락처</label>
-                        <input 
+                        <label htmlFor="cart-ship-phone" className={`mb-2 block text-sm font-medium ${muted}`}>연락처</label>
+                        <input
+                          id="cart-ship-phone"
                           type="tel"
                           value={shippingData.phone}
                           onChange={(e) => setShippingData({...shippingData, phone: e.target.value})}
-                          className={`w-full rounded-[2px] border px-4 py-3 text-base focus:outline-none focus-ring ${
-                            theme === 'dark' ? 'border-white/20 bg-transparent text-[#f3f1ec] placeholder:text-[#8d887e]' : 'border-black/15 bg-transparent text-[#16150f] placeholder:text-[#6b675f]'
-                          }`}
+                          onBlur={() => markShippingTouched('phone')}
+                          aria-invalid={shippingFieldError('phone') ? true : undefined}
+                          aria-describedby={shippingFieldError('phone') ? 'cart-ship-phone-error' : undefined}
+                          className={`w-full rounded-[2px] border bg-transparent px-4 py-3 text-base focus:outline-none focus-ring ${
+                            shippingFieldError('phone') ? 'border-black/40 dark:border-white/40' : (theme === 'dark' ? 'border-white/20' : 'border-black/15')
+                          } ${theme === 'dark' ? 'text-[#f3f1ec] placeholder:text-[#8d887e]' : 'text-[#16150f] placeholder:text-[#6b675f]'}`}
                           placeholder="010-0000-0000"
                         />
+                        {shippingFieldError('phone') ? <p id="cart-ship-phone-error" className={`mt-2 text-sm ${muted}`}>{shippingFieldError('phone')}</p> : null}
                       </div>
                     </div>
                     
                     <div className="my-2 h-px bg-black/10 dark:bg-white/10" />
                     
                     <div className="space-y-4">
-                      <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>주소</label>
+                      <label htmlFor="cart-ship-zip" className={`mb-2 block text-sm font-medium ${muted}`}>주소</label>
                       <div className="flex gap-2">
-                        <input 
+                        <input
+                          id="cart-ship-zip"
                           type="text"
                           readOnly
                           value={shippingData.zipCode}
-                          className={`w-28 rounded-[2px] border px-4 py-3 text-base focus:outline-none focus-ring ${
-                            theme === 'dark' ? 'border-white/20 bg-transparent text-[#f3f1ec]' : 'border-black/15 bg-transparent text-[#16150f]'
-                          }`}
+                          onBlur={() => markShippingTouched('zipCode')}
+                          aria-invalid={shippingFieldError('zipCode') ? true : undefined}
+                          aria-describedby={shippingFieldError('zipCode') ? 'cart-ship-zip-error' : undefined}
+                          className={`w-28 rounded-[2px] border bg-transparent px-4 py-3 text-base focus:outline-none focus-ring ${
+                            shippingFieldError('zipCode') ? 'border-black/40 dark:border-white/40' : (theme === 'dark' ? 'border-white/20' : 'border-black/15')
+                          } ${theme === 'dark' ? 'text-[#f3f1ec]' : 'text-[#16150f]'}`}
                           placeholder="우편번호"
                         />
-                        <button 
+                        <button
+                          type="button"
                           onClick={handleOpenPostcode}
                           className={`h-12 px-4 font-medium rounded-[2px] focus-ring ${
                             theme === 'dark' ? 'bg-[#f2f0ea] text-[#16150f]' : 'bg-[#1a1914] text-[#f4f1eb]'
@@ -1157,45 +1312,56 @@ export default function Cart() {
                           주소 검색
                         </button>
                       </div>
-                      
+                      {shippingFieldError('zipCode') ? <p id="cart-ship-zip-error" className={`text-sm ${muted}`}>{shippingFieldError('zipCode')}</p> : null}
+
                       {isPostcodeOpen && (
-                        <div className="mt-4 overflow-hidden border border-black/10 bg-white dark:border-white/10">
-                          <div className={`flex justify-between items-center p-3 border-b ${theme === 'dark' ? 'bg-zinc-100 border-zinc-200' : 'bg-zinc-50 border-zinc-200'}`}>
-                            <span className="text-sm font-bold text-zinc-800">우편번호 검색</span>
-                            <button onClick={() => setIsPostcodeOpen(false)} className="text-zinc-500 hover:text-zinc-800 p-1"><X size={18} /></button>
+                        <div className={`mt-4 overflow-hidden border ${theme === 'dark' ? 'border-white/10 bg-[#101114]' : 'border-black/10 bg-[#f6f4ef]'}`}>
+                          <div className={`flex items-center justify-between border-b p-3 ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}>
+                            <span className="text-sm font-medium">우편번호 검색</span>
+                            <button type="button" onClick={() => setIsPostcodeOpen(false)} aria-label="우편번호 검색 닫기" className={`focus-ring flex size-10 items-center justify-center ${muted}`}><X size={18} /></button>
                           </div>
-                          <div ref={postcodeRef} className="w-full h-[400px]" />
+                          <div ref={postcodeRef} className="h-[400px] w-full" />
                         </div>
                       )}
-                      
-                      <input 
+
+                      <input
+                        id="cart-ship-address"
                         type="text"
                         readOnly
                         value={shippingData.address}
-                        className={`w-full rounded-[2px] border px-4 py-3 text-base focus:outline-none focus-ring ${
-                          theme === 'dark' ? 'border-white/20 bg-transparent text-[#f3f1ec]' : 'border-black/15 bg-transparent text-[#16150f]'
-                        }`}
+                        onBlur={() => markShippingTouched('address')}
+                        aria-invalid={shippingFieldError('address') ? true : undefined}
+                        aria-describedby={shippingFieldError('address') ? 'cart-ship-address-error' : undefined}
+                        className={`w-full rounded-[2px] border bg-transparent px-4 py-3 text-base focus:outline-none focus-ring ${
+                          shippingFieldError('address') ? 'border-black/40 dark:border-white/40' : (theme === 'dark' ? 'border-white/20' : 'border-black/15')
+                        } ${theme === 'dark' ? 'text-[#f3f1ec]' : 'text-[#16150f]'}`}
                         placeholder="기본 주소"
                       />
-                      <input 
+                      {shippingFieldError('address') ? <p id="cart-ship-address-error" className={`text-sm ${muted}`}>{shippingFieldError('address')}</p> : null}
+                      <input
+                        id="cart-ship-detail"
                         type="text"
                         value={shippingData.addressDetail}
                         onChange={(e) => setShippingData({...shippingData, addressDetail: e.target.value})}
-                        className={`w-full rounded-[2px] border px-4 py-3 text-base focus:outline-none focus-ring placeholder:text-[#6b675f] dark:placeholder:text-[#8d887e] ${
-                          theme === 'dark' ? 'border-white/20 bg-transparent text-[#f3f1ec]' : 'border-black/15 bg-transparent text-[#16150f]'
-                        }`}
+                        onBlur={() => markShippingTouched('addressDetail')}
+                        aria-invalid={shippingFieldError('addressDetail') ? true : undefined}
+                        aria-describedby={shippingFieldError('addressDetail') ? 'cart-ship-detail-error' : undefined}
+                        className={`w-full rounded-[2px] border bg-transparent px-4 py-3 text-base focus:outline-none focus-ring ${
+                          shippingFieldError('addressDetail') ? 'border-black/40 dark:border-white/40' : (theme === 'dark' ? 'border-white/20' : 'border-black/15')
+                        } ${theme === 'dark' ? 'text-[#f3f1ec] placeholder:text-[#8d887e]' : 'text-[#16150f] placeholder:text-[#6b675f]'}`}
                         placeholder="상세 주소를 입력해주세요"
                       />
+                      {shippingFieldError('addressDetail') ? <p id="cart-ship-detail-error" className={`text-sm ${muted}`}>{shippingFieldError('addressDetail')}</p> : null}
                     </div>
                   </div>
                 </section>
 
                 <section className="space-y-6">
-                  <h3 className="text-sm font-medium mb-4">결제 수단</h3>
-                  {checkoutClosed ? (
+                  <h3 className="mb-4 text-base font-medium">결제 수단</h3>
+                  {checkoutClosed || checkoutUiPreview ? (
                     <div className="border-b border-black/10 py-5 dark:border-white/10">
                       <p className="text-base font-medium">결제 준비 중</p>
-                      <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>현재 결제 기능을 준비하고 있습니다.</p>
+                      <p className={`mt-1 text-sm ${muted}`}>현재 결제 기능을 준비하고 있습니다.</p>
                     </div>
                   ) : (
                     <div className="border-b border-black/10 py-5 dark:border-white/10">
@@ -1221,50 +1387,60 @@ export default function Cart() {
         {/* Footer */}
         <div className={`px-6 pt-6 pb-12 border-t ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}>
           <div className="flex justify-between items-end mb-6">
-            <span className={`text-sm font-medium ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>총 결제 금액</span>
+            <span className={`text-sm font-medium ${muted}`}>총 결제 금액</span>
             <span className="text-[1.75rem] font-medium tracking-[-0.03em]">₩{displayPrice.toLocaleString()}</span>
           </div>
 
           {screeningCheckout ? (
-            <p className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>
+            <p className={`mb-3 text-sm font-medium ${muted}`}>
               카드사 심사 테스트 결제입니다. 실제 주문과 배송은 만들어지지 않습니다.
             </p>
-          ) : PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 ? (
-            <p className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>
+          ) : PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 || checkoutUiPreview ? (
+            <p className={`mb-3 text-sm font-medium ${muted}`}>
               현재 결제 기능을 준비하고 있습니다.
             </p>
           ) : null}
-          
+
+          {import.meta.env.DEV && !showingCheckoutForm && localCheckoutUiPreviewAllowed() ? (
+            <button
+              type="button"
+              onClick={openCheckoutUiPreview}
+              className={`focus-ring mb-3 w-full text-left text-sm font-medium underline-offset-4 hover:underline ${muted}`}
+            >
+              개발용 주문서 미리보기
+            </button>
+          ) : null}
+
           <div className="flex gap-3">
-            {step === 2 && (
-              <button 
+            {showingCheckoutForm && (
+              <button
                 type="button"
-                onClick={handlePrevStep}
-                className={`w-1/3 h-12 font-medium rounded-[2px] transition-colors ${
+                onClick={checkoutUiPreview ? closeCheckoutUiPreview : handlePrevStep}
+                className={`h-12 w-1/3 rounded-[2px] font-medium transition-colors ${
                   theme === 'dark' ? 'bg-white/10 text-[#f3f1ec] hover:bg-white/15' : 'bg-black/5 text-[#16150f] hover:bg-black/10'
                 }`}
               >
                 이전
               </button>
             )}
-            <button 
+            <button
               type="button"
-              onClick={step === 1 ? handleNextStep : () => {
-                if (checkoutClosed) return;
+              onClick={!showingCheckoutForm ? handleNextStep : () => {
+                if (checkoutClosed || checkoutUiPreview) return;
                 setIsBottomSheetOpen(true);
               }}
-              disabled={selectedItems.length === 0 || isProcessing || checkoutClosed}
-              className={`flex-1 h-12 text-base font-medium tracking-[-0.02em] rounded-[2px] flex items-center justify-center gap-2 transition-colors ${
-                selectedItems.length === 0 || isProcessing || checkoutClosed
-                  ? (theme === 'dark' ? 'bg-[#2a2b31] text-[#f3f1ec]/35 cursor-not-allowed' : 'bg-[#e4dfd6] text-[#16150f]/35 cursor-not-allowed')
+              disabled={selectedItems.length === 0 || isProcessing || checkoutClosed || checkoutUiPreview}
+              className={`flex h-12 flex-1 items-center justify-center gap-2 rounded-[2px] text-base font-medium tracking-[-0.02em] transition-colors ${
+                selectedItems.length === 0 || isProcessing || checkoutClosed || checkoutUiPreview
+                  ? (theme === 'dark' ? 'cursor-not-allowed bg-[#2a2b31] text-[#f3f1ec]/35' : 'cursor-not-allowed bg-[#e4dfd6] text-[#16150f]/35')
                   : (theme === 'dark' ? 'bg-[#f2f0ea] text-[#16150f] hover:brightness-105' : 'bg-[#1a1914] text-[#f4f1eb] hover:brightness-110')
               }`}
             >
-              {isProcessing ? (
+              {isProcessing && !checkoutUiPreview ? (
                 <Loader2 className="animate-spin" size={24} />
-              ) : checkoutClosed ? (
+              ) : checkoutClosed || checkoutUiPreview ? (
                 '결제 준비 중'
-              ) : step === 1 ? (
+              ) : !showingCheckoutForm ? (
                 selectedIds.size === 0 ? '상품을 선택해주세요' : '주문하기'
               ) : (
                 '결제하기'

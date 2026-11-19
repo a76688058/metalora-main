@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ChevronLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../ui/Button';
 import { ReviewImagePicker } from './ReviewImagePicker';
@@ -509,12 +510,14 @@ export function CustomerReviews({ onBack, preview, embedded = false }: CustomerR
 
   return (
     <div className="@container space-y-6">
-      <div className={`flex items-end gap-3 ${embedded ? 'justify-end' : 'justify-between'}`}>
-        {embedded ? <span className="sr-only">리뷰</span> : <h3 className="text-lg font-medium tracking-[-0.02em] text-[#16150f] dark:text-[#f3f1ec]">리뷰</h3>}
-        <button type="button" onClick={onBack} className="focus-ring min-h-11 rounded-md px-3 text-sm font-medium text-[#3f3c36] hover:text-[#16150f] dark:text-[#c9c4b8] dark:hover:text-[#f3f1ec]">
-          내 정보
-        </button>
-      </div>
+      {!embedded && (
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={onBack} aria-label="내 정보로 돌아가기" className="focus-ring flex size-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-black dark:bg-zinc-800/50 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white">
+            <ChevronLeft size={20} strokeWidth={1.75} />
+          </button>
+          <h3 className="text-[1.75rem] font-medium leading-none tracking-[-0.02em] text-[#16150f] dark:text-[#f3f1ec]">리뷰</h3>
+        </div>
+      )}
 
       <div className="grid items-start gap-6 @2xl:grid-cols-[minmax(168px,230px)_minmax(0,1fr)] @2xl:gap-8">
         <section aria-labelledby="review-product-heading">

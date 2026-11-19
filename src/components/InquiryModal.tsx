@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 import {
   ChevronLeft, Plus, MessageSquare, Loader2, Send, X
 } from 'lucide-react';
@@ -13,6 +14,8 @@ import { zClass } from '../constants/overlays';
 interface InquiryModalProps {
   isOpen: boolean;
   onClose: () => void;
+  embedded?: boolean;
+  onBindBack?: (back: () => void) => void;
 }
 
 function inquiryStatusLabel(status: unknown): string {
@@ -22,9 +25,13 @@ function inquiryStatusLabel(status: unknown): string {
   return '처리 중';
 }
 
-export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
+export default function InquiryModal({ isOpen, onClose, embedded = false, onBindBack }: InquiryModalProps) {
   const { user, openProfile } = useAuth();
   const { theme } = useTheme();
+  const reducedMotion = usePrefersReducedMotion();
+  const sheetMove = reducedMotion
+    ? { duration: 0 }
+    : { duration: 0.22, ease: [0.22, 1, 0.36, 1] as const };
   const { showToast } = useToast();
 
   const [inquiries, setInquiries] = useState<any[]>([]);
@@ -43,10 +50,11 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
 
   const returnToHub = useCallback(() => {
     onClose();
+    if (embedded) return;
     setTimeout(() => {
       openProfile();
     }, 100);
-  }, [onClose, openProfile]);
+  }, [onClose, openProfile, embedded]);
 
   const leaveOneLayer = useCallback(() => {
     if (showForm) {
@@ -59,6 +67,8 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
     }
     returnToHub();
   }, [showForm, selectedInquiry, returnToHub]);
+  const leaveRef = useRef(leaveOneLayer);
+  leaveRef.current = leaveOneLayer;
 
   const onBackdrop = useCallback(() => {
     if (showForm) {
@@ -81,27 +91,32 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
-      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-      document.body.style.overflow = 'hidden';
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    } else {
-      document.body.style.overflow = '';
-      document.body.style.paddingRight = '';
-      setShowForm(false);
-      setSelectedInquiry(null);
-      setTitle('');
-      setContent('');
-      setSubmitError('');
-    }
+    if (!isOpen || embedded) return;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
     return () => {
       document.body.style.overflow = '';
       document.body.style.paddingRight = '';
     };
+  }, [isOpen, embedded]);
+
+  useEffect(() => {
+    if (isOpen) return;
+    setShowForm(false);
+    setSelectedInquiry(null);
+    setTitle('');
+    setContent('');
+    setSubmitError('');
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!embedded || !onBindBack) return;
+    onBindBack(() => leaveRef.current());
+  }, [embedded, onBindBack]);
+
+  useEffect(() => {
+    if (!isOpen || embedded) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
@@ -203,30 +218,36 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          initial={{ opacity: 0 }}
+          initial={embedded || reducedMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="inquiry-title"
-          className={cn('fixed inset-0 flex justify-end pointer-events-auto', zClass('sheet'))}
+          transition={sheetMove}
+          role={embedded ? undefined : 'dialog'}
+          aria-modal={embedded ? undefined : true}
+          aria-labelledby={embedded ? undefined : 'inquiry-title'}
+          className={cn(embedded ? 'relative w-full' : 'fixed inset-0 flex justify-end pointer-events-auto', !embedded && zClass('sheet'))}
         >
+          {!embedded && (
           <button
             type="button"
             aria-label={showForm && formDirty ? '작성 중인 문의' : backLabel}
             onClick={onBackdrop}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto touch-none"
           />
+          )}
 
           <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className={`relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden pointer-events-auto transition-colors duration-500 will-change-transform transform-gpu ${
-              theme === 'dark' ? 'bg-[#101114] text-[#f3f1ec]' : 'bg-[#f6f4ef] text-[#16150f]'
-            }`}
+            initial={embedded || reducedMotion ? false : { opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={reducedMotion ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, x: 12 }}
+            transition={sheetMove}
+            className={embedded
+              ? 'relative w-full'
+              : `relative w-full max-w-lg h-full flex flex-col shadow-2xl overflow-hidden pointer-events-auto transition-colors duration-500 will-change-transform transform-gpu ${
+                theme === 'dark' ? 'bg-[#101114] text-[#f3f1ec]' : 'bg-[#f6f4ef] text-[#16150f]'
+              }`}
           >
+            {!embedded && (
             <div className={`flex items-center justify-between px-6 py-5 border-b ${
               theme === 'dark' ? 'border-white/5' : 'border-black/5'
             }`}>
@@ -235,17 +256,18 @@ export default function InquiryModal({ isOpen, onClose }: InquiryModalProps) {
                   type="button"
                   onClick={leaveOneLayer}
                   aria-label={backLabel}
-                  className={`p-2 rounded-full transition-all focus-ring ${
+                  className={`focus-ring flex size-10 items-center justify-center rounded-full ${
                     theme === 'dark' ? 'bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-500 hover:text-black'
                   }`}
                 >
-                  <ChevronLeft size={20} />
+                  <ChevronLeft size={20} strokeWidth={1.75} />
                 </button>
                 <h2 id="inquiry-title" className="text-[1.75rem] font-medium tracking-[-0.02em]">1:1 문의</h2>
               </div>
             </div>
+            )}
 
-            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar overscroll-contain touch-pan-y">
+            <div className={embedded ? 'px-6 py-5' : 'flex-1 overflow-y-auto p-6 custom-scrollbar overscroll-contain touch-pan-y'}>
               <div className="pb-[max(2rem,env(safe-area-inset-bottom))]">
                 <AnimatePresence mode="wait">
                   {showForm ? (
