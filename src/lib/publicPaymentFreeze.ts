@@ -1,15 +1,12 @@
 /**
- * NEW4-0C — Public storefront payment freeze.
+ * Public checkout switch.
  *
- * Production payment is not activated. While this constant is true:
- * - Cart does not call prepare, load Toss, or requestPayment.
- * - Production POST /api/payment/prepare refuses a new charge.
- * - POST /api/payment/confirm and admin cancellation stay available
- *   so an already accepted payment can be recovered.
- * Payment-test mode may still prepare. METALORA_ENV does not unfreeze production.
+ * While this constant is true, Cart does not call prepare or Toss, and
+ * production prepare refuses a new charge. Confirm and admin cancellation
+ * stay available. Payment-test mode may still prepare.
  *
- * NEW7 production payment activation is a dedicated change of this constant
- * together with the live Toss client key. Do not unfreeze in an unrelated deploy.
- * Card screening uses CARD_SCREENING_TEST_ENABLED and must not change this flag.
+ * false is the authorized activation value. The server still requires
+ * METALORA_PAYMENT_ACCESS=ENABLED before prepare. Screening must not change
+ * this flag.
  */
-export const PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = true;
+export const PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = false as boolean;

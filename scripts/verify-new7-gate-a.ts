@@ -220,7 +220,7 @@ const notDone = capturedPaymentLocalMismatchDisposition("status_not_done:READY")
 assert(notDone.finalize === false && notDone.recoveryRequired === false, "non-DONE provider status must not be treated as a capture");
 
 assert(CARD_SCREENING_TEST_ENABLED === false, "screening mode must be disabled");
-assert(PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 === true, "public payment freeze must stay true");
+assert(PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 === false, "public payment freeze is released for this activation");
 
 const testCross = refuseTossTestToProductionSupabase({
   tossSecretKey: "test_sk_PLACEHOLDER_NOT_A_REAL_SECRET",
@@ -320,7 +320,8 @@ assert(
 );
 
 const freezeSrc = fs.readFileSync(path.join(root, "src/lib/publicPaymentFreeze.ts"), "utf8");
-assert(freezeSrc.includes("PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = true"), "freeze source must stay true");
+assert(freezeSrc.includes("PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = false"), "freeze source must be the activation value");
+assert(serverSrc.includes('serverPaymentAccess(process.env) !== "ENABLED"'), "prepare must stay closed unless payment access is enabled");
 const screeningSrc = fs.readFileSync(path.join(root, "src/lib/cardScreeningTest.ts"), "utf8");
 assert(screeningSrc.includes("CARD_SCREENING_TEST_ENABLED = false"), "screening source must stay false");
 
@@ -337,7 +338,7 @@ console.log("CARD_METHOD_VALIDATION=PASS");
 console.log("RECONCILIATION=PRESERVED");
 console.log("RECONCILIATION_LIMITATION=ops recovery_required only; admin cancel has no stored payment_key for an unfinalized capture");
 console.log("SCREENING=DISABLED");
-console.log("PAYMENT_FREEZE=TRUE");
+console.log("PAYMENT_FREEZE=FALSE");
 console.log("PAYMENT_TEST_ISOLATION=PASS");
 console.log("CANCELLATION=PRESERVED");
 console.log("GATE_A_VERIFIER=PASS");

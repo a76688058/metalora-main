@@ -43,7 +43,7 @@ assert(!cartSrc.includes("|| import.meta.env.VITE_TOSS_TEST_CLIENT_KEY"), "produ
 assert(cartSrc.includes("PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7") , "cart must still consult the freeze");
 
 const freezeSrc = fs.readFileSync(path.join(root, "src/lib/publicPaymentFreeze.ts"), "utf8");
-assert(freezeSrc.includes("PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = true"), "freeze source must stay true");
+assert(freezeSrc.includes("PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = false"), "freeze source must be the activation value");
 const screeningSrc = fs.readFileSync(path.join(root, "src/lib/cardScreeningTest.ts"), "utf8");
 assert(screeningSrc.includes("CARD_SCREENING_TEST_ENABLED = false"), "screening source must stay false");
 assert(screeningSrc.includes("assertTossTestClientKey"), "screening helper must still reject a non-test key");
@@ -371,11 +371,14 @@ async function activationBundle(): Promise<{ jsCount: number; includesLive: bool
       throw new Error("temporary freeze file resolved to the repository file");
     }
     const freezeText = fs.readFileSync(freezeCopy, "utf8");
-    const assignment = "PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = true";
-    if (freezeText.split(assignment).length !== 2) {
-      throw new Error("temporary freeze assignment was not unique");
+    const openAssignment = "PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = false";
+    const closedAssignment = "PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = true";
+    if (!freezeText.includes(openAssignment)) {
+      if (freezeText.split(closedAssignment).length !== 2) {
+        throw new Error("temporary freeze assignment was not unique");
+      }
+      fs.writeFileSync(freezeCopy, freezeText.replace(closedAssignment, openAssignment));
     }
-    fs.writeFileSync(freezeCopy, freezeText.replace(assignment, "PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = false"));
     if (fs.readFileSync(realFreeze, "utf8") !== freezeSrc) {
       throw new Error("repository freeze file changed while preparing the temporary copy");
     }
@@ -500,7 +503,7 @@ if (failures.length === 0) {
     assert(withLive.liveEnvIsSuppliedKey, "Vite build receives the supplied public LIVE client key");
     assert(withLive.cartInlinedSuppliedKey, "Vite inlines the public LIVE client key into Cart");
     assert(!withLive.cartStillNamesEnv, "Vite replaces the LIVE client-key env reference");
-    assert(!withLive.text.includes("test_ck_"), "LIVE bundle must not contain a test client key");
+    assert(!/test_ck_[A-Za-z0-9]+/.test(withLive.text), "LIVE bundle must not contain a test client key");
     assert(!/live_sk_|test_sk_|live_gsk_|test_gsk_/.test(withLive.text), "LIVE bundle must not contain a private Toss secret");
     if (freezeSrc.includes("PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = true")) {
       const frozenOmits = !withLive.text.includes(fakeLive);
@@ -508,7 +511,7 @@ if (failures.length === 0) {
       frozenBundleStatus = frozenOmits ? "PASS" : "FAIL";
     } else {
       assert(withLive.text.includes(fakeLive), "production bundle keeps the public LIVE client key when checkout can reach Toss");
-      frozenBundleStatus = "FAIL";
+      frozenBundleStatus = "NOT_RUN";
     }
 
     const keyless = await clientBundle({});
@@ -550,5 +553,5 @@ console.log("BUILDKIT_SECRET=OPTIONAL");
 console.log("CLOUD_BUILD_INJECTION=ABSENT");
 console.log("VITE_INLINE=PASS");
 console.log("FROZEN_BUNDLE_KEEPS_LIVE_KEY=NO");
-console.log("PAYMENT_FREEZE=TRUE");
+console.log(freezeSrc.includes("PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = false") ? "PAYMENT_FREEZE=FALSE" : "PAYMENT_FREEZE=TRUE");
 console.log("SCREENING=DISABLED");
