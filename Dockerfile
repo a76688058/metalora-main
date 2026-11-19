@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.4
 # Metalora — standalone Cloud Run image (Express + Vite-built SPA)
 
 # ---------------------------------------------------------------------------
@@ -14,8 +15,12 @@ COPY index.html vite.config.ts tsconfig.json ./
 COPY public ./public
 COPY src ./src
 COPY scripts/clean-dist.mjs ./scripts/clean-dist.mjs
+COPY scripts/docker-vite-live-client-key.mjs ./scripts/docker-vite-live-client-key.mjs
 
-RUN npm run build
+RUN --mount=type=secret,id=toss_live_client_key,required=false \
+    node scripts/docker-vite-live-client-key.mjs /run/secrets/toss_live_client_key /tmp/vite-live.env \
+    && if [ -f /tmp/vite-live.env ]; then set -a && . /tmp/vite-live.env && set +a && rm -f /tmp/vite-live.env; fi \
+    && npm run build
 
 # ---------------------------------------------------------------------------
 # Runner — Express API + static dist/client

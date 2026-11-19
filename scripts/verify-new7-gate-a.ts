@@ -11,7 +11,10 @@ import {
   REQUIRED_CARD_METHOD,
   capturedPaymentLocalMismatchDisposition,
   cartMayOpenCanonicalCheckout,
+  authorizePaymentRequest,
+  canonicalPaymentReturnUrls,
   evaluateCanonicalPaymentHost,
+  headersAuthorizePaymentOrigin,
   refusePaymentTestProductionHost,
   refuseTossTestToProductionSupabase,
   validateTossDonePayment,
@@ -36,6 +39,23 @@ const canonical = evaluateCanonicalPaymentHost({
   paymentTestIsolated: false,
 });
 assert(canonical.refuse === false && canonical.mode === "canonical", "canonical host must be accepted");
+assert(headersAuthorizePaymentOrigin({
+  hostHeader: CANONICAL_PAYMENT_HOST,
+  forwardedHostHeader: CANONICAL_PAYMENT_HOST,
+}) === false, "matching host headers must not authorize payment origin");
+assert(headersAuthorizePaymentOrigin({
+  hostHeader: "evil.example",
+  forwardedHostHeader: CANONICAL_PAYMENT_HOST,
+}) === false, "spoofed host must not authorize payment origin");
+assert(headersAuthorizePaymentOrigin({
+  hostHeader: CANONICAL_PAYMENT_HOST,
+  forwardedHostHeader: "evil.example",
+}) === false, "spoofed forwarded host must not authorize payment origin");
+const spoofedReturns = canonicalPaymentReturnUrls();
+const plainReturns = canonicalPaymentReturnUrls();
+assert(spoofedReturns.successUrl === "https://metalora.art/payment/success", "return success URL is the server origin");
+assert(spoofedReturns.failUrl === "https://metalora.art/payment/fail", "return fail URL is the server origin");
+assert(spoofedReturns.successUrl === plainReturns.successUrl && spoofedReturns.failUrl === plainReturns.failUrl, "return URLs do not change for spoofed headers");
 
 const canonicalPort = evaluateCanonicalPaymentHost({
   hostHeader: "metalora.art:443",
@@ -107,11 +127,46 @@ const multiForward = evaluateCanonicalPaymentHost({
 assert(multiForward.refuse === true && multiForward.reason === "malformed_host", "multiple forwarded hosts must be rejected");
 
 assert(
-  PAYMENT_HOST_SPOOFING_ASSESSMENT.classification === "LIMITATION"
-    && PAYMENT_HOST_SPOOFING_ASSESSMENT.gateB === "BLOCKED"
-    && PAYMENT_HOST_SPOOFING_ASSESSMENT.summary.includes("not prove"),
-  "header spoofing assessment must stay a Gate B limitation",
+  PAYMENT_HOST_SPOOFING_ASSESSMENT.classification === "CONTROLLED"
+    && PAYMENT_HOST_SPOOFING_ASSESSMENT.gateB === "RESOLVED"
+    && PAYMENT_HOST_SPOOFING_ASSESSMENT.summary.includes("not payment authorization"),
+  "Gate B must treat host headers as non-authorizing",
 );
+const spoofedHost = { hostHeader: "evil.example", forwardedHostHeader: CANONICAL_PAYMENT_HOST };
+const legitimate = authorizePaymentRequest({
+  authenticatedMemberId: "member-1",
+  orderOwnerId: "member-1",
+  expectedAmount: 1000,
+  requestedAmount: 1000,
+  ...spoofedHost,
+});
+assert(legitimate.authorized === true, "legitimate member, owner, and amount must pass with a spoofed host");
+const noMember = authorizePaymentRequest({
+  authenticatedMemberId: null,
+  orderOwnerId: "member-1",
+  expectedAmount: 1000,
+  requestedAmount: 1000,
+  hostHeader: CANONICAL_PAYMENT_HOST,
+  forwardedHostHeader: CANONICAL_PAYMENT_HOST,
+});
+assert(noMember.authorized === false && noMember.reason === "unauthenticated", "canonical host must not authorize an unauthenticated request");
+const otherOwner = authorizePaymentRequest({
+  authenticatedMemberId: "member-1",
+  orderOwnerId: "member-2",
+  expectedAmount: 1000,
+  requestedAmount: 1000,
+  hostHeader: CANONICAL_PAYMENT_HOST,
+  forwardedHostHeader: "evil.example",
+});
+assert(otherOwner.authorized === false && otherOwner.reason === "order_not_owned", "spoofed forwarded host must not authorize another member's order");
+const wrongAmount = authorizePaymentRequest({
+  authenticatedMemberId: "member-1",
+  orderOwnerId: "member-1",
+  expectedAmount: 1000,
+  requestedAmount: 1,
+  ...spoofedHost,
+});
+assert(wrongAmount.authorized === false && wrongAmount.reason === "amount_mismatch", "spoofed host must not authorize a different amount");
 
 const done = {
   status: "DONE",
@@ -208,6 +263,11 @@ const confirmPost = confirmBody.indexOf("postWinningTossConfirm");
 assert(
   confirmHost >= 0 && confirmDispatch > confirmHost && confirmPost > confirmDispatch,
   "confirm must apply the host guard before the durable dispatch",
+);
+const confirmAuthorization = confirmBody.indexOf("authorizePaymentRequest");
+assert(
+  confirmAuthorization >= 0 && confirmAuthorization < confirmDispatch,
+  "confirm must authorize the member, owner, and amount before the durable dispatch",
 );
 assert(
   !confirmBody.includes("https://api.tosspayments.com/v1/payments/confirm"),

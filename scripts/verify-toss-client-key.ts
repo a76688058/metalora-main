@@ -83,9 +83,10 @@ assert(
   activation.includes("Temporary activation files could not be removed."),
   "cleanup failure must be reported without the key",
 );
-assert(activation.includes("temporary freeze assignment was not unique"), "activation script must fail closed when the freeze declaration is ambiguous");
-assert(activation.includes('PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = false'), "activation context must disable the freeze");
-assert(activation.includes("repository freeze file changed"), "activation script must detect a change to the repository freeze file");
+assert(activation.includes("git archive"), "activation context must be a git archive of one commit");
+assert(activation.includes("git rev-parse HEAD"), "activation image must record the exact source SHA");
+assert(!activation.includes("PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = false"), "activation script must not rewrite the payment freeze");
+assert(!activation.includes("robocopy"), "activation script must not copy the dirty worktree");
 assert(activation.includes("activation context must stay outside the repository"), "activation context must be outside the repository");
 const dockerAt = activation.indexOf("& docker build");
 const dockerCmd = dockerAt >= 0 ? activation.slice(dockerAt, activation.indexOf("if ($LASTEXITCODE", dockerAt)) : "";

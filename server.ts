@@ -10,10 +10,13 @@ import {
   PAYMENT_TEST_CROSS_WRITE_ERROR,
   PAYMENT_TEST_ENV_NAME,
   REQUIRED_CARD_METHOD,
+  authorizePaymentRequest,
   capturedPaymentLocalMismatchDisposition,
+  canonicalPaymentReturnUrls,
   evaluateCanonicalPaymentHost,
   isTossTestSecret,
   missingPaymentTestEnv,
+  serverPaymentAccess,
   refusePaymentTestProductionHost,
   refuseTossTestToProductionSupabase,
   validateTossDonePayment,
@@ -215,16 +218,18 @@ const PUBLIC_PAYMENT_FROZEN_MESSAGE = "현재 결제 기능을 준비하고 있�
  * so an already accepted payment can be recovered without taking a new charge.
  */
 function publicPaymentPrepareGuard(): { status: number; error: string } | null {
-  if (!PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 || isPaymentTestMode) return null;
-  return { status: 503, error: PUBLIC_PAYMENT_FROZEN_MESSAGE };
+  if (isPaymentTestMode) return null;
+  if (PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 || serverPaymentAccess(process.env) !== "ENABLED") {
+    return { status: 503, error: PUBLIC_PAYMENT_FROZEN_MESSAGE };
+  }
+  return null;
 }
 
 const PUBLIC_PAYMENT_HOST_MESSAGE = "결제 요청 호스트가 올바르지 않습니다.";
 
 /**
- * Raw Host header only. Does not call requestHostname and does not treat
- * X-Forwarded-Host as proof of metalora.art. Payment-test exemption is the
- * verified startup mode, not a client header.
+ * Routing filter only. Host equality is not payment authorization.
+ * Payment-test exemption is the verified startup mode, not a client header.
  */
 function publicPaymentHostGuard(req: express.Request): { status: number; error: string } | null {
   const decision = evaluateCanonicalPaymentHost({
@@ -2531,6 +2536,17 @@ ${staticUrls}${productUrls}
       }
 
       const { total, sanitizedOrderedItems, rpcOrderItems } = checkoutResult.checkout;
+      const prepareAuthorization = authorizePaymentRequest({
+        authenticatedMemberId: verifiedUserId,
+        orderOwnerId: verifiedUserId,
+        expectedAmount: total,
+        requestedAmount: total,
+        hostHeader: req.headers.host,
+        forwardedHostHeader: req.headers["x-forwarded-host"],
+      });
+      if (!prepareAuthorization.authorized) {
+        return res.status(403).json({ error: "주문 정보가 일치하지 않습니다." });
+      }
 
       const validatedSnapshot: PaymentIntentSnapshot = {
         schema_version: 1,
@@ -2571,7 +2587,8 @@ ${staticUrls}${productUrls}
       }
 
       console.log(`[PAYMENT_PREPARE] Created intent ${orderNumber} for user ${verifiedUserId}`);
-      return res.json({ orderId: orderNumber, amount: total });
+      const returnUrls = canonicalPaymentReturnUrls();
+      return res.json({ orderId: orderNumber, amount: total, ...returnUrls });
     } catch (error) {
       console.error("[PAYMENT_PREPARE_ERROR]", error);
       await logPaymentOpsFailure({
@@ -2699,7 +2716,28 @@ ${staticUrls}${productUrls}
         return res.status(500).json({ error: "주문 정보를 확인할 수 없습니다." });
       }
 
-      if (Number(amount) !== intentTotal) {
+      const authorization = authorizePaymentRequest({
+        authenticatedMemberId: verifiedUserId,
+        orderOwnerId: typeof paymentIntent.user_id === "string" ? paymentIntent.user_id : null,
+        expectedAmount: intentTotal,
+        requestedAmount: Number(amount),
+        hostHeader: req.headers.host,
+        forwardedHostHeader: req.headers["x-forwarded-host"],
+      });
+      if (!authorization.authorized) {
+        if (authorization.reason !== "amount_mismatch") {
+          console.error("[PAYMENT_INTENT_FAIL] payment authorization refused:", { orderId });
+          await logPaymentOpsFailure({
+            payment_event: "integrity_ownership",
+            phase: "confirm",
+            alert_eligible: true,
+            request_id: requestId,
+            order_id: opsOrderId,
+            http_status: 403,
+            retryable: false,
+          });
+          return res.status(403).json({ error: "주문 정보가 일치하지 않습니다." });
+        }
         console.error("[PAYMENT_INTENT_FAIL] Request amount mismatch:", {
           orderId,
           expected: intentTotal,

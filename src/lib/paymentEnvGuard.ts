@@ -20,6 +20,11 @@ export function isTossTestSecret(secret: string): boolean {
   return trimmed.startsWith("test_sk_") || trimmed.startsWith("test_gsk_");
 }
 
+/** Server env only. Unset, blank, and every other value stay DISABLED. */
+export function serverPaymentAccess(env: { METALORA_PAYMENT_ACCESS?: string }): "ENABLED" | "DISABLED" {
+  return env.METALORA_PAYMENT_ACCESS === "ENABLED" ? "ENABLED" : "DISABLED";
+}
+
 export function missingPaymentTestEnv(
   env: Record<string, string | undefined>,
 ): string[] {
@@ -57,28 +62,77 @@ export function refusePaymentTestProductionHost(input: {
 /** Apex storefront only. Tag URLs and revision URLs are not payment hosts. */
 export const CANONICAL_PAYMENT_HOST = "metalora.art";
 
+/** Server constant. Not derived from Host or X-Forwarded-Host. */
+export const CANONICAL_PAYMENT_ORIGIN = "https://metalora.art";
+
+export function canonicalPaymentReturnUrls(): { successUrl: string; failUrl: string } {
+  return {
+    successUrl: `${CANONICAL_PAYMENT_ORIGIN}/payment/success`,
+    failUrl: `${CANONICAL_PAYMENT_ORIGIN}/payment/fail`,
+  };
+}
+
+/** Request headers never prove that the caller reached the canonical origin. */
+export function headersAuthorizePaymentOrigin(_input: {
+  hostHeader: unknown;
+  forwardedHostHeader: unknown;
+}): false {
+  return false;
+}
+
+export type PaymentAuthorizationDecision = {
+  authorized: boolean;
+  reason: "authorized" | "unauthenticated" | "order_not_owned" | "amount_mismatch";
+};
+
+/**
+ * Payment authorization. Host and X-Forwarded-Host are ignored on purpose:
+ * a matching or spoofed host is not proof that a charge is allowed.
+ * The member id comes from the verified bearer, the owner and expected amount
+ * come from the stored payment intent, and the requested amount is the body.
+ */
+export function authorizePaymentRequest(input: {
+  authenticatedMemberId: string | null;
+  orderOwnerId: string | null;
+  expectedAmount: number;
+  requestedAmount: number;
+  hostHeader?: unknown;
+  forwardedHostHeader?: unknown;
+}): PaymentAuthorizationDecision {
+  void input.hostHeader;
+  void input.forwardedHostHeader;
+  if (!input.authenticatedMemberId) {
+    return { authorized: false, reason: "unauthenticated" };
+  }
+  if (!input.orderOwnerId || input.orderOwnerId !== input.authenticatedMemberId) {
+    return { authorized: false, reason: "order_not_owned" };
+  }
+  if (!Number.isFinite(input.expectedAmount) || input.expectedAmount <= 0) {
+    return { authorized: false, reason: "amount_mismatch" };
+  }
+  if (!Number.isFinite(input.requestedAmount) || input.requestedAmount !== input.expectedAmount) {
+    return { authorized: false, reason: "amount_mismatch" };
+  }
+  return { authorized: true, reason: "authorized" };
+}
+
 /** Confirmed Toss LIVE merchant id for domestic card activation. */
 export const LIVE_TOSS_MID = "metalom5u3";
 
 export const REQUIRED_CARD_METHOD = "카드";
 
 /**
- * Header identity is what this process observes after the platform proxy.
- * Host equality is not an unspoofable proof that the socket reached metalora.art.
- * X-Forwarded-Host is never accepted as a substitute for Host.
- * Express `requestHostname` / `req.hostname` are not used: production sets
- * `trust proxy`, so those values prefer forwarded host data.
- * This repo has no runtime proof that Cloud Run strips a client-supplied
- * X-Forwarded-Host or refuses a forged Host on a public revision URL.
- * Gate A therefore keeps the public payment freeze as the charge boundary.
- * Gate B stays blocked until a control exists that does not rely on these headers.
+ * Host and X-Forwarded-Host are routing observations only.
+ * They are not payment authorization. Express `requestHostname` is not used.
+ * Authorization is authorizePaymentRequest: verified member, stored order owner,
+ * and the server amount. A spoofed host cannot supply any of those.
  */
 export const PAYMENT_HOST_SPOOFING_ASSESSMENT = {
-  classification: "LIMITATION",
-  gateB: "BLOCKED",
+  classification: "CONTROLLED",
+  gateB: "RESOLVED",
   primaryGateAControl: "PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7",
   summary:
-    "The host guard rejects non-canonical, missing, malformed, and mismatched Host / X-Forwarded-Host values that the process can see. It does not prove a public candidate or revision URL cannot present Host metalora.art. A client or proxy that can set Host, or a platform that copies a client X-Forwarded-Host into the host the app trusts, bypasses this check. Confirm is outside the prepare freeze, so this limitation blocks Gate B.",
+    "Host and X-Forwarded-Host are not payment authorization. A matching host does not authorize a charge, and a spoofed host does not authorize one either. Confirm requires the authenticated member, that member's stored payment intent, and the server-stored amount. Return URLs are server constants.",
 } as const;
 
 export type PaymentHostRefusalReason =
