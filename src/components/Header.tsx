@@ -293,6 +293,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
     setIsAccountDrawerOpen(true);
   };
 
+  const isPdp = /^\/product\/[^/]+$/.test(location.pathname);
   const iconTone = isHome
     ? isDark
       ? 'text-text-inverse/80 hover:text-text-inverse'
@@ -311,6 +312,7 @@ export default function Header({ isHome = false }: { isHome?: boolean }) {
           'fixed top-0 left-0 isolate w-full max-w-[100vw] border-b',
           zClass('header'),
           isHome && 'header-home-edge',
+          !isHome && isPdp && 'header-pdp-edge',
           isHome
             ? 'border-transparent bg-transparent'
             : 'surface-glass border-border-subtle shadow-raised motion-safe-transition transform-gpu',

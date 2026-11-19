@@ -133,7 +133,7 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
 
   const greetingName = profile?.full_name?.trim() || '사용자';
   const muted = isDark ? 'text-[#c9c4b8]' : 'text-[#3f3c36]';
-  const rowClass = 'flex min-h-11 w-full items-center justify-between gap-3 type-metadata tracking-tight text-text-secondary';
+  const rowClass = 'flex min-h-11 w-full items-center justify-between gap-3 type-cta tracking-tight';
 
   return (
     <GenieShell
@@ -312,7 +312,7 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
               key={row.to}
               to={row.to}
               onClick={onClose}
-              className={cn(rowClass, 'focus-ring rounded-sm hover:text-text-primary focus-visible:text-text-primary')}
+              className={cn(rowClass, 'focus-ring rounded-sm')}
             >
               <span>{row.label}</span>
               <ChevronRight size={14} strokeWidth={1.75} aria-hidden="true" />

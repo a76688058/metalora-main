@@ -188,6 +188,11 @@
   border: 1px solid var(--color-border-subtle);
 }
 
+/* PDP only: the glass border otherwise draws a line above the announcement. */
+header.surface-glass.header-pdp-edge {
+  border-top-width: 0;
+}
+
 /* Home Header: Hero zone idle transparent; opaque theme surface on hover only
    (fine pointer). Content zone (past Hero) stays fully opaque for readability.
    Dark Home surface is true black, not slate/navy graphite.
