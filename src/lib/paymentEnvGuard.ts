@@ -122,6 +122,52 @@ export const LIVE_TOSS_MID = "metalom5u3";
 export const REQUIRED_CARD_METHOD = "카드";
 
 /**
+ * Toss Payment.method response values for the card payment window.
+ * requestPayment('카드') can return either pair. English and Korean are
+ * the documented response enums. Request-only methods stay rejected.
+ */
+export const ACCEPTED_TOSS_CHECKOUT_METHODS = ["카드", "CARD", "간편결제", "EASY_PAY"] as const;
+
+export type AcceptedTossCheckoutMethod = (typeof ACCEPTED_TOSS_CHECKOUT_METHODS)[number];
+
+export function isAcceptedTossCheckoutMethod(method: unknown): method is AcceptedTossCheckoutMethod {
+  return typeof method === "string"
+    && (ACCEPTED_TOSS_CHECKOUT_METHODS as readonly string[]).includes(method);
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function optionalNonNegativeAmount(value: unknown): boolean {
+  return value === undefined || (typeof value === "number" && Number.isFinite(value) && value >= 0);
+}
+
+/**
+ * Card and easy-pay instruments are optional.
+ * A money or point payment may omit card. A card payment may omit easyPay.
+ * A present instrument must be an object, and easy-pay amounts must not be negative.
+ */
+export function tossCheckoutInstrumentShape(payment: {
+  card?: unknown;
+  easyPay?: unknown;
+}): { ok: true } | { ok: false; reason: string } {
+  if ("card" in payment && payment.card != null && !isPlainRecord(payment.card)) {
+    return { ok: false, reason: "card_shape_invalid" };
+  }
+  if (!("easyPay" in payment) || payment.easyPay == null) {
+    return { ok: true };
+  }
+  if (!isPlainRecord(payment.easyPay)) {
+    return { ok: false, reason: "easypay_shape_invalid" };
+  }
+  if (!optionalNonNegativeAmount(payment.easyPay.amount) || !optionalNonNegativeAmount(payment.easyPay.discountAmount)) {
+    return { ok: false, reason: "easypay_shape_invalid" };
+  }
+  return { ok: true };
+}
+
+/**
  * Host and X-Forwarded-Host are routing observations only.
  * They are not payment authorization. Express `requestHostname` is not used.
  * Authorization is authorizePaymentRequest: verified member, stored order owner,
@@ -240,6 +286,8 @@ export type TossDonePaymentCheck = {
   totalAmount?: unknown;
   method?: unknown;
   mId?: unknown;
+  card?: unknown;
+  easyPay?: unknown;
 };
 
 /**
@@ -276,13 +324,18 @@ export function validateTossDonePayment(
     return { ok: false, reason: "payment_key_mismatch" };
   }
 
-  if (payment.method !== REQUIRED_CARD_METHOD) {
+  if (!isAcceptedTossCheckoutMethod(payment.method)) {
     return {
       ok: false,
       reason: typeof payment.method === "string" && payment.method.length > 0
-        ? "method_not_card"
+        ? "method_unsupported"
         : "method_missing",
     };
+  }
+
+  const instrument = tossCheckoutInstrumentShape(payment);
+  if (!instrument.ok) {
+    return instrument;
   }
 
   if (expected.requireLiveMid) {

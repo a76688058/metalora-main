@@ -5,10 +5,10 @@
 import type { Express, Request, Response } from "express";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { verifyAdminCaller } from "./accountWithdrawal";
+import { isAcceptedTossCheckoutMethod } from "./paymentEnvGuard";
 import { readFullCancelProof } from "./paymentCancellation";
 import { lookupTossPayment, postTossFullCancel } from "./tossPaymentCancel";
 import {
-  CARD_METHOD,
   LIVE_MID,
   type CaptureRecord,
   type MemoryCaptureDb,
@@ -54,7 +54,7 @@ export async function beginAlignedMismatchCancel(
       || !row.observedPaymentKey
       || row.providerStatus !== "DONE"
       || !row.paymentMethod
-      || row.paymentMethod === CARD_METHOD
+      || isAcceptedTossCheckoutMethod(row.paymentMethod)
       || !midOk
     ) {
       return { ok: false, reason: "not_eligible" };

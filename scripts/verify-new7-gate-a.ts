@@ -194,7 +194,13 @@ const missingMethod = validateTossDonePayment({ ...done, method: undefined }, ex
 assert(missingMethod.ok === false && missingMethod.reason === "method_missing", "missing method must be rejected");
 
 const otherMethod = validateTossDonePayment({ ...done, method: "계좌이체" }, expected);
-assert(otherMethod.ok === false && otherMethod.reason === "method_not_card", "non-card method must be rejected");
+assert(otherMethod.ok === false && otherMethod.reason === "method_unsupported", "unsupported method must be rejected");
+
+const easyPay = validateTossDonePayment(
+  { ...done, method: "간편결제", card: null, easyPay: { provider: "토스페이", amount: 0, discountAmount: 1000 } },
+  expected,
+);
+assert(easyPay.ok === true, "easy-pay points without a card object must pass");
 
 const testPayment = validateTossDonePayment(
   { ...done, mId: "testmid" },

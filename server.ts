@@ -9,8 +9,8 @@ import { PRODUCTION_SUPABASE_URL } from "./src/lib/supabaseHosts";
 import {
   PAYMENT_TEST_CROSS_WRITE_ERROR,
   PAYMENT_TEST_ENV_NAME,
-  REQUIRED_CARD_METHOD,
   authorizePaymentRequest,
+  isAcceptedTossCheckoutMethod,
   capturedPaymentLocalMismatchDisposition,
   canonicalPaymentReturnUrls,
   evaluateCanonicalPaymentHost,
@@ -3009,8 +3009,8 @@ ${staticUrls}${productUrls}
         console.log(`[PAYMENT_TOSS_RECOVERY] Established DONE via GET for order ${orderId}`);
       }
 
-      if (verifiedPayment.method !== REQUIRED_CARD_METHOD) {
-        const disposition = capturedPaymentLocalMismatchDisposition("method_not_card");
+      if (!isAcceptedTossCheckoutMethod(verifiedPayment.method)) {
+        const disposition = capturedPaymentLocalMismatchDisposition("method_unsupported");
         await logPaymentOpsFailure({
           payment_event: "integrity_provider_mismatch",
           phase: "finalize",

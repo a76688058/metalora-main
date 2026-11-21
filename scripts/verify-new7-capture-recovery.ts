@@ -348,7 +348,8 @@ async function main(): Promise<void> {
   const strict = await seed(observation({ observedPaymentKey: OTHER, providerMid: "other-mid" }), false);
   check("manual refund still requires the live MID", !(await beginManualObservedKeyRefund(strict, { orderNumber: ORDER, actorUserId: "admin-1", evidence: "x" })).ok);
   check("card method is required to finalize", await markFinalized(await seed(observation({ paymentMethod: "가상계좌" })), ORDER) === "refused");
-  check("public payment freeze stays active", PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 === true);
+  check("easy-pay method can finalize", await markFinalized(await seed(observation({ paymentMethod: "간편결제" })), ORDER) === "ok");
+  check("public payment freeze remains released", PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 === false);
 
   const external = await seed(observation({ providerMid: "other-mid" }));
   const attested = await attestExternalResolution(external, {
@@ -455,7 +456,14 @@ async function main(): Promise<void> {
 
   const migrationPath = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
-    "../supabase/migrations/20261024120000_new7_capture_recovery.sql",
+    "sql/historical/20261024120000_new7_capture_recovery.sql",
+  );
+  check(
+    "historical capture contract is not a branch migration",
+    !fs.existsSync(path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "../supabase/migrations/20261024120000_new7_capture_recovery.sql",
+    )),
   );
   const migrationSql = fs.readFileSync(migrationPath, "utf8").replace(/\r\n/g, "\n");
   const replacementStart = migrationSql.lastIndexOf("CREATE OR REPLACE FUNCTION public.finalize_paid_order(");

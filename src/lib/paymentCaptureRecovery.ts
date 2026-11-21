@@ -2,7 +2,7 @@
  * NEW7 capture recovery. In-memory transitions mirror the SQL RPCs for mock tests.
  * Browser paymentKey is only a claim. SQL apply is a separate approval.
  */
-import { LIVE_TOSS_MID, REQUIRED_CARD_METHOD } from "./paymentEnvGuard";
+import { isAcceptedTossCheckoutMethod, LIVE_TOSS_MID, REQUIRED_CARD_METHOD } from "./paymentEnvGuard";
 
 export const LIVE_MID = LIVE_TOSS_MID;
 export const CARD_METHOD = REQUIRED_CARD_METHOD;
@@ -170,7 +170,7 @@ function alignedDone(record: CaptureRecord, body: ProviderObservation): boolean 
     && body.providerOrderId === record.orderNumber
     && body.amount === record.amount
     && body.providerStatus === "DONE"
-    && body.paymentMethod === CARD_METHOD
+    && isAcceptedTossCheckoutMethod(body.paymentMethod)
     && !!body.providerMid
     && (!record.requireLiveMid || body.providerMid === LIVE_MID);
 }
@@ -179,7 +179,7 @@ function classifyAlignedFailure(record: CaptureRecord, body: ProviderObservation
   if (!body.providerMid) return "mid_missing";
   if (record.requireLiveMid && body.providerMid !== LIVE_MID) return "mid_mismatch";
   if (!body.paymentMethod) return "method_missing";
-  if (body.paymentMethod !== CARD_METHOD) return "method_mismatch";
+  if (!isAcceptedTossCheckoutMethod(body.paymentMethod)) return "method_mismatch";
   return "provider_open";
 }
 
@@ -290,7 +290,7 @@ export function preSendCancelAllowed(record: CaptureRecord): boolean {
     const method = [...methods][0];
     return record.claimedPaymentKey === record.observedPaymentKey
       && expected === record.observedPaymentKey
-      && method !== CARD_METHOD
+      && !isAcceptedTossCheckoutMethod(method)
       && (record.requireLiveMid ? mid === LIVE_MID : !!mid);
   }
   return false;
@@ -598,7 +598,7 @@ export async function markFinalized(db: MemoryCaptureDb, orderNumber: string): P
     }
     const row = db.records.get(orderNumber);
     if (!row || row.status !== "provider_done_pending_finalize") return "refused";
-    if (row.claimedPaymentKey !== row.observedPaymentKey || row.paymentMethod !== CARD_METHOD) return "refused";
+    if (row.claimedPaymentKey !== row.observedPaymentKey || !isAcceptedTossCheckoutMethod(row.paymentMethod)) return "refused";
     row.orderFinalized = true;
     row.status = "finalized";
     db.finalizedOrders.add(orderNumber);
