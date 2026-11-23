@@ -109,29 +109,30 @@ if ($fullSha -ne $originMain) {
     throw "Local HEAD ($shortSha) is not aligned with origin/main. Push before deploying."
 }
 
-# --- Current production revision ---
+# --- Current production revision (read only) ---
 $serviceBefore = Get-CloudRunService
 $productionBefore = Get-ProductionTrafficEntry -Service $serviceBefore
 $productionRevision = $productionBefore.revisionName
 
 Write-Host "Current production revision: $productionRevision"
 
-# --- Tag stable (traffic percentage unchanged) ---
-Invoke-Gcloud -Args @(
-    "run", "services", "update-traffic", $SERVICE,
-    "--project=$PROJECT",
-    "--region=$REGION",
-    "--update-tags=stable=$productionRevision"
-)
-
-# --- Build image ---
+# --- Build image before any Cloud Run tag or revision change ---
 $image = "${IMAGE_BASE}:${shortSha}"
 Write-Host "Building image: $image"
 
 Invoke-Gcloud -Args @(
     "builds", "submit", ".",
     "--project=$PROJECT",
-    "--tag=$image"
+    "--config=cloudbuild.yaml",
+    "--substitutions=_IMAGE=$image"
+)
+
+# --- Tag stable only after the image build succeeds ---
+Invoke-Gcloud -Args @(
+    "run", "services", "update-traffic", $SERVICE,
+    "--project=$PROJECT",
+    "--region=$REGION",
+    "--update-tags=stable=$productionRevision"
 )
 
 # --- Deploy candidate (0% production traffic) ---

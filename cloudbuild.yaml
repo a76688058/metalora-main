@@ -1,0 +1,22 @@
+# Remote Docker build using the Cloud Build docker builder with BuildKit.
+# The Dockerfile secret mount stays optional. Secret Manager does not
+# contain the public Toss live client key, so this config does not inject
+# one and does not substitute the private Toss secret key.
+substitutions:
+  _IMAGE: ""
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    env:
+      - DOCKER_BUILDKIT=1
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [ -z "${_IMAGE}" ]; then
+          echo "image substitution is empty" >&2
+          exit 1
+        fi
+        docker build -t "${_IMAGE}" .
+        docker push "${_IMAGE}"
