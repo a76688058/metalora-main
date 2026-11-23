@@ -31,7 +31,7 @@ import { registerReviewImageRoutes } from "./src/lib/reviewImageRoutes";
 import { registerReviewEligibilityRoute } from "./src/lib/reviewCommerceEligibility";
 import { registerFullOrderCancellationRoute } from "./src/lib/paymentCancellation";
 import { registerCaptureRecoveryAdminRoutes } from "./src/lib/paymentCaptureCancellation";
-import { confirmFreezeBlock, PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from "./src/lib/publicPaymentFreeze";
+import { confirmFreezeBlock, PUBLIC_PAYMENT_FROZEN_MESSAGE, PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from "./src/lib/publicPaymentFreeze";
 import { resolveSmsAdapter } from "./src/lib/smsAdapter";
 import { configureExpressTrustProxy, resolveTrustedIpMode } from "./src/lib/trustedClientIp";
 import { verifyPaymentMember } from "./src/lib/paymentMemberAuth";
@@ -211,12 +211,10 @@ function assertProductionEnvironment(): void {
   }
 }
 
-const PUBLIC_PAYMENT_FROZEN_MESSAGE = "현재 결제 기능을 준비하고 있습니다.";
-
 /**
  * Stops a new checkout while the public freeze is on.
- * Payment-test may still prepare. Confirm and admin cancellation stay available
- * so an already accepted payment can be recovered without taking a new charge.
+ * Payment-test may still prepare. Confirm uses confirmFreezeBlock and does not
+ * use this payment-test exception. Admin cancellation stays available.
  */
 function publicPaymentPrepareGuard(): { status: number; error: string } | null {
   if (isPaymentTestMode) return null;
