@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import type { AdminOrderItem } from './adminOrders';
 import { formatCustomMPrice } from '../../lib/customComposition/customMPrice';
+import {
+  manufacturingResolution,
+  manufacturingResampled,
+} from '../../lib/customComposition/math';
 import { readPurchasedComposition } from '../../lib/customComposition/productionSnapshot';
+import { supabase } from '../../lib/supabase';
 import {
   readStoredPurchasedUnitPrice,
   readStoredSourcePixels,
@@ -53,6 +58,7 @@ export function AdminCustomProduction({
   item,
   orderNumber,
   orderId,
+  itemIndex,
   buyerId,
   orderedAt,
   preview,
@@ -64,6 +70,7 @@ export function AdminCustomProduction({
   item: AdminOrderItem;
   orderNumber: string;
   orderId: string;
+  itemIndex: number;
   buyerId: string;
   orderedAt: string;
   preview: AdminImageSlot;
@@ -73,6 +80,8 @@ export function AdminCustomProduction({
   isolatedLabel?: string;
 }) {
   const [showOriginal, setShowOriginal] = useState(false);
+  const [downloadState, setDownloadState] = useState<'idle' | 'working' | 'failed' | 'saved'>('idle');
+  const [downloadNote, setDownloadNote] = useState<string | null>(null);
   const composition = readPurchasedComposition(item.customConfig, item.orientation);
   const ready = composition.status === 'ready';
   const unitPrice = readStoredPurchasedUnitPrice(item.price, item.customConfig);
@@ -84,17 +93,91 @@ export function AdminCustomProduction({
     config?.ai_outpaint === true ? 'AI 비율복원' : null,
     config?.ai_autofill === true ? 'AI 자동채우기' : null,
   ].filter((value): value is string => Boolean(value));
+  const manufacturingSource =
+    ready && composition.sourceWidth != null && composition.sourceHeight != null
+      ? { url: '', width: composition.sourceWidth, height: composition.sourceHeight }
+      : null;
+  const manufacturingComposition = ready
+    ? {
+        version: 1 as const,
+        orientation: composition.orientation,
+        zoom: composition.zoom,
+        offsetX: composition.offsetX,
+        offsetY: composition.offsetY,
+      }
+    : null;
+  const resolution =
+    manufacturingSource && manufacturingComposition
+      ? manufacturingResolution(manufacturingSource, manufacturingComposition)
+      : null;
+  const resampled =
+    manufacturingSource && manufacturingComposition
+      ? manufacturingResampled(manufacturingSource, manufacturingComposition)
+      : false;
+  const storedSizeDiffers =
+    resolution != null &&
+    composition.status === 'ready' &&
+    composition.widthMm != null &&
+    composition.heightMm != null &&
+    (composition.widthMm !== resolution.widthMm || composition.heightMm !== resolution.heightMm);
+  const canDownload = ready && Boolean(item.originalRef) && resolution != null;
+
+  async function downloadManufacturing() {
+    setDownloadState('working');
+    setDownloadNote(null);
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      setDownloadState('failed');
+      setDownloadNote('관리자 세션이 없습니다.');
+      return;
+    }
+    try {
+      const response = await fetch(
+        `/api/admin/orders/${encodeURIComponent(orderId)}/items/${itemIndex}/manufacturing.png`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!response.ok) {
+        setDownloadState('failed');
+        setDownloadNote('제작 출력을 만들지 못했습니다. 원본 또는 구매 구도를 확인하세요.');
+        return;
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = `manufacturing-${itemIndex}.png`;
+      anchor.click();
+      URL.revokeObjectURL(objectUrl);
+      const pixels = response.headers.get('X-Metalora-Manufacturing-Pixels');
+      const review = response.headers.get('X-Metalora-Manufacturing-Review');
+      const stored = response.headers.get('X-Metalora-Manufacturing-Stored');
+      const identity = response.headers.get('X-Metalora-Manufacturing-Id');
+      const notes = [
+        pixels ? `출력 ${pixels} px` : null,
+        review === 'below-reference' ? '300 PPI 참고값보다 낮습니다.' : null,
+        stored === 'absent' ? '저장소 보관에 실패했습니다. 같은 구매 구도로 다시 받을 수 있습니다.' : null,
+        identity ? `출력 식별 ${identity.slice(0, 12)}` : null,
+      ].filter((value): value is string => Boolean(value));
+      setDownloadState('saved');
+      setDownloadNote(notes.join(' · ') || '제작 출력을 받았습니다.');
+    } catch {
+      setDownloadState('failed');
+      setDownloadNote('제작 출력을 받지 못했습니다.');
+    }
+  }
+
   return (
     <section className="mt-4 rounded-xl border border-white/10 bg-black/30 p-4" aria-label="맞춤 제작 정보">
       {isolatedLabel ? <p className="mb-3 text-xs font-medium text-amber-200">{isolatedLabel}</p> : null}
-      <h5 className="text-sm font-medium text-white">최종 제작 이미지</h5>
-      <p className="mt-1 text-xs text-zinc-400">고객이 확정한 프레임 안의 구성입니다.</p>
+      <h5 className="text-sm font-medium text-white">고객 미리보기</h5>
+      <p className="mt-1 text-xs text-zinc-400">화면에서 확인한 구성입니다. 제작 출력이 아닙니다.</p>
       <div className="mt-3 flex min-h-48 items-center justify-center rounded-lg bg-zinc-950 p-3">
         <ImageSlot
           slot={preview}
-          alt="최종 제작 이미지"
+          alt="고객 미리보기"
           onError={onPreviewError}
-          empty="제작 정보 확인 필요"
+          empty="고객 미리보기를 확인할 수 없습니다."
         />
       </div>
       {!ready ? <p className="mt-3 text-sm font-medium text-amber-200">제작 정보 확인 필요</p> : null}
@@ -105,22 +188,63 @@ export function AdminCustomProduction({
           aria-expanded={showOriginal}
           onClick={() => setShowOriginal((open) => !open)}
         >
-          {showOriginal ? '원본 업로드 이미지 닫기' : '원본 업로드 이미지 보기'}
+          {showOriginal ? '원본 소스 닫기' : '원본 소스 보기'}
         </button>
         {showOriginal ? (
           <div className="mt-3">
-            <h5 className="text-sm font-medium text-white">원본 업로드 이미지</h5>
-            <p className="mt-1 text-xs text-zinc-400">제작 기준이 아닌, 고객이 올린 원본입니다.</p>
+            <h5 className="text-sm font-medium text-white">원본 소스</h5>
+            <p className="mt-1 text-xs text-zinc-400">고객이 올린 원본입니다. 잘라낸 제작 파일이 아닙니다.</p>
             <div className="mt-3 flex min-h-32 items-center justify-center rounded-lg bg-zinc-950 p-3">
               <ImageSlot
                 slot={original}
-                alt="원본 업로드 이미지"
+                alt="원본 소스"
                 onError={onOriginalError}
-                empty="원본 이미지를 확인할 수 없습니다."
+                empty="원본 소스를 확인할 수 없습니다."
               />
             </div>
           </div>
         ) : null}
+      </div>
+      <div className="mt-4">
+        <h5 className="text-sm font-medium text-white">제작 출력</h5>
+        <p className="mt-1 text-xs text-zinc-400">구매 시점의 구도와 원본 픽셀로 만든 제작 파일입니다.</p>
+        {resolution ? (
+          <dl className="mt-2 grid grid-cols-[7rem_1fr] gap-y-1 text-sm">
+            <dt className="text-zinc-500">크롭 픽셀</dt>
+            <dd className="text-zinc-100">{resolution.width} × {resolution.height} px</dd>
+            <dt className="text-zinc-500">출력 픽셀</dt>
+            <dd className="text-zinc-100">{resolution.width} × {resolution.height} px</dd>
+            <dt className="text-zinc-500">실물 치수</dt>
+            <dd className="text-zinc-100">{resolution.widthMm} × {resolution.heightMm} mm</dd>
+            <dt className="text-zinc-500">유효 해상도</dt>
+            <dd className="text-zinc-100">{resolution.ppiX.toFixed(1)} × {resolution.ppiY.toFixed(1)} PPI</dd>
+            <dt className="text-zinc-500">리샘플</dt>
+            <dd className="text-zinc-100">{resampled ? '소스 비율이 한 픽셀 넘게 조정됩니다.' : '원본 픽셀 비율을 유지합니다.'}</dd>
+          </dl>
+        ) : (
+          <p className="mt-2 text-sm text-amber-200">제작 출력을 계산할 구매 구도 또는 원본 픽셀이 없습니다.</p>
+        )}
+        {resolution?.belowReference ? (
+          <p className="mt-2 text-sm font-medium text-amber-200">
+            원본 크롭의 유효 해상도가 300 PPI 참고값보다 낮습니다. 파일을 만들었다고 인쇄 준비가 끝난 것은 아닙니다.
+          </p>
+        ) : null}
+        {storedSizeDiffers ? (
+          <p className="mt-2 text-sm font-medium text-amber-200">저장된 치수와 제작 규격이 다릅니다. 제작 치수는 구매 규격을 사용합니다.</p>
+        ) : null}
+        {!item.originalRef ? (
+          <p className="mt-2 text-sm font-medium text-amber-200">제작 출력에 쓸 원본 소스가 없습니다.</p>
+        ) : null}
+        <button
+          type="button"
+          className="mt-3 min-h-11 rounded-lg bg-white px-3 text-sm font-medium text-black disabled:opacity-40"
+          disabled={!canDownload || downloadState === 'working'}
+          onClick={() => void downloadManufacturing()}
+        >
+          {downloadState === 'working' ? '제작 출력을 만드는 중' : '제작 출력 받기'}
+        </button>
+        {downloadState === 'failed' ? <p className="mt-2 text-sm text-amber-200">{downloadNote}</p> : null}
+        {downloadState === 'saved' && downloadNote ? <p className="mt-2 text-sm text-zinc-300">{downloadNote}</p> : null}
       </div>
       <h5 className="mt-4 text-sm font-medium text-white">제작 사양</h5>
       <dl className="mt-2 grid grid-cols-[7rem_1fr] gap-y-1 text-sm">
@@ -128,9 +252,9 @@ export function AdminCustomProduction({
         <dd className="break-all text-zinc-100">{buyerId || '—'}</dd>
         <dt className="text-zinc-500">주문 시각</dt>
         <dd className="text-zinc-100">{orderedAt || '—'}</dd>
-        <dt className="text-zinc-500">편집 이미지</dt>
+        <dt className="text-zinc-500">고객 미리보기</dt>
         <dd className="break-all text-zinc-100">{item.imageUrl || '—'}</dd>
-        <dt className="text-zinc-500">원본 이미지</dt>
+        <dt className="text-zinc-500">원본 소스</dt>
         <dd className="break-all text-zinc-100">{item.originalRef || '—'}</dd>
         <dt className="text-zinc-500">원본 픽셀</dt>
         <dd className="text-zinc-100">

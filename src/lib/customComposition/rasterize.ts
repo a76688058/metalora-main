@@ -1,4 +1,4 @@
-import { frameSize, imageSizeInFrame } from './math';
+import { compositionRasterFrame, previewPixelSize } from './math';
 import { PREVIEW_LONG_EDGE_PX, type CustomComposition, type CustomSource } from './types';
 
 export function loadCustomSource(url: string): Promise<CustomSource> {
@@ -33,16 +33,21 @@ export async function rasterizeCustomComposition(
   composition: CustomComposition,
   options?: {
     longEdgePx?: number;
+    /** Explicit pixel size for a shared-geometry comparison. Preview callers omit this. */
+    targetPx?: { width: number; height: number };
     marginColor?: string;
   },
 ): Promise<Blob> {
   const longEdge = options?.longEdgePx ?? PREVIEW_LONG_EDGE_PX;
   const marginColor = options?.marginColor ?? '#f4f4f5';
-  const frame = frameSize(composition.orientation);
-  const longMm = Math.max(frame.width, frame.height);
+  const placed = compositionRasterFrame(
+    source,
+    composition,
+    options?.targetPx ?? previewPixelSize(composition.orientation, longEdge),
+  );
   const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round((frame.width / longMm) * longEdge));
-  canvas.height = Math.max(1, Math.round((frame.height / longMm) * longEdge));
+  canvas.width = placed.width;
+  canvas.height = placed.height;
 
   const ctx = canvas.getContext('2d');
   if (!ctx) {
@@ -53,14 +58,7 @@ export async function rasterizeCustomComposition(
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const image = await loadHtmlImage(source.url);
-  const placed = imageSizeInFrame(source, composition);
-  const unit = canvas.width / frame.width;
-  const drawWidth = placed.width * unit;
-  const drawHeight = placed.height * unit;
-  const centerX = canvas.width / 2 + composition.offsetX * canvas.width;
-  const centerY = canvas.height / 2 + composition.offsetY * canvas.height;
-
-  ctx.drawImage(image, centerX - drawWidth / 2, centerY - drawHeight / 2, drawWidth, drawHeight);
+  ctx.drawImage(image, placed.drawX, placed.drawY, placed.drawWidth, placed.drawHeight);
 
   const blob = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob((result) => resolve(result), 'image/jpeg', 0.92);

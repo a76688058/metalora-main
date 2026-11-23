@@ -621,6 +621,7 @@ export default function AdminOrders() {
                           item={item}
                           orderNumber={selectedOrder.order_number}
                           orderId={selectedOrder.id}
+                          itemIndex={index}
                           buyerId={selectedOrder.user_id}
                           orderedAt={formatOrderDate(selectedOrder.created_at)}
                           preview={item.imageUrl ? workshopMedia.get(item.imageUrl) : { status: 'absent', src: null }}

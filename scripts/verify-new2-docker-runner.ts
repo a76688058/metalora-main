@@ -116,6 +116,7 @@ const allowedOutsideLib = ["src/types/reviews.ts"];
 const allowedNested = [
   "src/lib/customComposition/productionSnapshot.ts",
   "src/lib/customComposition/types.ts",
+  "src/lib/customComposition/math.ts",
 ];
 const nested = graph.filter(
   (file) => file !== "server.ts"

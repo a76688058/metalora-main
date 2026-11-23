@@ -7,6 +7,8 @@ import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import { PRODUCTION_SUPABASE_URL } from "./src/lib/supabaseHosts";
 import { canonicalOutputMillimeters } from "./src/lib/customComposition/productionSnapshot";
+import { createOrderManufacturingAccess } from "./src/lib/manufacturingBytes";
+import { renderPurchasedManufacturing } from "./src/lib/manufacturingOrder";
 import {
   PAYMENT_TEST_CROSS_WRITE_ERROR,
   PAYMENT_TEST_ENV_NAME,
@@ -2088,6 +2090,65 @@ async function startServer() {
       console.error("[WORKSHOP_RETENTION] job_failed", { reason_class: "job_error" });
       return res.status(500).json({ error: "job_failed" });
     }
+  });
+
+  app.get("/api/admin/orders/:orderId/items/:itemIndex/manufacturing.png", async (req, res) => {
+    if (!supabaseAdmin || !supabasePublic) {
+      return res.status(503).json({ error: "unavailable" });
+    }
+    const actor = await verifyAdminCaller(
+      supabaseAdmin,
+      supabasePublic,
+      req.headers.authorization,
+    );
+    const orderId = String(req.params.orderId ?? "");
+    const itemText = String(req.params.itemIndex ?? "");
+    const itemIndex = Number(itemText);
+    if (!isUuid(orderId) || !Number.isInteger(itemIndex) || String(itemIndex) !== itemText || itemIndex < 0) {
+      return res.status(404).json({ error: "not_found" });
+    }
+    if (actor.ok === false) {
+      return res.status(actor.status).json({ error: actor.reason_class });
+    }
+    const { data, error } = await supabaseAdmin
+      .from("orders")
+      .select("id, ordered_items")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (error || !data) return res.status(404).json({ error: "not_found" });
+    let gcs: ReturnType<typeof workshopGcsStoreFor> = null;
+    try {
+      gcs = workshopGcsConfig.state === "ready" ? workshopGcsStoreFor(workshopGcsConfig) : null;
+    } catch {
+      console.error("[MANUFACTURING]", { reason_class: "storage_config" });
+      return res.status(503).json({ error: "unavailable" });
+    }
+    const access = createOrderManufacturingAccess({
+      gcs,
+      legacy: supabaseAdmin,
+      refOptions: workshopRefOptions,
+    });
+    const result = await renderPurchasedManufacturing({
+      actor,
+      order: { id: String(data.id), ordered_items: data.ordered_items },
+      itemIndex,
+      access,
+    });
+    if (!('png' in result)) {
+      if (result.status >= 500) console.error("[MANUFACTURING]", { reason_class: result.error });
+      return res.status(result.status).json({ error: result.error });
+    }
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Content-Disposition", `attachment; filename="manufacturing-${itemIndex}.png"`);
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Metalora-Manufacturing-Pixels", `${result.width}x${result.height}`);
+    res.setHeader("X-Metalora-Manufacturing-Millimetres", `${result.widthMm}x${result.heightMm}`);
+    res.setHeader("X-Metalora-Manufacturing-PPI", `${result.ppiX.toFixed(1)},${result.ppiY.toFixed(1)}`);
+    res.setHeader("X-Metalora-Manufacturing-Review", result.belowReference ? "below-reference" : "reference-met");
+    res.setHeader("X-Metalora-Manufacturing-Resampled", result.resampled ? "1" : "0");
+    res.setHeader("X-Metalora-Manufacturing-Stored", result.stored);
+    res.setHeader("X-Metalora-Manufacturing-Id", result.fingerprint);
+    return res.status(200).send(result.png);
   });
 
   app.post(ACCOUNT_WITHDRAWAL_ADMIN_PATH, async (req, res) => {

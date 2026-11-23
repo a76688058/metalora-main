@@ -210,3 +210,100 @@ export function effectiveSourceWindow(
 export function compositionIsTightCrop(composition: CustomComposition): boolean {
   return composition.zoom > 1 + 1e-6;
 }
+
+/** Preview and manufacturing share this placement. Target pixels are chosen by the caller. */
+export function compositionRasterFrame(
+  source: CustomSource,
+  composition: CustomComposition,
+  target: { width: number; height: number },
+): {
+  width: number;
+  height: number;
+  drawX: number;
+  drawY: number;
+  drawWidth: number;
+  drawHeight: number;
+  sourceWindow: { x: number; y: number; width: number; height: number };
+} {
+  const frame = frameSize(composition.orientation);
+  const placed = imageSizeInFrame(source, composition);
+  const unit = target.width / frame.width;
+  const drawWidth = placed.width * unit;
+  const drawHeight = placed.height * unit;
+  const centerX = target.width / 2 + composition.offsetX * target.width;
+  const centerY = target.height / 2 + composition.offsetY * target.height;
+  return {
+    width: target.width,
+    height: target.height,
+    drawX: centerX - drawWidth / 2,
+    drawY: centerY - drawHeight / 2,
+    drawWidth,
+    drawHeight,
+    sourceWindow: effectiveSourceWindow(source, composition),
+  };
+}
+
+/** Screen preview size. Long edge is 1600 px unless a test passes another edge. */
+export function previewPixelSize(
+  orientation: CustomOrientation,
+  longEdgePx: number,
+): { width: number; height: number } {
+  const frame = frameSize(orientation);
+  const longMm = Math.max(frame.width, frame.height);
+  return {
+    width: Math.max(1, Math.round((frame.width / longMm) * longEdgePx)),
+    height: Math.max(1, Math.round((frame.height / longMm) * longEdgePx)),
+  };
+}
+
+/**
+ * Manufacturing size is the source-pixel crop window, rounded to whole pixels.
+ * It is not enlarged to a preview or to a reference PPI.
+ */
+export function manufacturingPixelSize(
+  source: CustomSource,
+  composition: CustomComposition,
+): { width: number; height: number } {
+  const window = effectiveSourceWindow(source, composition);
+  return {
+    width: Math.max(1, Math.round(window.width)),
+    height: Math.max(1, Math.round(window.height)),
+  };
+}
+
+/** 300 is a comparison reference, not a pass/fail manufacturing rule. */
+export const MANUFACTURING_REFERENCE_PPI = 300;
+
+export function manufacturingResolution(
+  source: CustomSource,
+  composition: CustomComposition,
+): {
+  width: number;
+  height: number;
+  widthMm: number;
+  heightMm: number;
+  ppiX: number;
+  ppiY: number;
+  belowReference: boolean;
+} {
+  const pixels = manufacturingPixelSize(source, composition);
+  const frame = frameSize(composition.orientation);
+  const ppiX = pixels.width / (frame.width / 25.4);
+  const ppiY = pixels.height / (frame.height / 25.4);
+  return {
+    width: pixels.width,
+    height: pixels.height,
+    widthMm: frame.width,
+    heightMm: frame.height,
+    ppiX,
+    ppiY,
+    belowReference: Math.min(ppiX, ppiY) < MANUFACTURING_REFERENCE_PPI,
+  };
+}
+
+/** True when integer output size changes the source scale by more than rounding noise. */
+export function manufacturingResampled(source: CustomSource, composition: CustomComposition): boolean {
+  const size = manufacturingPixelSize(source, composition);
+  const frame = compositionRasterFrame(source, composition, size);
+  return Math.abs(frame.drawWidth - source.width) > 1.5 || Math.abs(frame.drawHeight - source.height) > 1.5;
+}

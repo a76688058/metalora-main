@@ -87,6 +87,12 @@ export function applyWorkshopMediaResponseHeaders(res: { setHeader(name: string,
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const STRICT_ORIGINAL_RE = new RegExp(`^originals/(${UUID})/(${UUID})\\.(jpg|jpeg|png|webp)$`);
 const STRICT_PREVIEW_RE = new RegExp(`^previews/(${UUID})/(${UUID})\\.(jpg)$`);
+/** Server-derived manufacturing artifact. Not a client sign-read path. */
+const MANUFACTURING_ARTIFACT_RE = /^manufacturing\/[a-f0-9]{64}\.png$/;
+
+export function isManufacturingArtifactKey(key: string): boolean {
+  return MANUFACTURING_ARTIFACT_RE.test(key);
+}
 const LOWER_UUID_RE = new RegExp(`^${UUID}$`);
 
 /** Legacy-tolerant object shape (any filename). Used for cleanup/deletion only, never for signing. */
@@ -384,7 +390,7 @@ export class WorkshopStorageConfigError extends Error {
 // ---------------------------------------------------------------------------
 
 export type WorkshopStoreName = 'gcs' | 'supabase_legacy';
-export type WorkshopStorageOperation = 'list' | 'remove' | 'head' | 'sign' | 'init';
+export type WorkshopStorageOperation = 'list' | 'remove' | 'head' | 'sign' | 'init' | 'read' | 'write';
 
 export class WorkshopStorageError extends Error {
   constructor(
@@ -434,6 +440,10 @@ export interface WorkshopGcsObjectStore extends WorkshopObjectStore {
   head(path: string): Promise<WorkshopObjectMetadata | null>;
   signUpload(path: string, contentType: string, maxBytes: number): Promise<WorkshopSignedUpload>;
   signRead(path: string): Promise<WorkshopSignedRead>;
+  /** Present only on the production store. Client sign-read stays limited to originals and previews. */
+  readCanonicalBytes?(path: string): Promise<Buffer | null>;
+  readManufacturingBytes?(key: string): Promise<Buffer | null>;
+  writeManufacturingBytes?(key: string, bytes: Buffer): Promise<'written' | 'exists'>;
 }
 
 function userScopeValid(scope: WorkshopListScope): boolean {
@@ -732,6 +742,44 @@ export function createGcsWorkshopStore(
       }
       assertSignedUrlShape(url, config.bucket, path);
       return { url, method: 'PUT', headers, expiresAt: new Date(expiresMs).toISOString() };
+    },
+    async readCanonicalBytes(path) {
+      if (!parseStrictCanonicalPath(path, 'canonical')) throw new WorkshopStorageError('gcs', 'read', false);
+      const b = await bucket();
+      try {
+        const [buf] = await b.file(path).download();
+        return buf;
+      } catch (error) {
+        if (gcsErrorCode(error) === 404) return null;
+        throw new WorkshopStorageError('gcs', 'read', gcsRetryable(error));
+      }
+    },
+    async readManufacturingBytes(key) {
+      if (!isManufacturingArtifactKey(key)) throw new WorkshopStorageError('gcs', 'read', false);
+      const b = await bucket();
+      try {
+        const [buf] = await b.file(key).download();
+        return buf;
+      } catch (error) {
+        if (gcsErrorCode(error) === 404) return null;
+        throw new WorkshopStorageError('gcs', 'read', gcsRetryable(error));
+      }
+    },
+    async writeManufacturingBytes(key, bytes) {
+      if (!isManufacturingArtifactKey(key)) throw new WorkshopStorageError('gcs', 'write', false);
+      const b = await bucket();
+      try {
+        await b.file(key).save(bytes, {
+          resumable: false,
+          contentType: 'image/png',
+          metadata: { cacheControl: 'private, no-store' },
+          preconditionOpts: { ifGenerationMatch: 0 },
+        });
+        return 'written';
+      } catch (error) {
+        if (gcsErrorCode(error) === 412) return 'exists';
+        throw new WorkshopStorageError('gcs', 'write', gcsRetryable(error));
+      }
     },
     async signRead(path) {
       if (!parseStrictCanonicalPath(path, 'canonical')) throw new WorkshopStorageError('gcs', 'sign', false);

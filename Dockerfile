@@ -41,6 +41,7 @@ COPY server.ts ./
 COPY src/lib/*.ts ./src/lib/
 COPY src/lib/customComposition/productionSnapshot.ts ./src/lib/customComposition/productionSnapshot.ts
 COPY src/lib/customComposition/types.ts ./src/lib/customComposition/types.ts
+COPY src/lib/customComposition/math.ts ./src/lib/customComposition/math.ts
 # Extensionless import ../types/reviews from reviewImageRoutes.ts.
 # tsx resolves it to this file. It has no further local imports.
 COPY src/types/reviews.ts ./src/types/reviews.ts
