@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { ArtworkExternalStateRef, ArtworkInteractionMode } from './types';
@@ -8,6 +8,7 @@ export interface ArtworkMotionOptions {
   interactive: boolean;
   autoRotate: boolean;
   baseScale: number;
+  snapBaseScale?: boolean;
   enablePointerFlip: boolean;
   enableDeviceOrientation: boolean;
   /** Poster3D legacy: non-interactive views always rotate unless autoRotate explicitly false and this is idle */
@@ -28,6 +29,11 @@ export function useArtworkMotion(options: ArtworkMotionOptions): ArtworkMotionRe
   const meshRef = useRef<THREE.Mesh>(null);
   const pointerRef = useRef({ hovered: false, active: false });
   const deviceTiltRef = useRef({ x: 0, y: 0 });
+
+  useLayoutEffect(() => {
+    if (!options.snapBaseScale) return;
+    groupRef.current?.scale.setScalar(options.baseScale);
+  }, [options.snapBaseScale, options.baseScale]);
 
   useEffect(() => {
     if (!options.enableDeviceOrientation) return;
@@ -66,8 +72,12 @@ export function useArtworkMotion(options: ArtworkMotionOptions): ArtworkMotionRe
 
     const scaleTarget =
       (external?.scale ?? 1) * (pointer.active ? 1.1 : 1) * options.baseScale;
-    const currentScale = group.scale.x;
-    group.scale.setScalar(THREE.MathUtils.lerp(currentScale, scaleTarget, delta * 5));
+    if (options.snapBaseScale) {
+      if (group.scale.x !== scaleTarget) group.scale.setScalar(scaleTarget);
+    } else {
+      const currentScale = group.scale.x;
+      group.scale.setScalar(THREE.MathUtils.lerp(currentScale, scaleTarget, delta * 5));
+    }
 
     if (external?.rotationX !== undefined || external?.rotationY !== undefined) {
       if (options.interactionMode === 'static') {

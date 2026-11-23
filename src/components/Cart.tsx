@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, animate } from 'framer-motion';
-import { X, ShoppingBag, ChevronRight, MapPin, CreditCard, CheckCircle2, Loader2, Trash2, Plus, Minus, Search, Check } from 'lucide-react';
+import { X, ShoppingBag, ChevronRight, MapPin, CreditCard, Loader2, Trash2, Plus, Minus, Search, Check } from 'lucide-react';
 import { CART_AUTH_RETURN_KEY, useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -31,6 +31,14 @@ import { resolveTossClientKey } from '../lib/tossClientKey';
 import { checkoutPolicyVersionSnapshot } from '../lib/policyVersions';
 import { useWorkshopMediaDisplay } from '../hooks/useWorkshopMediaDisplay';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
+import {
+  classifyCartLine,
+  readSeenUnit,
+  writeSeenUnit,
+  type CartLineNotice,
+  type CartNoticeInput,
+} from '../lib/cartLineNotice';
+import { CART_CONTINUE_LINE_KEY, customCheckoutCartItemId } from '../lib/customComposition/submitCustomCart';
 
 interface CartProps {
   isOpen: boolean;
@@ -83,6 +91,55 @@ function customSizeLabel(size: unknown): string {
   return raw;
 }
 
+function cartLineInput(
+  item: {
+    product_id?: string;
+    product_type?: string;
+    selected_option?: string;
+    custom_config?: { price?: unknown; price_snapshot?: unknown };
+    product?: CartNoticeInput['product'];
+  },
+  seenUnit: number | null,
+): CartNoticeInput {
+  return {
+    kind: isCustomCartRow(item) ? 'workshop' : 'catalog',
+    product: item.product ?? null,
+    optionId: item.selected_option ?? '',
+    workshopUnit: customUnitPrice(item),
+    seenUnit,
+  };
+}
+
+function CartLineCopy({ notice }: { notice: CartLineNotice }) {
+  if (!notice.statusMessage && !notice.priceMessage) return null;
+  return (
+    <div className="mt-2 space-y-1">
+      {notice.statusMessage ? (
+        <p className="text-sm font-medium" role="status">{notice.statusMessage}</p>
+      ) : null}
+      {notice.priceMessage ? (
+        <p className="text-sm font-medium" role="status">{notice.priceMessage}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function isolatedReviewThumb(lineId: string): string {
+  if (!import.meta.env.DEV || typeof window === 'undefined') return '';
+  const bridge = (window as Window & {
+    __metaloraConceptCartReview?: { src?: (id: string) => string };
+  }).__metaloraConceptCartReview;
+  return bridge?.src?.(lineId) ?? '';
+}
+
+function isolatedReviewLabel(): string {
+  if (!import.meta.env.DEV || typeof window === 'undefined') return '';
+  const bridge = (window as Window & {
+    __metaloraConceptCartReview?: { active?: boolean; label?: string };
+  }).__metaloraConceptCartReview;
+  return bridge?.active ? (bridge.label || '') : '';
+}
+
 function cartThumbFrameClass(orientation: 'portrait' | 'landscape' | null, compact = false): string {
   const size = orientation === 'landscape'
     ? (compact
@@ -92,17 +149,6 @@ function cartThumbFrameClass(orientation: 'portrait' | 'landscape' | null, compa
       ? 'w-[3.15rem] h-[4.5rem]'
       : 'w-[4.75rem] h-[6.75rem] sm:w-[5.25rem] sm:h-[7.5rem]');
   return `${size} rounded-[2px] bg-black/[0.04] dark:bg-white/[0.06]`;
-}
-
-/**
- * Local form preview only. Production builds drop this because
- * import.meta.env.DEV is false. A query string cannot enable it.
- */
-function localCheckoutUiPreviewAllowed(): boolean {
-  if (!import.meta.env.DEV) return false;
-  if (typeof window === 'undefined') return false;
-  const host = window.location.hostname;
-  return host === 'localhost' || host === '127.0.0.1';
 }
 
 type CartCheckState = 'off' | 'on' | 'mixed';
@@ -121,6 +167,62 @@ function CartCheckMark({ state }: { state: CartCheckState }) {
       {state === 'on' ? <Check size={14} strokeWidth={3} /> : null}
       {state === 'mixed' ? <Minus size={14} strokeWidth={3} /> : null}
     </span>
+  );
+}
+
+function BrandMark({
+  label,
+  background,
+  children,
+}: {
+  label: string;
+  background: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      className="inline-flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full"
+      style={{ backgroundColor: background }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function CheckoutPaymentCard({ muted }: { muted: string }) {
+  return (
+    <div className="rounded-[2px] border border-accent/35 bg-accent/[0.04] px-3.5 py-3 dark:border-accent/45 dark:bg-accent/[0.07]">
+      <h3 className="text-base font-medium leading-none">결제 수단</h3>
+      <p className={cn('mt-1 text-xs leading-relaxed', muted)}>카드부터 간편결제까지, 한 번에</p>
+      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2" role="group" aria-label="대표 결제 수단">
+        <BrandMark label="카카오페이" background="#FEE500">
+          <svg viewBox="0 0 24 24" className="size-[1.15rem]" aria-hidden="true">
+            <path fill="#191919" d="M12 3.1C6.7 3.1 2.4 6.5 2.4 10.7c0 2.7 1.8 5.1 4.5 6.4l-.9 3.3c-.1.3.2.6.5.4l3.9-2.6c.5.1 1 .1 1.6.1 5.3 0 9.6-3.4 9.6-7.6S17.3 3.1 12 3.1z" />
+          </svg>
+        </BrandMark>
+        <BrandMark label="토스페이" background="#0064FF">
+          <svg viewBox="4 2 168 186" className="h-[1.2rem] w-[1.15rem]" aria-hidden="true">
+            <path fill="#fff" d="m118.5 45.4 8.9-41.8c.4-2.1-1.4-4-3.5-3.5-12.9 2.3-26.3 6.3-39.6 12-59.8 25.3-96 74.9-80.8 110.8 11.5 26.9 48.6 38.4 91.7 31.7l-8.9 41.8c-.4 2.1 1.4 4 3.5 3.5 12.9-2.3 26.3-6.3 39.6-12 59.8-25.3 95.9-74.9 80.7-110.9-11.4-26.8-48.5-38.3-91.6-31.6z" />
+          </svg>
+        </BrandMark>
+        <BrandMark label="네이버페이" background="#03C75A">
+          <svg viewBox="-1.5 -1.5 27 27" className="size-[1.15rem]" aria-hidden="true">
+            <path fill="#fff" d="M16.273 12.845 7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727v12.845Z" />
+          </svg>
+        </BrandMark>
+        <span className="inline-flex min-w-0 items-center gap-1.5">
+          <span
+            aria-hidden="true"
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-black/12 text-[11px] tracking-[0.12em] text-current/55 dark:border-white/15 dark:text-current/60"
+          >
+            ···
+          </span>
+          <span className={cn('text-xs leading-none', muted)}>외 다양한 결제수단</span>
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -249,7 +351,6 @@ export default function Cart() {
   const { user, adminUser, profile, adminProfile, isLoading: isAuthLoading, isProfileResolved } = useAuth();
   const { showToast } = useToast();
   const [step, setStep] = useState(1); // 1: List, 2: Order Form
-  const [checkoutUiPreview, setCheckoutUiPreview] = useState(false);
   const cartEnterSettled = useRef(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const pendingCheckoutRef = useRef(false);
@@ -261,15 +362,28 @@ export default function Cart() {
     if (!isOpen) {
       setIsLoginModalOpen(false);
       pendingCheckoutRef.current = false;
-      setCheckoutUiPreview(false);
       cartEnterSettled.current = false;
       return;
     }
+    void refreshCart();
     const id = window.setTimeout(() => {
       cartEnterSettled.current = true;
     }, 520);
     return () => window.clearTimeout(id);
-  }, [isOpen]);
+  }, [isOpen, refreshCart]);
+
+  useEffect(() => {
+    const viewerId = user?.id || adminUser?.id;
+    if (!viewerId) return;
+    for (const item of cartItems) {
+      const status = classifyCartLine(cartLineInput(item, null));
+      if (status.currentUnit < 1) continue;
+      if (status.block === 'missing' || status.block === 'option_missing' || status.block === 'price_unknown') continue;
+      if (readSeenUnit(viewerId, item.id) == null) {
+        writeSeenUnit(viewerId, item.id, status.currentUnit);
+      }
+    }
+  }, [user?.id, adminUser?.id, cartItems]);
 
   // Initialize selection: Select all by default
   useEffect(() => {
@@ -285,10 +399,8 @@ export default function Cart() {
 
   const selectedItems = cartItems.filter(item => selectedIds.has(item.id));
   const selectedTotalPrice = selectedItems.reduce((sum, item) => {
-    const price = isCustomCartRow(item)
-      ? customUnitPrice(item)
-      : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
-    return sum + (price * item.quantity);
+    const unit = classifyCartLine(cartLineInput(item, null)).currentUnit;
+    return sum + (unit * item.quantity);
   }, 0);
 
   // Toss-style price animation
@@ -455,6 +567,19 @@ export default function Cart() {
   };
 
   const currentAuthUser = user || adminUser;
+  const noticeFor = (item: (typeof cartItems)[number]) =>
+    classifyCartLine(cartLineInput(item, currentAuthUser ? readSeenUnit(currentAuthUser.id, item.id) : null));
+  const selectedBlocked = selectedItems.some((item) => noticeFor(item).block);
+  const selectedPriceChanged = selectedItems.some((item) => noticeFor(item).priceChanged);
+  const rememberSelectedPrices = () => {
+    if (!currentAuthUser) return;
+    for (const item of selectedItems) {
+      const status = noticeFor(item);
+      if (status.currentUnit < 1) continue;
+      if (status.block === 'missing' || status.block === 'option_missing' || status.block === 'price_unknown') continue;
+      writeSeenUnit(currentAuthUser.id, item.id, status.currentUnit);
+    }
+  };
   const checkoutProfile =
     currentAuthUser && profile?.id === currentAuthUser.id
       ? profile
@@ -469,9 +594,34 @@ export default function Cart() {
     isAuthLoading || (Boolean(currentAuthUser) && !isProfileResolved);
   const screeningCheckout = CARD_SCREENING_TEST_ENABLED && PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7;
   const checkoutClosed = PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 && !screeningCheckout;
+  const continueLineRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    let lineId: string | null = null;
+    try {
+      lineId = sessionStorage.getItem(CART_CONTINUE_LINE_KEY);
+      if (lineId) sessionStorage.removeItem(CART_CONTINUE_LINE_KEY);
+    } catch {
+      lineId = null;
+    }
+    if (lineId) continueLineRef.current = lineId;
+  }, [isOpen]);
+
+  useEffect(() => {
+    const lineId = continueLineRef.current;
+    if (!lineId || !isOpen) return;
+    if (!cartItems.some((item) => item.id === lineId)) return;
+    continueLineRef.current = null;
+    setSelectedIds(new Set([lineId]));
+    if (canCheckout && !checkoutClosed) setStep(2);
+  }, [isOpen, cartItems, canCheckout, checkoutClosed]);
 
   const beginCheckoutStep = () => {
     if (selectedIds.size === 0 || step !== 1) return;
+    if (selectedItems.some((item) => noticeFor(item).block)) {
+      showToast('주문할 수 없는 상품이 선택되어 있습니다.', 'error');
+      return;
+    }
     track('begin_checkout', {
       currency: 'KRW',
       value: selectedTotalPrice,
@@ -500,6 +650,10 @@ export default function Cart() {
     if (!currentUser) return;
     if (!hasCompleteShipping(shippingData)) {
       showToast('배송 정보를 모두 입력해 주세요.', 'error');
+      return;
+    }
+    if (selectedItems.some((item) => noticeFor(item).block)) {
+      showToast('주문할 수 없는 상품이 선택되어 있습니다.', 'error');
       return;
     }
 
@@ -560,6 +714,7 @@ export default function Cart() {
           optionId = option?.id ?? item.selected_option ?? null;
         }
 
+        const cartItemId = customCheckoutCartItemId(item);
         return {
           product_id: item.product_id === 'workshop-single' ? null : item.product_id,
           product_title: title,
@@ -571,6 +726,7 @@ export default function Cart() {
           user_image_url: item.custom_image || null,
           orientation: item.orientation || null,
           custom_config: item.custom_config || null,
+          ...(cartItemId ? { cart_item_id: cartItemId } : {}),
         };
       });
 
@@ -827,6 +983,10 @@ export default function Cart() {
       showToast('배송 정보를 모두 입력해 주세요.', 'error');
       return;
     }
+    if (selectedItems.some((item) => noticeFor(item).block)) {
+      showToast('주문할 수 없는 상품이 선택되어 있습니다.', 'error');
+      return;
+    }
     if (!isAllConsented) {
       showToast('필수 약관에 모두 동의해 주세요.', 'error');
       return;
@@ -886,15 +1046,6 @@ export default function Cart() {
     setStep(1);
   };
 
-  const openCheckoutUiPreview = () => {
-    if (!localCheckoutUiPreviewAllowed()) return;
-    setCheckoutUiPreview(true);
-  };
-
-  const closeCheckoutUiPreview = () => {
-    setCheckoutUiPreview(false);
-  };
-
   const markShippingTouched = (key: keyof CheckoutShippingFields) => {
     setShippingTouched((current) => ({ ...current, [key]: true }));
   };
@@ -904,7 +1055,7 @@ export default function Cart() {
     return shippingData[key].trim() === '' ? '입력해 주세요.' : null;
   };
 
-  const showingCheckoutForm = step === 2 || checkoutUiPreview;
+  const showingCheckoutForm = step === 2;
   const stepShift = reducedMotion || !cartEnterSettled.current
     ? { duration: 0 }
     : { duration: 0.22, ease: [0.22, 1, 0.36, 1] as const };
@@ -946,9 +1097,14 @@ export default function Cart() {
       >
         {/* Header */}
         <div className={`flex items-center justify-between border-b px-6 py-5 ${theme === 'dark' ? 'border-white/5' : 'border-black/5'}`}>
-          <h2 id="cart-drawer-title" className="text-[1.75rem] font-medium tracking-[-0.02em]">
-            {showingCheckoutForm ? '주문하기' : '장바구니'}
-          </h2>
+          <div className="min-w-0">
+            <h2 id="cart-drawer-title" className="text-[1.75rem] font-medium tracking-[-0.02em]">
+              {showingCheckoutForm ? '주문하기' : '장바구니'}
+            </h2>
+            {isolatedReviewLabel() ? (
+              <p className="mt-1 text-xs font-medium">{isolatedReviewLabel()}</p>
+            ) : null}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -1062,12 +1218,10 @@ export default function Cart() {
                         }
                         
                         const optionDisplay = [sizeName, orientationName, ...aiOptions].filter(Boolean).join(' • ');
-
-                        const price = isWorkshop
-                          ? customUnitPrice(item)
-                          : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
+                        const lineNotice = noticeFor(item);
+                        const price = lineNotice.currentUnit;
                         const image = isWorkshop
-                          ? (workshopMedia.get(item.custom_image).src || '')
+                          ? (isolatedReviewThumb(item.id) || workshopMedia.get(item.custom_image).src || '')
                           : (rowOrientation === 'landscape' && item.product?.landscape_image
                             ? item.product.landscape_image
                             : (item.product?.front_image || item.product?.image || ''));
@@ -1122,6 +1276,7 @@ export default function Cart() {
                               <div className="min-w-0">
                                 <h3 className="font-medium text-base leading-tight tracking-[-0.02em] break-words">{title}</h3>
                                 <p className={`text-sm mt-1 break-words ${muted}`}>{optionDisplay}</p>
+                                <CartLineCopy notice={lineNotice} />
                               </div>
                               <button 
                                 type="button"
@@ -1190,7 +1345,7 @@ export default function Cart() {
               >
                 <section>
                   <h3 className="mb-4 text-base font-medium">주문 상품</h3>
-                  <div className="space-y-4 border-b border-black/10 py-6 dark:border-white/10">
+                  <div>
                     {selectedItems.map(item => {
                       const isWorkshop = isCustomCartRow(item);
                       const rowOrientation = cartRowOrientation(item);
@@ -1200,17 +1355,16 @@ export default function Cart() {
                         ? customSizeLabel(item.custom_config?.size)
                         : (item.product?.options?.find(opt => opt.id === item.selected_option)?.name || '');
                       const meta = [optionName, orientationName].filter(Boolean).join(' · ');
-                      const price = isWorkshop
-                        ? customUnitPrice(item)
-                        : (item.product?.options?.find(opt => opt.id === item.selected_option)?.price || 0);
+                      const lineNotice = noticeFor(item);
+                      const price = lineNotice.currentUnit;
                       const image = isWorkshop
                         ? (workshopMedia.get(item.custom_image).src || '')
                         : (rowOrientation === 'landscape' && item.product?.landscape_image
                           ? item.product.landscape_image
                           : (item.product?.front_image || item.product?.image || ''));
                       return (
-                        <div key={item.id} className="flex items-center gap-3 text-sm">
-                          <div className={`${cartThumbFrameClass(rowOrientation, true)} shrink-0 overflow-hidden`}>
+                        <div key={item.id} className="flex gap-3 border-b border-black/10 py-6 dark:border-white/10">
+                          <div className={`${cartThumbFrameClass(rowOrientation)} shrink-0 overflow-hidden`}>
                             {image ? (
                               <img
                                 src={image}
@@ -1221,21 +1375,26 @@ export default function Cart() {
                               />
                             ) : null}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="block truncate font-medium">{title}</span>
-                            {meta ? (
-                              <span className={`text-sm ${muted}`}>{meta}</span>
-                            ) : null}
-                            <span className={`block text-sm ${muted}`}>수량 {item.quantity}개</span>
+                          <div className="flex min-w-0 flex-1 flex-col justify-between py-1">
+                            <div className="min-w-0">
+                              <span className="block break-words font-medium text-base leading-tight tracking-[-0.02em]">{title}</span>
+                              {meta ? (
+                                <span className={`mt-1 block break-words text-sm ${muted}`}>{meta}</span>
+                              ) : null}
+                              <CartLineCopy notice={lineNotice} />
+                            </div>
+                            <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+                              <span className={`text-sm ${muted}`}>수량 {item.quantity}개</span>
+                              <div className="ml-auto max-w-full shrink-0 text-right">
+                                <span className={`block text-sm ${muted}`}>상품 금액</span>
+                                <RollingKrwAmount
+                                  value={price * item.quantity}
+                                  reducedMotion={reducedMotion}
+                                  className="text-base font-medium"
+                                />
+                              </div>
+                            </div>
                           </div>
-                          <span className="shrink-0 text-right">
-                            <span className={`block text-sm ${muted}`}>상품 금액</span>
-                            <RollingKrwAmount
-                              value={price * item.quantity}
-                              reducedMotion={reducedMotion}
-                              className="block text-base font-medium"
-                            />
-                          </span>
                         </div>
                       );
                     })}
@@ -1356,27 +1515,21 @@ export default function Cart() {
                   </div>
                 </section>
 
-                <section className="space-y-6">
-                  <h3 className="mb-4 text-base font-medium">결제 수단</h3>
-                  {checkoutClosed || checkoutUiPreview ? (
+                <section>
+                  {screeningCheckout ? (
                     <div className="border-b border-black/10 py-5 dark:border-white/10">
+                      <h3 className="text-base font-medium">결제 수단</h3>
+                      <p className="mt-1 text-base font-medium">심사 테스트 카드 결제</p>
+                      <p className={`mt-1 text-sm ${muted}`}>카드사 심사 테스트입니다. 실제 주문과 배송은 만들어지지 않습니다.</p>
+                    </div>
+                  ) : checkoutClosed ? (
+                    <div className="border-b border-black/10 py-5 dark:border-white/10">
+                      <h3 className="mb-1 text-base font-medium">결제 수단</h3>
                       <p className="text-base font-medium">결제 준비 중</p>
                       <p className={`mt-1 text-sm ${muted}`}>현재 결제 기능을 준비하고 있습니다.</p>
                     </div>
                   ) : (
-                    <div className="border-b border-black/10 py-5 dark:border-white/10">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="text-base font-medium">{screeningCheckout ? '심사 테스트 카드 결제' : '간편 결제'}</p>
-                          <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-[#c9c4b8]' : 'text-[#3f3c36]'}`}>
-                            {screeningCheckout
-                              ? '카드사 심사 테스트입니다. 실제 주문과 배송은 만들어지지 않습니다.'
-                              : '신용/체크카드 및 간편 결제'}
-                          </p>
-                        </div>
-                        <CheckCircle2 size={18} />
-                      </div>
-                    </div>
+                    <CheckoutPaymentCard muted={muted} />
                   )}
                 </section>
               </motion.div>
@@ -1386,6 +1539,11 @@ export default function Cart() {
 
         {/* Footer */}
         <div className={`px-6 pt-6 pb-12 border-t ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}>
+          {selectedPriceChanged ? (
+            <p className={`mb-3 text-sm font-medium ${muted}`}>
+              변경된 가격이 있습니다. 현재 가격으로 계산됩니다.
+            </p>
+          ) : null}
           <div className="flex justify-between items-end mb-6">
             <span className={`text-sm font-medium ${muted}`}>총 결제 금액</span>
             <span className="text-[1.75rem] font-medium tracking-[-0.03em]">₩{displayPrice.toLocaleString()}</span>
@@ -1395,27 +1553,17 @@ export default function Cart() {
             <p className={`mb-3 text-sm font-medium ${muted}`}>
               카드사 심사 테스트 결제입니다. 실제 주문과 배송은 만들어지지 않습니다.
             </p>
-          ) : PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 || checkoutUiPreview ? (
+          ) : PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 ? (
             <p className={`mb-3 text-sm font-medium ${muted}`}>
               현재 결제 기능을 준비하고 있습니다.
             </p>
-          ) : null}
-
-          {import.meta.env.DEV && !showingCheckoutForm && localCheckoutUiPreviewAllowed() ? (
-            <button
-              type="button"
-              onClick={openCheckoutUiPreview}
-              className={`focus-ring mb-3 w-full text-left text-sm font-medium underline-offset-4 hover:underline ${muted}`}
-            >
-              개발용 주문서 미리보기
-            </button>
           ) : null}
 
           <div className="flex gap-3">
             {showingCheckoutForm && (
               <button
                 type="button"
-                onClick={checkoutUiPreview ? closeCheckoutUiPreview : handlePrevStep}
+                onClick={handlePrevStep}
                 className={`h-12 w-1/3 rounded-[2px] font-medium transition-colors ${
                   theme === 'dark' ? 'bg-white/10 text-[#f3f1ec] hover:bg-white/15' : 'bg-black/5 text-[#16150f] hover:bg-black/10'
                 }`}
@@ -1426,24 +1574,29 @@ export default function Cart() {
             <button
               type="button"
               onClick={!showingCheckoutForm ? handleNextStep : () => {
-                if (checkoutClosed || checkoutUiPreview) return;
+                if (checkoutClosed) return;
+                if (selectedBlocked) {
+                  showToast('주문할 수 없는 상품이 선택되어 있습니다.', 'error');
+                  return;
+                }
+                rememberSelectedPrices();
                 setIsBottomSheetOpen(true);
               }}
-              disabled={selectedItems.length === 0 || isProcessing || checkoutClosed || checkoutUiPreview}
+              disabled={selectedItems.length === 0 || isProcessing || checkoutClosed}
               className={`flex h-12 flex-1 items-center justify-center gap-2 rounded-[2px] text-base font-medium tracking-[-0.02em] transition-colors ${
-                selectedItems.length === 0 || isProcessing || checkoutClosed || checkoutUiPreview
+                selectedItems.length === 0 || isProcessing || checkoutClosed
                   ? (theme === 'dark' ? 'cursor-not-allowed bg-[#2a2b31] text-[#f3f1ec]/35' : 'cursor-not-allowed bg-[#e4dfd6] text-[#16150f]/35')
                   : (theme === 'dark' ? 'bg-[#f2f0ea] text-[#16150f] hover:brightness-105' : 'bg-[#1a1914] text-[#f4f1eb] hover:brightness-110')
               }`}
             >
-              {isProcessing && !checkoutUiPreview ? (
+              {isProcessing ? (
                 <Loader2 className="animate-spin" size={24} />
-              ) : checkoutClosed || checkoutUiPreview ? (
+              ) : checkoutClosed ? (
                 '결제 준비 중'
               ) : !showingCheckoutForm ? (
-                selectedIds.size === 0 ? '상품을 선택해주세요' : '주문하기'
+                selectedIds.size === 0 ? '상품을 선택해주세요' : selectedBlocked ? '주문할 수 없는 상품이 있습니다' : '주문하기'
               ) : (
-                '결제하기'
+                selectedBlocked ? '주문할 수 없는 상품이 있습니다' : '결제하기'
               )}
             </button>
           </div>

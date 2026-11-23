@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import { PRODUCTION_SUPABASE_URL } from "./src/lib/supabaseHosts";
+import { canonicalOutputMillimeters } from "./src/lib/customComposition/productionSnapshot";
 import {
   PAYMENT_TEST_CROSS_WRITE_ERROR,
   PAYMENT_TEST_ENV_NAME,
@@ -30,7 +31,7 @@ import { registerReviewImageRoutes } from "./src/lib/reviewImageRoutes";
 import { registerReviewEligibilityRoute } from "./src/lib/reviewCommerceEligibility";
 import { registerFullOrderCancellationRoute } from "./src/lib/paymentCancellation";
 import { registerCaptureRecoveryAdminRoutes } from "./src/lib/paymentCaptureCancellation";
-import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from "./src/lib/publicPaymentFreeze";
+import { confirmFreezeBlock, PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from "./src/lib/publicPaymentFreeze";
 import { resolveSmsAdapter } from "./src/lib/smsAdapter";
 import { configureExpressTrustProxy, resolveTrustedIpMode } from "./src/lib/trustedClientIp";
 import { verifyPaymentMember } from "./src/lib/paymentMemberAuth";
@@ -541,6 +542,7 @@ const POLICY_TYPES = new Set(
 
 /** Exact document routes from App.tsx — reachable, never indexable. */
 const FUNCTIONAL_NOINDEX_PATHS = [
+  "/workshop",
   "/login",
   "/auth/callback",
   "/member-enroll",
@@ -561,6 +563,7 @@ const FUNCTIONAL_NOINDEX_PATHS = [
 const FUNCTIONAL_NOINDEX_SET = new Set<string>(FUNCTIONAL_NOINDEX_PATHS);
 
 const FUNCTIONAL_NOINDEX_TITLES: Record<string, string> = {
+  "/workshop": "맞춤 제작 | 메탈로라",
   "/login": "로그인 | 메탈로라",
   "/auth/callback": "인증 | 메탈로라",
   "/member-enroll": "회원 전환 | 메탈로라",
@@ -1287,6 +1290,7 @@ function sanitizeCustomComposition(raw: unknown): Record<string, unknown> | null
 function passthroughCustomConfig(
   cfg: Record<string, unknown> | null,
   unitPrice: number,
+  authoritativeOrientation?: unknown,
 ): Record<string, unknown> {
   const src = cfg && typeof cfg === 'object' ? cfg : {};
   const composition = sanitizeCustomComposition(src.composition);
@@ -1300,10 +1304,24 @@ function passthroughCustomConfig(
   };
   if (typeof src.version !== 'undefined') out.version = src.version;
   if (typeof src.material === 'string') out.material = src.material;
-  if (typeof src.orientation === 'string') out.orientation = src.orientation;
+  const orientation = isCustomOrientation(authoritativeOrientation)
+    ? authoritativeOrientation
+    : isCustomOrientation(src.orientation)
+      ? src.orientation
+      : null;
+  if (orientation) out.orientation = orientation;
   if (composition) out.composition = composition;
-  if (src.source_width != null) out.source_width = src.source_width;
-  if (src.source_height != null) out.source_height = src.source_height;
+  const sourceWidth = jsonPositiveNumber(src.source_width);
+  const sourceHeight = jsonPositiveNumber(src.source_height);
+  if (sourceWidth != null) out.source_width = sourceWidth;
+  if (sourceHeight != null) out.source_height = sourceHeight;
+  if (size === 'M') {
+    const frame = canonicalOutputMillimeters(orientation);
+    if (frame) {
+      out.output_width_mm = frame.width;
+      out.output_height_mm = frame.height;
+    }
+  }
   const originalRef = customImageRef(src.original_image_url);
   if (originalRef) out.original_image_url = originalRef;
   const previewRef = customImageRef(src.preview_image_url);
@@ -1895,7 +1913,7 @@ async function validateCheckoutItems(
         unit = liveCustomMPrice;
       }
 
-      const cfg = passthroughCustomConfig(cartRow.custom_config, unit);
+      const cfg = passthroughCustomConfig(cartRow.custom_config, unit, cartRow.orientation);
 
       serverExpectedTotal += unit * quantity;
       const customImage = customDisplayImage(cartRow);
@@ -2610,6 +2628,10 @@ ${staticUrls}${productUrls}
    * Idempotency: order_number (DB) + paymentKey (Toss). Completion: orders.payment_finalized_at.
    */
   app.post("/api/payment/confirm", async (req, res) => {
+    const confirmFreeze = confirmFreezeBlock();
+    if (confirmFreeze) {
+      return res.status(confirmFreeze.status).json({ error: confirmFreeze.error });
+    }
     const requestId = newPaymentRequestId();
     const hostGuard = publicPaymentHostGuard(req);
     if (hostGuard) {

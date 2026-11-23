@@ -27,9 +27,19 @@ export default defineConfig({
       name: 'keep-local-review-preview-out-of-build',
       apply: 'build',
       generateBundle(_options, bundle) {
-        for (const fileName of Object.keys(bundle)) {
+        for (const [fileName, item] of Object.entries(bundle)) {
           if (fileName.includes('local-preview')) {
             throw new Error('local-preview must not enter the production build');
+          }
+          const code = item.type === 'chunk' ? item.code : item.source;
+          if (
+            typeof code === 'string'
+            && (code.includes('workshopVisual')
+              || code.includes('workshopConcept')
+              || code.includes('studioPreview')
+              || code.includes('fixture-still'))
+          ) {
+            throw new Error('local workshop preview must not enter the production build');
           }
         }
       },

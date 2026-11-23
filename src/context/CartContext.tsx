@@ -346,7 +346,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const updateQuantity = async (itemId: string, quantity: number) => {
     if (quantity < 1) return;
-    
     try {
       const client = getClient();
       const { error } = await client

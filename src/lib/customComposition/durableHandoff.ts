@@ -4,7 +4,7 @@ import {
   type WorkshopMediaKind,
   type WorkshopResolvedMedia,
 } from '../workshopMediaCore';
-import type { CustomComposition, CustomSource } from './types';
+import { LANDSCAPE_FRAME, PORTRAIT_FRAME, type CustomComposition, type CustomSource } from './types';
 
 export const WORKSHOP_MEDIA_ENDPOINTS = {
   signUpload: '/api/workshop-media/sign-upload',
@@ -328,6 +328,7 @@ export function buildCompleteV1Config(
   source: CustomSource,
   composition: CustomComposition,
 ): Record<string, unknown> {
+  const frame = composition.orientation === 'landscape' ? LANDSCAPE_FRAME : PORTRAIT_FRAME;
   return {
     composition: {
       version: 1,
@@ -338,6 +339,8 @@ export function buildCompleteV1Config(
     },
     source_width: source.width,
     source_height: source.height,
+    output_width_mm: frame.width,
+    output_height_mm: frame.height,
     material: 'aluminum',
     serial_number: `WS-${Date.now()}`,
   };

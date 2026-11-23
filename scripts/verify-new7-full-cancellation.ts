@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../src/lib/publicPaymentFreeze';
+import { confirmFreezeBlock, PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../src/lib/publicPaymentFreeze';
 import {
   executeFullOrderCancellation,
   readFullCancelProof,
@@ -120,7 +120,8 @@ function provider(script: {
 }
 
 async function main() {
-  assert('public payment remains frozen', PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 === true);
+  assert('accepted activation leaves the public freeze off', PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 === false);
+  assert('confirm stays open while the accepted freeze is off', confirmFreezeBlock() === null);
   const serverSrc = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../server.ts'), 'utf8');
   const prepareAt = serverSrc.indexOf('app.post("/api/payment/prepare"');
   const confirmAt = serverSrc.indexOf('app.post("/api/payment/confirm"');

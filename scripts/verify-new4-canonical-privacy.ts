@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../src/lib/publicPaymentFreeze.ts';
+import { confirmFreezeBlock, PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../src/lib/publicPaymentFreeze.ts';
 import { PRIVACY_POLICY_VERSION } from '../src/lib/policyVersions.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -129,7 +129,11 @@ assert('Discord payment-frozen wording preserved',
   /현재 공개 결제는 준비 중이어서, 공개 결제가 시작되기 전에는 주문 승인 알림이 생기지 않습니다/.test(policies));
 assert('no forbidden origin claims in privacy',
   !/대한민국산|한국산|국내산|Made in Korea|Product of Korea|원산지 대한민국|제조국 대한민국/.test(policies));
-assert('payment freeze unchanged', PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 === true && /PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = true/.test(freeze));
+assert('accepted payment activation keeps prepare fail-closed',
+  PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 === false
+  && confirmFreezeBlock() === null
+  && /PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 = false/.test(freeze)
+  && /serverPaymentAccess\(process\.env\) !== "ENABLED"/.test(fs.readFileSync(path.join(root, 'server.ts'), 'utf8')));
 assert('leftover-ref caveat present', /그 위치만으로는 이미지를 다시 열 수 없습니다/.test(policies));
 
 console.log(`\n${passed} passed, ${failed} failed`);

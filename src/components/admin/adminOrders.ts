@@ -1,7 +1,7 @@
-import { supabase } from '../../lib/supabase';
-import { getFullImageUrl } from '../../lib/utils';
-import { workshopOrderItemThumbRef } from '../../lib/workshopMediaDisplay';
 import { workshopDisplayApi } from '../../hooks/useWorkshopMediaDisplay';
+import { mapAdminOrderItem as mapAdminOrderItemWithApi, type AdminOrderItem } from './adminOrderMapping';
+
+export type { AdminOrderItem } from './adminOrderMapping';
 
 export const ADMIN_ORDER_STATUSES = ['PAID', 'PRODUCTION', 'SHIPPING', 'COMPLETED'] as const;
 export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
@@ -54,25 +54,15 @@ export function orderStatusLabel(status: string): string {
 export const ADMIN_ORDERS_PAGE_SIZE = 25;
 
 export const ADMIN_ORDER_SELECT =
-  'id, order_number, created_at, status, total_price, shipping_name, shipping_phone, address, address_detail, zip_code, courier, tracking_number, ordered_items, method';
+  'id, order_number, user_id, created_at, status, total_price, shipping_name, shipping_phone, address, address_detail, zip_code, courier, tracking_number, ordered_items, method';
 
 export type DateFilter = 'all' | 'today' | '7d' | '30d';
 export type StatusFilter = 'all' | AdminOrderStatus;
 
-export type AdminOrderItem = {
-  title: string;
-  option: string;
-  quantity: number;
-  price: number | null;
-  /** Catalog: public image URL. Workshop: durable ref (canonical path or legacy URL) for the resolver. */
-  imageUrl: string | null;
-  orientation: string | null;
-  isWorkshop: boolean;
-};
-
 export type AdminOrder = {
   id: string;
   order_number: string;
+  user_id: string;
   created_at: string;
   status: string;
   total_price: number;
@@ -105,26 +95,7 @@ function asNumber(value: unknown): number | null {
 }
 
 export function mapAdminOrderItem(raw: unknown): AdminOrderItem {
-  const item = asRecord(raw);
-  const productId = asString(item.product_id);
-  const isWorkshop = productId === 'workshop-single' || productId === '' || item.product_id == null;
-  const imagePath = isWorkshop
-    ? workshopOrderItemThumbRef(item, workshopDisplayApi)
-    : asString(item.image) ||
-      asString(item.user_image_url) ||
-      asString(item.front_image) ||
-      asString(item.custom_image) ||
-      asString(item.preview_url) ||
-      '';
-  return {
-    title: asString(item.title) || asString(item.product_title) || asString(item.name) || '제품',
-    option: asString(item.option) || asString(item.selected_option) || '',
-    quantity: asNumber(item.quantity) ?? 0,
-    price: asNumber(item.price),
-    imageUrl: isWorkshop ? imagePath || null : imagePath ? getFullImageUrl(imagePath) : null,
-    orientation: asString(item.orientation) || null,
-    isWorkshop,
-  };
+  return mapAdminOrderItemWithApi(raw, workshopDisplayApi);
 }
 
 export function mapAdminOrder(raw: unknown): AdminOrder {
@@ -133,6 +104,7 @@ export function mapAdminOrder(raw: unknown): AdminOrder {
   return {
     id: asString(row.id),
     order_number: asString(row.order_number),
+    user_id: asString(row.user_id),
     created_at: asString(row.created_at),
     status: asString(row.status),
     total_price: asNumber(row.total_price) ?? 0,
@@ -163,6 +135,7 @@ export function dateFilterStartIso(filter: DateFilter): string | null {
 }
 
 export async function requestCompletedOrderReviewEligibility(orderId: string): Promise<boolean> {
+  const { supabase } = await import('../../lib/supabase');
   if (!supabase) return false;
   try {
     const { data } = await supabase.auth.getSession();
@@ -191,6 +164,7 @@ export async function fetchAdminOrders(params: {
   status: StatusFilter;
   date: DateFilter;
 }): Promise<{ data: AdminOrder[]; count: number; error: string | null }> {
+  const { supabase } = await import('../../lib/supabase');
   if (!supabase) {
     return { data: [], count: 0, error: '주문 목록을 불러오지 못했습니다.' };
   }

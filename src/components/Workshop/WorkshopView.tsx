@@ -32,6 +32,12 @@ import {
   type WorkshopMediaApi,
 } from '../../lib/customComposition/durableHandoff';
 import {
+  CART_REFRESH_FAILED_MESSAGE,
+  customCartRetryAction,
+  persistedCustomCartItemId,
+  submissionCompositionKey,
+} from '../../lib/customComposition/submitCustomCart';
+import {
   normalizeWorkshopMediaRef,
   resolveWorkshopMediaSrc,
   retryWorkshopMediaAfterLoadError,
@@ -77,7 +83,7 @@ const PRODUCT_LINE = '메탈 프린트 · M';
 const PRODUCT_SIZE = '200 × 283 mm';
 
 const WORKSHOP_RAIL_CLASS =
-  'flex w-full shrink-0 flex-col border-t border-border-subtle px-6 max-[1099px]:px-5 max-[1099px]:pb-6 max-[1099px]:pt-4 min-[1100px]:w-96 min-[1100px]:overflow-y-auto min-[1100px]:border-l min-[1100px]:border-t-0 min-[1100px]:px-6';
+  'flex w-full shrink-0 flex-col border-t border-border-subtle px-6 max-[1100px]:px-5 max-[1100px]:pb-6 max-[1100px]:pt-4 min-[1100px]:w-96 min-[1100px]:overflow-y-auto min-[1100px]:border-l min-[1100px]:border-t-0 min-[1100px]:px-6';
 
 const RAIL_LABEL_CLASS = 'text-[0.6875rem] tracking-[0.16em] text-text-tertiary';
 
@@ -173,6 +179,11 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [pendingProgress, setPendingProgress] = useState<any>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const reportActionError = (message: string) => {
+    setActionNotice(message);
+    showToast(message, 'error');
+  };
   const [isPreparingPreview, setIsPreparingPreview] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -206,7 +217,22 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
     panByPointer,
     reset,
     ensureCurrentPreview,
+    captureSubmissionSnapshot,
   } = useCustomComposition();
+  const persistedCartReceiptRef = useRef<{
+    id: string;
+    key: string;
+    price: number;
+    orientation: 'portrait' | 'landscape';
+  } | null>(null);
+
+  useEffect(() => {
+    const receipt = persistedCartReceiptRef.current;
+    if (!receipt || !source) return;
+    if (receipt.key !== submissionCompositionKey(source, composition)) {
+      persistedCartReceiptRef.current = null;
+    }
+  }, [source, composition]);
 
   const orientation = composition.orientation;
   const qualityWarning = Boolean(source && compositionIsTightCrop(composition));
@@ -446,7 +472,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       if (!isCurrent()) return;
       if (!objectUrl) {
         setCurrentStep(1);
-        showToast('이전 이미지를 불러오지 못했습니다. 사진을 다시 업로드해 주세요.', 'error');
+        reportActionError('이전 이미지를 불러오지 못했습니다. 사진을 다시 업로드해 주세요.');
         return;
       }
       setUploadedFile(null);
@@ -568,14 +594,14 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
   const handleNext = async () => {
     if (currentStep !== 1) return;
     if (!uploadedImage) {
-      showToast('사진을 먼저 업로드해 주세요.', 'error');
+      reportActionError('사진을 먼저 업로드해 주세요.');
       return;
     }
     setIsPreparingPreview(true);
     try {
       const url = await ensureCurrentPreview();
       if (!url) {
-        showToast('미리보기를 만들지 못했습니다. 다시 시도해 주세요.', 'error');
+        reportActionError('미리보기를 만들지 못했습니다. 다시 시도해 주세요.');
         return;
       }
       setDirection(1);
@@ -603,12 +629,12 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
     if (isUploading || isPreparingPreview || cartSubmitLockRef.current) return;
 
     if (customPriceStatus !== 'ready' || customPrice === null) {
-      showToast('판매가를 확인할 수 없어 담을 수 없습니다.', 'error');
+      reportActionError('판매가를 확인할 수 없어 담을 수 없습니다.');
       return;
     }
 
     if (!source) {
-      showToast('사진을 먼저 업로드해 주세요.', 'error');
+      reportActionError('사진을 먼저 업로드해 주세요.');
       return;
     }
 
@@ -632,37 +658,81 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
             ? await saveWorkshopPendingAdd(pending, uploadedFile)
             : false;
           if (!persisted) {
-            showToast('사진을 다시 선택해 주세요.', 'error');
+            reportActionError('사진을 다시 선택해 주세요.');
           }
           continueAddAfterLoginRef.current = true;
           setIsLoginOpen(true);
         } else {
-          showToast('로그인이 필요합니다.', 'error');
+          reportActionError('로그인이 필요합니다.');
         }
         return;
       }
 
-      const previewObjectUrl = await ensureCurrentPreview();
-      if (!previewObjectUrl) {
-        showToast('미리보기를 만들지 못했습니다. 다시 시도해 주세요.', 'error');
+      const retryReceipt = persistedCartReceiptRef.current;
+      const retryKey = source ? submissionCompositionKey(source, composition) : '';
+      if (
+        retryReceipt
+        && retryReceipt.key === retryKey
+        && customCartRetryAction(retryReceipt.id) === 'refresh'
+      ) {
+        const refreshed = await refreshCart();
+        if (!refreshed) {
+          reportActionError(CART_REFRESH_FAILED_MESSAGE);
+          return;
+        }
+        persistedCartReceiptRef.current = null;
+        setActionNotice(null);
+        track('add_to_cart', {
+          currency: 'KRW',
+          value: retryReceipt.price,
+          items: [
+            {
+              item_id: 'workshop-single',
+              item_name: '나만의 커스텀 포스터',
+              item_variant: workshopAnalyticsItemVariant('M', retryReceipt.orientation),
+              price: retryReceipt.price,
+              quantity: 1,
+            },
+          ],
+        });
+        setIsFlashing(true);
+        await clearProgress();
+        replaceUploadedImage(null);
+        setUploadedFile(null);
+        setDurableOriginalRef(null);
+        setPendingProgress(null);
+        discardWorkshopPendingAddSync();
+        localStorage.removeItem('temp_image_url');
+        localStorage.removeItem('workshop_draft');
+        sessionStorage.removeItem('temp_image_url');
+        sessionStorage.removeItem('workshop_draft');
+        sessionStorage.setItem('workshop_just_finished', 'true');
+        setIsFlashing(false);
+        if (onComplete) onComplete();
+        setTimeout(() => openCart(), 100);
         return;
       }
 
-      const previewBlob = await fetch(previewObjectUrl).then((response) => {
-        if (!response.ok) throw new Error('preview blob fetch failed');
-        return response.blob();
-      });
+      const captured = await captureSubmissionSnapshot();
+      if (!captured) {
+        reportActionError('미리보기를 만들지 못했습니다. 다시 시도해 주세요.');
+        return;
+      }
 
       const handoff = await persistWorkshopCartMedia(
         workshopMediaApi,
-        { originalFile: uploadedFile, existingOriginalRef: durableOriginalRef, previewBlob },
+        {
+          originalFile: uploadedFile,
+          existingOriginalRef: durableOriginalRef,
+          previewBlob: captured.previewBlob,
+        },
         async ({ originalRef, previewRef }) => {
           const { data, error } = await supabase.rpc('add_custom_cart_item', {
             p_quantity: 1,
-            p_orientation: orientation,
+            p_orientation: captured.composition.orientation,
             p_original_image_url: originalRef,
             p_preview_image_url: previewRef,
-            p_custom_config: buildCompleteV1Config(source, composition),
+            p_custom_config: buildCompleteV1Config(captured.source, captured.composition),
           });
           if (error) {
             console.error('add_custom_cart_item failed:', { code: error.code });
@@ -673,23 +743,24 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       );
 
       if (handoff.ok === false) {
-        showToast(
+        reportActionError(
           handoff.reason === 'no_original'
             ? '원본 이미지를 저장하지 못했습니다. 다시 시도해 주세요.'
             : '장바구니에 담지 못했습니다. 다시 시도해 주세요.',
-          'error',
         );
         return;
       }
 
       const { rpcData } = handoff.value;
       const row = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as {
+        id?: string;
         custom_image?: string | null;
         custom_config?: Record<string, unknown> | null;
       } | null;
+      const savedId = persistedCustomCartItemId(rpcData);
       const verified = verifyTrustedCustomCartRow(row, handoff.refs.previewRef, normalizeWorkshopMediaRef);
-      if (verified.ok === false) {
-        showToast('장바구니에 담지 못했습니다. 다시 시도해 주세요.', 'error');
+      if (verified.ok === false || !savedId) {
+        reportActionError('장바구니에 담지 못했습니다. 다시 시도해 주세요.');
         return;
       }
 
@@ -701,9 +772,17 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
 
       const refreshed = await refreshCart();
       if (!refreshed) {
-        showToast('장바구니에 담지 못했습니다. 다시 시도해 주세요.', 'error');
+        persistedCartReceiptRef.current = {
+          id: savedId,
+          key: submissionCompositionKey(captured.source, captured.composition),
+          price: verified.priceSnapshot,
+          orientation: captured.composition.orientation,
+        };
+        reportActionError(CART_REFRESH_FAILED_MESSAGE);
         return;
       }
+      persistedCartReceiptRef.current = null;
+      setActionNotice(null);
 
       track('add_to_cart', {
         currency: 'KRW',
@@ -740,7 +819,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       setTimeout(() => openCart(), 100);
     } catch (err: unknown) {
       console.error('Failed to save to collection:', err instanceof Error ? err.message : 'unknown');
-      showToast('장바구니에 담지 못했습니다. 다시 시도해 주세요.', 'error');
+      reportActionError('장바구니에 담지 못했습니다. 다시 시도해 주세요.');
     } finally {
       cartSubmitLockRef.current = false;
       setIsUploading(false);
@@ -774,7 +853,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       const claimed = await claimWorkshopPendingAdd();
       if (cancelled || continueAddAfterLoginRef.current) return;
       if (claimed.status === 'reselect') {
-        showToast('사진을 다시 선택해 주세요.', 'error');
+        reportActionError('사진을 다시 선택해 주세요.');
         return;
       }
       if (claimed.status !== 'ready') return;
@@ -782,7 +861,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       if (cancelled || continueAddAfterLoginRef.current) return;
       if (validated.ok === false) {
         discardWorkshopPendingAddSync();
-        showToast('사진을 다시 선택해 주세요.', 'error');
+        reportActionError('사진을 다시 선택해 주세요.');
         return;
       }
       if (!takeResumeDelivery()) return;
@@ -844,18 +923,19 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
     setIsRestoring(false);
 
     if (file.size > WORKSHOP_UPLOAD_LIMITS.original) {
-      showToast('25MB 이하의 사진을 선택해 주세요.', 'error');
+      reportActionError('25MB 이하의 사진을 선택해 주세요.');
       return;
     }
 
     const validated = await validateCustomImageFile(file);
     if (validated.ok === false) {
-      showToast(validated.message, 'error');
+      reportActionError(validated.message);
       return;
     }
 
     setUploadedFile(file);
     setDurableOriginalRef(null);
+    setActionNotice(null);
     replaceUploadedImage(validated.objectUrl);
   };
 
@@ -877,11 +957,30 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
 
   const isPreviewSubViewOpen = viewerOpen || roomPreviewOpen;
 
+  const guidance =
+    actionNotice
+    ?? (currentStep === 1 && (!uploadedImage || !source) && !isUploading && !isRestoring
+      ? '사진을 올리면 다음으로 진행할 수 있습니다.'
+      : null);
+
+  const renderGuidance = (id: string) => (
+    guidance ? (
+      <p
+        id={id}
+        role={actionNotice ? 'alert' : 'status'}
+        className="mb-3 text-[0.8125rem] font-medium leading-snug text-text-primary [word-break:keep-all]"
+      >
+        {guidance}
+      </p>
+    ) : null
+  );
+
   const renderPrimaryCta = (placement: 'panel' | 'mobile') => (
     <button
       type="button"
       onClick={handleActionClick}
       disabled={isButtonDisabled}
+      aria-describedby={guidance ? (placement === 'panel' ? 'workshop-guidance-panel' : 'workshop-guidance-mobile') : undefined}
       className={`focus-ring min-h-12 w-full items-center justify-center rounded-[2px] text-[0.9375rem] font-medium ${
         placement === 'panel'
           ? 'hidden min-[1100px]:flex'
@@ -898,9 +997,13 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
 
   const productInfo = (
     <div>
-      <h2 className="text-[1.5rem] font-semibold leading-[1.15] tracking-[-0.02em] text-text-primary">{PRODUCT_LINE}</h2>
+      <p className={RAIL_LABEL_CLASS}>WORKSHOP</p>
+      <h2 className="mt-2 text-[1.625rem] font-semibold leading-[1.12] tracking-[-0.03em] text-text-primary">{PRODUCT_LINE}</h2>
       {customPriceStatus === 'loading' ? null : customPriceStatus === 'ready' && customPrice !== null ? (
-        <p className="mt-4 text-[1.25rem] font-medium leading-none text-text-primary">{formatCustomMPrice(customPrice)}</p>
+        <p className="mt-5 text-[1.375rem] font-medium leading-none tracking-[-0.02em] text-text-primary">
+          <span className="mb-2 block text-[0.6875rem] font-normal tracking-[0.16em] text-text-tertiary">판매가</span>
+          {formatCustomMPrice(customPrice)}
+        </p>
       ) : (
         <p className="mt-4 text-[0.875rem] leading-snug text-text-secondary">{PRICE_UNAVAILABLE_MESSAGE}</p>
       )}
@@ -922,7 +1025,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
               type="button"
               onClick={() => setOrientation(value)}
               aria-pressed={active}
-              className={`group focus-ring flex flex-col items-center gap-2.5 rounded-[2px] border bg-transparent px-3 pb-2.5 pt-3.5 transition-colors duration-300 max-[1099px]:gap-2 max-[1099px]:px-2 max-[1099px]:pb-2 max-[1099px]:pt-2.5 ${
+              className={`group focus-ring flex flex-col items-center gap-2.5 rounded-[2px] border bg-transparent px-3 pb-2.5 pt-3.5 transition-colors duration-300 max-[1100px]:gap-2 max-[1100px]:px-2 max-[1100px]:pb-2 max-[1100px]:pt-2.5 ${
                 active
                   ? 'border-[#a89068] text-text-primary dark:border-[#b7bcc2]'
                   : 'border-border-subtle text-text-secondary hover:border-[#c4b08a] hover:text-text-primary dark:hover:border-[#9aa0a6]'
@@ -977,9 +1080,13 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
 
   const step2Facts = (
     <div className="flex flex-col">
-      <h2 className="text-[1.5rem] font-semibold leading-[1.15] tracking-[-0.02em] text-text-primary">{PRODUCT_LINE}</h2>
+      <p className={RAIL_LABEL_CLASS}>WORKSHOP</p>
+      <h2 className="mt-2 text-[1.625rem] font-semibold leading-[1.12] tracking-[-0.03em] text-text-primary">{PRODUCT_LINE}</h2>
       {customPriceStatus === 'loading' ? null : customPriceStatus === 'ready' && customPrice !== null ? (
-        <p className="mt-4 text-[1.25rem] font-medium leading-none text-text-primary">{formatCustomMPrice(customPrice)}</p>
+        <p className="mt-5 text-[1.375rem] font-medium leading-none tracking-[-0.02em] text-text-primary">
+          <span className="mb-2 block text-[0.6875rem] font-normal tracking-[0.16em] text-text-tertiary">판매가</span>
+          {formatCustomMPrice(customPrice)}
+        </p>
       ) : (
         <p className="mt-4 text-[0.875rem] leading-snug text-text-secondary">{PRICE_UNAVAILABLE_MESSAGE}</p>
       )}
@@ -1061,42 +1168,49 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       style={workshopSurfaceStyle(theme)}
       data-custom-preview-ready={previewUrl ? 'true' : 'false'}
     >
-      <header className={`${hideHeader ? 'relative' : 'fixed top-0 left-0'} z-[100] h-16 w-full items-center border-b border-border-subtle bg-canvas px-4 max-[1099px]:h-auto max-[1099px]:px-0 max-[1099px]:pt-[env(safe-area-inset-top)] ${
+      <header className={`${hideHeader ? 'relative' : 'fixed top-0 left-0'} z-[100] h-16 w-full items-center border-b border-border-subtle bg-canvas px-4 max-[1100px]:h-auto max-[1100px]:px-0 max-[1100px]:pt-[env(safe-area-inset-top)] ${
         isPreviewSubViewOpen ? 'hidden' : 'flex'
       }`}>
-        <div className="flex h-full w-full items-center max-[1099px]:relative max-[1099px]:h-14 max-[1099px]:px-3">
+        <div className="flex h-full w-full items-center max-[1100px]:relative max-[1100px]:h-14 max-[1100px]:px-3">
         <div className="flex flex-1 justify-start">
           <button
             type="button"
             onClick={handleBack}
-            className="focus-ring p-2 text-text-secondary hover:text-text-primary"
+            className="focus-ring inline-flex size-11 items-center justify-center rounded-[2px] text-text-secondary hover:bg-black/5 hover:text-text-primary dark:hover:bg-white/10"
             aria-label={currentStep === 1 ? '닫기' : '이전'}
           >
             <ChevronLeft size={22} />
           </button>
         </div>
 
-        <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5">
-          <h1 className="text-[0.8125rem] leading-none text-text-secondary max-[1099px]:whitespace-nowrap">
-            <span className="text-text-tertiary">{currentStep} / {totalSteps}</span>
-            <span className="mx-2 text-text-tertiary" aria-hidden>·</span>
-            {STEPS[currentStep - 1].title}
-          </h1>
-          <div className="h-px w-16 overflow-hidden bg-border-subtle" aria-hidden>
-            <motion.div
-              initial={false}
-              animate={{ width: `${(currentStep / totalSteps) * 100}%` }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-              className="h-full bg-[#8b9197] dark:bg-[#d5d8dc]"
-            />
-          </div>
+        <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
+          <h1 className="sr-only">{STEPS[currentStep - 1].title}, {currentStep} / {totalSteps}</h1>
+          <ol className="flex items-center gap-2" aria-hidden>
+            {STEPS.map((step) => {
+              const active = step.id === currentStep;
+              const done = step.id < currentStep;
+              return (
+                <li key={step.id} className="flex items-center gap-2">
+                  {step.id > 1 ? <span className="h-px w-4 bg-border-subtle" /> : null}
+                  <span className={`flex items-center gap-1.5 text-[0.75rem] leading-none ${active ? 'text-text-primary' : 'text-text-tertiary'}`}>
+                    <span className={`inline-flex size-5 items-center justify-center rounded-full border text-[0.6875rem] ${
+                      active || done
+                        ? 'border-[#a89068] text-text-primary dark:border-[#b7bcc2]'
+                        : 'border-border-subtle'
+                    }`}>{step.id}</span>
+                    <span className="max-[389px]:sr-only">{step.title}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
         </div>
 
         <div className="flex flex-1 items-center justify-end">
           <button
             type="button"
             onClick={requestExit}
-            className="focus-ring p-2 text-text-secondary hover:text-text-primary"
+            className="focus-ring inline-flex size-11 items-center justify-center rounded-[2px] text-text-secondary hover:bg-black/5 hover:text-text-primary dark:hover:bg-white/10"
             aria-label="닫기"
           >
             <X size={20} />
@@ -1181,7 +1295,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
 
       {isRestoring ? (
         <div
-          className="absolute inset-x-0 bottom-0 top-16 z-20 flex flex-col items-center justify-center gap-3 bg-canvas/80 max-[1099px]:top-[calc(3.5rem+env(safe-area-inset-top))]"
+          className="absolute inset-x-0 bottom-0 top-16 z-20 flex flex-col items-center justify-center gap-3 bg-canvas/80 max-[1100px]:top-[calc(3.5rem+env(safe-area-inset-top))]"
           role="status"
           aria-live="polite"
         >
@@ -1203,7 +1317,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
           >
             {currentStep === 1 && (
               <>
-                <div className={`relative flex min-h-0 min-w-0 flex-1 flex-col min-[1100px]:overflow-hidden max-[1099px]:flex-none max-[1099px]:shrink-0 ${isPreparingPreview ? 'pointer-events-none' : ''}`}>
+                <div className={`relative flex min-h-0 min-w-0 flex-1 flex-col min-[1100px]:overflow-hidden max-[1100px]:flex-none max-[1100px]:shrink-0 ${isPreparingPreview ? 'pointer-events-none' : ''}`}>
                   {editPreview}
                 </div>
                 <aside className={`${WORKSHOP_RAIL_CLASS} py-5 min-[1100px]:py-5`}>
@@ -1260,7 +1374,8 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
                       </div>
                     </>
                   ) : null}
-                  <div className="mt-5">
+                  <div className="mt-5 hidden min-[1100px]:block">
+                    {renderGuidance('workshop-guidance-panel')}
                     {renderPrimaryCta('panel')}
                   </div>
                 </aside>
@@ -1269,7 +1384,7 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
 
             {currentStep === 2 && (
               <>
-                <div className="relative flex min-h-0 min-w-0 flex-1 flex-col min-[1100px]:overflow-hidden max-[1099px]:flex-none max-[1099px]:shrink-0">
+                <div className="relative flex min-h-0 min-w-0 flex-1 flex-col min-[1100px]:overflow-hidden max-[1100px]:flex-none max-[1100px]:shrink-0">
                   {step2Canvas}
                 </div>
                 <aside className={isPreviewSubViewOpen ? 'hidden' : `${WORKSHOP_RAIL_CLASS} py-5 min-[1100px]:py-5`}>
@@ -1277,7 +1392,8 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
                   <div className="mt-5 border-t border-border-subtle pt-3">
                     {workshopNotice}
                   </div>
-                  <div className="mt-5">
+                  <div className="mt-5 hidden min-[1100px]:block">
+                    {renderGuidance('workshop-guidance-panel')}
                     {renderPrimaryCta('panel')}
                   </div>
                 </aside>
@@ -1288,10 +1404,11 @@ export default function WorkshopView({ onBack, onClose, onComplete, hideHeader =
       </div>
 
       <div
-        className={`z-20 shrink-0 border-t border-border-subtle bg-canvas px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 max-[1099px]:pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
+        className={`z-20 shrink-0 border-t border-border-subtle bg-canvas px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 max-[1100px]:pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
           isPreviewSubViewOpen ? 'hidden' : 'min-[1100px]:hidden'
         }`}
       >
+        {renderGuidance('workshop-guidance-mobile')}
         {renderPrimaryCta('mobile')}
       </div>
 

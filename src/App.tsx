@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, Navigate, useNavigationType } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate, useNavigationType, useNavigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -42,6 +42,7 @@ const AdminUsers = lazy(() => import('./pages/AdminUsers'));
 const AdminBestSellers = lazy(() => import('./pages/AdminBestSellers'));
 const AdminBanners = lazy(() => import('./pages/AdminBanners'));
 const WorkshopOverlay = lazy(() => import('./components/WorkshopOverlay'));
+const WorkshopPage = lazy(() => import('./components/Workshop/WorkshopPage'));
 const Cart = lazy(() => import('./components/Cart'));
 
 function LazyRoute({ children }: { children: React.ReactNode }) {
@@ -151,6 +152,7 @@ function AnimatedRoutes() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/member-enroll" element={<MemberEnrollExisting />} />
         <Route path="/policy/:type" element={<PolicyPage />} />
+        <Route path="/workshop" element={<LazyRoute><WorkshopPage /></LazyRoute>} />
 
         <Route
           path="/profile/complete"
@@ -180,7 +182,9 @@ function AnimatedRoutes() {
 
 function Layout() {
   const location = useLocation();
-  const { isProfileOpen, closeProfile, isWorkshopOpen, closeWorkshop, isProfileEditOpen, closeProfileEdit, isOrdersOpen, closeOrders, isInquiryOpen, closeInquiry } = useAuth();
+  const navigate = useNavigate();
+  const { isProfileOpen, closeProfile, isWorkshopOpen, closeWorkshop, workshopEntryNonce, isProfileEditOpen, closeProfileEdit, isOrdersOpen, closeOrders, isInquiryOpen, closeInquiry } = useAuth();
+  const seenWorkshopEntry = useRef(0);
   const { isCartOpen, closeCart } = useCart();
   const [cartHostMounted, setCartHostMounted] = useState(false);
   const { theme } = useTheme();
@@ -197,6 +201,12 @@ function Layout() {
   useEffect(() => {
     if (isProfileEditOpen) setHasOpenedProfileEdit(true);
   }, [isProfileEditOpen]);
+
+  useEffect(() => {
+    if (!workshopEntryNonce || seenWorkshopEntry.current === workshopEntryNonce) return;
+    seenWorkshopEntry.current = workshopEntryNonce;
+    navigate('/workshop');
+  }, [workshopEntryNonce, navigate]);
 
   if (isCartOpen && !cartHostMounted) {
     setCartHostMounted(true);

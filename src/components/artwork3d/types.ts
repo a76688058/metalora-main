@@ -43,6 +43,11 @@ export interface MetaloraArtwork3DProps {
   interactive?: boolean;
   /** Legacy compat — continuous Y rotation */
   autoRotate?: boolean;
+  /**
+   * When true, the group uses `baseScale` immediately.
+   * Default keeps the existing ease-in for Hero and PDP.
+   */
+  snapBaseScale?: boolean;
   quality?: ArtworkQualityTier;
   /** When true, mounts bundled static lights + studio Environment (compat wrappers opt in) */
   includeSceneLighting?: boolean;

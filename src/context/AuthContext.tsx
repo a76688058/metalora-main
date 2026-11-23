@@ -58,6 +58,10 @@ interface AuthContextType {
   closeInquiry: () => void;
   requestCustomAccess: () => void;
   clearPendingCustomAccess: () => void;
+  /** Increments when an authenticated customer should open /workshop. */
+  workshopEntryNonce: number;
+  /** Legacy overlay. Used by a pending-file resume and the DEV visual preview. */
+  openLegacyWorkshop: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -82,10 +86,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [pendingCustomAccess, setPendingCustomAccess] = useState(false);
   const [workshopOrigin, setWorkshopOrigin] = useState<WorkshopOrigin | null>(null);
+  const [workshopEntryNonce, setWorkshopEntryNonce] = useState(0);
 
   const openProfile = () => setIsProfileOpen(true);
   const closeProfile = () => setIsProfileOpen(false);
   const openWorkshop = () => {
+    setWorkshopOrigin('profile');
+    setIsProfileOpen(false);
+    setWorkshopEntryNonce((value) => value + 1);
+  };
+  const openLegacyWorkshop = () => {
     setWorkshopOrigin('profile');
     setIsProfileOpen(false);
     setIsWorkshopOpen(true);
@@ -121,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user || adminUser) {
       setPendingCustomAccess(false);
       customContinuationLock.current = false;
-      setIsWorkshopOpen(true);
+      setWorkshopEntryNonce((value) => value + 1);
       return;
     }
     customContinuationLock.current = false;
@@ -550,7 +560,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     customContinuationLock.current = true;
     setPendingCustomAccess(false);
     setWorkshopOrigin('home');
-    setIsWorkshopOpen(true);
+    setWorkshopEntryNonce((value) => value + 1);
   }, [user, adminUser, profile, pendingCustomAccess, isLoading, isProfileResolved]);
 
   return (
@@ -564,6 +574,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       openProfileEdit, closeProfileEdit, openOrders, closeOrders,
       openInquiry, closeInquiry,
       requestCustomAccess, clearPendingCustomAccess,
+      workshopEntryNonce, openLegacyWorkshop,
     }}>
       {children}
     </AuthContext.Provider>

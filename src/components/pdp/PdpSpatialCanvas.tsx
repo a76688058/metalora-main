@@ -96,6 +96,18 @@ export interface PdpSpatialCanvasProps {
    * Theatre / Viewer omit this.
    */
   storyVisualFinish?: boolean;
+  /**
+   * Workshop-only. Replaces the front face with an unlit copy of the same map.
+   * Edge and reverse materials stay on the artwork's own materials.
+   */
+  faithfulFrontPrint?: boolean;
+  /**
+   * Workshop-only. Drag rotation still renders, but it does not restart the demand pulse.
+   * Theatre / Viewer omit this and keep the existing pulse.
+   */
+  holdInspectDemand?: boolean;
+  /** Workshop-only. Applies baseScale on the first frame instead of easing it in. */
+  snapBaseScale?: boolean;
   /** Story MAGNETIC-only. Theatre / Viewer omit this. */
   storyAnatomy?: StoryAnatomyView;
   /**
@@ -247,6 +259,54 @@ function readFaceMap(material: THREE.Material): THREE.Texture | null {
     return material.map;
   }
   return null;
+}
+
+/**
+ * Front print only. The artwork still owns the edge and reverse materials.
+ * The borrowed map is not disposed here.
+ */
+function PdpFaithfulFrontPrint({
+  enabled,
+  sourceKey,
+}: {
+  enabled: boolean;
+  sourceKey: string;
+}) {
+  const anchorRef = useRef<THREE.Object3D>(null);
+  const gl = useThree((state) => state.gl);
+  const invalidate = useThree((state) => state.invalidate);
+
+  useLayoutEffect(() => {
+    const mesh = anchorRef.current?.parent;
+    if (!enabled || !(mesh instanceof THREE.Mesh)) return undefined;
+
+    const artworkOwned = mesh.material;
+    if (!Array.isArray(artworkOwned) || artworkOwned.length !== 6) return undefined;
+    const map = readFaceMap(artworkOwned[4]);
+    if (!map) return undefined;
+
+    const print = new THREE.MeshBasicMaterial({
+      map,
+      color: 0xffffff,
+      toneMapped: false,
+    });
+    const applied = artworkOwned.slice();
+    applied[4] = print;
+    mesh.material = applied;
+    gl.domElement.dataset.pdpFrontPrint = 'faithful';
+    invalidate();
+
+    return () => {
+      if (mesh.material === applied) mesh.material = artworkOwned;
+      print.dispose();
+      if (gl.domElement.dataset.pdpFrontPrint === 'faithful') {
+        delete gl.domElement.dataset.pdpFrontPrint;
+      }
+      invalidate();
+    };
+  }, [enabled, sourceKey, gl, invalidate]);
+
+  return <object3D ref={anchorRef} />;
 }
 
 function stampStoryMaterialContract(
@@ -448,6 +508,9 @@ function PdpSpatialScene({
   edgeSweep,
   edgeGlint,
   storyVisualFinish,
+  faithfulFrontPrint,
+  holdInspectDemand,
+  snapBaseScale,
   storyAnatomy,
   surfaceSweep,
   cameraPosition,
@@ -476,6 +539,9 @@ function PdpSpatialScene({
   edgeSweep: number;
   edgeGlint: number;
   storyVisualFinish: boolean;
+  faithfulFrontPrint: boolean;
+  holdInspectDemand: boolean;
+  snapBaseScale: boolean;
   storyAnatomy: StoryAnatomyView;
   surfaceSweep: SurfaceSweepVisual | null;
   cameraPosition: [number, number, number];
@@ -523,8 +589,8 @@ function PdpSpatialScene({
     scale,
     inspectRotationMode,
     lightingMode,
-    pose.rotationX,
-    pose.rotationY,
+    holdInspectDemand ? 'held' : pose.rotationX,
+    holdInspectDemand ? 'held' : pose.rotationY,
     appliedFlip,
     cameraPosition.join(','),
     cameraLookAt?.join(',') ?? '',
@@ -584,6 +650,7 @@ function PdpSpatialScene({
       interactionMode="static"
       interactive={false}
       autoRotate={false}
+      snapBaseScale={snapBaseScale}
       quality={quality}
       includeSceneLighting={studioOn}
       baseScale={PDP_FRAME_SCALE * scale}
@@ -594,6 +661,9 @@ function PdpSpatialScene({
       receiveShadow={false}
       onTexturesReady={onTexturesReady}
     >
+      {faithfulFrontPrint && !storyVisualFinish ? (
+        <PdpFaithfulFrontPrint enabled={texturesReady} sourceKey={storyFinishKey} />
+      ) : null}
       {storyVisualFinish ? (
         <>
           <PdpStoryMaterialFinish enabled={texturesReady} sourceKey={storyFinishKey} />
@@ -725,6 +795,9 @@ export function PdpSpatialCanvas({
   edgeSweep = 0,
   edgeGlint = 0,
   storyVisualFinish = false,
+  faithfulFrontPrint = false,
+  holdInspectDemand = false,
+  snapBaseScale = false,
   storyAnatomy = STORY_ANATOMY_IDLE,
   surfaceSweep = null,
   cameraPosition,
@@ -807,6 +880,9 @@ export function PdpSpatialCanvas({
               edgeSweep={edgeSweep}
               edgeGlint={edgeGlint}
               storyVisualFinish={storyVisualFinish}
+              faithfulFrontPrint={faithfulFrontPrint}
+              holdInspectDemand={holdInspectDemand}
+              snapBaseScale={snapBaseScale}
               storyAnatomy={storyAnatomy}
               surfaceSweep={surfaceSweep}
               cameraPosition={resolvedCameraPosition}

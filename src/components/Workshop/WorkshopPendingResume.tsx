@@ -8,15 +8,15 @@ import { hasWorkshopPendingAdd } from './pendingCartAuth';
  * WorkshopView owns the file restore and the single cart submit.
  */
 export default function WorkshopPendingResume() {
-  const { user, requestCustomAccess } = useAuth();
+  const { user, openLegacyWorkshop } = useAuth();
   const openedRef = useRef(false);
 
   useEffect(() => {
     if (!user || openedRef.current) return;
     if (!hasWorkshopPendingAdd()) return;
     openedRef.current = true;
-    requestCustomAccess();
-  }, [user, requestCustomAccess]);
+    openLegacyWorkshop();
+  }, [user, openLegacyWorkshop]);
 
   return null;
 }

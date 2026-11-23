@@ -8,6 +8,7 @@ import {
   resetEdits,
 } from './math';
 import { loadCustomSource, rasterizeCustomComposition, revokePreviewUrl } from './rasterize';
+import { freezeCustomSubmission } from './submitCustomCart';
 import {
   defaultComposition,
   type CustomComposition,
@@ -40,6 +41,7 @@ export function useCustomComposition() {
   const clearSource = useCallback(() => {
     loadGenRef.current += 1;
     rasterGenRef.current += 1;
+    forceGenRef.current += 1;
     setSource(null);
     setComposition(defaultComposition());
     replacePreviewUrl(null);
@@ -71,6 +73,31 @@ export function useCustomComposition() {
   const reset = useCallback(() => {
     setComposition((prev) => (source ? resetEdits(source, prev) : { ...prev, zoom: 1, offsetX: 0, offsetY: 0 }));
   }, [source]);
+
+  const captureSubmissionSnapshot = useCallback(async (): Promise<{
+    source: CustomSource;
+    composition: CustomComposition;
+    previewBlob: Blob;
+  } | null> => {
+    const currentSource = sourceRef.current;
+    const currentComposition = compositionRef.current;
+    if (!currentSource) return null;
+    const frozen = freezeCustomSubmission(currentSource, currentComposition);
+    const forceGen = ++forceGenRef.current;
+    forceInFlightRef.current = true;
+    rasterGenRef.current += 1;
+    try {
+      const previewBlob = await rasterizeCustomComposition(frozen.source, frozen.composition);
+      if (forceGen !== forceGenRef.current) return null;
+      replacePreviewUrl(URL.createObjectURL(previewBlob));
+      return { source: frozen.source, composition: frozen.composition, previewBlob };
+    } catch {
+      if (forceGen === forceGenRef.current) replacePreviewUrl(null);
+      return null;
+    } finally {
+      if (forceGen === forceGenRef.current) forceInFlightRef.current = false;
+    }
+  }, [replacePreviewUrl]);
 
   const ensureCurrentPreview = useCallback(async (): Promise<string | null> => {
     const currentSource = sourceRef.current;
@@ -142,5 +169,6 @@ export function useCustomComposition() {
     panByPointer,
     reset,
     ensureCurrentPreview,
+    captureSubmissionSnapshot,
   };
 }

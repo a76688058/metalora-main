@@ -31,6 +31,7 @@ const POLICY_DESCRIPTIONS: Record<string, string> = {
 
 const FUNCTIONAL_TITLES: Record<string, string> = {
   '/login': '로그인 | 메탈로라',
+  '/workshop': '맞춤 제작 | 메탈로라',
   '/auth/callback': '인증 | 메탈로라',
   '/profile/complete': '프로필 | 메탈로라',
   '/payment/success': '결제 완료 | 메탈로라',

@@ -23,13 +23,17 @@ import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
 import { completionSyncFeedback, REVIEW_ELIGIBILITY_SYNC_ERROR } from '../lib/reviewEligibilityFeedback';
 import { cn } from '../lib/cn';
+import { AdminCustomProduction } from '../components/admin/AdminCustomProduction';
 import { useWorkshopMediaDisplay } from '../hooks/useWorkshopMediaDisplay';
 import type { WorkshopMediaDisplay } from '../lib/workshopMediaDisplay';
 
 function visibleWorkshopRefs(orders: AdminOrder[], selected: AdminOrder | null): (string | null)[] {
   const listed = orders.map((order) => order.items[0]).filter((item) => item?.isWorkshop);
   const detail = selected ? selected.items.filter((item) => item.isWorkshop) : [];
-  return [...listed, ...detail].map((item) => item?.imageUrl ?? null);
+  return [
+    ...listed.map((item) => item?.imageUrl ?? null),
+    ...detail.flatMap((item) => [item.imageUrl, item.originalRef]),
+  ];
 }
 
 const DATE_FILTERS: { value: DateFilter; label: string }[] = [
@@ -600,16 +604,37 @@ export default function AdminOrders() {
                   {selectedOrder.items.length === 0 ? (
                     <li className="text-sm text-zinc-500">상품 정보가 없습니다.</li>
                   ) : selectedOrder.items.map((item: AdminOrderItem, index) => (
-                    <li key={`${item.title}-${index}`} className="flex gap-3">
-                      <OrderThumb item={item} workshopMedia={workshopMedia} />
-                      <div className="min-w-0">
-                        <p className="text-sm text-white truncate">{item.title}</p>
-                        <p className="text-xs text-zinc-400 mt-1">
-                          {[item.option, item.quantity ? `${item.quantity}개` : '', item.orientation === 'landscape' ? '가로형' : item.orientation === 'portrait' ? '세로형' : '', item.isWorkshop ? '커스텀' : '']
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </p>
+                    <li key={`${item.title}-${index}`}>
+                      <div className="flex gap-3">
+                        <OrderThumb item={item} workshopMedia={workshopMedia} />
+                        <div className="min-w-0">
+                          <p className="text-sm text-white truncate">{item.title}</p>
+                          <p className="text-xs text-zinc-400 mt-1">
+                            {[item.option, item.quantity ? `${item.quantity}개` : '', item.orientation === 'landscape' ? '가로형' : item.orientation === 'portrait' ? '세로형' : '', item.isWorkshop ? '커스텀' : '']
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </p>
+                        </div>
                       </div>
+                      {item.isWorkshop ? (
+                        <AdminCustomProduction
+                          item={item}
+                          orderNumber={selectedOrder.order_number}
+                          orderId={selectedOrder.id}
+                          buyerId={selectedOrder.user_id}
+                          orderedAt={formatOrderDate(selectedOrder.created_at)}
+                          preview={item.imageUrl ? workshopMedia.get(item.imageUrl) : { status: 'absent', src: null }}
+                          original={item.originalRef ? workshopMedia.get(item.originalRef) : { status: 'absent', src: null }}
+                          onPreviewError={() => {
+                            const src = item.imageUrl ? workshopMedia.get(item.imageUrl).src : null;
+                            if (item.imageUrl && src) void workshopMedia.onLoadError(item.imageUrl, src);
+                          }}
+                          onOriginalError={() => {
+                            const src = item.originalRef ? workshopMedia.get(item.originalRef).src : null;
+                            if (item.originalRef && src) void workshopMedia.onLoadError(item.originalRef, src);
+                          }}
+                        />
+                      ) : null}
                     </li>
                   ))}
                 </ul>
