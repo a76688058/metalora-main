@@ -113,16 +113,29 @@ for (const file of transitive) {
 }
 
 const allowedOutsideLib = ["src/types/reviews.ts"];
+const allowedNested = [
+  "src/lib/customComposition/productionSnapshot.ts",
+  "src/lib/customComposition/types.ts",
+];
 const nested = graph.filter(
   (file) => file !== "server.ts"
     && !/^src\/lib\/[^/]+\.tsx?$/.test(file)
-    && !allowedOutsideLib.includes(file),
+    && !allowedOutsideLib.includes(file)
+    && !allowedNested.includes(file),
 );
 assert(
-  "runtime graph stays in src/lib/*.ts plus src/types/reviews.ts",
+  "runtime graph has no unexpected nested modules",
   nested.length === 0,
   nested.join(", "),
 );
+for (const file of allowedNested) {
+  assert(`graph includes ${file}`, graph.includes(file));
+  const pattern = file.replaceAll(".", "\\.").replaceAll("/", "\\/");
+  assert(
+    `runner copies ${file}`,
+    new RegExp(`COPY\\s+${pattern}\\s+\\./${pattern}`).test(runner),
+  );
+}
 assert("graph includes src/types/reviews.ts", graph.includes("src/types/reviews.ts"));
 
 assert(
@@ -154,7 +167,8 @@ const copiedTopLevel = fs
 const missingFromGlob = graph.filter(
   (file) => file !== "server.ts"
     && !copiedTopLevel.includes(file)
-    && !allowedOutsideLib.includes(file),
+    && !allowedOutsideLib.includes(file)
+    && !allowedNested.includes(file),
 );
 assert(
   "src/lib/*.ts glob covers the runtime graph",
@@ -190,15 +204,21 @@ try {
     path.join(root, "src/types/reviews.ts"),
     path.join(layout, "src/types/reviews.ts"),
   );
+  for (const file of allowedNested) {
+    fs.mkdirSync(path.dirname(path.join(layout, file)), { recursive: true });
+    fs.copyFileSync(path.join(root, file), path.join(layout, file));
+  }
   fs.symlinkSync(path.join(root, "node_modules"), path.join(layout, "node_modules"), "junction");
   fs.writeFileSync(
     path.join(layout, "src/lib/runnerResolveProbe.ts"),
     [
       "import { reviewRequestBlocked, REVIEW_READ_API_READY, REVIEW_WRITE_API_READY } from \"../types/reviews\";",
       "import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from \"./publicPaymentFreeze\";",
+      "import { canonicalOutputMillimeters } from \"./customComposition/productionSnapshot\";",
       "import \"./reviewImageRoutes\";",
       "if (REVIEW_READ_API_READY !== false || REVIEW_WRITE_API_READY !== false) throw new Error(\"review flags\");",
-      "if (PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 !== true) throw new Error(\"payment freeze\");",
+      "if (PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 !== false) throw new Error(\"payment freeze\");",
+      "if (canonicalOutputMillimeters(\"portrait\")?.width !== 200) throw new Error(\"snapshot mm\");",
       "if (!reviewRequestBlocked(\"read\") || !reviewRequestBlocked(\"write\")) throw new Error(\"review gate\");",
       "console.log(\"RUNNER_RESOLVE=PASS\");",
     ].join("\n"),

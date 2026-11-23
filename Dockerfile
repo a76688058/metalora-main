@@ -34,10 +34,13 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY server.ts ./
-# tsx server.ts loads the NEW2 auth runtime graph from src/lib.
+# tsx server.ts loads the runtime graph from src/lib.
 # Builder COPY src is compile-only and is not present in this stage.
-# Top-level *.ts only: customComposition/ is client rasterize, not imported by server.ts.
+# Top-level *.ts, plus the server import closure under customComposition.
+# Client-only files in that directory are not copied.
 COPY src/lib/*.ts ./src/lib/
+COPY src/lib/customComposition/productionSnapshot.ts ./src/lib/customComposition/productionSnapshot.ts
+COPY src/lib/customComposition/types.ts ./src/lib/customComposition/types.ts
 # Extensionless import ../types/reviews from reviewImageRoutes.ts.
 # tsx resolves it to this file. It has no further local imports.
 COPY src/types/reviews.ts ./src/types/reviews.ts
