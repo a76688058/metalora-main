@@ -69,7 +69,7 @@ function Get-TrafficEntryByTag {
     return @($Service.status.traffic | Where-Object { $_.tag -eq $Tag })
 }
 
-function Get-RevisionImage {
+function Get-RevisionRecord {
     param([string]$RevisionName)
 
     $json = gcloud run revisions describe $RevisionName `
@@ -79,8 +79,7 @@ function Get-RevisionImage {
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to describe revision $RevisionName"
     }
-    $rev = $json | ConvertFrom-Json
-    return $rev.spec.containers[0].image
+    return ($json | ConvertFrom-Json)
 }
 
 # --- Git preflight ---
@@ -108,8 +107,38 @@ $originMain = (Invoke-Git -Args @("rev-parse", "origin/main") | Select-Object -F
 if ($fullSha -ne $originMain) {
     throw "Local HEAD ($shortSha) is not aligned with origin/main. Push before deploying."
 }
+if ($shortSha -ne $fullSha.Substring(0, $shortSha.Length)) {
+    throw "Short SHA does not match HEAD."
+}
 
-# --- Current production revision (read only) ---
+# --- Deployment config (local files only) ---
+$repoRoot = (Invoke-Git -Args @("rev-parse", "--show-toplevel") | Select-Object -First 1).ToString().Trim()
+$cloudBuildPath = Join-Path $repoRoot "cloudbuild.yaml"
+$dockerPath = Join-Path $repoRoot "Dockerfile"
+if (-not (Test-Path -LiteralPath $cloudBuildPath)) { throw "cloudbuild.yaml is missing." }
+if (-not (Test-Path -LiteralPath $dockerPath)) { throw "Dockerfile is missing." }
+$cloudBuild = Get-Content -LiteralPath $cloudBuildPath -Raw
+$dockerfile = Get-Content -LiteralPath $dockerPath -Raw
+if ($cloudBuild -notlike "*gcr.io/cloud-builders/docker*") {
+    throw "Cloud Build config does not use the docker builder."
+}
+if ($cloudBuild -notlike "*DOCKER_BUILDKIT=1*") {
+    throw "Cloud Build config does not enable BuildKit."
+}
+if ($cloudBuild -match '(?m)^ARG ' -or $cloudBuild -like "*--build-arg*") {
+    throw "Cloud Build config contains a Docker build arg."
+}
+if ($dockerfile -notlike "*# syntax=docker/dockerfile:1.4*") {
+    throw "Dockerfile does not select the BuildKit syntax frontend."
+}
+if ($dockerfile -notlike "*--mount=type=secret*" -or $dockerfile -notlike "*required=false*") {
+    throw "Dockerfile secret mount is not the optional BuildKit mount."
+}
+if ($dockerfile -match '(?m)^ARG ') {
+    throw "Dockerfile contains a build arg."
+}
+
+# --- Current production revision (read only; no tag or traffic write) ---
 $serviceBefore = Get-CloudRunService
 $productionBefore = Get-ProductionTrafficEntry -Service $serviceBefore
 $productionRevision = $productionBefore.revisionName
@@ -127,15 +156,36 @@ Invoke-Gcloud -Args @(
     "--substitutions=_IMAGE=$image"
 )
 
-# --- Tag stable only after the image build succeeds ---
-Invoke-Gcloud -Args @(
-    "run", "services", "update-traffic", $SERVICE,
-    "--project=$PROJECT",
-    "--region=$REGION",
-    "--update-tags=stable=$productionRevision"
-)
+# --- Verify the built image and its source tag before Cloud Run changes ---
+$fullShaAfterBuild = (Invoke-Git -Args @("rev-parse", "HEAD") | Select-Object -First 1).ToString().Trim()
+$shortShaAfterBuild = (Invoke-Git -Args @("rev-parse", "--short", "HEAD") | Select-Object -First 1).ToString().Trim()
+if ($fullShaAfterBuild -ne $fullSha -or $shortShaAfterBuild -ne $shortSha) {
+    throw "HEAD changed during the image build. Refusing to deploy."
+}
+if ($image -ne "${IMAGE_BASE}:${shortSha}") {
+    throw "Image reference does not match the validated source SHA."
+}
 
-# --- Deploy candidate (0% production traffic) ---
+$imageJson = gcloud artifacts docker images describe $image `
+    --project=$PROJECT `
+    --format=json
+if ($LASTEXITCODE -ne 0) {
+    throw "Built image was not found: $image"
+}
+$imageRecord = $imageJson | ConvertFrom-Json
+$imageDigest = [string]$imageRecord.image_summary.digest
+$imageReference = [string]$imageRecord.image_summary.fully_qualified_digest
+if ($imageDigest -notmatch '^sha256:[0-9a-f]{64}$') {
+    throw "Built image digest is missing for $image"
+}
+if ($imageReference -ne "${IMAGE_BASE}@${imageDigest}") {
+    throw "Built image does not belong to the metalora-direct registry."
+}
+
+Write-Host "Verified image: $image"
+Write-Host "IMAGE_DIGEST=$imageDigest"
+
+# --- Deploy the verified image (0% production traffic; stable tag is not moved) ---
 Invoke-Gcloud -Args @(
     "run", "deploy", $SERVICE,
     "--project=$PROJECT",
@@ -181,7 +231,25 @@ if (-not $candidateUrl) {
     throw "Candidate URL not found on traffic entry."
 }
 
-$deployedImage = Get-RevisionImage -RevisionName $candidateRevision
+$candidateRecord = Get-RevisionRecord -RevisionName $candidateRevision
+$ready = @($candidateRecord.status.conditions | Where-Object {
+        $_.type -eq "Ready" -and $_.status -eq "True"
+    })
+if ($ready.Count -lt 1) {
+    throw "Candidate revision is not Ready: $candidateRevision"
+}
+
+$deployedImage = [string]$candidateRecord.spec.containers[0].image
+if ($deployedImage -ne $image -and $deployedImage -ne $imageReference) {
+    throw "Candidate revision image does not match the verified image."
+}
+
+$deploySha = @($candidateRecord.spec.containers[0].env | Where-Object {
+        $_.name -eq "DEPLOY_SHA"
+    } | Select-Object -First 1).value
+if ([string]$deploySha -ne $fullSha) {
+    throw "Candidate DEPLOY_SHA does not match the validated source SHA."
+}
 
 Write-Host ""
 Write-Host "PRODUCTION_REVISION=$productionRevision"
