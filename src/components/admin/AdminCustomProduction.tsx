@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import type { AdminOrderItem } from './adminOrders';
 import { formatCustomMPrice } from '../../lib/customComposition/customMPrice';
-import {
-  manufacturingResolution,
-  manufacturingResampled,
-} from '../../lib/customComposition/math';
+import { manufacturingResolution } from '../../lib/customComposition/math';
 import { readPurchasedComposition } from '../../lib/customComposition/productionSnapshot';
 import { supabase } from '../../lib/supabase';
 import {
@@ -12,6 +9,13 @@ import {
   readStoredSourcePixels,
   storedCustomLineAmount,
 } from './adminOrderMapping';
+import { ProductionInspectionViewer } from './ProductionInspectionViewer';
+import {
+  lowResolutionCopy,
+  parsePixelHeader,
+  resamplingNote,
+  type ManufacturingFileResult,
+} from './productionInspection';
 
 function formatOffset(value: number): string {
   const rounded = Math.round(value * 1000) / 1000;
@@ -80,6 +84,7 @@ export function AdminCustomProduction({
   isolatedLabel?: string;
 }) {
   const [showOriginal, setShowOriginal] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const [downloadState, setDownloadState] = useState<'idle' | 'working' | 'failed' | 'saved'>('idle');
   const [downloadNote, setDownloadNote] = useState<string | null>(null);
   const composition = readPurchasedComposition(item.customConfig, item.orientation);
@@ -110,10 +115,10 @@ export function AdminCustomProduction({
     manufacturingSource && manufacturingComposition
       ? manufacturingResolution(manufacturingSource, manufacturingComposition)
       : null;
-  const resampled =
+  const resampling =
     manufacturingSource && manufacturingComposition
-      ? manufacturingResampled(manufacturingSource, manufacturingComposition)
-      : false;
+      ? resamplingNote(manufacturingSource, manufacturingComposition)
+      : null;
   const storedSizeDiffers =
     resolution != null &&
     composition.status === 'ready' &&
@@ -121,6 +126,44 @@ export function AdminCustomProduction({
     composition.heightMm != null &&
     (composition.widthMm !== resolution.widthMm || composition.heightMm !== resolution.heightMm);
   const canDownload = ready && Boolean(item.originalRef) && resolution != null;
+
+  async function requestManufacturingFile(): Promise<ManufacturingFileResult> {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return { ok: false, message: '관리자 세션이 없습니다.' };
+    try {
+      const response = await fetch(
+        `/api/admin/orders/${encodeURIComponent(orderId)}/items/${itemIndex}/manufacturing.png`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (response.status === 401 || response.status === 403) {
+        return { ok: false, message: '관리자 권한이 확인되지 않았습니다.' };
+      }
+      if (response.status === 404) return { ok: false, message: '원본 소스를 찾지 못했습니다.' };
+      if (!response.ok) return { ok: false, message: '제작 출력을 만들지 못했습니다. 원본 또는 구매 구도를 확인하세요.' };
+      const blob = await response.blob();
+      const pixels = parsePixelHeader(response.headers.get('X-Metalora-Manufacturing-Pixels'));
+      let width = pixels?.width ?? 0;
+      let height = pixels?.height ?? 0;
+      if (!pixels) {
+        const bitmap = await createImageBitmap(blob);
+        width = bitmap.width;
+        height = bitmap.height;
+        bitmap.close();
+      }
+      return {
+        ok: true,
+        src: URL.createObjectURL(blob),
+        width,
+        height,
+        bytes: blob.size,
+        belowReference: response.headers.get('X-Metalora-Manufacturing-Review') === 'below-reference',
+        resampled: response.headers.get('X-Metalora-Manufacturing-Resampled') === '1',
+      };
+    } catch {
+      return { ok: false, message: '제작 출력을 받지 못했습니다.' };
+    }
+  }
 
   async function downloadManufacturing() {
     setDownloadState('working');
@@ -170,6 +213,17 @@ export function AdminCustomProduction({
   return (
     <section className="mt-4 rounded-xl border border-white/10 bg-black/30 p-4" aria-label="맞춤 제작 정보">
       {isolatedLabel ? <p className="mb-3 text-xs font-medium text-amber-200">{isolatedLabel}</p> : null}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-zinc-300">큰 화면에서 구매 구도와 제작 파일을 확인합니다.</p>
+        <button
+          type="button"
+          className="focus-ring min-h-11 rounded-lg bg-white px-3 text-sm font-medium text-black disabled:opacity-40"
+          disabled={!ready}
+          onClick={() => setViewerOpen(true)}
+        >
+          제작 확인 화면
+        </button>
+      </div>
       <h5 className="text-sm font-medium text-white">고객 미리보기</h5>
       <p className="mt-1 text-xs text-zinc-400">화면에서 확인한 구성입니다. 제작 출력이 아닙니다.</p>
       <div className="mt-3 flex min-h-48 items-center justify-center rounded-lg bg-zinc-950 p-3">
@@ -218,15 +272,15 @@ export function AdminCustomProduction({
             <dd className="text-zinc-100">{resolution.widthMm} × {resolution.heightMm} mm</dd>
             <dt className="text-zinc-500">유효 해상도</dt>
             <dd className="text-zinc-100">{resolution.ppiX.toFixed(1)} × {resolution.ppiY.toFixed(1)} PPI</dd>
-            <dt className="text-zinc-500">리샘플</dt>
-            <dd className="text-zinc-100">{resampled ? '소스 비율이 한 픽셀 넘게 조정됩니다.' : '원본 픽셀 비율을 유지합니다.'}</dd>
+            <dt className="text-zinc-500">픽셀 반올림</dt>
+            <dd className="text-zinc-400">{resampling?.text}</dd>
           </dl>
         ) : (
           <p className="mt-2 text-sm text-amber-200">제작 출력을 계산할 구매 구도 또는 원본 픽셀이 없습니다.</p>
         )}
         {resolution?.belowReference ? (
           <p className="mt-2 text-sm font-medium text-amber-200">
-            원본 크롭의 유효 해상도가 300 PPI 참고값보다 낮습니다. 파일을 만들었다고 인쇄 준비가 끝난 것은 아닙니다.
+            {lowResolutionCopy(resolution.ppiX, resolution.ppiY, resolution.widthMm, resolution.heightMm)}
           </p>
         ) : null}
         {storedSizeDiffers ? (
@@ -312,6 +366,20 @@ export function AdminCustomProduction({
           </>
         ) : null}
       </dl>
+      {viewerOpen ? (
+        <ProductionInspectionViewer
+          key={`${orderId}:${itemIndex}`}
+          item={item}
+          orderNumber={orderNumber}
+          itemIndex={itemIndex}
+          preview={preview}
+          original={original}
+          onPreviewError={onPreviewError}
+          onOriginalError={onOriginalError}
+          onRequestManufacturing={requestManufacturingFile}
+          onClose={() => setViewerOpen(false)}
+        />
+      ) : null}
     </section>
   );
 }
