@@ -533,10 +533,58 @@ async function reconcileByGet(port: CapturePort, provider: ConfirmProvider, orde
 type RpcResult = { data: unknown; error: { message?: string } | null };
 type RpcClient = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<RpcResult> };
 
+const TOSS_TRANSACTION_KEY_EDGE = /^[ \t\n\r\f\v]+|[ \t\n\r\f\v]+$/g;
+const TOSS_TRANSACTION_KEY_MAX = 64;
+
+type NormalizedTossTransactionKey =
+  | { kind: "absent" }
+  | { kind: "present"; value: string }
+  | { kind: "invalid" };
+
+function normalizeTossTransactionKey(value: unknown): NormalizedTossTransactionKey {
+  if (value == null) return { kind: "absent" };
+  if (typeof value !== "string") return { kind: "invalid" };
+  const trimmed = value.replace(TOSS_TRANSACTION_KEY_EDGE, "");
+  if (trimmed.length === 0) return { kind: "absent" };
+  if (trimmed.length > TOSS_TRANSACTION_KEY_MAX) return { kind: "invalid" };
+  return { kind: "present", value: trimmed };
+}
+
+export type TossAcceptanceTransactionKey = {
+  acceptanceKey: string | null;
+  reason: "accepted" | "missing" | "conflict" | "cancel_superseded" | "invalid";
+};
+
+/**
+ * Acceptance key for a Toss Payment object on API v1.
+ * `transactionKey` is the deprecated alias of the last transaction.
+ * `lastTransactionKey` is the current field and means the same last transaction.
+ * A cancel replaces that value, so a non-empty `cancels` array is not an approval key.
+ * paymentKey and card.approveNo are different identifiers and are never read here.
+ */
+export function readTossAcceptanceTransactionKey(payment: Record<string, unknown>): TossAcceptanceTransactionKey {
+  if (Array.isArray(payment.cancels) && payment.cancels.length > 0) {
+    return { acceptanceKey: null, reason: "cancel_superseded" };
+  }
+  const current = normalizeTossTransactionKey(payment.transactionKey);
+  const last = normalizeTossTransactionKey(payment.lastTransactionKey);
+  if (current.kind === "invalid" || last.kind === "invalid") {
+    return { acceptanceKey: null, reason: "invalid" };
+  }
+  if (current.kind === "present" && last.kind === "present" && current.value !== last.value) {
+    return { acceptanceKey: null, reason: "conflict" };
+  }
+  if (current.kind === "present") return { acceptanceKey: current.value, reason: "accepted" };
+  if (last.kind === "present") return { acceptanceKey: last.value, reason: "accepted" };
+  return { acceptanceKey: null, reason: "missing" };
+}
+
 export async function persistProviderObservation(
   admin: RpcClient,
   input: { orderNumber: string; source: "confirm_body" | "get_lookup"; payment: Record<string, unknown> },
 ): Promise<{ ok: true; status: string } | { ok: false }> {
+  const acceptance = readTossAcceptanceTransactionKey(input.payment);
+  const last = normalizeTossTransactionKey(input.payment.lastTransactionKey);
   const result = await admin.rpc("apply_provider_capture_observation", {
     p_order_number: input.orderNumber,
     p_source: input.source,
@@ -546,8 +594,8 @@ export async function persistProviderObservation(
     p_provider_mid: input.payment.mId ?? null,
     p_payment_method: input.payment.method ?? null,
     p_provider_status: input.payment.status ?? null,
-    p_transaction_key: input.payment.transactionKey ?? null,
-    p_last_transaction_key: input.payment.lastTransactionKey ?? null,
+    p_transaction_key: acceptance.acceptanceKey,
+    p_last_transaction_key: last.kind === "present" ? last.value : null,
   });
   if (result.error || typeof result.data !== "string") return { ok: false };
   return { ok: true, status: result.data };
