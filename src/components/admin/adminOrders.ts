@@ -1,5 +1,6 @@
 import { workshopDisplayApi } from '../../hooks/useWorkshopMediaDisplay';
 import { mapAdminOrderItem as mapAdminOrderItemWithApi, type AdminOrderItem } from './adminOrderMapping';
+import { refundMethodFromSources } from './adminRefundContract';
 
 export type { AdminOrderItem } from './adminOrderMapping';
 
@@ -57,7 +58,7 @@ export function orderStatusLabel(status: string): string {
 export const ADMIN_ORDERS_PAGE_SIZE = 25;
 
 export const ADMIN_ORDER_SELECT =
-  'id, order_number, user_id, created_at, status, total_price, shipping_name, shipping_phone, address, address_detail, zip_code, courier, tracking_number, ordered_items, method';
+  'id, order_number, user_id, created_at, status, total_price, shipping_name, shipping_phone, address, address_detail, zip_code, courier, tracking_number, ordered_items, method, refund_payment_method:shipping_info->>payment_method';
 
 export type DateFilter = 'all' | 'today' | '7d' | '30d';
 export type StatusFilter = 'all' | AdminOrderStatus | typeof CANCELLED_ORDER_STATUS;
@@ -118,7 +119,7 @@ export function mapAdminOrder(raw: unknown): AdminOrder {
     zip_code: asString(row.zip_code),
     courier: asString(row.courier),
     tracking_number: asString(row.tracking_number),
-    method: asString(row.method),
+    method: refundMethodFromSources(row.method, row.refund_payment_method),
     items,
   };
 }

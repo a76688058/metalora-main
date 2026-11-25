@@ -22,6 +22,24 @@ export type RefundAttempt =
   | { kind: 'uncertain'; message: string }
   | { kind: 'unauthorized'; message: string };
 
+function presentMethod(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * Applied cancellation rule: a blank orders.method falls back to
+ * shipping_info.payment_method. Disagreeing values are not eligible.
+ * Only the exact method 카드 can open a refund.
+ */
+export function refundMethodFromSources(column: unknown, snapshot: unknown): string {
+  const method = presentMethod(column);
+  const info = presentMethod(snapshot);
+  if (method && info && method !== info) return '';
+  return method ?? info ?? '';
+}
+
 export function refundEligibility(order: RefundOrderFacts, locked: boolean): RefundEligibility {
   if (locked) return { ok: false, reason: 'locked' };
   if (!Number.isSafeInteger(order.totalPrice) || order.totalPrice <= 0) return { ok: false, reason: 'amount' };

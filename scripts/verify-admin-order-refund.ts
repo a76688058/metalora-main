@@ -4,6 +4,7 @@ import {
   interpretCancelResponse,
   postFullRefund,
   refundEligibility,
+  refundMethodFromSources,
   type RefundOrderFacts,
 } from '../src/components/admin/adminRefundContract.ts';
 import {
@@ -34,10 +35,19 @@ assert('production cannot refund', refundEligibility({ ...paid, status: 'PRODUCT
 assert('shipping cannot refund', refundEligibility({ ...paid, status: 'SHIPPING' }, false).ok === false);
 assert('completed cannot refund', refundEligibility({ ...paid, status: 'COMPLETED' }, false).ok === false);
 assert('non-card cannot refund', refundEligibility({ ...paid, method: '간편결제' }, false).ok === false);
+assert('english card alias stays blocked', refundEligibility({ ...paid, method: refundMethodFromSources('CARD', null) }, false).ok === false);
+assert('easy pay snapshot stays blocked', refundEligibility({ ...paid, method: refundMethodFromSources(null, 'EASY_PAY') }, false).ok === false);
+assert('easy pay korean stays blocked', refundEligibility({ ...paid, method: refundMethodFromSources(null, '간편결제') }, false).ok === false);
+assert('disagreeing methods stay blocked', refundMethodFromSources('카드', '간편결제') === '');
+const snapshotCardMethod = refundMethodFromSources(null, '카드');
+assert('blank method column uses the card snapshot', snapshotCardMethod === '카드');
+assert('blank method column can open refund', refundEligibility({ ...paid, method: snapshotCardMethod }, false).ok === true);
 assert('cancelled cannot refund', refundEligibility({ ...paid, status: 'CANCELLED' }, false).ok === false);
 assert('locked order cannot refund', refundEligibility(paid, true).ok === false);
 assert('zero amount cannot refund', refundEligibility({ ...paid, totalPrice: 0 }, false).ok === false);
 const orderSource = readFileSync(new URL('../src/components/admin/adminOrders.ts', import.meta.url), 'utf8');
+assert('order select reads only the payment method key', orderSource.includes('refund_payment_method:shipping_info->>payment_method') && !orderSource.includes(', shipping_info,'));
+assert('order mapping uses the cancellation method rule', orderSource.includes('refundMethodFromSources(row.method, row.refund_payment_method)'));
 assert('cancelled label is mapped', orderSource.includes("if (status === CANCELLED_ORDER_STATUS) return '결제 취소';"));
 assert('paid label stays in the fulfillment map', orderSource.includes("PAID: '결제확인'"));
 assert('cancelled is outside fulfillment transitions', !orderSource.includes("CANCELLED: 'PRODUCTION'"));
