@@ -4,6 +4,7 @@ import AdminLayout from '../components/admin/AdminLayout';
 import {
   ADMIN_ORDER_STATUSES,
   ADMIN_ORDER_STATUS_LABEL,
+  CANCELLED_ORDER_STATUS,
   ADMIN_ORDERS_PAGE_SIZE,
   fetchAdminOrders,
   isAllowedOrderTransition,
@@ -24,6 +25,7 @@ import { supabase } from '../lib/supabase';
 import { completionSyncFeedback, REVIEW_ELIGIBILITY_SYNC_ERROR } from '../lib/reviewEligibilityFeedback';
 import { cn } from '../lib/cn';
 import { AdminCustomProduction } from '../components/admin/AdminCustomProduction';
+import { AdminOrderRefund } from '../components/admin/AdminOrderRefund';
 import { useWorkshopMediaDisplay } from '../hooks/useWorkshopMediaDisplay';
 import type { WorkshopMediaDisplay } from '../lib/workshopMediaDisplay';
 
@@ -157,6 +159,9 @@ export default function AdminOrders() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [eligibilityRetryId, setEligibilityRetryId] = useState<string | null>(null);
+  const [refundBusy, setRefundBusy] = useState(false);
+  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  const [refundLocks, setRefundLocks] = useState<ReadonlySet<string>>(() => new Set());
   const lastOpenerRef = useRef<HTMLElement | null>(null);
   const workshopMedia = useWorkshopMediaDisplay(visibleWorkshopRefs(orders, selectedOrder), 'admin');
 
@@ -202,7 +207,11 @@ export default function AdminOrders() {
   }, [orders, selectedOrder?.id]);
 
   const closeOverlays = useCallback(() => {
-    if (isSubmitting) return;
+    if (isSubmitting || refundBusy) return;
+    if (refundDialogOpen) {
+      setRefundDialogOpen(false);
+      return;
+    }
     if (confirmTrackingSave) {
       setConfirmTrackingSave(false);
       return;
@@ -214,7 +223,7 @@ export default function AdminOrders() {
     }
     setSelectedOrder(null);
     lastOpenerRef.current?.focus();
-  }, [confirmTrackingSave, isSubmitting, pendingStatus]);
+  }, [confirmTrackingSave, isSubmitting, pendingStatus, refundBusy, refundDialogOpen]);
 
   useEffect(() => {
     if (!selectedOrder && !pendingStatus && !confirmTrackingSave) return;
@@ -226,6 +235,7 @@ export default function AdminOrders() {
   }, [closeOverlays, confirmTrackingSave, pendingStatus, selectedOrder]);
 
   const openDetail = (order: AdminOrder, opener?: HTMLElement | null) => {
+    if (refundBusy || refundDialogOpen) return;
     lastOpenerRef.current = opener ?? null;
     setSelectedOrder(order);
     setTrackingDraft({ courier: order.courier, tracking_number: order.tracking_number });
@@ -393,6 +403,7 @@ export default function AdminOrders() {
                 {ADMIN_ORDER_STATUSES.map((status) => (
                   <option key={status} value={status}>{ADMIN_ORDER_STATUS_LABEL[status]}</option>
                 ))}
+                <option value={CANCELLED_ORDER_STATUS}>결제 취소</option>
               </select>
             </div>
             <div>
@@ -643,7 +654,12 @@ export default function AdminOrders() {
 
               <section>
                 <h4 className="text-sm font-medium text-white mb-3">상태</h4>
-                {!isCanonicalOrderStatus(selectedOrder.status) ? (
+                {selectedOrder.status === CANCELLED_ORDER_STATUS ? (
+                  <div>
+                    <p className="text-sm text-zinc-200">결제 취소</p>
+                    <p className="text-xs text-zinc-500 mt-2">이 주문은 결제 취소 상태입니다. 제작이나 배송 단계로 옮길 수 없습니다.</p>
+                  </div>
+                ) : !isCanonicalOrderStatus(selectedOrder.status) ? (
                   <div>
                     <p className="text-sm text-zinc-200">알 수 없는 상태</p>
                     <p className="text-xs text-zinc-500 mt-1">저장값: {selectedOrder.status || '없음'}</p>
@@ -666,7 +682,7 @@ export default function AdminOrders() {
                     {selectedOrder.status === 'PAID' && (
                       <button
                         type="button"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || refundBusy}
                         onClick={requestNextStatus}
                         className="min-h-11 px-4 rounded-lg bg-indigo-600 text-white text-sm font-medium disabled:opacity-50"
                       >
@@ -676,6 +692,22 @@ export default function AdminOrders() {
                   </div>
                 )}
               </section>
+
+              <AdminOrderRefund
+                order={{
+                  id: selectedOrder.id,
+                  orderNumber: selectedOrder.order_number,
+                  status: selectedOrder.status,
+                  totalPrice: selectedOrder.total_price,
+                  method: selectedOrder.method,
+                }}
+                locked={refundLocks.has(selectedOrder.id)}
+                onLock={(orderId) => setRefundLocks((current) => new Set(current).add(orderId))}
+                onBusyChange={setRefundBusy}
+                open={refundDialogOpen}
+                onOpenChange={setRefundDialogOpen}
+                onFinished={() => { void loadOrders(); }}
+              />
 
               {selectedOrder.status === 'PRODUCTION' && (
                 <section>
@@ -704,7 +736,7 @@ export default function AdminOrders() {
                     </div>
                     <button
                       type="button"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || refundBusy}
                       onClick={requestNextStatus}
                       className="min-h-11 px-4 rounded-lg bg-indigo-600 text-white text-sm font-medium disabled:opacity-50"
                     >
@@ -745,7 +777,7 @@ export default function AdminOrders() {
                     </div>
                     <button
                       type="button"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || refundBusy}
                       onClick={() => {
                         setMutationError(null);
                         setConfirmTrackingSave(true);
@@ -758,7 +790,7 @@ export default function AdminOrders() {
                     {selectedOrder.status === 'SHIPPING' && (
                       <button
                         type="button"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || refundBusy}
                         onClick={requestNextStatus}
                         className="min-h-11 px-4 rounded-lg bg-indigo-600 text-white text-sm font-medium disabled:opacity-50"
                       >
@@ -770,7 +802,7 @@ export default function AdminOrders() {
                         <p className="text-sm text-red-400">{mutationError ?? REVIEW_ELIGIBILITY_SYNC_ERROR}</p>
                         <button
                           type="button"
-                          disabled={isSubmitting}
+                          disabled={isSubmitting || refundBusy}
                           onClick={() => { void retryReviewEligibility(); }}
                           className="mt-3 min-h-11 px-4 rounded-lg bg-indigo-600 text-white text-sm font-medium disabled:opacity-50"
                         >
@@ -828,7 +860,7 @@ export default function AdminOrders() {
               <button
                 type="button"
                 autoFocus
-                disabled={isSubmitting}
+                disabled={isSubmitting || refundBusy}
                 onClick={() => { setPendingStatus(null); setMutationError(null); }}
                 className="min-h-11 px-4 rounded-lg text-zinc-400"
               >
@@ -836,7 +868,7 @@ export default function AdminOrders() {
               </button>
               <button
                 type="button"
-                disabled={isSubmitting}
+                disabled={isSubmitting || refundBusy}
                 onClick={confirmStatusChange}
                 className="min-h-11 px-4 rounded-lg bg-indigo-600 text-white disabled:opacity-50"
               >
@@ -865,7 +897,7 @@ export default function AdminOrders() {
               <button
                 type="button"
                 autoFocus
-                disabled={isSubmitting}
+                disabled={isSubmitting || refundBusy}
                 onClick={() => { setConfirmTrackingSave(false); setMutationError(null); }}
                 className="min-h-11 px-4 rounded-lg text-zinc-400"
               >
@@ -873,7 +905,7 @@ export default function AdminOrders() {
               </button>
               <button
                 type="button"
-                disabled={isSubmitting}
+                disabled={isSubmitting || refundBusy}
                 onClick={() => { void persistTracking(selectedOrder); }}
                 className="min-h-11 px-4 rounded-lg bg-indigo-600 text-white disabled:opacity-50"
               >

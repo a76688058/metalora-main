@@ -35,6 +35,7 @@ function orderStatusLabel(status: unknown): string {
   if (value === 'PRODUCTION') return '제작/검수 중';
   if (value === 'SHIPPING') return '배송 중';
   if (value === 'COMPLETED') return '배송완료';
+  if (value === 'CANCELLED') return '결제 취소';
   return value;
 }
 

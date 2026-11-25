@@ -46,7 +46,10 @@ export function isAllowedOrderTransition(from: string, to: string): boolean {
   return next !== null && next === to;
 }
 
+export const CANCELLED_ORDER_STATUS = 'CANCELLED';
+
 export function orderStatusLabel(status: string): string {
+  if (status === CANCELLED_ORDER_STATUS) return '결제 취소';
   if (isCanonicalOrderStatus(status)) return ADMIN_ORDER_STATUS_LABEL[status];
   return '알 수 없는 상태';
 }
@@ -57,7 +60,7 @@ export const ADMIN_ORDER_SELECT =
   'id, order_number, user_id, created_at, status, total_price, shipping_name, shipping_phone, address, address_detail, zip_code, courier, tracking_number, ordered_items, method';
 
 export type DateFilter = 'all' | 'today' | '7d' | '30d';
-export type StatusFilter = 'all' | AdminOrderStatus;
+export type StatusFilter = 'all' | AdminOrderStatus | typeof CANCELLED_ORDER_STATUS;
 
 export type AdminOrder = {
   id: string;

@@ -1,9 +1,11 @@
 import type { Express, Request, Response } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isUuid, verifyAdminCaller } from './accountWithdrawal';
+import { normalizeCancellationRows } from './cancellationInspection';
 import { lookupTossPayment, postTossFullCancel } from './tossPaymentCancel';
 
 export const FULL_ORDER_CANCEL_PATH = '/api/admin/orders/:orderId/cancel';
+export const CANCELLATION_READ_PATH = '/api/admin/orders/:orderId/cancellation';
 
 export type CancellationStatus =
   | 'pending'
@@ -265,6 +267,8 @@ export async function executeFullOrderCancellation(
   if (row.providerAttemptedAt || row.status === 'provider_uncertain' || row.status === 'local_uncertain') {
     const reconciled = await reconcileFromLookup();
     if (reconciled) return reconciled;
+    await port.mark(row.id, row.status === 'local_uncertain' ? 'local_uncertain' : 'provider_uncertain', null);
+    return { ok: false, error: 'reconciliation_required' };
   } else {
     const claimed = await port.claim(row.id);
     if (!claimed) return { ok: false, error: 'in_progress' };
@@ -373,5 +377,27 @@ export function registerFullOrderCancellationRoute(
     } catch {
       return res.status(503).json({ ok: false, error: 'reconciliation_required' });
     }
+  });
+
+  app.get(CANCELLATION_READ_PATH, async (req: Request, res: Response) => {
+    if (!deps.supabaseAdmin || !deps.supabasePublic) {
+      return res.status(503).json({ ok: false, error: 'unavailable' });
+    }
+    const actor = await verifyAdminCaller(
+      deps.supabaseAdmin,
+      deps.supabasePublic,
+      req.headers.authorization,
+    );
+    if (actor.ok === false) {
+      return res.status(actor.status).json({ ok: false, error: actor.reason_class });
+    }
+    const orderId = typeof req.params.orderId === 'string' ? req.params.orderId : '';
+    if (!isUuid(orderId)) return res.status(400).json({ ok: false, error: 'invalid_order' });
+    const { data, error } = await deps.supabaseAdmin.rpc('admin_read_order_cancellations', {
+      p_order_id: orderId,
+    });
+    if (error) return res.status(503).json({ ok: false, error: 'unavailable' });
+    const records = normalizeCancellationRows(data).filter((record) => record.orderId === orderId);
+    return res.status(200).json({ ok: true, records });
   });
 }

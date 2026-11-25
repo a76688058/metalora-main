@@ -196,6 +196,19 @@ async function main() {
   });
   assert('later lookup finalizes a timed-out cancel without a second post', recovered.ok === true && timeoutProvider.counts.cancel === 1 && timeoutPort.calls.finalize === 1 && timeoutPort.state().commerce === 'cancelled');
 
+  const replayPort = memoryPort();
+  const replayProvider = provider({
+    cancel: [{ ok: false, kind: 'timeout' }],
+    lookup: [{ ok: false, kind: 'timeout' }, { ok: true, payment: payment('DONE') }],
+  });
+  const replayFirst = await executeFullOrderCancellation(replayPort.port, replayProvider, {
+    orderId, actorUserId: actorId, cancelReason: '관리자 전액 취소',
+  });
+  const replaySecond = await executeFullOrderCancellation(replayPort.port, replayProvider, {
+    orderId, actorUserId: actorId, cancelReason: '관리자 전액 취소',
+  });
+  assert('a paid replay after timeout does not post a second cancel', replayFirst.ok === false && replaySecond.ok === false && replaySecond.error === 'reconciliation_required' && replayProvider.counts.cancel === 1 && replayPort.state().orderStatus === 'PAID');
+
   const partialPort = memoryPort();
   const partialProvider = provider({
     cancel: [{ ok: true, payment: payment('PARTIAL_CANCELED', { balanceAmount: 40, cancels: [{ cancelStatus: 'DONE', cancelAmount: 60, transactionKey: 'tx_part', refundableAmount: 40 }] }) }],
@@ -294,6 +307,105 @@ async function main() {
   };
   assert('missing caller is unauthorized', (await post(undefined, false)) === 401 && calls.length === 0);
   assert('non-admin is forbidden before cancellation', (await post('Bearer user', false)) === 403 && !calls.includes('orders'));
+
+  let readRpc = 0;
+  let readCancel = 0;
+  const readProvider: CancellationProvider = {
+    async cancel() {
+      readCancel += 1;
+      throw new Error('read must not cancel');
+    },
+    async lookup() {
+      readCancel += 1;
+      throw new Error('read must not lookup');
+    },
+  };
+  const readApp = express();
+  const readClient = (admin: boolean, validToken: boolean) => ({
+    auth: {
+      getUser: async () => validToken
+        ? { data: { user: { id: actorId } }, error: null }
+        : { data: { user: null }, error: { message: 'expired' } },
+    },
+    from() {
+      const self = {
+        select() { return self; },
+        eq() { return self; },
+        maybeSingle: async () => ({
+          data: { id: actorId, is_admin: admin, withdrawn_at: null },
+          error: null,
+        }),
+      };
+      return self;
+    },
+    async rpc(name: string, args: { p_order_id: string }) {
+      readRpc += 1;
+      if (name !== 'admin_read_order_cancellations') throw new Error('unexpected rpc');
+      return {
+        data: [
+          {
+            cancellation_id: '00000000-0000-4000-8000-0000000000aa',
+            order_id: args.p_order_id,
+            status: 'confirmed',
+            paid_amount: '100',
+            cancel_amount: 100,
+            cancel_reason: '목업 사유',
+            created_at: '2026-11-24T02:00:00.000Z',
+            provider_attempted_at: '2026-11-24T02:01:00.000Z',
+            updated_at: '2026-11-24T02:02:00.000Z',
+            ledger_recorded: true,
+            payment_key: 'pay_should_not_leak',
+            transaction_key: 'tx_should_not_leak',
+          },
+          {
+            cancellation_id: '00000000-0000-4000-8000-0000000000bb',
+            order_id: '00000000-0000-4000-8000-000000000099',
+            status: 'confirmed',
+            paid_amount: 100,
+            cancel_amount: 100,
+            cancel_reason: '다른 주문',
+            created_at: '2026-11-24T02:00:00.000Z',
+            provider_attempted_at: null,
+            updated_at: null,
+            ledger_recorded: true,
+          },
+        ],
+        error: null,
+      };
+    },
+  });
+  const read = async (authorization: string | undefined, admin: boolean, validToken: boolean, target = orderId) => {
+    readRpc = 0;
+    readApp.locals.client = readClient(admin, validToken);
+    const server = await new Promise<import('node:http').Server>((resolve) => {
+      const listening = readApp.listen(0, '127.0.0.1', () => resolve(listening));
+    });
+    const address = server.address();
+    const port = address && typeof address === 'object' ? address.port : 0;
+    const response = await fetch(`http://127.0.0.1:${port}/api/admin/orders/${target}/cancellation`, {
+      headers: authorization ? { Authorization: authorization } : {},
+    });
+    const body = await response.json() as { records?: Array<Record<string, unknown>> };
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    return { status: response.status, body };
+  };
+  registerFullOrderCancellationRoute(readApp, {
+    supabaseAdmin: { rpc: (...args: [string, { p_order_id: string }]) => readApp.locals.client.rpc(...args), from: (...args: []) => readApp.locals.client.from(...args) } as never,
+    supabasePublic: { auth: { getUser: (token: string) => readApp.locals.client.auth.getUser(token) } } as never,
+    provider: readProvider,
+  });
+  const missingRead = await read(undefined, false, false);
+  assert('cancellation read without a caller is unauthorized', missingRead.status === 401 && readRpc === 0 && readCancel === 0);
+  const expiredRead = await read('Bearer expired', true, false);
+  assert('expired cancellation read is unauthorized', expiredRead.status === 401 && readRpc === 0);
+  const customerRead = await read('Bearer customer', false, true);
+  assert('customer cancellation read is forbidden', customerRead.status === 403 && readRpc === 0);
+  const invalidRead = await read('Bearer admin', true, true, 'not-a-uuid');
+  assert('invalid cancellation order id is rejected', invalidRead.status === 400 && readRpc === 0);
+  const adminRead = await read('Bearer admin', true, true);
+  const serialized = JSON.stringify(adminRead.body);
+  assert('admin cancellation read returns only the requested order', adminRead.status === 200 && adminRead.body.records?.length === 1 && adminRead.body.records[0]?.orderId === orderId);
+  assert('admin cancellation read hides payment identifiers', !serialized.includes('payment_key') && !serialized.includes('pay_should_not_leak') && !serialized.includes('transaction_key') && !serialized.includes('tx_should_not_leak') && readCancel === 0);
 
   if (failures.length) {
     console.error(failures.join('\n'));
