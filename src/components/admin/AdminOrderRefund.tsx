@@ -8,6 +8,9 @@ import {
   createRefundFlight,
   loadAdminCancellationRecords,
   normalizeCancelReason,
+  REFUND_DUPLICATE_BLOCKED_MESSAGE,
+  REFUND_INPUT_BLOCKED_MESSAGE,
+  REFUND_REQUEST_SENT_MESSAGE,
   refundBlockMessage,
   refundEligibility,
   submitAdminFullRefund,
@@ -235,12 +238,24 @@ export function AdminOrderRefund({
   const confirm = async () => {
     const current = draft;
     const cancelReason = normalizeCancelReason(reason);
-    if (!current || current.id !== order.id || !cancelReason) return;
-    if (!flight.current.tryBegin(current.id)) return;
+    if (!current || current.id !== order.id || !cancelReason) {
+      setNotice(REFUND_INPUT_BLOCKED_MESSAGE);
+      return;
+    }
+    if (!flight.current.tryBegin(current.id)) {
+      setNotice(REFUND_DUPLICATE_BLOCKED_MESSAGE);
+      return;
+    }
     setSending(true);
     onBusyChange(true);
     try {
-      const result = await submit({ orderId: current.id, cancelReason });
+      const result = await submit({
+        orderId: current.id,
+        cancelReason,
+        onInitiate: () => {
+          if (draft?.id === current.id) setNotice(REFUND_REQUEST_SENT_MESSAGE);
+        },
+      });
       if (draft?.id === current.id) applyResult(result, current.totalPrice);
     } finally {
       flight.current.end();

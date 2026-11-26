@@ -65,6 +65,15 @@ export function normalizeCancelReason(value: string): string | null {
   return reason;
 }
 
+export const REFUND_INPUT_BLOCKED_MESSAGE = '취소 요청을 시작하지 않았습니다. 사유와 주문을 다시 확인해 주세요.';
+export const REFUND_DUPLICATE_BLOCKED_MESSAGE = '이미 진행 중인 취소 확인이 있어 다시 보내지 않았습니다.';
+export const REFUND_SESSION_LOOKUP_FAILED_MESSAGE = '로그인 세션을 확인하지 못했습니다. 취소 요청은 보내지 않았습니다.';
+export const REFUND_TOKEN_UNAVAILABLE_MESSAGE = '관리자 인증 정보가 없습니다. 취소 요청은 보내지 않았습니다.';
+export const REFUND_REQUEST_SENT_MESSAGE = '취소 요청을 보냈습니다. 응답을 기다리는 중입니다.';
+export const REFUND_HTTP_UNAUTHORIZED_MESSAGE = '서버가 관리자 로그인을 거절했습니다. 취소 요청은 전달되었습니다.';
+
+const SESSION_LOOKUP_TIMEOUT_MS = 10_000;
+
 export function createRefundFlight() {
   let activeOrderId: string | null = null;
   return {
@@ -95,7 +104,7 @@ export function interpretCancelResponse(input: {
     return { kind: 'confirmed', alreadyComplete: body.alreadyComplete };
   }
   if (input.status === 401 || input.status === 403) {
-    return { kind: 'unauthorized', message: '관리자 로그인 상태를 확인한 뒤 다시 열 수 있습니다. 취소 요청은 보내지 않았거나 거절되었습니다.' };
+    return { kind: 'unauthorized', message: REFUND_HTTP_UNAUTHORIZED_MESSAGE };
   }
   const error = typeof body?.error === 'string' ? body.error : '';
   if (input.status === 400 && error === 'invalid_reason') {
@@ -133,15 +142,21 @@ export async function postFullRefund(input: {
   token: string;
   fetchImpl: typeof fetch;
   timeoutMs?: number;
+  onInitiate?: () => void;
 }): Promise<RefundAttempt> {
   const reason = normalizeCancelReason(input.cancelReason);
   if (!reason) return { kind: 'rejected', retryable: true, message: '취소 사유는 1자 이상 200자 이하로 입력해 주세요.' };
   if (!input.token.trim()) {
-    return { kind: 'unauthorized', message: '관리자 로그인 상태를 확인한 뒤 다시 열 수 있습니다. 취소 요청은 보내지 않았거나 거절되었습니다.' };
+    return { kind: 'unauthorized', message: REFUND_TOKEN_UNAVAILABLE_MESSAGE };
   }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), input.timeoutMs ?? FULL_REFUND_TIMEOUT_MS);
   try {
+    try {
+      input.onInitiate?.();
+    } catch {
+      // The diagnostic notice must not change the refund request.
+    }
     const response = await input.fetchImpl(`/api/admin/orders/${encodeURIComponent(input.orderId)}/cancel`, {
       method: 'POST',
       signal: controller.signal,
@@ -191,15 +206,43 @@ export async function submitAdminFullRefund(input: {
   cancelReason: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  sessionTimeoutMs?: number;
+  loadAccessToken?: () => Promise<string>;
+  onInitiate?: () => void;
 }): Promise<RefundAttempt> {
+  try {
+    const token = (await waitForAccessToken(input)).trim();
+    return await postFullRefund({
+      orderId: input.orderId,
+      cancelReason: input.cancelReason,
+      token,
+      fetchImpl: input.fetchImpl ?? fetch,
+      timeoutMs: input.timeoutMs,
+      onInitiate: input.onInitiate,
+    });
+  } catch {
+    return { kind: 'unauthorized', message: REFUND_SESSION_LOOKUP_FAILED_MESSAGE };
+  }
+}
+
+function waitForAccessToken(input: {
+  sessionTimeoutMs?: number;
+  loadAccessToken?: () => Promise<string>;
+}): Promise<string> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutMs = input.sessionTimeoutMs ?? SESSION_LOOKUP_TIMEOUT_MS;
+  return new Promise<string>((resolve, reject) => {
+    timer = setTimeout(() => reject(new Error('session_timeout')), timeoutMs);
+    const read = input.loadAccessToken ? input.loadAccessToken() : readStoredAccessToken();
+    read.then(resolve, reject);
+  }).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+async function readStoredAccessToken(): Promise<string> {
   const { supabase } = await import('../../lib/supabase');
   const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token?.trim() ?? '';
-  return postFullRefund({
-    orderId: input.orderId,
-    cancelReason: input.cancelReason,
-    token,
-    fetchImpl: input.fetchImpl ?? fetch,
-    timeoutMs: input.timeoutMs,
-  });
+  const token = data?.session?.access_token;
+  return typeof token === 'string' ? token.trim() : '';
 }
