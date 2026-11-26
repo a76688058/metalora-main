@@ -22,7 +22,7 @@ import {
   reportPaymentFail,
   sanitizeTossFailureCode,
 } from '../lib/paymentFailureAnalytics';
-import { isUsableMemberProfile, safeInternalPath } from '../lib/authIntegrity';
+import { isExistingPasswordEnrollmentCandidate, isUsableMemberProfile, safeInternalPath } from '../lib/authIntegrity';
 import { cartMayOpenCanonicalCheckout, isExplicitPaymentTestIsolation } from '../lib/paymentEnvGuard';
 import { PUBLIC_PAYMENT_FROZEN_UNTIL_NEW7 } from '../lib/publicPaymentFreeze';
 import { hasCompleteShipping, type CheckoutShippingFields } from '../lib/checkoutShipping';
@@ -633,6 +633,10 @@ export default function Cart() {
   const requireCheckoutAuth = (): boolean => {
     if (checkoutAuthPending) return false;
     if (canCheckout) return true;
+    if (user && isExistingPasswordEnrollmentCandidate(user, checkoutProfile)) {
+      navigate('/member-enroll', { replace: true });
+      return false;
+    }
     try {
       sessionStorage.setItem(CART_AUTH_RETURN_KEY, '1');
     } catch {

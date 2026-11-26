@@ -11,7 +11,7 @@ export const AUTH_SYNC_CHANNEL = 'metalora-auth-sync';
 export const AUTH_PRESERVE_STORAGE_KEYS = ['theme', 'language', 'cookieConsent'] as const;
 
 const PROFILE_COLUMNS =
-  'id, user_custom_id, full_name, phone_number, verified_phone_fingerprint, phone_verified_at, password_login_enabled, social_login_enabled, zip_code, address, address_detail, total_spent, is_admin, agreed_to_terms_at, agreed_to_privacy_at, agreed_to_cookie_at, updated_at';
+  'id, user_custom_id, full_name, phone_number, verified_phone_fingerprint, phone_verified_at, password_login_enabled, social_login_enabled, zip_code, address, address_detail, total_spent, is_admin, withdrawn_at, agreed_to_terms_at, agreed_to_privacy_at, agreed_to_cookie_at, updated_at';
 
 /** Minimal columns for server usable-member checks. Does not include verified_phone_e164. */
 export const USABLE_MEMBER_PROFILE_COLUMNS =
@@ -182,6 +182,37 @@ export function hasC1SocialIdentity(user: {
     }
   }
   return false;
+}
+
+/**
+ * Existing password account that still needs phone enrollment.
+ * Not an admin, not withdrawn, not a trusted social identity, and not usable yet.
+ * A missing or null password flag stays eligible; explicit false does not.
+ */
+export function isExistingPasswordEnrollmentCandidate(
+  user: {
+    id?: string | null;
+    identities?: Array<{ provider?: string | null }> | null;
+    app_metadata?: { provider?: unknown; providers?: unknown } | null;
+  } | null | undefined,
+  profile: {
+    id?: string | null;
+    user_custom_id?: string | null;
+    verified_phone_fingerprint?: string | null;
+    phone_verified_at?: string | null;
+    phone_number?: string | null;
+    withdrawn_at?: string | null;
+    is_admin?: boolean | null;
+    password_login_enabled?: boolean | null;
+  } | null | undefined,
+): boolean {
+  if (!user?.id || !profile?.id || profile.id !== user.id) return false;
+  if (profile.is_admin === true) return false;
+  if (typeof profile.withdrawn_at === 'string' && profile.withdrawn_at.trim()) return false;
+  if (profile.password_login_enabled === false) return false;
+  if (hasC1SocialIdentity(user)) return false;
+  if (isUsableMemberProfile(profile)) return false;
+  return true;
 }
 
 export function isPendingC1SocialCustomer(

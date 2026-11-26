@@ -53,6 +53,7 @@ import {
   httpStatusForWithdrawal,
   isUuid,
   parseWithdrawalSource,
+  registerCustomerWithdrawalRoutes,
   runAccountWithdrawal,
   verifyAdminCaller,
   isAdminProfile,
@@ -2523,6 +2524,11 @@ ${staticUrls}${productUrls}
     smsAdapter: otpSms.ok ? otpSms.adapter : null,
   });
   registerPasswordAuthRoutes(app, {
+    supabaseAdmin,
+    supabasePublic,
+    getEnv: () => process.env,
+  });
+  registerCustomerWithdrawalRoutes(app, {
     supabaseAdmin,
     supabasePublic,
     getEnv: () => process.env,

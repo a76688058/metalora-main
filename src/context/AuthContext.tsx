@@ -9,6 +9,7 @@ import {
   broadcastAuthLogout,
   clearPersistedAuthToken,
   isDefinitiveAuthRefreshFailure,
+  isExistingPasswordEnrollmentCandidate,
   isPendingC1SocialCustomer,
   isTransientAuthTransportFailure,
 } from '../lib/authIntegrity';
@@ -550,7 +551,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (isPendingC1SocialCustomer(user, profile)) {
+    if (isPendingC1SocialCustomer(user, profile) || isExistingPasswordEnrollmentCandidate(user, profile)) {
       customContinuationLock.current = true;
       setPendingCustomAccess(false);
       setWorkshopOrigin(null);

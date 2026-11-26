@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,7 +19,7 @@ import {
   MEMBER_USERNAME_MIN_LEN,
   MEMBER_USERNAME_MAX_LEN,
 } from '../lib/memberUsername';
-import { isPendingC1SocialCustomer, isUsableMemberProfile, PROFILE_COLUMNS } from '../lib/authIntegrity';
+import { isExistingPasswordEnrollmentCandidate, isPendingC1SocialCustomer, isUsableMemberProfile, PROFILE_COLUMNS } from '../lib/authIntegrity';
 import { memberPasswordError } from '../lib/passwordPolicy';
 import { normalizeKrMobilePhone } from '../lib/phoneNormalize';
 import PasswordVisibilityToggle from './auth/PasswordVisibilityToggle';
@@ -295,6 +296,7 @@ function dialogLabel(view: AuthView): string {
 }
 
 export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '/', layered = false }: LoginModalProps) {
+  const navigate = useNavigate();
   const { user, profile, session, refreshSession, refreshProfile, signOut, isProfileResolved } = useAuth();
   const { showToast } = useToast();
   const { theme } = useTheme();
@@ -773,24 +775,34 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
     void abandonOrClose();
   };
 
-  const finishAuthenticated = async (userId: string) => {
+  const finishAuthenticated = async (authUser: {
+    id: string;
+    identities?: Array<{ provider?: string | null }> | null;
+    app_metadata?: { provider?: unknown; providers?: unknown } | null;
+  }) => {
     releaseAuthFocus();
     await refreshSession();
     const { data: profileRow, error: memberProfileError } = await supabase
       .from('profiles')
       .select(PROFILE_COLUMNS)
-      .eq('id', userId)
+      .eq('id', authUser.id)
       .maybeSingle();
 
-    if (memberProfileError || !isUsableMemberProfile(profileRow)) {
-      await signOut({ redirect: false, toast: false });
-      throw new Error('계정 정보를 불러올 수 없습니다. 관리자에게 문의해주세요.');
+    if (!memberProfileError && isUsableMemberProfile(profileRow)) {
+      releaseAuthFocus();
+      resetAuthSurface();
+      if (onSuccess) onSuccess();
+      else onClose();
+      return;
     }
 
-    releaseAuthFocus();
-    resetAuthSurface();
-    if (onSuccess) onSuccess();
-    else onClose();
+    if (!memberProfileError && isExistingPasswordEnrollmentCandidate(authUser, profileRow)) {
+      navigate('/member-enroll', { replace: true });
+      return;
+    }
+
+    await signOut({ redirect: false, toast: false });
+    throw new Error('계정 정보를 불러올 수 없습니다. 관리자에게 문의해주세요.');
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -815,7 +827,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
         throw new Error('아이디 또는 비밀번호를 확인해주세요.');
       }
 
-      await finishAuthenticated(signInData.session.user.id);
+      await finishAuthenticated(signInData.session.user);
     } catch (error: unknown) {
       setErrorMsg(error instanceof Error ? error.message : '아이디 또는 비밀번호를 확인해주세요.');
     } finally {
@@ -982,7 +994,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess, redirectUrl = '
         throw new Error('가입은 완료되었습니다. 로그인해 주세요.');
       }
       showToast('가입되었습니다.', 'success');
-      await finishAuthenticated(signInData.session.user.id);
+      await finishAuthenticated(signInData.session.user);
     } catch (error: unknown) {
       setErrorMsg(error instanceof Error ? error.message : '요청을 처리할 수 없습니다.');
     } finally {

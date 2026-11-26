@@ -7,8 +7,9 @@ import { Button } from '../components/ui/Button';
 import PolicyModal from '../components/PolicyModal';
 import { policies } from '../constants/policies';
 import { cn } from '../lib/cn';
-import { isPendingC1SocialCustomer, isUsableMemberProfile } from '../lib/authIntegrity';
+import { isExistingPasswordEnrollmentCandidate, isPendingC1SocialCustomer, isUsableMemberProfile } from '../lib/authIntegrity';
 import {
+  isGeneratedSocialUsername,
   memberUsernameSignupError,
   MEMBER_USERNAME_MIN_LEN,
   normalizeMemberUsername,
@@ -75,7 +76,7 @@ function ConsentRow({
 
 export default function MemberEnrollExisting() {
   const navigate = useNavigate();
-  const { user, session, profile, isLoading, isProfileResolved, refreshProfile } = useAuth();
+  const { user, session, profile, isLoading, isProfileResolved, refreshProfile, signOut } = useAuth();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -97,9 +98,16 @@ export default function MemberEnrollExisting() {
   const authReady = !isLoading && isProfileResolved;
   const pendingSocial = authReady && isPendingC1SocialCustomer(user, profile);
   const usable = isUsableMemberProfile(profile);
+  const eligible = authReady && isExistingPasswordEnrollmentCandidate(user, profile);
   const allChecked = agreements.terms && agreements.privacy && agreements.cookie;
   const usernameError = username ? memberUsernameSignupError(username) : null;
   const canEnroll = Boolean(proofToken) && !usernameError && username.length >= MEMBER_USERNAME_MIN_LEN && allChecked && !submitting;
+
+  useEffect(() => {
+    const existing = profile?.user_custom_id?.trim() ?? '';
+    if (!existing || isGeneratedSocialUsername(existing)) return;
+    setUsername((current) => current || existing);
+  }, [profile?.user_custom_id]);
 
   useEffect(() => {
     if (!authReady) return;
@@ -113,8 +121,17 @@ export default function MemberEnrollExisting() {
     }
     if (usable) {
       navigate('/', { replace: true });
+      return;
     }
-  }, [authReady, user, pendingSocial, usable, navigate]);
+    if (!eligible) {
+      if (profile?.is_admin === true) {
+        navigate('/admin', { replace: true });
+        return;
+      }
+      void signOut({ redirect: false, toast: false });
+      navigate('/login', { replace: true });
+    }
+  }, [authReady, user, pendingSocial, usable, eligible, profile?.is_admin, navigate, signOut]);
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -243,7 +260,7 @@ export default function MemberEnrollExisting() {
     isDark ? 'bg-[#07080a] text-zinc-100' : 'bg-[#ebe7ee] text-zinc-900',
   );
 
-  if (!authReady || !user || pendingSocial || usable) {
+  if (!authReady || !user || pendingSocial || usable || !eligible) {
     return (
       <div className={shellClass} aria-busy="true" aria-live="polite">
         <Loader2 className={`animate-spin ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`} size={22} aria-hidden="true" />

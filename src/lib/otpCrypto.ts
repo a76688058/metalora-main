@@ -14,6 +14,7 @@ export const OTP_PURPOSES = [
   "recovery",
   "change_phone",
   "identity_link",
+  "withdrawal",
 ] as const;
 
 export type OtpPurpose = (typeof OTP_PURPOSES)[number];

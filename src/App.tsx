@@ -26,7 +26,7 @@ import { cn } from './lib/cn';
 import CookieBanner from './components/CookieBanner';
 import DocumentHead from './components/DocumentHead';
 import AnalyticsRouteTracker from './components/AnalyticsRouteTracker';
-import { isUsableMemberProfile, safeInternalPath } from './lib/authIntegrity';
+import { isExistingPasswordEnrollmentCandidate, isUsableMemberProfile, safeInternalPath } from './lib/authIntegrity';
 
 const ProductDetail = lazy(() => import('./components/ProductDetail'));
 const Login = lazy(() => import('./pages/Login'));
@@ -132,6 +132,9 @@ function ProtectedRoute({ children, requireAdmin = false }: { children: React.Re
   }
 
   if (!sessionUser || !usable) {
+    if (user && isExistingPasswordEnrollmentCandidate(user, resolved)) {
+      return <Navigate to="/member-enroll" replace />;
+    }
     const next = safeInternalPath(`${location.pathname}${location.search}`);
     const loginTo = next === '/' ? '/login' : `/login?redirect=${encodeURIComponent(next)}`;
     return <Navigate to={loginTo} replace />;

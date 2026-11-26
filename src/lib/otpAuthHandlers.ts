@@ -90,6 +90,26 @@ async function readUsableMember(
   return { userId: user.userId };
 }
 
+async function withdrawalPhoneMatches(
+  deps: OtpAuthDeps,
+  userId: string | null,
+  fingerprint: string,
+): Promise<"ok" | "reject"> {
+  if (!deps.supabaseAdmin || !userId) return "reject";
+  const { data, error } = await deps.supabaseAdmin
+    .from("profiles")
+    .select("id, is_admin, withdrawn_at, verified_phone_fingerprint")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error || !data?.id || data.is_admin === true) return "reject";
+  if (typeof data.withdrawn_at === "string" && data.withdrawn_at.trim()) return "reject";
+  const registered = typeof data.verified_phone_fingerprint === "string"
+    ? data.verified_phone_fingerprint
+    : "";
+  if (!registered || registered !== fingerprint) return "reject";
+  return "ok";
+}
+
 function resolveAdapter(deps: OtpAuthDeps): SmsAdapter | null {
   if (deps.smsAdapter) return deps.smsAdapter;
   const resolved = resolveSmsAdapter(deps.getEnv());
@@ -163,7 +183,7 @@ async function handleOtpSend(req: Request, res: Response, deps: OtpAuthDeps): Pr
       return;
     }
     callerUserId = member.userId;
-  } else if (purpose === "identity_link") {
+  } else if (purpose === "identity_link" || purpose === "withdrawal") {
     const user = await readBearerUser(deps, req.headers.authorization);
     if (!user) {
       res.status(401).json({ ok: false, error: GENERIC_AUTH });
@@ -173,6 +193,13 @@ async function handleOtpSend(req: Request, res: Response, deps: OtpAuthDeps): Pr
   }
 
   const fingerprint = phoneFingerprint(normalized.e164, secrets.identityKey);
+  if (purpose === "withdrawal") {
+    const registered = await withdrawalPhoneMatches(deps, callerUserId, fingerprint);
+    if (registered !== "ok") {
+      res.status(400).json({ ok: false, error: GENERIC_BAD });
+      return;
+    }
+  }
   const ip = requestIp(req, deps);
   const ipHmac = otpRateKeyHmac(secrets.otpPepper, "ip", ip);
   const challengeUserId = purpose === "signup" || purpose === "recovery" ? null : callerUserId;
@@ -309,13 +336,21 @@ async function handleOtpVerify(req: Request, res: Response, deps: OtpAuthDeps): 
       return;
     }
     callerUserId = member.userId;
-  } else if (purpose === "identity_link") {
+  } else if (purpose === "identity_link" || purpose === "withdrawal") {
     const user = await readBearerUser(deps, req.headers.authorization);
     if (!user) {
       res.status(401).json({ ok: false, error: GENERIC_AUTH });
       return;
     }
     callerUserId = user.userId;
+    if (purpose === "withdrawal") {
+      const fingerprint = phoneFingerprint(normalized.e164, secrets.identityKey);
+      const registered = await withdrawalPhoneMatches(deps, callerUserId, fingerprint);
+      if (registered !== "ok") {
+        res.status(400).json({ ok: false, error: GENERIC_BAD });
+        return;
+      }
+    }
   }
 
   const ipLimit = await hitAuthRateLimit(

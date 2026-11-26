@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, LayoutDashboard, MessageSquare, Moon, Package, PenLine, Star, Sun, User, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../context/ToastContext';
 import { cn } from '../lib/cn';
 import { zClass } from '../constants/overlays';
 import { CustomerReviews } from './reviews/CustomerReviews';
@@ -11,6 +12,7 @@ import { POLICY_ROWS } from './auth/AccountDrawer';
 import OrdersModal from './OrdersModal';
 import ProfileEditModal from './ProfileEditModal';
 import InquiryModal from './InquiryModal';
+import AccountWithdrawalPanel from './account/AccountWithdrawalPanel';
 
 interface ProfileOverlayProps {
   isOpen: boolean;
@@ -26,7 +28,7 @@ type ProfileCard = {
 
 const iconProps = { size: 22, strokeWidth: 1.75, 'aria-hidden': true as const };
 
-type ProfilePane = 'hub' | 'reviews' | 'orders' | 'profile' | 'inquiry';
+type ProfilePane = 'hub' | 'reviews' | 'orders' | 'profile' | 'inquiry' | 'withdrawal';
 
 const PANE_TITLE: Record<ProfilePane, string> = {
   hub: '내 정보',
@@ -34,10 +36,12 @@ const PANE_TITLE: Record<ProfilePane, string> = {
   orders: '주문 내역',
   profile: '프로필 수정',
   inquiry: '1:1 문의',
+  withdrawal: '회원탈퇴',
 };
 
 export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps) {
-  const { profile, signOut, openWorkshop } = useAuth();
+  const { profile, session, signOut, openWorkshop } = useAuth();
+  const { showToast } = useToast();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [view, setView] = useState<ProfilePane>('hub');
@@ -238,7 +242,7 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
           key={view}
           className={cn(
             'custom-scrollbar min-h-0 flex-1 overflow-y-auto',
-            (view === 'hub' || view === 'reviews') && 'px-6 py-5',
+            (view === 'hub' || view === 'reviews' || view === 'withdrawal') && 'px-6 py-5',
             !reduceMotion && paneDir === 'forward' && 'ml-profile-forward',
             !reduceMotion && paneDir === 'back' && 'ml-profile-back',
           )}
@@ -252,6 +256,19 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
               isOpen
               onClose={goHub}
               onBindBack={(back) => { inquiryBackRef.current = back; }}
+            />
+          )}
+          {view === 'withdrawal' && (
+            <AccountWithdrawalPanel
+              accessToken={session?.access_token ?? null}
+              isAdmin={profile?.is_admin === true}
+              isDark={isDark}
+              onCancel={goHub}
+              onCompleted={() => {
+                showToast('회원탈퇴가 완료되었습니다.', 'success');
+                onClose();
+                void signOut({ toast: false });
+              }}
             />
           )}
           {view === 'hub' && (
@@ -318,6 +335,14 @@ export default function ProfileOverlay({ isOpen, onClose }: ProfileOverlayProps)
               <ChevronRight size={14} strokeWidth={1.75} aria-hidden="true" />
             </Link>
           ))}
+          <button
+            type="button"
+            onClick={() => openPane('withdrawal', 'withdrawal')}
+            className={cn(rowClass, 'focus-ring mb-2 rounded-sm text-left')}
+          >
+            <span>회원탈퇴</span>
+            <ChevronRight size={14} strokeWidth={1.75} aria-hidden="true" />
+          </button>
           <button
             type="button"
             onClick={() => {

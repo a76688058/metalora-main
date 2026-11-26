@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Express, Request, Response } from 'express';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { otpTicketHmac } from './otpCrypto';
 import {
   collectWorkshopPaths,
   defaultWorkshopStorageAdapter,
@@ -22,7 +24,9 @@ export type WithdrawalPrecheckCode =
   | 'not_found'
   | 'target_is_admin'
   | 'actor_not_admin'
-  | 'actor_mismatch';
+  | 'actor_mismatch'
+  | 'financial_hold'
+  | 'reauth_failed';
 
 export type WithdrawalResult = {
   ok: boolean;
@@ -32,11 +36,14 @@ export type WithdrawalResult = {
   active_order_count?: number;
   workshop_objects_removed?: number;
   reason_class?: WithdrawalPrecheckCode | 'auth_disable_failed' | 'db_failed' | 'config';
+  method?: 'password' | 'otp';
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const ACTIVE_FULFILLMENT = new Set(['PAID', 'PRODUCTION', 'SHIPPING']);
+const TERMINAL_CAPTURES = new Set(['finalized', 'provider_canceled', 'operator_closed']);
+const OPEN_CANCELLATIONS = new Set(['pending', 'provider_uncertain', 'local_uncertain']);
 
 export function isUuid(value: unknown): value is string {
   return typeof value === 'string' && UUID_RE.test(value.trim());
@@ -285,7 +292,40 @@ async function deleteWorkingState(admin: SupabaseClient, userId: string): Promis
   return true;
 }
 
-async function deleteIdentityWorkingRows(admin: SupabaseClient, userId: string): Promise<boolean> {
+export async function accountHasWithdrawalFinancialHold(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<boolean> {
+  const { data: orders, error: orderError } = await admin
+    .from('orders')
+    .select('id, status')
+    .eq('user_id', userId);
+  if (orderError) throw new Error('order_lookup_failed');
+  const rows = orders ?? [];
+  if (rows.some((row) => ACTIVE_FULFILLMENT.has(String(row.status)))) return true;
+
+  const { data: captures, error: captureError } = await admin
+    .from('payment_provider_captures')
+    .select('status')
+    .eq('user_id', userId);
+  if (captureError) throw new Error('capture_lookup_failed');
+  if ((captures ?? []).some((row) => !TERMINAL_CAPTURES.has(String(row.status)))) return true;
+
+  const orderIds = rows.map((row) => String(row.id)).filter(Boolean);
+  if (orderIds.length === 0) return false;
+  const { data: cancellations, error: cancelError } = await admin
+    .from('payment_cancellations')
+    .select('status')
+    .in('order_id', orderIds);
+  if (cancelError) throw new Error('cancellation_lookup_failed');
+  return (cancellations ?? []).some((row) => OPEN_CANCELLATIONS.has(String(row.status)));
+}
+
+async function deleteIdentityWorkingRows(
+  admin: SupabaseClient,
+  userId: string,
+  phoneFingerprint: string | null,
+): Promise<boolean> {
   const { error: otpError } = await admin.from('otp_challenges').delete().eq('user_id', userId);
   if (otpError) {
     logWithdrawal('otp_delete_failed', { reason_class: 'db_failed' });
@@ -311,6 +351,28 @@ async function deleteIdentityWorkingRows(admin: SupabaseClient, userId: string):
   if (resetError) {
     logWithdrawal('reset_delete_failed', { reason_class: 'db_failed' });
     return false;
+  }
+  if (phoneFingerprint) {
+    const { error: activeOtpError } = await admin
+      .from('otp_challenges')
+      .delete()
+      .eq('phone_fingerprint', phoneFingerprint)
+      .eq('status', 'active')
+      .or(`user_id.is.null,user_id.eq.${userId}`);
+    if (activeOtpError) {
+      logWithdrawal('otp_fingerprint_delete_failed', { reason_class: 'db_failed' });
+      return false;
+    }
+    const { error: issuedTicketError } = await admin
+      .from('phone_verification_tickets')
+      .delete()
+      .eq('phone_fingerprint', phoneFingerprint)
+      .eq('status', 'issued')
+      .or(`user_id.is.null,user_id.eq.${userId}`);
+    if (issuedTicketError) {
+      logWithdrawal('ticket_fingerprint_delete_failed', { reason_class: 'db_failed' });
+      return false;
+    }
   }
   return true;
 }
@@ -453,9 +515,16 @@ export async function runAccountWithdrawal(
   if (precheck.code !== 'ok' && precheck.code !== 'in_progress') {
     return { ok: false, reason_class: precheck.code };
   }
+  if (await accountHasWithdrawalFinancialHold(admin, input.targetUserId)) {
+    return { ok: false, reason_class: 'financial_hold', active_order_count: precheck.activeOrderCount };
+  }
 
   const resumed = precheck.code === 'in_progress';
   await markInProgress(admin, input.targetUserId, input.actorUserId, input.source);
+  if (await accountHasWithdrawalFinancialHold(admin, input.targetUserId)) {
+    await markFailure(admin, input.targetUserId, 'financial_hold');
+    return { ok: false, reason_class: 'financial_hold', resumed, active_order_count: precheck.activeOrderCount };
+  }
 
   const authDisabled = await disableAuthAccount(admin, input.targetUserId);
   if (!authDisabled) {
@@ -469,7 +538,15 @@ export async function runAccountWithdrawal(
     return { ok: false, reason_class: 'db_failed', resumed };
   }
 
-  const identityOk = await deleteIdentityWorkingRows(admin, input.targetUserId);
+  const { data: phoneRow } = await admin
+    .from('profiles')
+    .select('verified_phone_fingerprint')
+    .eq('id', input.targetUserId)
+    .maybeSingle();
+  const phoneFingerprint = typeof phoneRow?.verified_phone_fingerprint === 'string'
+    ? phoneRow.verified_phone_fingerprint
+    : null;
+  const identityOk = await deleteIdentityWorkingRows(admin, input.targetUserId, phoneFingerprint);
   if (!identityOk) {
     await markFailure(admin, input.targetUserId, 'db_failed');
     return { ok: false, reason_class: 'db_failed', resumed };
@@ -525,8 +602,224 @@ export function httpStatusForWithdrawal(result: WithdrawalResult): number {
     case 'not_found':
       return 404;
     case 'target_is_admin':
+    case 'financial_hold':
       return 409;
+    case 'reauth_failed':
+      return 403;
     default:
       return 500;
   }
+}
+
+export const CUSTOMER_WITHDRAWAL_PATH = '/api/account/withdrawal';
+
+type CustomerWithdrawalDeps = {
+  supabaseAdmin: SupabaseClient | null;
+  supabasePublic: SupabaseClient | null;
+  getEnv: () => Record<string, string | undefined>;
+  verifyPassword?: (input: { email: string; password: string; userId: string }) => Promise<boolean>;
+  revokeSessions?: (jwt: string) => Promise<void>;
+  workshopAdapter?: WorkshopStorageAdapter;
+};
+
+type CustomerProfile = {
+  id: string;
+  is_admin: boolean;
+  withdrawn_at: string | null;
+  password_login_enabled: boolean;
+  verified_phone_fingerprint: string | null;
+};
+
+function bearerToken(header: string | undefined): string | null {
+  if (!header?.startsWith('Bearer ')) return null;
+  const token = header.slice(7).trim();
+  return token || null;
+}
+
+function withdrawalSecrets(env: Record<string, string | undefined>): { pepper: string; url: string; anonKey: string } | null {
+  const pepper = (env.OTP_PEPPER ?? '').trim();
+  const url = (env.VITE_SUPABASE_URL ?? '').trim();
+  const anonKey = (env.VITE_SUPABASE_ANON_KEY ?? '').trim();
+  if (pepper.length < 32 || !url || !anonKey) return null;
+  return { pepper, url, anonKey };
+}
+
+async function readCustomer(
+  deps: CustomerWithdrawalDeps,
+  header: string | undefined,
+): Promise<{ token: string; userId: string; email: string; profile: CustomerProfile } | { error: WithdrawalResult }> {
+  const admin = deps.supabaseAdmin;
+  const token = bearerToken(header);
+  if (!admin || !deps.supabasePublic || !token) {
+    return { error: { ok: false, reason_class: 'actor_mismatch' } };
+  }
+  const { data, error } = await deps.supabasePublic.auth.getUser(token);
+  if (error || !data.user?.id || !data.user.email) {
+    return { error: { ok: false, reason_class: 'actor_mismatch' } };
+  }
+  const { data: profile, error: profileError } = await admin
+    .from('profiles')
+    .select('id, is_admin, withdrawn_at, password_login_enabled, verified_phone_fingerprint')
+    .eq('id', data.user.id)
+    .maybeSingle();
+  if (profileError || !profile?.id || profile.id !== data.user.id) {
+    return { error: { ok: false, reason_class: 'not_found' } };
+  }
+  return {
+    token,
+    userId: data.user.id,
+    email: data.user.email,
+    profile: {
+      id: profile.id as string,
+      is_admin: profile.is_admin === true,
+      withdrawn_at: typeof profile.withdrawn_at === 'string' ? profile.withdrawn_at : null,
+      password_login_enabled: profile.password_login_enabled === true,
+      verified_phone_fingerprint: typeof profile.verified_phone_fingerprint === 'string'
+        ? profile.verified_phone_fingerprint
+        : null,
+    },
+  };
+}
+
+async function defaultVerifyPassword(
+  deps: CustomerWithdrawalDeps,
+  input: { email: string; password: string; userId: string },
+): Promise<boolean> {
+  const secrets = withdrawalSecrets(deps.getEnv());
+  const admin = deps.supabaseAdmin;
+  if (!secrets || !admin || !input.password) return false;
+  const probe = createClient(secrets.url, secrets.anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const signed = await probe.auth.signInWithPassword({
+    email: input.email,
+    password: input.password,
+  });
+  const fresh = signed.data.session?.access_token;
+  if (fresh) {
+    await admin.auth.admin.signOut(fresh, 'local');
+  }
+  return !signed.error && signed.data.user?.id === input.userId;
+}
+
+async function consumeWithdrawalProof(
+  admin: SupabaseClient,
+  pepper: string,
+  userId: string,
+  fingerprint: string,
+  proofToken: string,
+): Promise<boolean> {
+  if (!/^[0-9a-f]{64}$/.test(proofToken)) return false;
+  const nowIso = new Date().toISOString();
+  const { data, error } = await admin
+    .from('phone_verification_tickets')
+    .update({ status: 'consumed', claimed_at: nowIso })
+    .eq('ticket_hmac', otpTicketHmac(pepper, proofToken))
+    .eq('user_id', userId)
+    .eq('purpose', 'withdrawal')
+    .eq('status', 'issued')
+    .eq('phone_fingerprint', fingerprint)
+    .gt('expires_at', nowIso)
+    .select('id');
+  return !error && Array.isArray(data) && data.length === 1;
+}
+
+function sendWithdrawal(res: Response, result: WithdrawalResult): void {
+  res.status(httpStatusForWithdrawal(result)).json({
+    ok: result.ok,
+    status: result.status,
+    already_complete: result.already_complete,
+    eligible: result.ok && result.reason_class !== 'financial_hold',
+    method: result.method,
+    reason_class: result.reason_class,
+  });
+}
+
+export function registerCustomerWithdrawalRoutes(app: Express, deps: CustomerWithdrawalDeps): void {
+  app.get(CUSTOMER_WITHDRAWAL_PATH, async (req: Request, res: Response) => {
+    if (!deps.supabaseAdmin) {
+      sendWithdrawal(res, { ok: false, reason_class: 'config' });
+      return;
+    }
+    const customer = await readCustomer(deps, req.headers.authorization);
+    if ('error' in customer) {
+      sendWithdrawal(res, customer.error);
+      return;
+    }
+    if (customer.profile.is_admin) {
+      sendWithdrawal(res, { ok: false, reason_class: 'target_is_admin' });
+      return;
+    }
+    if (customer.profile.withdrawn_at) {
+      sendWithdrawal(res, { ok: true, status: 'withdrawn', already_complete: true });
+      return;
+    }
+    if (await accountHasWithdrawalFinancialHold(deps.supabaseAdmin, customer.userId)) {
+      sendWithdrawal(res, { ok: false, reason_class: 'financial_hold' });
+      return;
+    }
+    const method = customer.profile.password_login_enabled ? 'password' : 'otp';
+    if (method === 'otp' && !customer.profile.verified_phone_fingerprint) {
+      sendWithdrawal(res, { ok: false, reason_class: 'reauth_failed' });
+      return;
+    }
+    sendWithdrawal(res, { ok: true, method });
+  });
+
+  app.post(CUSTOMER_WITHDRAWAL_PATH, async (req: Request, res: Response) => {
+    const admin = deps.supabaseAdmin;
+    if (!admin) {
+      sendWithdrawal(res, { ok: false, reason_class: 'config' });
+      return;
+    }
+    const customer = await readCustomer(deps, req.headers.authorization);
+    if ('error' in customer) {
+      sendWithdrawal(res, customer.error);
+      return;
+    }
+    if (customer.profile.is_admin) {
+      sendWithdrawal(res, { ok: false, reason_class: 'target_is_admin' });
+      return;
+    }
+    if (customer.profile.withdrawn_at) {
+      sendWithdrawal(res, { ok: true, status: 'withdrawn', already_complete: true });
+      return;
+    }
+    const method = customer.profile.password_login_enabled ? 'password' : 'otp';
+    const body = (req.body ?? {}) as { password?: unknown; proof_token?: unknown };
+    if (method === 'password') {
+      const password = typeof body.password === 'string' ? body.password : '';
+      const verify = deps.verifyPassword ?? ((input) => defaultVerifyPassword(deps, input));
+      const matched = await verify({ email: customer.email, password, userId: customer.userId });
+      if (!matched) {
+        sendWithdrawal(res, { ok: false, reason_class: 'reauth_failed' });
+        return;
+      }
+    } else {
+      const secrets = withdrawalSecrets(deps.getEnv());
+      const proof = typeof body.proof_token === 'string' ? body.proof_token : '';
+      const fingerprint = customer.profile.verified_phone_fingerprint;
+      if (!secrets || !fingerprint || !(await consumeWithdrawalProof(admin, secrets.pepper, customer.userId, fingerprint, proof))) {
+        sendWithdrawal(res, { ok: false, reason_class: 'reauth_failed' });
+        return;
+      }
+    }
+    try {
+      const result = await runAccountWithdrawal(admin, {
+        targetUserId: customer.userId,
+        actorUserId: customer.userId,
+        source: 'self_service',
+        actorIsAdmin: false,
+      }, deps.workshopAdapter);
+      if (result.ok) {
+        const revoke = deps.revokeSessions ?? (async (jwt: string) => {
+          await admin.auth.admin.signOut(jwt, 'global');
+        });
+        await revoke(customer.token);
+      }
+      sendWithdrawal(res, result);
+    } catch {
+      sendWithdrawal(res, { ok: false, reason_class: 'db_failed' });
+    }
+  });
 }
