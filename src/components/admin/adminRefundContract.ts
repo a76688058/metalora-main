@@ -71,6 +71,8 @@ export const REFUND_SESSION_LOOKUP_FAILED_MESSAGE = '로그인 세션을 확인�
 export const REFUND_TOKEN_UNAVAILABLE_MESSAGE = '관리자 인증 정보가 없습니다. 취소 요청은 보내지 않았습니다.';
 export const REFUND_REQUEST_SENT_MESSAGE = '취소 요청을 보냈습니다. 응답을 기다리는 중입니다.';
 export const REFUND_HTTP_UNAUTHORIZED_MESSAGE = '서버가 관리자 로그인을 거절했습니다. 취소 요청은 전달되었습니다.';
+export const REFUND_CLIENT_TIMEOUT_MESSAGE = '취소 요청을 보냈지만 15초 안에 응답이 없어 브라우저가 중단했습니다. 다시 요청하지 않습니다.';
+export const REFUND_CLIENT_TRANSPORT_MESSAGE = '취소 요청을 시작했지만 서버 응답 전에 브라우저 전송이 실패했습니다. 다시 요청하지 않습니다.';
 
 const SESSION_LOOKUP_TIMEOUT_MS = 10_000;
 
@@ -93,11 +95,11 @@ export function interpretCancelResponse(input: {
   status: number | null;
   body: unknown;
 }): RefundAttempt {
-  if (input.aborted || input.status === null) {
-    return {
-      kind: 'uncertain',
-      message: '취소 응답을 확인하지 못했습니다. 다시 요청하지 않습니다. 결제 취소 확인 · 내부 처리 확인 필요.',
-    };
+  if (input.aborted) {
+    return { kind: 'uncertain', message: REFUND_CLIENT_TIMEOUT_MESSAGE };
+  }
+  if (input.status === null) {
+    return { kind: 'uncertain', message: REFUND_CLIENT_TRANSPORT_MESSAGE };
   }
   const body = input.body && typeof input.body === 'object' ? input.body as { ok?: unknown; error?: unknown; alreadyComplete?: unknown } : null;
   if (input.status === 200 && body?.ok === true && typeof body.alreadyComplete === 'boolean') {
