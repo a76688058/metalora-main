@@ -159,7 +159,8 @@ export async function postFullRefund(input: {
     } catch {
       // The diagnostic notice must not change the refund request.
     }
-    const response = await input.fetchImpl(`/api/admin/orders/${encodeURIComponent(input.orderId)}/cancel`, {
+    const url = `/api/admin/orders/${encodeURIComponent(input.orderId)}/cancel`;
+    const init: RequestInit = {
       method: 'POST',
       signal: controller.signal,
       headers: {
@@ -167,7 +168,8 @@ export async function postFullRefund(input: {
         Authorization: `Bearer ${input.token}`,
       },
       body: JSON.stringify({ cancelReason: reason }),
-    });
+    };
+    const response = await (input.fetchImpl ?? globalThis.fetch).call(globalThis, url, init);
     const body = await response.json().catch(() => null);
     return interpretCancelResponse({ aborted: false, status: response.status, body });
   } catch {
